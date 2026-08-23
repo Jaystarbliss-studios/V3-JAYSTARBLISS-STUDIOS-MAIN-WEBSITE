@@ -1,0 +1,218 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user in the system, potentially an administrator, tutor, or student.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "CONTENT_ADMIN", "EDUCATION_ADMIN", "SERVICES_ADMIN", "MARKETING_ADMIN", "SUPPORT_ADMIN", "TUTOR", "STUDENT", "USER"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "createdAt", "updatedAt"]
+    },
+    "Page": {
+      "title": "Page",
+      "description": "A top-level public page in the CMS.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "REVIEW", "PUBLISHED", "ARCHIVED"] },
+        "seoTitle": { "type": "string" },
+        "metaDescription": { "type": "string" },
+        "authorId": { "type": "string" },
+        "sections": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "slug", "status", "createdAt", "updatedAt"]
+    },
+    "Section": {
+      "title": "Section",
+      "description": "A modular UI section within a page.",
+      "type": "object",
+      "properties": {
+        "pageId": { "type": "string" },
+        "type": { "type": "string", "enum": ["HERO", "TEXT_IMAGE", "FEATURE_GRID", "SERVICE_GRID", "COURSE_GRID", "PORTFOLIO_GRID", "TESTIMONIALS", "CTA", "FAQ"] },
+        "order": { "type": "number" },
+        "visibility": { "type": "boolean" },
+        "content": { "type": "object", "description": "JSON payload of section content" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["pageId", "type", "order", "visibility", "content"]
+    },
+    "Program": {
+      "title": "Program",
+      "description": "An educational program or course.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "targetAudience": { "type": "string", "enum": ["B2C", "B2B_SCHOOLS", "CORPORATE"] },
+        "shortDescription": { "type": "string" },
+        "longDescription": { "type": "string" },
+        "featuredImage": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"] },
+        "isFeatured": { "type": "boolean" },
+        "pricing": { "type": "string" },
+        "deliveryFormat": { "type": "string", "enum": ["ONLINE", "PHYSICAL", "HYBRID"] },
+        "curriculum": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "slug", "categoryId", "status", "isFeatured", "targetAudience"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "A digital service offered by Jaystarbliss.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"] },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "slug", "status", "isFeatured", "portfolioType"]
+    },
+    "PortfolioProject": {
+      "title": "Portfolio Project",
+      "description": "A portfolio item showcasing past work.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "client": { "type": "string" },
+        "category": { "type": "string" },
+        "portfolioType": { "type": "string", "enum": ["CLIENT_WORK", "STUDENT_WORK"] },
+        "studentName": { "type": "string" },
+        "programId": { "type": "string" },
+        "description": { "type": "string" },
+        "featuredImage": { "type": "string" },
+        "liveUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED"] },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "slug", "status", "isFeatured", "portfolioType"]
+    },
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "A content article.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"] },
+        "featuredImage": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "slug", "authorId", "status", "content"]
+    },
+    "KidsProject": {
+      "title": "Kids Project",
+      "description": "Showcase of projects and games created by kids and students.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "creator": { "type": "string" },
+        "embedUrl": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED"] },
+        "isFeatured": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "creator", "status"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "A lead, contact request, or project request.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["CONTACT", "PROJECT_REQUEST", "TUTOR_APP", "SCHOOL_PARTNERSHIP"] },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["NEW", "REVIEWING", "RESPONDED", "CLOSED"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["type", "name", "email", "status"]
+    },
+    "SiteSettings": {
+      "title": "Site Settings",
+      "description": "Global application settings.",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "socialLinks": { "type": "object" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and roles."
+    },
+    "pages/{pageId}": {
+      "schema": { "$ref": "#/entities/Page" },
+      "description": "Stores top-level CMS pages."
+    },
+    "sections/{sectionId}": {
+      "schema": { "$ref": "#/entities/Section" },
+      "description": "Stores individual sections for pages."
+    },
+    "programs/{programId}": {
+      "schema": { "$ref": "#/entities/Program" },
+      "description": "Educational programs and courses."
+    },
+    "services/{serviceId}": {
+      "schema": { "$ref": "#/entities/Service" },
+      "description": "Digital services offered."
+    },
+    "portfolio/{projectId}": {
+      "schema": { "$ref": "#/entities/PortfolioProject" },
+      "description": "Past work and portfolio projects."
+    },
+    "kidsProjects/{projectId}": {
+      "schema": { "$ref": "#/entities/KidsProject" },
+      "description": "Kids and student games, apps, and interactive projects."
+    },
+    "blog/{postId}": {
+      "schema": { "$ref": "#/entities/BlogPost" },
+      "description": "Blog posts and articles."
+    },
+    "inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/Inquiry" },
+      "description": "Incoming leads and contact requests."
+    },
+    "settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Global settings singleton (e.g., settings/global)."
+    }
+  }
+}

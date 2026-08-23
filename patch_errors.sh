@@ -1,0 +1,3 @@
+sed -i 's/import React, { Component, ErrorInfo, ReactNode } from '"'"'react'"'"';/import React, { Component } from '"'"'react'"'"';\nimport type { ErrorInfo, ReactNode } from '"'"'react'"'"';/' src/components/ui/ErrorBoundary.tsx
+sed -i "s/process.env.NODE_ENV !== 'production'/import.meta.env.MODE !== 'production'/" src/components/ui/ErrorBoundary.tsx
+sed -i 's/import React, { createContext, useContext, useState, useCallback, ReactNode } from '"'"'react'"'"';/import React, { createContext, useContext, useState, useCallback } from '"'"'react'"'"';\nimport type { ReactNode } from '"'"'react'"'"';/' src/contexts/ToastContext.tsx

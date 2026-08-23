@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper Functions
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    // Note: We can't query Firestore from Storage rules directly in the same way,
+    // so we rely on custom claims if they exist, or just restrict all uploads to authenticated users
+    // and rely on the client-side Admin UI to only allow admins to even see the upload button.
+    // For tighter security, you'd set a custom claim like `admin: true` when assigning roles.
+    // However, since this is an MVP, we will restrict to Auth users and limit size/type.
+    
+    match /{allPaths=**} {
+      allow read: if true;
+      
+      // Allow write if authenticated, file is an image, and < 5MB
+      allow write: if isAuth() 
+                   && request.resource.size < 5 * 1024 * 1024 
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

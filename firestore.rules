@@ -1,0 +1,277 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Core Authentication & Role Checks
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isSuperAdmin() {
+      return isAuth() && (request.auth.token.email == 'johnrufai242@gmail.com' || getUserRole() == 'SUPER_ADMIN' || getUserRole() == 'super_admin' || getUserRole() == 'admin');
+    }
+
+    function isAnyAdmin() {
+      return isAuth() && (
+        request.auth.token.email == 'johnrufai242@gmail.com' ||
+        getUserRole() in ['SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN']
+      );
+    }
+
+    function isStaffOrTutor() {
+      return isAuth() && (
+        isAnyAdmin() ||
+        getUserRole() in ['STAFF', 'staff', 'TUTOR', 'tutor']
+      );
+    }
+
+    function isParent() {
+      return isAuth() && (getUserRole() in ['PARENT', 'parent'] || exists(/databases/$(database)/documents/parents/$(request.auth.uid)));
+    }
+
+    // ==========================================
+    // USERS & PORTAL PROFILES
+    // ==========================================
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && (request.auth.uid == userId || isAnyAdmin());
+      allow update: if isAuth() && (
+        isSuperAdmin() || 
+        request.auth.uid == userId
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    match /admins/{userId} {
+      allow read: if isAnyAdmin();
+      allow write: if isSuperAdmin();
+    }
+
+    match /invites/{email} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+      allow delete: if isAuth() && request.auth.token.email != null && request.auth.token.email.toLowerCase() == email;
+    }
+
+    // ==========================================
+    // STUDENTS & INDIVIDUAL LEARNERS
+    // ==========================================
+    match /individualStudents/{studentId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+    }
+
+    match /students/{studentId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /personalResources/{docId} {
+      allow read: if isStaffOrTutor() || (isAuth() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.userId));
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /personalLinks/{docId} {
+      allow read: if isStaffOrTutor() || (isAuth() && (request.auth.uid == resource.data.studentId || request.auth.uid == resource.data.userId));
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    // ==========================================
+    // GENERAL & SCHOOL RESOURCES / EXAMS / LINKS
+    // ==========================================
+    match /resources/{resourceId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /links/{linkId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /exams/{examId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /schoolResources/{resourceId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /schoolLinks/{linkId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /schoolExams/{examId} {
+      allow read: if true;
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+    }
+
+    match /staffGeneralResources/{resId} {
+      allow read: if isStaffOrTutor() || isAnyAdmin();
+      allow write: if isAnyAdmin();
+    }
+
+    match /staffSchoolAccess/{docId} {
+      allow read: if isStaffOrTutor() || isAnyAdmin();
+      allow write: if isAnyAdmin();
+    }
+
+    match /staffRegistration/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ==========================================
+    // PARENTS & PAYMENTS & ENROLLMENTS
+    // ==========================================
+    match /parents/{parentId} {
+      allow read: if isStaffOrTutor() || (isAuth() && request.auth.uid == parentId) || isAnyAdmin();
+      allow create: if isAuth();
+      allow update: if isStaffOrTutor() || (isAuth() && request.auth.uid == parentId) || isAnyAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuth() && (request.auth.uid == resource.data.parentId || isStaffOrTutor() || isAnyAdmin());
+      allow create: if isAuth();
+      allow update, delete: if isAnyAdmin();
+    }
+
+    match /enrollment_requests/{reqId} {
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && request.auth.uid == resource.data.parentId);
+    }
+
+    match /student_requests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin();
+    }
+
+    match /tutor_applications/{appId} {
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin();
+    }
+
+    match /tutors/{tutorId} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    // ==========================================
+    // NOTIFICATIONS & MESSAGES & LOGS
+    // ==========================================
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create: if isAnyAdmin() || isStaffOrTutor();
+      allow update: if isAnyAdmin() || isAuth();
+      allow delete: if isAnyAdmin();
+    }
+
+    match /activityLogs/{logId} {
+      allow read: if isAnyAdmin();
+      allow write: if isAuth();
+    }
+
+    match /contact_messages/{msgId} {
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin();
+    }
+
+    // ==========================================
+    // PUBLIC CONTENT & CMS
+    // ==========================================
+    match /page_sections/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /pages/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /sections/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    match /programs/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /services/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /portfolio/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /kidsProjects/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /blog/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /newsCorner/{document=**} {
+      allow read: if true;
+      allow update: if isAnyAdmin() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views']));
+      allow create, delete: if isAnyAdmin();
+    }
+
+    match /faqs/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /testimonials/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /schools/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /schoolPrograms/{document=**} {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

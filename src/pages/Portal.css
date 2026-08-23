@@ -1,0 +1,208 @@
+.jdh-portal {
+  --cr: #ff2e00; --cr-g: #ff4d26; --cr-d: #8b1a00; --cr-dk: #3a0900;
+  --gold: #FFD700; --gold-d: #b89d00;
+  --bg: #f5ece8; --surface: #fff8f5; --surf2: #f0e8e4;
+  --border: rgba(255,46,0,0.15); --border2: rgba(255,46,0,0.35);
+  --text: #1a0e0a; --muted: #5a4a42; --dim: #b0a09a; --green: #2ecc71;
+  --mono: 'Space Mono', monospace; --sans: 'Poppins', sans-serif; --r: 18px;
+  
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--bg);
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: background 0.3s;
+  font-family: var(--sans);
+}
+
+.dark .jdh-portal {
+  --bg: #050505; --surface: #0e0e0e; --surf2: #161616;
+  --border: rgba(255,46,0,0.18); --border2: rgba(255,46,0,0.35);
+  --text: #f0ece8; --muted: #8a7f7a; --dim: #3d3530;
+}
+
+.jdh-portal::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(rgba(255,46,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,46,0,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.dark .jdh-portal::after {
+  background-image: linear-gradient(rgba(255,46,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,46,0,0.04) 1px, transparent 1px);
+}
+
+.jdh-portal::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 70% 60% at 20% 30%, rgba(255,46,0,0.12) 0%, transparent 70%),
+              radial-gradient(ellipse 40% 40% at 80% 75%, rgba(255,215,0,0.12) 0%, transparent 60%);
+}
+.dark .jdh-portal::before {
+  background: radial-gradient(ellipse 70% 60% at 20% 30%, rgba(139,26,0,0.45) 0%, transparent 70%),
+              radial-gradient(ellipse 40% 40% at 80% 75%, rgba(255,215,0,0.08) 0%, transparent 60%),
+              radial-gradient(ellipse 50% 50% at 75% 10%, rgba(255,46,0,0.12) 0%, transparent 70%);
+}
+
+.jdh-portal .scanlines {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.18) 50%);
+  background-size: 100% 3px; opacity: 0.07;
+}
+.dark .jdh-portal .scanlines { opacity: 0.25; }
+
+.jdh-portal .card {
+  position: relative; z-index: 2; display: flex; width: 100%; max-width: 900px; min-height: 560px;
+  border-radius: var(--r); overflow: hidden; border: 1px solid var(--border2);
+  box-shadow: 0 0 0 1px rgba(255,46,0,0.08), 0 32px 80px rgba(0,0,0,0.6), 0 0 60px rgba(255,46,0,0.08);
+  animation: cardIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes cardIn { from { opacity: 0; transform: translateY(28px) scale(0.96) } to { opacity: 1; transform: translateY(0) scale(1) } }
+
+.jdh-portal .deco-panel {
+  width: 42%; flex-shrink: 0; background: linear-gradient(160deg, #1a0200 0%, #0a0000 60%, #1a0a00 100%);
+  position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 2rem; border-right: 1px solid var(--border);
+}
+.jdh-portal .deco-panel::before {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background-image: repeating-linear-gradient(135deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 28px);
+}
+
+.jdh-portal .orbital-wrap {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-56%);
+  width: 280px; height: 280px; display: flex; align-items: center; justify-content: center; z-index: 2;
+}
+.jdh-portal .ring { position: absolute; border-radius: 50%; border: 1.5px solid transparent; }
+.jdh-portal .ring-1 { width: 100%; height: 100%; border-color: rgba(255,46,0,0.12); border-top-color: var(--cr); animation: spin1 10s linear infinite; }
+.jdh-portal .ring-2 { width: 76%; height: 76%; border-color: rgba(255,46,0,0.08); border-bottom-color: var(--cr-g); animation: spin2 7s linear infinite; }
+.jdh-portal .ring-4 { width: 76%; height: 76%; border-color: rgba(255,215,0,0.06); border-top-color: rgba(255,215,0,0.55); animation: spin1 9s linear infinite; transform: rotate(90deg); }
+.jdh-portal .ring::after { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; top: -3.5px; left: 50%; transform: translateX(-50%); }
+.jdh-portal .ring-1::after { background: var(--cr); box-shadow: 0 0 8px var(--cr); }
+.jdh-portal .ring-2::after { background: var(--cr-g); box-shadow: 0 0 6px var(--cr-g); top: auto; bottom: -3.5px; }
+.jdh-portal .ring-4::after { background: var(--gold); box-shadow: 0 0 6px var(--gold); top: -3.5px; left: 50%; transform: translateX(-50%); }
+
+@keyframes spin1 { to { transform: rotate(360deg) } }
+@keyframes spin2 { to { transform: rotate(-360deg) } }
+
+.jdh-portal .orbital-core {
+  position: relative; z-index: 3; width: 68px; height: 68px; border-radius: 50%; background: rgba(255,46,0,0.08);
+  border: 1px solid var(--cr); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 20px rgba(255,46,0,0.4), inset 0 0 20px rgba(255,46,0,0.05);
+}
+.jdh-portal .orbital-core svg { color: var(--cr); }
+
+.jdh-portal .deco-brand { position: absolute; top: 2rem; left: 2rem; z-index: 3; display: flex; align-items: center; gap: 0.65rem; }
+.jdh-portal .brand-mark {
+  width: 32px; height: 32px; background: var(--cr); display: grid; place-items: center;
+  clip-path: polygon(0 0,88% 0,100% 12%,100% 100%,12% 100%,0 88%); flex-shrink: 0; overflow: hidden;
+}
+.jdh-portal .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+.jdh-portal .brand-name { font-family: var(--mono); font-size: 0.58rem; font-weight: 700; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.4; }
+
+.jdh-portal .deco-content { position: relative; z-index: 3; }
+.jdh-portal .deco-tagline { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: #fff; line-height: 1.35; margin-bottom: 0.5rem; }
+.jdh-portal .deco-tagline span { color: var(--cr); }
+.jdh-portal .sys-stats { position: relative; z-index: 3; margin-top: 1rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.jdh-portal .sys-stat { font-family: var(--mono); font-size: 0.58rem; color: rgba(255,46,0,0.5); text-transform: uppercase; letter-spacing: 0.04em; }
+.jdh-portal .sys-stat::before { content: '> '; }
+
+.jdh-portal .form-panel { flex: 1; background: var(--surface); display: flex; flex-direction: column; overflow-y: auto; transition: background 0.3s; }
+.jdh-portal .role-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surf2); }
+.jdh-portal .role-tab {
+  flex: 1; padding: 0.85rem 0.5rem 0.75rem; font-family: var(--mono); font-size: 0.55rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--dim); background: none; border: none;
+  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+}
+.jdh-portal .role-tab .tab-ico { display: flex; align-items: center; justify-content: center; opacity: 0.5; }
+.jdh-portal .role-tab:hover { color: var(--muted); background: rgba(255,46,0,0.04); }
+.jdh-portal .role-tab:hover .tab-ico { opacity: 0.8; }
+.jdh-portal .role-tab.active { color: var(--cr); border-bottom-color: var(--cr); }
+.jdh-portal .role-tab.active .tab-ico { opacity: 1; }
+
+.jdh-portal .form-body { flex: 1; padding: 1.8rem 2rem; overflow-y: auto; }
+.jdh-portal .pane { animation: paneIn 0.2s ease both; }
+@keyframes paneIn { from { opacity: 0; transform: translateX(8px) } to { opacity: 1; transform: translateX(0) } }
+
+.jdh-portal .form-title { font-family: var(--mono); font-size: 1.25rem; font-weight: 700; color: var(--text); margin-bottom: 0.3rem; line-height: 1; transition: color 0.3s; }
+.jdh-portal .form-title em { color: var(--cr); font-style: normal; }
+.jdh-portal .form-sub { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.4rem; }
+
+.jdh-portal .msg { padding: 0.55rem 0.85rem; font-size: 0.72rem; margin-bottom: 1rem; border-left: 2px solid; border-radius: 0 4px 4px 0; line-height: 1.4; animation: shake 0.28s ease; }
+.jdh-portal .msg-error { background: rgba(255,46,0,0.07); color: #ff6a50; border-color: var(--cr); }
+.jdh-portal .msg-success { background: rgba(46,204,113,0.07); color: var(--green); border-color: var(--green); }
+@keyframes shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-5px) } 75% { transform: translateX(5px) } }
+
+.jdh-portal .field { margin-bottom: 1rem; }
+.jdh-portal .field label { display: block; margin-bottom: 0.3rem; font-family: var(--mono); font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--cr); }
+.jdh-portal .input-wrap { position: relative; }
+.jdh-portal .input-icon { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--dim); pointer-events: none; display: flex; align-items: center; }
+.jdh-portal .field input {
+  width: 100%; padding: 0.68rem 0.9rem 0.68rem 2.5rem; background: rgba(255,46,0,0.03); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-family: var(--sans); font-size: 0.85rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dark .jdh-portal .field input { background: rgba(0,0,0,0.35); }
+.jdh-portal .field input:focus { border-color: var(--cr); box-shadow: 0 0 0 3px rgba(255,46,0,0.12); }
+.jdh-portal .field input::placeholder { color: var(--dim); }
+.jdh-portal .pw-eye { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--dim); display: flex; align-items: center; padding: 0.2rem; transition: color 0.15s; }
+.jdh-portal .pw-eye:hover { color: var(--gold); }
+.jdh-portal .field input.has-eye { padding-right: 2.5rem; }
+
+.jdh-portal .submit-btn {
+  width: 100%; padding: 0.82rem; background: linear-gradient(135deg, var(--cr-g), var(--cr-d)); color: #fff;
+  border: none; border-radius: 8px; font-family: var(--mono); font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; cursor: pointer; box-shadow: 0 4px 20px rgba(255,46,0,0.35); transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.4rem;
+}
+.jdh-portal .submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(255,46,0,0.5); background: linear-gradient(135deg, #ff5a36, #b02200); }
+.jdh-portal .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.jdh-portal .google-btn {
+  width: 100%; padding: 0.78rem; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.12); color: var(--text);
+  border-radius: 8px; font-family: var(--sans); font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 0;
+}
+.dark .jdh-portal .google-btn { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.13); }
+.jdh-portal .google-btn:hover:not(:disabled) { background: rgba(0,0,0,0.08); transform: translateY(-1px); }
+.dark .jdh-portal .google-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.25); }
+
+.jdh-portal .auth-divider { display: flex; align-items: center; gap: 0.75rem; margin: 0.9rem 0; font-family: var(--mono); font-size: 0.55rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+.jdh-portal .auth-divider::before, .jdh-portal .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.jdh-portal .toggle-link { text-align: center; margin-top: 1rem; font-size: 0.75rem; color: var(--muted); }
+.jdh-portal .toggle-link button { background: none; border: none; cursor: pointer; color: var(--gold); font-size: 0.75rem; font-weight: 600; padding: 0; text-decoration: underline; transition: color 0.15s; }
+.jdh-portal .toggle-link button:hover { color: var(--cr); }
+.jdh-portal .toggle-link a { color: var(--gold); font-size: 0.75rem; font-weight: 600; text-decoration: underline; transition: color 0.15s; }
+.jdh-portal .toggle-link a:hover { color: var(--cr); }
+
+.jdh-portal .form-foot {
+  padding: 0.85rem 2rem; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; background: var(--surf2); transition: background 0.3s; min-height: 52px;
+}
+.jdh-portal .back-link { font-family: var(--mono); font-size: 0.65rem; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 0.35rem; transition: color 0.15s; }
+.jdh-portal .back-link:hover { color: var(--gold); background-color: rgba(139,9,9,0.7); padding: 4px 6px; border-radius: 6px; margin: -4px -6px; }
+
+.jdh-portal .theme-btn {
+  width: 28px; height: 28px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); display: grid; place-items: center;
+  cursor: pointer; font-size: 0.8rem; border-radius: 6px; transition: all 0.15s;
+}
+.jdh-portal .theme-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+@media(max-width: 700px) {
+  .jdh-portal { padding: 0; align-items: flex-start; }
+  .jdh-portal .card { flex-direction: column; max-width: 100%; width: 100%; min-height: 100dvh; border-radius: 0; border-left: none; border-right: none; }
+  .jdh-portal .deco-panel { width: 100%; min-height: 170px; padding: 1.2rem 1.4rem; flex-direction: row; align-items: center; justify-content: space-between; border-right: none; border-bottom: 1px solid var(--border); }
+  .jdh-portal .deco-brand { position: static; margin-bottom: 0; align-self: flex-start; }
+  .jdh-portal .deco-left-col { display: flex; flex-direction: column; gap: 0.55rem; flex: 1; min-width: 0; }
+  .jdh-portal .deco-tagline { font-size: 0.82rem; white-space: nowrap; line-height: 1; margin-bottom: 0; }
+  .jdh-portal .deco-tagline br { display: none; }
+  .jdh-portal .sys-stats { display: none; }
+  .jdh-portal .orbital-wrap { position: relative; top: auto; left: auto; transform: none; width: 130px; height: 130px; flex-shrink: 0; margin-left: 1rem; align-self: center; }
+  .jdh-portal .orbital-core { width: 44px; height: 44px; }
+  .jdh-portal .orbital-core svg { width: 18px; height: 18px; }
+  .jdh-portal .form-panel { flex: 1; display: flex; flex-direction: column; overflow: visible; }
+  .jdh-portal .form-body { padding: 1.3rem 1.4rem; flex: 1; }
+  .jdh-portal .form-foot { padding: 0.8rem 1.4rem; position: sticky; bottom: 0; z-index: 10; }
+}

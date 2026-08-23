@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find . -type f \\\\\\(-name *.html -o -name *.js -o -name *.css -o -name *.php \\\\\\))",
+      "Bash(grep -l \"SPA\\\\|single page app\\\\|single-page\" \"./jaystarbliss-studios.name.ng/htdocs/\"*)",
+      "Bash(grep -r Authorization: /c/Users/johnr/Downloads/jaystarbliss-studios.name.ng/jaystarbliss-studios.name.ng/htdocs --include=*.html)",
+      "Bash(python scan_dead_code.py)",
+      "Bash(python3 scan_dead_code.py)",
+      "Bash(whereis python:*)",
+      "Bash(command -v python)"
+    ]
+  }
+}

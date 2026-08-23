@@ -1,0 +1,69 @@
+# Robots.txt for Jaystarbliss Studios (https://jaystarbliss-studios.name.ng)
+# Allow search engines and Googlebot/Googlebot-Image to index public pages and favicons
+
+User-agent: *
+Allow: /
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon.svg
+Allow: /favicon-*.png
+Allow: /android-chrome-*.png
+Allow: /apple-touch-icon.png
+Allow: /site.webmanifest
+Disallow: /admin
+Disallow: /portal
+Disallow: /register
+
+# Googlebot Image Crawler (Required for Google Search Favicon & Images)
+User-agent: Googlebot-Image
+Allow: /
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon.svg
+Allow: /favicon-*.png
+Allow: /android-chrome-*.png
+Allow: /apple-touch-icon.png
+Allow: /*.ico$
+Allow: /*.png$
+Allow: /*.svg$
+Allow: /*.webp$
+
+# Googlebot specific
+User-agent: Googlebot
+Allow: /
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon.svg
+Allow: /favicon-*.png
+Allow: /android-chrome-*.png
+Allow: /apple-touch-icon.png
+Allow: /site.webmanifest
+Allow: /*.ico$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.svg$
+Allow: /*.webp$
+Allow: /*.css$
+Allow: /*.js$
+
+# Bingbot specific
+User-agent: Bingbot
+Allow: /
+Allow: /favicon.ico
+Allow: /favicon.png
+Allow: /favicon.svg
+Allow: /favicon-*.png
+Allow: /android-chrome-*.png
+Allow: /apple-touch-icon.png
+Allow: /*.ico$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.svg$
+Allow: /*.webp$
+Allow: /*.css$
+Allow: /*.js$
+
+# Sitemap declaration
+Sitemap: https://jaystarbliss-studios.name.ng/sitemap.xml

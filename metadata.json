@@ -1,0 +1,6 @@
+{
+  "name": "Jaystarbliss Studios",
+  "description": "Tech Education, Digital Innovation & Creative Solutions for Kids and Businesses in Lagos, Nigeria.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

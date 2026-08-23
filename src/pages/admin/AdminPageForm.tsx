@@ -1,0 +1,299 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+import { ArrowLeft, Loader2, Save, CheckCircle2, AlertCircle, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { CMS_PAGES } from '../../lib/cms';
+import type { EditablePageConfig } from '../../lib/cms';
+import CloudinaryImageUpload from '../../components/common/CloudinaryImageUpload';
+
+const AdminPageForm: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const [pageConfig, setPageConfig] = useState<EditablePageConfig | null>(null);
+  const [sectionData, setSectionData] = useState<Record<string, Record<string, any>>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const matchedConfig = CMS_PAGES.find(p => p.id === id);
+    if (!matchedConfig) {
+      // Fallback for custom or unlisted pages
+      const fallbackConfig: EditablePageConfig = {
+        id: id || 'custom',
+        title: id ? `${id.charAt(0).toUpperCase() + id.slice(1)} Page` : 'Custom Page',
+        path: id === 'home' ? '/' : `/${id}`,
+        description: 'Edit page contents and sections.',
+        sections: [
+          {
+            id: 'hero',
+            name: 'Hero Section',
+            description: 'Main introduction section.',
+            defaultData: {
+              title: 'Welcome',
+              subtitle: 'Empowering digital creators',
+              ctaText: 'Learn More',
+              ctaLink: '#',
+              bannerImage: ''
+            },
+            fields: [
+              { key: 'title', label: 'Section Title', type: 'text' },
+              { key: 'subtitle', label: 'Section Subtitle', type: 'textarea' },
+              { key: 'ctaText', label: 'CTA Button Text', type: 'text' },
+              { key: 'ctaLink', label: 'CTA Button Link', type: 'text' },
+              { key: 'bannerImage', label: 'Banner Image', type: 'image' }
+            ]
+          }
+        ]
+      };
+      setPageConfig(fallbackConfig);
+      initializeSectionData(fallbackConfig);
+    } else {
+      setPageConfig(matchedConfig);
+      initializeSectionData(matchedConfig);
+    }
+  }, [id]);
+
+  const initializeSectionData = async (config: EditablePageConfig) => {
+    setLoading(true);
+    const initialData: Record<string, Record<string, any>> = {};
+    const initialOpen: Record<string, boolean> = {};
+
+    try {
+      for (const section of config.sections) {
+        initialOpen[section.id] = true;
+        const docRef = doc(db, 'page_sections', `${config.id}_${section.id}`);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          initialData[section.id] = { ...section.defaultData, ...snap.data() };
+        } else {
+          initialData[section.id] = { ...section.defaultData };
+        }
+      }
+      setSectionData(initialData);
+      setOpenSections(initialOpen);
+    } catch (err) {
+      console.error('Error loading section data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFieldChange = (sectionId: string, fieldKey: string, value: any) => {
+    setSectionData(prev => ({
+      ...prev,
+      [sectionId]: {
+        ...(prev[sectionId] || {}),
+        [fieldKey]: value
+      }
+    }));
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setOpenSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  };
+
+  const handleSaveAll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pageConfig) return;
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      // Save each section to Firestore
+      for (const section of pageConfig.sections) {
+        const currentData = sectionData[section.id] || section.defaultData;
+        const docRef = doc(db, 'page_sections', `${pageConfig.id}_${section.id}`);
+        await setDoc(docRef, {
+          ...currentData,
+          pageId: pageConfig.id,
+          sectionId: section.id,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+
+      setMessage({ type: 'success', text: `All ${pageConfig.sections.length} sections on ${pageConfig.title} updated successfully!` });
+    } catch (err) {
+      console.error('Error saving sections:', err);
+      setMessage({ type: 'error', text: 'Failed to save section changes. Please try again.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !pageConfig) {
+    return (
+      <div className="p-20 text-center flex flex-col items-center justify-center gap-3">
+        <Loader2 className="animate-spin w-8 h-8 text-brand-red" />
+        <p className="text-sm font-semibold text-slate-500">Loading section editors...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-8 pb-16">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link
+            to="/admin/pages"
+            className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-brand-red transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-slate dark:text-white">
+                Edit {pageConfig.title}
+              </h1>
+              <span className="text-xs font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded">
+                {pageConfig.path}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {pageConfig.description}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <a
+            href={pageConfig.path}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-200 transition-colors"
+          >
+            <ExternalLink size={14} />
+            Live Preview
+          </a>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={`p-4 rounded-xl flex items-center gap-3 text-sm font-bold ${
+            message.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+              : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+          }`}
+        >
+          {message.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{message.text}</span>
+        </div>
+      )}
+
+      <form onSubmit={handleSaveAll} className="space-y-6">
+        {pageConfig.sections.map((section, idx) => {
+          const isOpen = openSections[section.id] ?? true;
+          const currentValues = sectionData[section.id] || section.defaultData;
+
+          return (
+            <div
+              key={section.id}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden"
+            >
+              {/* Section Header */}
+              <div
+                onClick={() => toggleSection(section.id)}
+                className="px-6 py-4 bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-lg bg-brand-red text-white flex items-center justify-center text-xs font-black">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <h2 className="text-base font-black text-brand-slate dark:text-white">
+                      {section.name}
+                    </h2>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {section.description}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                >
+                  {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </button>
+              </div>
+
+              {/* Section Fields */}
+              {isOpen && (
+                <div className="p-6 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {section.fields.map((field) => {
+                      const val = currentValues[field.key] ?? '';
+
+                      if (field.type === 'image') {
+                        return (
+                          <div key={field.key} className="col-span-1 md:col-span-2">
+                            <CloudinaryImageUpload
+                              label={field.label}
+                              value={val}
+                              onChange={(url) => handleFieldChange(section.id, field.key, url)}
+                              helpText="Upload a high-resolution image to Cloudinary or paste a direct Cloudinary URL."
+                            />
+                          </div>
+                        );
+                      }
+
+                      if (field.type === 'textarea') {
+                        return (
+                          <div key={field.key} className="col-span-1 md:col-span-2">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+                              {field.label}
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={val}
+                              onChange={(e) => handleFieldChange(section.id, field.key, e.target.value)}
+                              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red leading-relaxed"
+                            />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={field.key} className="col-span-1">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+                            {field.label}
+                          </label>
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={(e) => handleFieldChange(section.id, field.key, e.target.value)}
+                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Floating / Bottom Save Action */}
+        <div className="sticky bottom-4 z-20 flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white px-8 py-3.5 rounded-xl font-bold uppercase tracking-wider text-xs shadow-xl shadow-brand-red/30 transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {saving ? 'SAVING SECTIONS...' : 'SAVE ALL SECTION EDITS'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default AdminPageForm;
