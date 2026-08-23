@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import logoImg from '../../assets/Untitled design.png';
+import logoImg from '../../assets/logo.png';
 
 interface JaystarblissLogoProps {
   className?: string;
@@ -22,9 +22,9 @@ export const JaystarblissIcon: React.FC<{ className?: string; size?: number }> =
     >
       {!imgError ? (
         <img
-          src={logoImg || '/Untitled design.png'}
+          src={logoImg || '/logo.png'}
           alt="Jaystarbliss Studios Logo"
-          className="w-full h-full object-cover select-none grayscale contrast-125 brightness-105"
+          className="w-full h-full object-cover select-none"
           onError={() => setImgError(true)}
           loading="eager"
         />
@@ -32,10 +32,9 @@ export const JaystarblissIcon: React.FC<{ className?: string; size?: number }> =
         <img
           src="/logo.png"
           alt="Jaystarbliss Studios Logo"
-          className="w-full h-full object-cover select-none grayscale contrast-125 brightness-105"
+          className="w-full h-full object-cover select-none"
           onError={(e) => {
-            // Ultimate fallback to direct public path
-            (e.target as HTMLImageElement).src = '/Untitled design.png';
+            (e.target as HTMLImageElement).src = '/favicon.png';
           }}
         />
       )}

@@ -7,12 +7,16 @@
   <!-- Homepage -->
   <url>
     <loc>https://jaystarbliss-studios.name.ng/</loc>
-    <lastmod>2026-08-19</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://jaystarbliss-studios.name.ng/favicon.png</image:loc>
+      <image:loc>https://jaystarbliss-studios.name.ng/logo.png</image:loc>
       <image:title>Jaystarbliss Studios Official Logo</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://jaystarbliss-studios.name.ng/favicon.png</image:loc>
+      <image:title>Jaystarbliss Studios App Icon</image:title>
     </image:image>
   </url>
 
