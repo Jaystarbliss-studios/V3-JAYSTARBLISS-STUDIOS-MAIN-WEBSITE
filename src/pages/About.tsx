@@ -6,6 +6,7 @@ import PageHeader from '../components/ui/PageHeader';
 import { pageHeaderImages } from '../lib/stockImages';
 import { usePageSection } from '../lib/cms';
 import { motion } from 'motion/react';
+import { GraduationCap, Code2, Palette, ArrowDownRight } from 'lucide-react';
 
 const About: React.FC = () => {
   const { data: heroData } = usePageSection('about', 'hero', {
@@ -66,17 +67,20 @@ const About: React.FC = () => {
         image={heroData.bannerImage}
         fallbackImage={pageHeaderImages.about}
         size="lg"
-        description={
-          <span className="block space-y-4 border-l-2 border-brand-red pl-6">
-            {heroData.paragraph1 && <span className="block">{heroData.paragraph1}</span>}
-            {heroData.paragraph2 && <span className="block">{heroData.paragraph2}</span>}
-            {heroData.paragraph3 && <span className="block">{heroData.paragraph3}</span>}
-          </span>
-        }
+        description={<span className="block border-l-2 border-brand-red pl-6">{heroData.paragraph1}</span>}
       />
 
+      <section className="digital-canvas py-16 lg:py-24 border-b border-slate-200 dark:border-white/10">
+        <div className="container mx-auto px-4 max-w-7xl grid lg:grid-cols-12 gap-10 items-center">
+          <div className="lg:col-span-5"><span className="tech-label text-brand-red">One connected studio</span><h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-950 dark:text-white mt-3">Three disciplines.<br/>One practical purpose.</h2><p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed mt-6">{heroData.paragraph2} {heroData.paragraph3}</p></div>
+          <div className="lg:col-span-7 grid sm:grid-cols-3 gap-4">
+            {[{icon:GraduationCap,n:'01',t:'We teach',d:'Skills become useful through guided practice.'},{icon:Code2,n:'02',t:'We build',d:'Digital products solve real operational needs.'},{icon:Palette,n:'03',t:'We create',d:'Thoughtful design makes ideas understood.'}].map((item) => { const Icon=item.icon; return <motion.div key={item.n} whileHover={{y:-5}} className="pro-surface pro-interactive rounded-3xl p-6 min-h-56 flex flex-col"><div className="flex justify-between"><Icon className="text-brand-red"/><span className="font-mono text-xs text-slate-400">{item.n}</span></div><div className="mt-auto"><h3 className="text-xl font-extrabold dark:text-white">{item.t}</h3><p className="text-sm text-slate-500 dark:text-slate-400 mt-2">{item.d}</p><ArrowDownRight size={17} className="mt-5 text-slate-400"/></div></motion.div>})}
+          </div>
+        </div>
+      </section>
+
       {/* What We Believe - Clean Editorial Rows */}
-      <div className="py-20 lg:py-28 bg-brand-neutral dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+      <div className="py-20 lg:py-28 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
             

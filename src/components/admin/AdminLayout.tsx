@@ -109,7 +109,7 @@ const AdminLayout: React.FC = () => {
   const currentTitle = currentNav ? `Admin ${currentNav.name}` : 'Admin Management Panel';
 
   return (
-    <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 flex overflow-hidden">
+    <div className="digital-canvas h-screen w-full flex overflow-hidden">
       <SEO 
         title={currentTitle} 
         description="Jaystarbliss Studios Administration and Content Management System." 
@@ -193,7 +193,7 @@ const AdminLayout: React.FC = () => {
 
       {/* Desktop Sidebar (Collapsible & Independently Scrollable) */}
       <aside 
-        className={`hidden lg:flex bg-brand-slate text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
+        className={`hidden lg:flex bg-slate-950/95 backdrop-blur-xl text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? 'w-20' : 'w-72'
         }`}
       >
@@ -376,5 +376,4 @@ const AdminLayout: React.FC = () => {
 };
 
 export default AdminLayout;
-
 

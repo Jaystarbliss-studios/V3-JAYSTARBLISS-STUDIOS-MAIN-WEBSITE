@@ -176,7 +176,7 @@ const AdminDashboard: React.FC = () => {
       ];
 
   return (
-    <div className="space-y-8">
+    <div className="dashboard-interface space-y-8">
       {/* Top Banner & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -219,7 +219,7 @@ const AdminDashboard: React.FC = () => {
           return (
             <div 
               key={item.name} 
-              className="bg-white dark:bg-slate-900 dark:border-slate-800 overflow-hidden shadow-xs rounded-2xl border border-gray-200/80 p-5 flex flex-col justify-between transition-all hover:shadow-md"
+              className="pro-surface pro-interactive overflow-hidden rounded-2xl p-5 flex flex-col justify-between"
             >
               <div className="flex items-start justify-between">
                 <div>
@@ -263,7 +263,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Secondary Graphs: Inquiries & User Role Composition */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xs border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 flex flex-col">
+        <div className="pro-surface rounded-3xl p-6 md:p-8 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white">
@@ -302,7 +302,7 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xs border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 flex flex-col">
+        <div className="pro-surface rounded-3xl p-6 md:p-8 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white">

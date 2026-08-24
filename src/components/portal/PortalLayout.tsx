@@ -132,7 +132,7 @@ const PortalLayout: React.FC = () => {
   const isStudentAccessCodeOnly = !userEmail && sessionStorage.getItem('studentDocId');
 
   return (
-    <div className="h-screen w-full bg-gray-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden transition-colors duration-200">
+    <div className="digital-canvas h-screen w-full text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden transition-colors duration-200">
       <SEO 
         title={`${roleTitle} Portal | Jaystarbliss Studios`} 
         description={`Jaystarbliss Studios ${roleTitle} portal access and learning dashboard.`} 
@@ -204,7 +204,7 @@ const PortalLayout: React.FC = () => {
 
       {/* Desktop Sidebar (Collapsible & Independently Scrollable) */}
       <aside 
-        className={`hidden md:flex bg-brand-slate text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex bg-slate-950/95 backdrop-blur-xl text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? 'w-20' : 'w-64'
         }`}
       >
@@ -536,4 +536,3 @@ const PortalLayout: React.FC = () => {
 };
 
 export default PortalLayout;
-
