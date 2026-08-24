@@ -1,7 +1,7 @@
 import React from 'react';
 import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
-import { BookOpen, FileText, HelpCircle, PenTool, ArrowUpRight } from 'lucide-react';
+import { BookOpen, FileText, HelpCircle, PenTool, ArrowUpRight, Search, Layers3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 
@@ -64,53 +64,53 @@ const Resources: React.FC = () => {
         </div>
       </div>
 
-      {/* Resources Editorial Grid */}
-      <div className="py-16 md:py-24 bg-brand-neutral dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+      {/* Resources Editorial Index */}
+      <div className="digital-canvas py-16 md:py-24 border-t border-slate-200 dark:border-slate-800">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+          <div className="grid lg:grid-cols-[.78fr_1.22fr] gap-10 lg:gap-16">
+            <aside className="lg:sticky lg:top-28 lg:self-start">
+              <div className="pro-surface rounded-[2rem] p-7 sm:p-9 overflow-hidden relative">
+                <div className="absolute -right-16 -top-16 w-44 h-44 rounded-full bg-brand-red/10 blur-2xl" />
+                <Layers3 className="text-brand-red mb-7" size={30} />
+                <p className="tech-label text-brand-red">Resource directory</p>
+                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-950 dark:text-white mt-3">Find the right answer faster.</h2>
+                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 mt-5">Learning materials, practical guidance and studio thinking—organised by what you want to accomplish.</p>
+                <div className="hairline my-7" />
+                <div className="flex items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400"><Search size={15}/> Select a destination to continue</div>
+              </div>
+            </aside>
+
+          <div className="divide-y divide-slate-200 dark:divide-white/10 border-y border-slate-200 dark:border-white/10">
             
             {resourceItems.map((item, i) => {
               const Icon = item.icon;
               return (
                 <motion.div
                   key={i}
-                  whileHover={{ y: -6, transition: { duration: 0.28, ease: 'easeOut' } }}
-                  className="h-full"
+                  initial={{ opacity: 0, x: 18 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: .4, delay: i * .06 }}
                 >
                   <Link 
-                    to={item.link} 
-                    className={`group flex flex-col h-full p-6 sm:p-10 rounded-2xl glass-card transition-all duration-300 ${!item.active ? 'opacity-70' : ''}`}
+                    to={item.active ? item.link : '/contact'}
+                    className={`group grid grid-cols-[auto_1fr_auto] gap-5 sm:gap-7 items-start py-8 sm:py-10 transition-all ${!item.active ? 'opacity-65' : ''}`}
                   >
-                    <div className="flex items-center justify-between mb-6 sm:mb-8">
-                      <div className="w-12 h-12 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <div className="w-12 h-12 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center group-hover:bg-brand-red group-hover:text-white transition-colors">
                         <Icon size={24} />
                       </div>
-                      {item.active && (
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:bg-brand-red group-hover:text-white transition-colors">
-                          <ArrowUpRight size={16} />
-                        </div>
-                      )}
-                    </div>
-
-                    <h2 className="text-2xl font-extrabold text-brand-slate dark:text-white mb-3 group-hover:text-brand-red transition-colors">
+                    <div><span className="tech-label text-slate-400">0{i + 1} · {item.active ? 'Available' : 'On request'}</span><h2 className="text-xl sm:text-2xl font-extrabold text-brand-slate dark:text-white mt-2 group-hover:text-brand-red transition-colors">
                       {item.title}
-                    </h2>
-
-                    <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 font-normal leading-relaxed mb-8 flex-grow">
+                    </h2><p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mt-3 max-w-xl">
                       {item.desc}
-                    </p>
-
-                    <div className="pt-4 border-t border-slate-200/50 dark:border-white/10 flex items-center justify-between">
-                      <span className="text-xs font-black uppercase tracking-widest text-brand-red group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                        {item.label} &rarr;
-                      </span>
-                    </div>
+                    </p></div>
+                    <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-400 group-hover:bg-brand-red group-hover:border-brand-red group-hover:text-white transition-all"><ArrowUpRight size={16}/></div>
                   </Link>
                 </motion.div>
               );
             })}
 
-          </div>
+          </div></div>
         </div>
       </div>
     </MainLayout>

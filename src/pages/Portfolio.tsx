@@ -182,7 +182,7 @@ const Portfolio: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="py-16 md:py-24 bg-brand-neutral dark:bg-slate-900 min-h-[60vh]">
+      <div className="digital-canvas py-16 md:py-24 min-h-[60vh]">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
 
           {/* TAB 1: KIDS CORNER & INTERACTIVE GAME ZONE */}
@@ -195,7 +195,7 @@ const Portfolio: React.FC = () => {
             <div className="space-y-12">
               
               {/* Search Bar for Organisation Projects */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-950 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <div className="pro-surface flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl">
                 <div className="relative w-full sm:w-96">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
@@ -227,7 +227,7 @@ const Portfolio: React.FC = () => {
               </div>
 
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
                   {[1, 2, 3, 4].map(i => <CardSkeleton key={i} />)}
                 </div>
               ) : filteredOrgProjects.length === 0 ? (
@@ -244,11 +244,10 @@ const Portfolio: React.FC = () => {
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, margin: '-30px' }}
                       transition={{ duration: 0.5, delay: idx * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
-                      whileHover={{ y: -6, transition: { duration: 0.28, ease: 'easeOut' } }}
-                      className="group flex flex-col rounded-2xl overflow-hidden glass-card"
+                      className={`${idx % 3 === 0 ? 'lg:col-span-7' : 'lg:col-span-5'} group flex flex-col rounded-[2rem] overflow-hidden pro-surface pro-interactive`}
                     >
                       {project.featuredImage ? (
-                        <div className="h-64 w-full relative border-b border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-900">
+                        <div className={`${idx % 3 === 0 ? 'h-80' : 'h-64'} w-full relative border-b border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-900`}>
                           <img 
                             src={project.featuredImage} 
                             alt={project.title} 

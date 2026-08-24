@@ -106,7 +106,7 @@ const StaffDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="dashboard-interface space-y-8">
       <SEO 
         title="Staff & Tutor Workspace Dashboard" 
         description="Access staff curriculum documents, lesson schedules, student management, and mentor resources." 
@@ -346,4 +346,3 @@ const StaffDashboard: React.FC = () => {
 };
 
 export default StaffDashboard;
-

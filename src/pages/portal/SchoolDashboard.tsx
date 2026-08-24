@@ -674,7 +674,7 @@ const SchoolDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="dashboard-interface space-y-6 max-w-7xl mx-auto pb-12">
       <SEO 
         title="School Operations Hub & Directorate Console | Jaystarbliss Studios" 
         description="Monitor school student enrollments, STEM program schedules, exams, and secured passcodes." 

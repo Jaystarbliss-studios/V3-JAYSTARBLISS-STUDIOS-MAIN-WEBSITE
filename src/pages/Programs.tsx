@@ -253,25 +253,32 @@ const Programs: React.FC = () => {
       </PageHeader>
 
       {/* Main Section Content based on active view */}
-      <div id="programs-content" className="py-16 bg-slate-50 dark:bg-slate-950 scroll-mt-20">
-        <div className="container mx-auto px-4 max-w-7xl space-y-16">
+      <div id="programs-content" className="digital-canvas py-16 lg:py-24 scroll-mt-20 overflow-hidden">
+        <div className="container mx-auto px-4 max-w-7xl space-y-14">
           
           {/* Section: 5-Stage Architecture Standard */}
-          <StageArchitectureBanner />
+          <div className="pro-surface rounded-[2rem] p-2 sm:p-3">
+            <StageArchitectureBanner />
+          </div>
 
           {/* View 1: 8 Core Programs & Deep Dive */}
           {activeView === 'ecosystem' && (
-            <div id="ecosystem-section" className="space-y-8 scroll-mt-24">
-              <div className="max-w-3xl">
+            <div id="ecosystem-section" className="space-y-10 scroll-mt-24">
+              <div className="grid lg:grid-cols-[1fr_auto] gap-5 items-end border-b border-slate-200/80 dark:border-white/10 pb-7">
+                <div className="max-w-3xl">
                 <div className="text-xs font-black uppercase tracking-wider text-brand-red">
                   Explore by Program
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
                   Our Programs
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl leading-relaxed">
                   Click on any program below to review its specialized levels, topics, and discipline progression.
                 </p>
+                </div>
+                <div className="hidden lg:flex items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> 8 pathways · 5 stages each
+                </div>
               </div>
 
               <LearningSchoolsGrid 
@@ -316,7 +323,7 @@ const Programs: React.FC = () => {
             <div id="catalog-section" className="space-y-8 scroll-mt-24">
               
               {/* Filter & Search Bar */}
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="pro-surface sticky top-20 z-20 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                 
                 {/* Search Input */}
                 <div className="relative w-full md:w-80">
@@ -371,8 +378,8 @@ const Programs: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredPrograms.map((program) => (
-                    <Card key={program.id} hoverEffect floatEffect className="flex flex-col justify-between overflow-hidden">
-                      <div className="relative h-32 overflow-hidden -m-px">
+                    <Card key={program.id} hoverEffect className="pro-surface pro-interactive flex flex-col justify-between overflow-hidden !rounded-3xl">
+                      <div className="relative h-44 overflow-hidden -m-px">
                         <img
                           src={getProgramImage(program.categoryId)}
                           alt=""
@@ -428,7 +435,7 @@ const Programs: React.FC = () => {
           )}
 
           {/* Quick Institutional / School Bar */}
-          <div className="p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-brand-slate to-slate-900 text-white flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-800 shadow-xl">
+          <div className="relative overflow-hidden p-8 sm:p-10 rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 text-white flex flex-col md:flex-row items-center justify-between gap-8 border border-white/10 shadow-2xl">
             <div className="space-y-1 text-center md:text-left">
               <div className="text-xs font-black uppercase tracking-widest text-brand-red">
                 Institutional Partnerships

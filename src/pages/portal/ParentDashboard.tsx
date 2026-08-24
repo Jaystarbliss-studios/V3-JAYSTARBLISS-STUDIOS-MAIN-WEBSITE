@@ -163,7 +163,7 @@ const ParentDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="dashboard-interface space-y-8">
       <SEO 
         title="Parent Portal & Progress Dashboard" 
         description="Monitor child progress, attendance, mentor assessments, and billing at Jaystarbliss Studios." 
@@ -464,4 +464,3 @@ const ParentDashboard: React.FC = () => {
 };
 
 export default ParentDashboard;
-

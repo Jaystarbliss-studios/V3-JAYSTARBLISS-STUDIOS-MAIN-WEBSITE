@@ -58,10 +58,10 @@ const FAQ: React.FC = () => {
       </div>
 
       {/* Accordion Area */}
-      <div className="py-16 md:py-24 bg-brand-neutral dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+      <div className="digital-canvas py-16 md:py-24 border-t border-slate-200 dark:border-slate-800">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl">
           
-          <div className="divide-y divide-slate-200 dark:divide-slate-800 border-t border-b border-slate-200 dark:border-slate-800">
+          <div className="pro-surface rounded-[2rem] px-5 sm:px-10 divide-y divide-slate-200 dark:divide-slate-800">
             {faqs.map((faq, index) => {
               const isOpen = openIndex === index;
               return (

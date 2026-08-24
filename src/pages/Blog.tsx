@@ -179,11 +179,11 @@ const Blog: React.FC = () => {
       </div>
 
       {/* Main Body */}
-      <div className="py-16 md:py-24 bg-brand-neutral dark:bg-slate-900 min-h-[60vh]">
+      <div className="digital-canvas py-16 md:py-24 min-h-[60vh]">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
 
           {/* Search & Category Filter */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-10 bg-white dark:bg-slate-950 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="pro-surface flex flex-col md:flex-row items-center justify-between gap-4 mb-12 p-4 sm:p-5 rounded-2xl sticky top-20 z-20">
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input
@@ -279,7 +279,7 @@ const Blog: React.FC = () => {
 
               {/* News Grid */}
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
                   {[1, 2, 3].map(i => <CardSkeleton key={i} />)}
                 </div>
               ) : filteredNews.length === 0 ? (
@@ -307,7 +307,7 @@ const Blog: React.FC = () => {
                         transition={{ duration: 0.5, delay: idx * 0.07, ease: [0.21, 0.47, 0.32, 0.98] }}
                         whileHover={{ y: -6, transition: { duration: 0.28, ease: 'easeOut' } }}
                         onClick={() => handleOpenNewsModal(item)}
-                        className="group flex flex-col rounded-2xl overflow-hidden glass-card hover:border-cyan-500/50 cursor-pointer transition-all duration-300"
+                        className={`${idx % 4 === 0 ? 'lg:col-span-7' : 'lg:col-span-5'} group flex flex-col rounded-[2rem] overflow-hidden pro-surface pro-interactive cursor-pointer`}
                       >
                         {item.featuredImage ? (
                           <div className="aspect-[16/9] w-full overflow-hidden relative bg-slate-100 dark:bg-slate-900">
@@ -378,7 +378,7 @@ const Blog: React.FC = () => {
           {activeTab === 'BLOG' && (
             <div className="space-y-10">
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
                   {[1, 2, 3, 4, 5, 6].map(i => <CardSkeleton key={i} />)}
                 </div>
               ) : filteredPosts.length === 0 ? (
@@ -398,11 +398,11 @@ const Blog: React.FC = () => {
                         viewport={{ once: true, margin: '-30px' }}
                         transition={{ duration: 0.5, delay: idx * 0.07, ease: [0.21, 0.47, 0.32, 0.98] }}
                         whileHover={{ y: -6, transition: { duration: 0.28, ease: 'easeOut' } }}
-                        className="h-full"
+                        className={`${idx % 4 === 0 ? 'lg:col-span-7' : 'lg:col-span-5'} h-full`}
                       >
                         <Link to={`/blog/${post.slug}`} className="group block h-full">
                           <div 
-                            className={`h-full flex flex-col rounded-2xl overflow-hidden glass-card transition-all duration-300 ${
+                            className={`h-full flex flex-col rounded-[2rem] overflow-hidden pro-surface pro-interactive transition-all duration-300 ${
                               isNews 
                                 ? 'border-cyan-500/60 ring-1 ring-cyan-500/30' 
                                 : 'hover:border-brand-red/40'

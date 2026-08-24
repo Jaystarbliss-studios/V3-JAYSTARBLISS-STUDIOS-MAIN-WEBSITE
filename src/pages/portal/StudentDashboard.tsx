@@ -355,7 +355,7 @@ const StudentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="dashboard-interface space-y-8">
       <SEO 
         title="Student Workspace Dashboard" 
         description="Access student classes, mentor feedback, assignments, module certificates, and learning resources." 
@@ -869,4 +869,3 @@ const StudentDashboard: React.FC = () => {
 };
 
 export default StudentDashboard;
-
