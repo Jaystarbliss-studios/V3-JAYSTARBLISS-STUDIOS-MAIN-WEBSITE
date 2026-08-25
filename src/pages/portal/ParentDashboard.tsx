@@ -8,7 +8,7 @@ import {
   Bell, CheckCircle2, Clock, Award
 } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
-import { AchievementBadge, PRESET_ACHIEVEMENTS } from '../../components/ecosystem/AchievementBadge';
+import { AchievementBadge, PRESET_ACHIEVEMENTS, type AchievementBadgeData } from '../../components/ecosystem/AchievementBadge';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 
 const ParentDashboard: React.FC = () => {
@@ -175,7 +175,6 @@ const ParentDashboard: React.FC = () => {
         name="Parent & Guardian Console"
         role="Parent / Guardian"
         subtitle="Track your child's weekly coding milestones, access codes, mentor notes, and tuition statements."
-        badge={`${children.length} Enrolled Cadets`}
       />
 
       {enrollSuccess && (
@@ -317,12 +316,12 @@ const ParentDashboard: React.FC = () => {
           </div>
 
           <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl self-start sm:self-auto">
-            {PRESET_ACHIEVEMENTS.filter(b => b.unlockedAt).length} Badges Earned
+            {PRESET_ACHIEVEMENTS.filter((b: AchievementBadgeData) => b.unlockedAt).length} Badges Earned
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {PRESET_ACHIEVEMENTS.slice(0, 4).map(badge => (
+          {PRESET_ACHIEVEMENTS.slice(0, 4).map((badge: AchievementBadgeData) => (
             <AchievementBadge key={badge.id} badge={badge} />
           ))}
         </div>

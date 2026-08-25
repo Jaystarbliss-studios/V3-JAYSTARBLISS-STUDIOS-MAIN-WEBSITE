@@ -118,7 +118,6 @@ const StaffDashboard: React.FC = () => {
         name="Faculty & Instructor Console"
         role="STEM Mentor"
         subtitle="Deliver interactive lessons, broadcast meeting links to students, and review institute curriculum."
-        badge={`${students.length} Active Cadets`}
       />
 
       {successMsg && (

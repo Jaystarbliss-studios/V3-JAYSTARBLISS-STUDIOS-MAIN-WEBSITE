@@ -1,11 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 
-interface Point3D {
-  x: number;
-  y: number;
-  z: number;
-}
-
 interface CyberTerrainCanvasProps {
   className?: string;
   theme?: 'dark' | 'light' | 'system' | string;
@@ -38,39 +32,6 @@ export const CyberTerrainCanvas: React.FC<CyberTerrainCanvasProps> = ({
     let t = 0;
     const isLight = theme === 'light';
 
-    // 3D Polyhedral Node Constellation geometry (normalized -1 to 1)
-    // Symmetrical geometric octahedron / icosahedral cluster with floating satellite nodes
-    const baseNodes: Point3D[] = [
-      { x: 0, y: 1.05, z: 0 },          // Top vertex (large radiant node)
-      { x: 0, y: -0.95, z: 0 },         // Bottom vertex (radiant node pointing to terrain)
-      { x: -0.88, y: 0.3, z: 0.52 },    // Mid left-front
-      { x: 0.88, y: 0.3, z: 0.52 },     // Mid right-front
-      { x: -0.88, y: 0.3, z: -0.52 },   // Mid left-back
-      { x: 0.88, y: 0.3, z: -0.52 },    // Mid right-back
-      { x: -0.55, y: -0.42, z: 0.82 },  // Low left-front
-      { x: 0.55, y: -0.42, z: 0.82 },   // Low right-front
-      { x: -0.55, y: -0.42, z: -0.82 }, // Low left-back
-      { x: 0.55, y: -0.42, z: -0.82 },  // Low right-back
-      { x: 0, y: 0.15, z: 0.98 },       // Front center hub
-      { x: 0, y: 0.15, z: -0.98 },      // Back center hub
-      { x: 0.42, y: 0.45, z: 0.15 },    // Floating internal core node
-      { x: -0.38, y: -0.1, z: 0.28 },   // Floating internal core node 2
-    ];
-
-    // Edges connecting nodes that form the polyhedral constellation
-    const edges: [number, number][] = [];
-    for (let i = 0; i < baseNodes.length; i++) {
-      for (let j = i + 1; j < baseNodes.length; j++) {
-        const dx = baseNodes[i].x - baseNodes[j].x;
-        const dy = baseNodes[i].y - baseNodes[j].y;
-        const dz = baseNodes[i].z - baseNodes[j].z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist > 0.55 && dist < 1.52) {
-          edges.push([i, j]);
-        }
-      }
-    }
-
     // Vertical data spike pillars on terrain flanks
     const dataSpikes = Array.from({ length: 28 }, (_, idx) => ({
       u: (idx % 2 === 0 ? 0.03 + Math.random() * 0.24 : 0.72 + Math.random() * 0.25),
@@ -80,7 +41,7 @@ export const CyberTerrainCanvas: React.FC<CyberTerrainCanvasProps> = ({
     }));
 
     const render = () => {
-      t += 0.02;
+      t += 0.038;
       ctx.clearRect(0, 0, width, height);
 
       // ----------------------------------------------------
@@ -276,17 +237,16 @@ export const CyberTerrainCanvas: React.FC<CyberTerrainCanvasProps> = ({
           ctx.beginPath();
           
           if (spec > 0.45) {
-            // Bright white-hot reflective vertex under constellation
-            ctx.arc(pt.x, pt.y, 2.4 + spec * 1.8, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
+            ctx.arc(pt.x, pt.y, 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff6a40';
             ctx.shadowColor = '#ff3300';
-            ctx.shadowBlur = 14;
+            ctx.shadowBlur = 8;
             ctx.fill();
           } else {
-            ctx.arc(pt.x, pt.y, 1.6, 0, Math.PI * 2);
-            ctx.fillStyle = '#ff5533';
+            ctx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff3311';
             ctx.shadowColor = '#ff2200';
-            ctx.shadowBlur = 6;
+            ctx.shadowBlur = 4;
             ctx.fill();
           }
         }
@@ -307,226 +267,18 @@ export const CyberTerrainCanvas: React.FC<CyberTerrainCanvasProps> = ({
         const dynamicH = spike.height + Math.sin(t * spike.speed + spike.phase) * 20;
         const spikeGrad = ctx.createLinearGradient(basePt.x, basePt.y, basePt.x, basePt.y - dynamicH);
         spikeGrad.addColorStop(0, 'rgba(255, 50, 0, 0.85)');
-        spikeGrad.addColorStop(0.65, 'rgba(255, 140, 90, 0.95)');
-        spikeGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        spikeGrad.addColorStop(0.65, 'rgba(255, 110, 50, 0.7)');
+        spikeGrad.addColorStop(1, 'rgba(255, 70, 20, 0)');
 
         ctx.beginPath();
         ctx.moveTo(basePt.x, basePt.y);
         ctx.lineTo(basePt.x, basePt.y - dynamicH);
         ctx.strokeStyle = spikeGrad;
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 1.2;
         ctx.shadowColor = '#ff3300';
-        ctx.shadowBlur = 8;
-        ctx.stroke();
-
-        // Tip glowing particle
-        ctx.beginPath();
-        ctx.arc(basePt.x, basePt.y - dynamicH + 2, 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = '#ffffff';
         ctx.shadowBlur = 6;
-        ctx.fill();
-      });
-      ctx.restore();
-
-      // ----------------------------------------------------
-      // 6. 3D ROTATING GLOWING NODE CONSTELLATION (NO TOWER)
-      // ----------------------------------------------------
-      const nodeScale = Math.min(width * 0.32, 105);
-      const rotY = t * 0.42;
-      const rotX = Math.sin(t * 0.28) * 0.22 + 0.12;
-      const rotZ = Math.cos(t * 0.22) * 0.1;
-      const fov = 340;
-
-      // 3D Matrix Transformations
-      const projectedNodes: { x: number; y: number; z: number; scale: number; origIdx: number }[] = [];
-
-      baseNodes.forEach((node, idx) => {
-        // Rotate around Y
-        let x1 = node.x * Math.cos(rotY) - node.z * Math.sin(rotY);
-        let z1 = node.x * Math.sin(rotY) + node.z * Math.cos(rotY);
-        let y1 = node.y;
-
-        // Rotate around X
-        let y2 = y1 * Math.cos(rotX) - z1 * Math.sin(rotX);
-        let z2 = y1 * Math.sin(rotX) + z1 * Math.cos(rotX);
-        let x2 = x1;
-
-        // Rotate around Z
-        let x3 = x2 * Math.cos(rotZ) - y2 * Math.sin(rotZ);
-        let y3 = x2 * Math.sin(rotZ) + y2 * Math.cos(rotZ);
-        let z3 = z2;
-
-        // Scale in 3D Space
-        const worldX = x3 * nodeScale;
-        const worldY = y3 * nodeScale;
-        const worldZ = z3 * nodeScale;
-
-        // Perspective Projection
-        const pScale = fov / (fov + worldZ + 120);
-        const projX = centerNodeX + worldX * pScale;
-        const projY = centerNodeY - worldY * pScale;
-
-        projectedNodes.push({
-          x: projX,
-          y: projY,
-          z: worldZ,
-          scale: pScale,
-          origIdx: idx
-        });
-      });
-
-      // Sort edges by Z depth for authentic 3D laser occlusions
-      const sortedEdges = [...edges].sort((a, b) => {
-        const zA = (projectedNodes[a[0]].z + projectedNodes[a[1]].z) / 2;
-        const zB = (projectedNodes[b[0]].z + projectedNodes[b[1]].z) / 2;
-        return zA - zB;
-      });
-
-      // Render 3D Laser Interconnect Edges
-      ctx.save();
-      sortedEdges.forEach(([i, j]) => {
-        const p1 = projectedNodes[i];
-        const p2 = projectedNodes[j];
-        if (!p1 || !p2) return;
-
-        const avgZ = (p1.z + p2.z) / 2;
-        const edgeAlpha = Math.min(0.95, Math.max(0.25, (avgZ + 120) / 240));
-
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = `rgba(255, 60, 20, ${edgeAlpha})`;
-        ctx.lineWidth = Math.max(0.9, (p1.scale + p2.scale) * 0.85);
-        ctx.shadowColor = '#ff2200';
-        ctx.shadowBlur = edgeAlpha > 0.5 ? 9 : 3;
         ctx.stroke();
       });
-      ctx.restore();
-
-      // Render 3D Radiant Glowing Spherical Nodes (Sorted by Z depth)
-      const sortedNodes = [...projectedNodes].sort((a, b) => a.z - b.z);
-
-      sortedNodes.forEach((node) => {
-        const zRatio = Math.min(1, Math.max(0.35, (node.z + 120) / 240));
-        const isPrimeNode = node.origIdx === 0 || node.origIdx === 1 || node.origIdx === 10;
-        const pulse = Math.sin(t * 3.2 + node.origIdx) * (isPrimeNode ? 2.2 : 1.4);
-        const baseRadius = ((isPrimeNode ? 7.5 : 5.2) + pulse) * node.scale;
-
-        ctx.save();
-        // 1. Soft Outermost Radiant Halo
-        const haloGrad = ctx.createRadialGradient(
-          node.x, node.y, 0,
-          node.x, node.y, baseRadius * 4.2
-        );
-        haloGrad.addColorStop(0, `rgba(255, 90, 50, ${0.85 * zRatio})`);
-        haloGrad.addColorStop(0.35, `rgba(255, 35, 0, ${0.5 * zRatio})`);
-        haloGrad.addColorStop(0.7, `rgba(255, 10, 0, ${0.15 * zRatio})`);
-        haloGrad.addColorStop(1, 'rgba(255, 0, 0, 0)');
-        ctx.fillStyle = haloGrad;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, baseRadius * 4.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 2. Solid Luminous Core Sphere with High-Contrast Hotspot
-        const coreGrad = ctx.createRadialGradient(
-          node.x - baseRadius * 0.32, node.y - baseRadius * 0.32, 0,
-          node.x, node.y, baseRadius
-        );
-        coreGrad.addColorStop(0, '#ffffff');
-        coreGrad.addColorStop(0.3, '#ffb899');
-        coreGrad.addColorStop(0.65, '#ff3005');
-        coreGrad.addColorStop(1, '#8f0800');
-
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, baseRadius, 0, Math.PI * 2);
-        ctx.fillStyle = coreGrad;
-        ctx.shadowColor = '#ff3300';
-        ctx.shadowBlur = 18 * zRatio;
-        ctx.fill();
-
-        // 3. Orbiting Gyro Wire Ring
-        ctx.beginPath();
-        ctx.ellipse(node.x, node.y, baseRadius * 1.6, baseRadius * 0.65, t * 1.5 + node.origIdx, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255, 230, 210, ${0.45 * zRatio})`;
-        ctx.lineWidth = 0.9;
-        ctx.stroke();
-
-        ctx.restore();
-      });
-
-      // ----------------------------------------------------
-      // 7. CYBER HUD CALLOUT LEADER LINES & DATA BOXES
-      // ----------------------------------------------------
-      ctx.save();
-      const leftTargetNode = projectedNodes.reduce((min, p) => p.x < min.x ? p : min, projectedNodes[0]);
-      const rightTargetNode = projectedNodes.reduce((max, p) => p.x > max.x ? p : max, projectedNodes[0]);
-
-      ctx.font = '700 8px "Space Mono", monospace';
-
-      // Left HUD Callout: PROTOCOL
-      if (leftTargetNode) {
-        const hudLeftX = Math.max(14, width * 0.07);
-        const hudLeftY = centerNodeY - 60;
-
-        ctx.beginPath();
-        ctx.moveTo(hudLeftX + 64, hudLeftY + 14);
-        ctx.lineTo(hudLeftX + 88, hudLeftY + 14);
-        ctx.lineTo(leftTargetNode.x, leftTargetNode.y);
-        ctx.strokeStyle = isLight ? 'rgba(255, 70, 20, 0.85)' : 'rgba(255, 60, 20, 0.75)';
-        ctx.lineWidth = 1;
-        ctx.shadowColor = '#ff2200';
-        ctx.shadowBlur = 5;
-        ctx.stroke();
-
-        // Box background
-        ctx.fillStyle = isLight ? 'rgba(10, 28, 50, 0.88)' : 'rgba(20, 2, 1, 0.88)';
-        ctx.strokeStyle = 'rgba(255, 46, 0, 0.55)';
-        ctx.fillRect(hudLeftX, hudLeftY - 6, 70, 48);
-        ctx.strokeRect(hudLeftX, hudLeftY - 6, 70, 48);
-
-        // Header and metrics
-        ctx.fillStyle = '#ff3311';
-        ctx.fillText('PROTOCOL', hudLeftX + 6, hudLeftY + 6);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '600 6.5px "Space Mono", monospace';
-        ctx.fillText('> ENCRYPT', hudLeftX + 6, hudLeftY + 17);
-        ctx.fillText('> 256-BIT Q', hudLeftX + 6, hudLeftY + 27);
-        ctx.fillText('> DYNAMIC', hudLeftX + 6, hudLeftY + 37);
-      }
-
-      // Right HUD Callout: TELEMETRY
-      if (rightTargetNode) {
-        const hudRightX = Math.min(width - 86, width * 0.72);
-        const hudRightY = centerNodeY - 70;
-
-        ctx.beginPath();
-        ctx.moveTo(hudRightX - 6, hudRightY + 14);
-        ctx.lineTo(hudRightX - 26, hudRightY + 14);
-        ctx.lineTo(rightTargetNode.x, rightTargetNode.y);
-        ctx.strokeStyle = isLight ? 'rgba(255, 70, 20, 0.85)' : 'rgba(255, 60, 20, 0.75)';
-        ctx.lineWidth = 1;
-        ctx.shadowColor = '#ff2200';
-        ctx.shadowBlur = 5;
-        ctx.stroke();
-
-        // Box background
-        ctx.fillStyle = isLight ? 'rgba(10, 28, 50, 0.88)' : 'rgba(20, 2, 1, 0.88)';
-        ctx.strokeStyle = 'rgba(255, 46, 0, 0.55)';
-        ctx.fillRect(hudRightX, hudRightY - 6, 76, 48);
-        ctx.strokeRect(hudRightX, hudRightY - 6, 76, 48);
-
-        // Header and metrics
-        ctx.font = '700 8px "Space Mono", monospace';
-        ctx.fillStyle = '#ff3311';
-        ctx.fillText('TELEMETRY', hudRightX + 6, hudRightY + 6);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '600 6.5px "Space Mono", monospace';
-        ctx.fillText('> NODE: ACTV', hudRightX + 6, hudRightY + 17);
-        ctx.fillText('> TLS: 1.3 OK', hudRightX + 6, hudRightY + 27);
-        ctx.fillText('> LINK: 12ms', hudRightX + 6, hudRightY + 37);
-      }
-
       ctx.restore();
 
       animId = requestAnimationFrame(render);

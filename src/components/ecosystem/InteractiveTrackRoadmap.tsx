@@ -52,7 +52,7 @@ export interface LearningTrack {
   milestones: RoadmapMilestone[];
 }
 
-export const ROADMAP_TRACKS: LearningTrack[] = [
+const ROADMAP_TRACKS: LearningTrack[] = [
   {
     id: 'web-dev',
     title: 'Full-Stack Web & Software Engineering',

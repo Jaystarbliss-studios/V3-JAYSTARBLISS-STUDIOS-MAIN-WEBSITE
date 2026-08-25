@@ -19,8 +19,10 @@ import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
 import SEO from '../components/ui/SEO';
 import { useToast } from '../contexts/ToastContext';
+import { JaystarblissIcon } from '../components/common/JaystarblissLogo';
 import CyberTerrainCanvas from '../components/portal/CyberTerrainCanvas';
 import CyberLiquidButton from '../components/portal/CyberLiquidButton';
+import ThreeOctagonLogo from '../components/portal/ThreeOctagonLogo';
 import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
@@ -847,26 +849,21 @@ const Portal: React.FC = () => {
         <div className="deco-panel relative">
           <CyberTerrainCanvas theme={theme} />
 
-          <div className="deco-brand">
-            <div className="brand-mark-wrapper">
-              <div className="brand-aura-rotating" />
-              <div className="brand-mark">
-                <img 
-                  src="/logo.png" 
-                  alt="Jaystarbliss Studios Logo" 
-                  className="w-full h-full object-cover select-none"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/favicon.png';
-                  }}
-                />
-              </div>
-            </div>
-            <div className="brand-name">
-              <span className="brand-title">Jaystarbliss</span>
-              <span className="brand-sub">Studios</span>
-            </div>
+          {/* Top-Left Clean Brand Header */}
+          <Link to="/" className="deco-brand flex items-center gap-3 select-none group" aria-label="Home">
+            <JaystarblissIcon className="w-9 h-9 rounded-xl group-hover:scale-105 transition-transform shrink-0" />
+            <span className="font-black text-white text-base tracking-wider uppercase whitespace-nowrap">
+              JAYSTARBLISS STUDIOS
+            </span>
+          </Link>
+
+          {/* Center Floating 3D Octagonal Prism Centerpiece above Horizon */}
+          <div className="deco-center-stage">
+            <div className="stage-glow-reflection" />
+            <ThreeOctagonLogo size={185} className="relative z-10" />
           </div>
           
+          {/* Bottom Tagline */}
           <div className="deco-bottom">
             <div className="deco-tagline">Learn. <br/><span>Grow.</span> <br/>Thrive.</div>
           </div>

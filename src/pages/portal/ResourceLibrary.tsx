@@ -34,12 +34,8 @@ export interface ResourceDocument {
   isFeatured?: boolean;
 }
 
-// Recency Helper Functions
-export const getRecentDate = (hoursAgo: number = 0): string => {
-  return new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
-};
-
-export const isResourceRecent = (dateAdded?: string): boolean => {
+// Recency Helper Function
+const isResourceRecent = (dateAdded?: string): boolean => {
   if (!dateAdded) return false;
   try {
     const time = new Date(dateAdded).getTime();
@@ -48,23 +44,6 @@ export const isResourceRecent = (dateAdded?: string): boolean => {
     return diffMs >= -300000 && diffMs <= 48 * 3600 * 1000;
   } catch {
     return false;
-  }
-};
-
-export const getRecentTimeLabel = (dateAdded?: string): string => {
-  if (!dateAdded) return 'Recent';
-  try {
-    const time = new Date(dateAdded).getTime();
-    if (isNaN(time)) return 'Recent';
-    const diffMs = Date.now() - time;
-    const hours = Math.floor(diffMs / (3600 * 1000));
-    if (hours <= 0) return 'Just now';
-    if (hours === 1) return '1h ago';
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-  } catch {
-    return 'Recent';
   }
 };
 

@@ -5,10 +5,6 @@ import {
   FileText, Download, Bell, Award, CheckCircle2,
   X, ArrowRight, Lock, Code2, Activity, CheckSquare
 } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
-  Tooltip as RechartsTooltip, ResponsiveContainer
-} from 'recharts';
 import { 
   collection, query, where, getDocs, doc, getDoc, 
   limit, updateDoc 
@@ -17,6 +13,7 @@ import { auth, db } from '../../lib/firebase';
 import SEO from '../../components/ui/SEO';
 import { AchievementBadgeGrid } from '../../components/ecosystem/AchievementBadge';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
+import { StudentAnalyticsVisualizer } from '../../components/portal/StudentAnalyticsVisualizer';
 import { useToast } from '../../contexts/ToastContext';
 import { generateModuleCertificatePdf, type ModuleCertificateData } from '../../lib/certificatePdfGenerator';
 
@@ -155,7 +152,6 @@ const StudentDashboard: React.FC = () => {
   const [modules, setModules] = useState<ProgramModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [resourceFilter, setResourceFilter] = useState<'ALL' | 'CLASS' | 'GENERAL'>('ALL');
-  const [chartMetric, setChartMetric] = useState<'sessions' | 'grades' | 'engagement'>('sessions');
 
   // Certificate Modal State
   const [selectedModuleForCert, setSelectedModuleForCert] = useState<ProgramModule | null>(null);
@@ -445,19 +441,6 @@ const StudentDashboard: React.FC = () => {
     }
   };
 
-  // Performance chart data
-  const performanceData = useMemo(() => {
-    return [
-      { date: 'Oct 01', sessions: 65, grades: 78, engagement: 82 },
-      { date: 'Oct 06', sessions: 72, grades: 80, engagement: 85 },
-      { date: 'Oct 12', sessions: 68, grades: 75, engagement: 79 },
-      { date: 'Oct 18', sessions: 74, grades: 84, engagement: 88 },
-      { date: 'Oct 25', sessions: 85, grades: 92, engagement: 94 },
-      { date: 'Nov 02', sessions: 88, grades: 89, engagement: 91 },
-      { date: 'Nov 10', sessions: 95, grades: 96, engagement: 98 },
-    ];
-  }, []);
-
   const courseProgressList = useMemo(() => {
     return [
       { label: 'Web Development', percentage: 75 },
@@ -516,7 +499,6 @@ const StudentDashboard: React.FC = () => {
         name={`Cadet ${student?.fullName || 'Active Cadet'}`}
         role="STEM Cadet"
         subtitle="Track your enrolled courses, live classroom links, verified module certificates, and assessments."
-        badge={student?.plan || 'Dynamic Coding Track'}
       />
 
       {/* Top Grid: Course Progress Rings (Left/Top) & Upcoming Assignments (Right) */}
@@ -580,11 +562,20 @@ const StudentDashboard: React.FC = () => {
 
       </div>
 
-      {/* Middle Grid: Recent Activity & Performance Tracking */}
+      {/* Comprehensive Recharts Data Visualizer Component */}
+      <StudentAnalyticsVisualizer 
+        studentName={student?.fullName || 'Active Cadet'}
+        studentClass={student?.class || 'JSS 1 / STEM Track'}
+        enrolledSubjects={student?.subjects || ['Web Development', 'Robotics & AI', 'Creative Design']}
+        completedModulesCount={completedModulesCount}
+        totalModulesCount={modules.length || 6}
+      />
+
+      {/* Middle Grid: Recent Activity & Milestone Progress */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Recent Activity Panel (4 cols on lg) */}
-        <div className="lg:col-span-4 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+        {/* Recent Activity Panel (5 cols on lg) */}
+        <div className="lg:col-span-5 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h2>
@@ -593,11 +584,11 @@ const StudentDashboard: React.FC = () => {
             <Activity size={16} className="text-red-500" />
           </div>
 
-          <div className="space-y-3.5">
+          <div className="space-y-3">
             {recentActivities.map((act) => {
               const Icon = act.icon;
               return (
-                <div key={act.id} className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
+                <div key={act.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
                   <div className={`p-2 rounded-lg ${act.color} shrink-0 mt-0.5`}>
                     <Icon size={16} />
                   </div>
@@ -612,75 +603,46 @@ const StudentDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Performance Tracking Panel with Glowing Red AreaChart (8 cols on lg) */}
-        <div className="lg:col-span-8 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Performance Tracking</h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Continuous telemetry and score analytics</p>
+        {/* Milestone Goals & Focus Track (7 cols on lg) */}
+        <div className="lg:col-span-7 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center">
+                <Trophy size={18} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Milestone Focus</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Target requirements for the current academic stage</p>
+              </div>
             </div>
-            
-            {/* Filter Selector */}
-            <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800/80 rounded-xl">
-              {(['sessions', 'grades', 'engagement'] as const).map((metric) => (
-                <button
-                  key={metric}
-                  type="button"
-                  onClick={() => setChartMetric(metric)}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg capitalize transition-colors ${
-                    chartMetric === metric
-                      ? 'bg-red-600 text-white shadow-xs'
-                      : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  {metric}
-                </button>
-              ))}
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
+              Stage {modules.find(m => !m.completed)?.stageNumber || 1} in progress
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-auto">
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-gray-800 dark:text-gray-200">Next Deliverable</span>
+                <span className="text-red-600 dark:text-red-400 font-bold">2 Days</span>
+              </div>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Full-Stack React Demo Showcase</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Assigned by Lead Technical Instructor</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="font-bold text-gray-800 dark:text-gray-200">Certificate Readiness</span>
+                <span className="text-emerald-600 font-bold font-mono">80%</span>
+              </div>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length || 6} Milestones Verified</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">PDF auto-issuance enabled upon completion</p>
             </div>
           </div>
 
-          <div className="h-64 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="studentRedGlow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#e63946" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#e63946" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
-                  tickLine={false}
-                />
-                <YAxis 
-                  tick={{ fill: '#94a3b8', fontSize: 11 }} 
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <RechartsTooltip 
-                  contentStyle={{
-                    backgroundColor: '#10141f',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey={chartMetric} 
-                  stroke="#e63946" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#studentRedGlow)" 
-                  activeDot={{ r: 6, fill: '#e63946', stroke: '#fff', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
+            <span>Primary Track: <strong className="text-gray-800 dark:text-gray-200">{student?.plan || 'STEM & Coding Academy'}</strong></span>
+            <span>Study Cadence: <strong className="text-gray-800 dark:text-gray-200">Active</strong></span>
           </div>
         </div>
 

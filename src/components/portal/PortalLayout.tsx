@@ -419,9 +419,16 @@ const PortalLayout: React.FC = () => {
                   <div className="px-3 py-2.5 border-b border-gray-100 dark:border-slate-800 mb-1">
                     <p className="font-bold text-gray-900 dark:text-white truncate">{displayName}</p>
                     <p className="text-gray-400 text-[11px] truncate">{userEmail || `@${role}`}</p>
-                    <span className="inline-block mt-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-brand-red/10 text-brand-red">
-                      {role} Access
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-brand-red/10 text-brand-red">
+                        {role} Access
+                      </span>
+                      {(sessionStorage.getItem('schoolCode') || sessionStorage.getItem('studentAccessCode') || auth.currentUser?.uid) && (
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-gray-200/60 dark:border-slate-700">
+                          Code: {sessionStorage.getItem('schoolCode') || sessionStorage.getItem('studentAccessCode') || `${auth.currentUser?.uid.slice(0, 8)}...`}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <Link

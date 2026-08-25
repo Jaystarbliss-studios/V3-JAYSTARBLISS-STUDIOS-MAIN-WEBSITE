@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { 
@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { 
   Users, Calendar, GraduationCap, BookOpen, ExternalLink,
-  Download, CheckCircle2, Clock, Award, Layers, 
+  Download, CheckCircle2, Clock, Award, 
   Key, Lock, Unlock, Copy, 
   Plus, Search, RefreshCw, 
   ChevronRight, Laptop, CheckSquare, Square,
@@ -101,7 +101,7 @@ const KNOWN_SCHOOL_NAMES: Record<string, string> = {
   royalbreed: 'Royal Breed Academy'
 };
 
-export function getEmbeddableUrl(url: string): string {
+function getEmbeddableUrl(url: string): string {
   if (!url) return '';
   const gdMatch = url.match(/drive\.google\.com\/file\/d\/([^/?]+)/);
   if (gdMatch) {
@@ -132,7 +132,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
-  const resolveTabFromLocation = (): SchoolDashboardTab => {
+  const resolveTabFromLocation = useCallback((): SchoolDashboardTab => {
     if (initialTab) return initialTab;
     const path = location.pathname.toLowerCase();
     if (path.includes('/portal/school/roster')) return 'roster';
@@ -148,14 +148,14 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       return tabQuery;
     }
     return 'overview';
-  };
+  }, [initialTab, location.pathname, searchParams]);
 
   const [activeTab, setActiveTab] = useState<SchoolDashboardTab>(resolveTabFromLocation);
 
   useEffect(() => {
     const nextTab = resolveTabFromLocation();
     setActiveTab(nextTab);
-  }, [location.pathname, searchParams, initialTab]);
+  }, [resolveTabFromLocation]);
 
   const handleTabChange = (tab: SchoolDashboardTab) => {
     setActiveTab(tab);
@@ -694,135 +694,14 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         noindex={true}
       />
 
-      {/* DYNAMIC TIMEZONE & INFORMAL GREETING BANNER */}
-      <DashboardGreeting 
-        name={schoolDisplayName}
-        role="School Administrator"
-        subtitle="Manage student cohort batches, CBT exam evaluations, class access passcodes, and lab timetable schedules."
-        badge={`Code: ${schoolData?.schoolCode || 'SCH-JAYSTAR'}`}
-      />
-
-      {/* TABS NAVIGATION - CLEAN HUB-MIND DESIGN */}
-      <div className="pro-surface p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto">
-        <button
-          id="school-tab-overview"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'overview' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('overview')}
-        >
-          <Layers size={16} />
-          <span>Hub Overview</span>
-        </button>
-
-        <button
-          id="school-tab-roster"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'roster' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('roster')}
-        >
-          <Users size={16} />
-          <span>Cadet Roster</span>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-            {students.length}
-          </span>
-        </button>
-
-        <button
-          id="school-tab-passcodes"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'passcodes' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('passcodes')}
-        >
-          <Key size={16} className="text-amber-500" />
-          <span>Exam Passcodes</span>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black">
-            {passcodes.filter(p => p.isActive).length} Active
-          </span>
-        </button>
-
-        <button
-          id="school-tab-exams"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'exams' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('exams')}
-        >
-          <Award size={16} />
-          <span>CBT Assessments</span>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-brand-red text-white">
-            {exams.length}
-          </span>
-        </button>
-
-        <button
-          id="school-tab-resources"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'resources' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('resources')}
-        >
-          <BookOpen size={16} />
-          <span>Curriculum Guides</span>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-            {resources.length}
-          </span>
-        </button>
-
-        <button
-          id="school-tab-links"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'links' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('links')}
-        >
-          <Link2 size={16} />
-          <span>School Links</span>
-          <span className="px-2 py-0.5 text-[11px] rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold">
-            {links.length}
-          </span>
-        </button>
-
-        <button
-          id="school-tab-schedules"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'schedules' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('schedules')}
-        >
-          <Calendar size={16} />
-          <span>Lab Timetable</span>
-        </button>
-
-        <button
-          id="school-tab-partnership"
-          className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'partnership' 
-              ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
-              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
-          }`}
-          onClick={() => handleTabChange('partnership')}
-        >
-          <CreditCard size={16} />
-          <span>Partnership & Plan</span>
-        </button>
-      </div>
+      {/* DYNAMIC TIMEZONE & INFORMAL GREETING BANNER - ONLY IN HUB OVERVIEW */}
+      {activeTab === 'overview' && (
+        <DashboardGreeting 
+          name={schoolDisplayName}
+          role="School Administrator"
+          subtitle="Manage student cohort batches, CBT exam evaluations, class access passcodes, and lab timetable schedules."
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: HUB OVERVIEW (MATCHING USER'S ATTACHED HUB-MIND DESIGN) */}

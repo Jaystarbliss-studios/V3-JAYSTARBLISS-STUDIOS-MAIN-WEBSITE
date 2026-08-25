@@ -283,6 +283,20 @@ export const PortalSettings: React.FC = () => {
                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/50 text-gray-500 font-bold text-xs capitalize cursor-not-allowed"
               />
             </div>
+
+            <div>
+              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+                Account Access / Identifier Code
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  disabled
+                  value={sessionStorage.getItem('schoolCode') || sessionStorage.getItem('studentAccessCode') || auth.currentUser?.uid || 'JAYSTAR-ACC-01'}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/50 text-gray-600 dark:text-gray-300 font-mono font-bold text-xs cursor-text select-all"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

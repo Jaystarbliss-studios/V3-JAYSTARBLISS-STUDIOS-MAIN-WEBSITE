@@ -6,11 +6,10 @@ interface DashboardGreetingProps {
   name?: string;
   role?: string;
   subtitle?: string;
-  badge?: string;
 }
 
 // Extract a friendly first name or clean display title
-export function getFriendlyFirstName(rawName?: string): string {
+function getFriendlyFirstName(rawName?: string): string {
   if (!rawName) {
     const user = auth.currentUser;
     if (user?.displayName) rawName = user.displayName;
@@ -45,7 +44,7 @@ export function getFriendlyFirstName(rawName?: string): string {
 
 export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
   name,
-  badge
+  subtitle
 }) => {
   const [headline, setHeadline] = useState('');
   const [greetingIcon, setGreetingIcon] = useState<React.ReactNode>(<Sun size={20} className="text-amber-400" />);
@@ -89,14 +88,14 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
           {greetingIcon}
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
             {headline}
           </h1>
-          {badge && (
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-gray-200/80 dark:border-slate-700">
-              {badge}
-            </span>
+          {subtitle && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 max-w-xl">
+              {subtitle}
+            </p>
           )}
         </div>
       </div>

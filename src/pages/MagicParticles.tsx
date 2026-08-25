@@ -1643,7 +1643,7 @@ const MagicParticles: React.FC = () => {
         rendererRef.current.dispose();
       }
     };
-  }, [showIntro, buildParticles, triggerSuperAnimation, switchShape, toggleCamera, updatePhotoTexture]);
+  }, [showIntro, buildParticles, triggerSuperAnimation, switchShape, toggleCamera, updatePhotoTexture, selectedColor]);
 
   const handleSelectShape = (shapeId: string) => {
     setSelectedShapeId(shapeId);

@@ -7,7 +7,7 @@ import {
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
-import { CURATED_RESOURCE_LIBRARY } from '../../pages/portal/ResourceLibrary';
+import { CURATED_RESOURCE_LIBRARY, type ResourceDocument } from '../../pages/portal/ResourceLibrary';
 
 export type SearchCategory = 'ALL' | 'PROGRAMS' | 'RESOURCES' | 'BLOG' | 'SERVICES' | 'PORTFOLIO' | 'PAGES';
 
@@ -174,7 +174,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
 
   // Convert curated resource library into SearchItem format
   const curatedResourceItems: SearchItem[] = useMemo(() => {
-    return CURATED_RESOURCE_LIBRARY.map(res => ({
+    return CURATED_RESOURCE_LIBRARY.map((res: ResourceDocument) => ({
       id: `curated-res-${res.id}`,
       type: 'RESOURCE',
       title: res.title,
