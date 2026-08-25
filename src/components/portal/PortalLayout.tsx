@@ -5,8 +5,8 @@ import {
   Book, BookOpen, Settings, LogOut, LayoutDashboard, 
   Calendar, ExternalLink, Building2, CreditCard,
   User, Lock, Moon, Sun, ChevronDown, CheckCircle2,
-  AlertCircle, Menu, X, ShieldCheck, Video, Contrast,
-  ChevronLeft, ChevronRight
+  AlertCircle, Menu, X, Video, Contrast,
+  ChevronLeft, ChevronRight, Key, Award
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -117,7 +117,9 @@ const PortalLayout: React.FC = () => {
     } else if (role === 'parent') {
       base.push({ name: 'Tuition & Billing', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & Fee Statements' });
     } else if (role === 'school') {
-      base.push({ name: 'Students Roster', path: '/portal/school', icon: <Building2 size={18} />, desc: 'Cadet Records & Access Codes' });
+      base.push({ name: 'Students Roster', path: '/portal/school/roster', icon: <Building2 size={18} />, desc: 'Cadet Records & Access Codes' });
+      base.push({ name: 'Exam Passcodes', path: '/portal/school/passcodes', icon: <Key size={18} />, desc: 'Active Assessment Keys' });
+      base.push({ name: 'CBT Assessments', path: '/portal/school/exams', icon: <Award size={18} />, desc: 'Student Exams & Tests' });
       base.push({ name: 'Lab Partnership', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'Institutional Licensing & Fees' });
     }
 
@@ -204,19 +206,19 @@ const PortalLayout: React.FC = () => {
 
       {/* Desktop Sidebar (Collapsible & Independently Scrollable) */}
       <aside 
-        className={`hidden md:flex bg-slate-950/95 backdrop-blur-xl text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex bg-white dark:bg-[#10141f]/95 backdrop-blur-xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-gray-200/80 dark:border-white/5 shrink-0 select-none transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? 'w-20' : 'w-64'
         }`}
       >
         {/* Sidebar Header */}
-        <div className={`p-4 border-b border-white/10 flex items-center justify-between shrink-0 ${sidebarCollapsed ? 'flex-col gap-3 py-4' : ''}`}>
+        <div className={`p-4 border-b border-gray-100 dark:border-white/5 flex items-center justify-between shrink-0 ${sidebarCollapsed ? 'flex-col gap-3 py-4' : ''}`}>
           <Tooltip content="Return to Main Website" placement="right">
             <Link to="/" className="flex items-center gap-2.5 group">
               <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0" />
               {!sidebarCollapsed && (
-                <span className="font-bold text-xs sm:text-sm tracking-tight flex items-center gap-1.5 whitespace-nowrap">
+                <span className="font-bold text-xs sm:text-sm tracking-tight flex items-center gap-1.5 whitespace-nowrap text-gray-900 dark:text-white">
                   JAYSTARBLISS STUDIOS
-                  <ExternalLink size={13} className="opacity-0 group-hover:opacity-60 transition-opacity" />
+                  <ExternalLink size={13} className="opacity-0 group-hover:opacity-60 transition-opacity text-slate-400" />
                 </span>
               )}
             </Link>
@@ -226,7 +228,7 @@ const PortalLayout: React.FC = () => {
             <button
               type="button"
               onClick={toggleSidebarCollapse}
-              className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -237,9 +239,9 @@ const PortalLayout: React.FC = () => {
         {/* Portal Role Badge */}
         {!sidebarCollapsed && (
           <div className="px-5 pt-4 pb-2 shrink-0">
-            <p className="text-[11px] text-white/50 uppercase tracking-widest font-bold flex items-center justify-between">
+            <p className="text-[11px] text-gray-400 dark:text-white/50 uppercase tracking-widest font-bold flex items-center justify-between">
               <span>{role} Portal</span>
-              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" title="Active Session"></span>
+              <span className="w-2 h-2 rounded-full bg-red-500 dark:bg-red-400 animate-pulse" title="Active Session"></span>
             </p>
           </div>
         )}
@@ -257,15 +259,15 @@ const PortalLayout: React.FC = () => {
               >
                 <Link
                   to={link.path}
-                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all text-xs font-semibold ${
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs font-semibold ${
                     sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
                   } ${
                     isActive 
-                      ? 'bg-brand-red text-white font-bold shadow-md' 
-                      : 'text-white/70 hover:bg-white/10 hover:text-white'
+                      ? 'bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/80 dark:border-red-500/25 font-bold shadow-xs' 
+                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  <span className="shrink-0">{link.icon}</span>
+                  <span className={`shrink-0 ${isActive ? 'text-red-600 dark:text-red-400' : ''}`}>{link.icon}</span>
                   {!sidebarCollapsed && <span className="truncate">{link.name}</span>}
                 </Link>
               </Tooltip>
@@ -274,18 +276,18 @@ const PortalLayout: React.FC = () => {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className={`p-3 border-t border-white/10 shrink-0 space-y-2 ${sidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
+        <div className={`p-3 border-t border-gray-100 dark:border-white/5 shrink-0 space-y-2 ${sidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
           {!sidebarCollapsed ? (
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 text-xs text-white/60">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/5 text-xs text-gray-500 dark:text-white/60">
               <span className="flex items-center gap-2">
-                <ShieldCheck size={14} className="text-green-400 shrink-0" />
-                <span className="text-[11px] font-medium">SSL Encrypted</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400"></span>
+                <span className="text-[11px] font-medium">Session Active</span>
               </span>
               <Tooltip content="Toggle Theme" placement="top">
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className="p-1 rounded-md hover:bg-white/10 text-white/80 hover:text-white"
+                  className="p-1 rounded-md hover:bg-gray-200 dark:hover:bg-white/10 text-gray-600 dark:text-white/80 hover:text-gray-900 dark:hover:text-white"
                   aria-label="Toggle Theme"
                 >
                   {theme === 'dark' ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} />}
@@ -297,7 +299,7 @@ const PortalLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/15 text-white/80 transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-white/80 transition-colors"
                 aria-label="Toggle Theme"
               >
                 {theme === 'dark' ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} />}
@@ -309,7 +311,7 @@ const PortalLayout: React.FC = () => {
             <button 
               type="button"
               onClick={handleLogout}
-              className={`flex items-center gap-3 py-2.5 text-white/60 hover:text-brand-red rounded-xl hover:bg-white/5 transition-colors text-xs font-semibold ${
+              className={`flex items-center gap-3 py-2.5 text-gray-500 dark:text-white/60 hover:text-red-600 dark:hover:text-red-400 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-xs font-semibold ${
                 sidebarCollapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 text-left'
               }`}
               aria-label="Log Out"
@@ -322,7 +324,7 @@ const PortalLayout: React.FC = () => {
       </aside>
 
       {/* Main Content Area - Independently Scrollable */}
-      <main className="flex-1 h-full max-h-screen flex flex-col min-w-0 bg-gray-50 dark:bg-slate-950 overflow-y-auto overscroll-contain custom-scrollbar">
+      <main className="flex-1 h-full max-h-screen flex flex-col min-w-0 bg-[#f8fafc] dark:bg-[#0c1017] overflow-y-auto overscroll-contain custom-scrollbar">
         
         {/* Unverified Email Warning Banner */}
         {!isEmailVerified && userEmail && !isStudentAccessCodeOnly && (
@@ -345,7 +347,7 @@ const PortalLayout: React.FC = () => {
         )}
 
         {/* Header with Profile Dropdown */}
-        <header className="bg-white dark:bg-slate-900 border-b border-gray-200/80 dark:border-slate-800 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shrink-0 transition-colors shadow-xs">
+        <header className="bg-white/80 dark:bg-[#0f141e]/80 backdrop-blur-md border-b border-gray-200/80 dark:border-white/5 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shrink-0 transition-colors shadow-xs">
           <div className="flex items-center gap-3">
             <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white capitalize">
               {navLinks.find(l => l.path === location.pathname)?.name || 'Dashboard'}

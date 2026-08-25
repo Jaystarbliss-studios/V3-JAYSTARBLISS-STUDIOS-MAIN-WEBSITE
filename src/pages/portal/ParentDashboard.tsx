@@ -187,39 +187,39 @@ const ParentDashboard: React.FC = () => {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl flex items-center justify-center">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
             <GraduationCap size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Linked Children</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Linked Children</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{children.length}</p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
           <div className="w-12 h-12 bg-brand-red/10 text-brand-red rounded-xl flex items-center justify-center">
             <Clock size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending Enrollments</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Pending Enrollments</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{enrollments.length}</p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-50 dark:bg-green-900/30 text-green-600 rounded-xl flex items-center justify-center">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
             <CreditCard size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tuition Receipts</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tuition Receipts</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{payments.length}</p>
           </div>
         </div>
       </div>
 
       {/* Linked Children Profiles */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
+      <div className="pro-surface rounded-3xl p-6 md:p-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enrolled Cadets</h2>
           <button 
@@ -234,16 +234,16 @@ const ParentDashboard: React.FC = () => {
         {loading ? (
           <div className="text-sm text-gray-500 py-6">Loading student records...</div>
         ) : children.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 dark:border-slate-800 rounded-xl">
-            <GraduationCap className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+          <div className="text-center py-12 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl bg-gray-50/50 dark:bg-slate-900/40">
+            <GraduationCap className="mx-auto h-12 w-12 text-gray-300 dark:text-slate-600 mb-3" />
             <p className="font-bold text-gray-900 dark:text-white">No cadets linked yet</p>
-            <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
               If you recently enrolled, your account will link automatically once verified. Or request enrollment below.
             </p>
             <button 
               type="button" 
               onClick={() => setShowEnrollModal(true)}
-              className="mt-4 px-4 py-2 bg-brand-red text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors"
+              className="mt-4 px-4 py-2 bg-brand-red text-white text-xs font-bold rounded-xl hover:bg-red-700 transition-colors shadow-xs"
             >
               Request Child Enrollment
             </button>
@@ -251,7 +251,7 @@ const ParentDashboard: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {children.map(student => (
-              <div key={student.id} className="border border-gray-200/80 dark:border-slate-800 rounded-2xl p-5 bg-gray-50/50 dark:bg-slate-950 flex flex-col justify-between">
+              <div key={student.id} className="border border-gray-200/80 dark:border-white/5 rounded-2xl p-5 bg-gray-50/50 dark:bg-slate-900/60 flex flex-col justify-between shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -260,24 +260,24 @@ const ParentDashboard: React.FC = () => {
                       </div>
                       <div>
                         <h4 className="font-bold text-gray-900 dark:text-white text-sm">{student.fullName}</h4>
-                        <p className="text-xs text-gray-500">@{student.username || 'cadet'}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">@{student.username || 'cadet'}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400">
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
                       Active
                     </span>
                   </div>
 
                   <div className="space-y-2 mt-4 text-xs">
                     <div>
-                      <span className="text-gray-500 block mb-1">Enrolled Subjects:</span>
+                      <span className="text-gray-500 dark:text-slate-400 block mb-1">Enrolled Subjects:</span>
                       <div className="flex flex-wrap gap-1.5">
                         {Array.isArray(student.subjects) ? student.subjects.map((sub: string, i: number) => (
-                          <span key={i} className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded text-gray-700 dark:text-gray-300">
+                          <span key={i} className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded text-gray-700 dark:text-slate-300">
                             {sub}
                           </span>
                         )) : (
-                          <span className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded text-gray-700 dark:text-gray-300">
+                          <span className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded text-gray-700 dark:text-slate-300">
                             {student.subjects || 'General Tech Track'}
                           </span>
                         )}
@@ -285,15 +285,15 @@ const ParentDashboard: React.FC = () => {
                     </div>
 
                     {student.schedule && (
-                      <div className="pt-2 text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                      <div className="pt-2 text-gray-600 dark:text-slate-400 flex items-center gap-1.5">
                         <Clock size={12} className="text-brand-red" /> {student.schedule}
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-gray-200 dark:border-slate-800 flex justify-between items-center text-xs">
-                  <span className="text-gray-500">
+                <div className="mt-5 pt-4 border-t border-gray-200 dark:border-white/5 flex justify-between items-center text-xs">
+                  <span className="text-gray-500 dark:text-slate-400">
                     Access Code: <strong className="font-mono text-brand-red ml-1">{student.accessCode || '******'}</strong>
                   </span>
                 </div>

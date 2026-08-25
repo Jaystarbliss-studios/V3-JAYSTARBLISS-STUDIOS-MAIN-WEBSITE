@@ -139,7 +139,13 @@ function AnimatedRoutes() {
         
         {/* School Admin Portal */}
         <Route path="/portal/school" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute allowedRoles={['SCHOOL']} redirectPath="/portal"><PortalLayout /></ProtectedRoute></Suspense>}>
-          <Route index element={<Suspense fallback={<LazyFallback />}><SchoolDashboard /></Suspense>} />
+          <Route index element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="overview" /></Suspense>} />
+          <Route path="roster" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="roster" /></Suspense>} />
+          <Route path="passcodes" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="passcodes" /></Suspense>} />
+          <Route path="exams" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="exams" /></Suspense>} />
+          <Route path="links" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="links" /></Suspense>} />
+          <Route path="schedules" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="schedules" /></Suspense>} />
+          <Route path="partnership" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="school" /></Suspense>} />
           <Route path="calendar" element={<Suspense fallback={<LazyFallback />}><PortalCalendar /></Suspense>} />
           <Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />

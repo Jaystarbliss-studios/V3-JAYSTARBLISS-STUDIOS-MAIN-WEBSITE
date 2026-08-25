@@ -45,8 +45,6 @@ export function getFriendlyFirstName(rawName?: string): string {
 
 export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
   name,
-  role = 'student',
-  subtitle,
   badge
 }) => {
   const [headline, setHeadline] = useState('');
@@ -85,32 +83,21 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
     updateGreeting();
   }, [firstName]);
 
-  const defaultSubtitle = subtitle || 'Welcome to your operations dashboard. Access your curriculum, assessments, and learning resources.';
-
   return (
-    <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-md border border-slate-800">
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700">
-              {greetingIcon}
-              <span className="capitalize">{role} Dashboard</span>
-            </span>
-
-            {badge && (
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-red text-white">
-                {badge}
-              </span>
-            )}
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight leading-tight">
+    <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+          {greetingIcon}
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
             {headline}
           </h1>
-
-          <p className="text-slate-300 text-xs sm:text-sm md:text-base max-w-2xl leading-relaxed">
-            {defaultSubtitle}
-          </p>
+          {badge && (
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-gray-200/80 dark:border-slate-700">
+              {badge}
+            </span>
+          )}
         </div>
       </div>
     </div>

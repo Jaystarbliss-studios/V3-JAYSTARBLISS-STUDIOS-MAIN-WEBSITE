@@ -162,9 +162,9 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
   const totalExamsCount = examsData.length > 0 ? examsData.length : 9;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
+    <div className="pro-surface rounded-3xl overflow-hidden transition-colors">
       {/* Header with Title, Controls & Timeframe Selector */}
-      <div className="p-6 md:p-8 border-b border-gray-100 dark:border-slate-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="p-6 md:p-8 border-b border-gray-100 dark:border-white/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1">
             <span className="p-2 rounded-xl bg-brand-red/10 text-brand-red">
@@ -181,14 +181,14 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
 
         <div className="flex items-center flex-wrap gap-2">
           {/* Timeframe Filter */}
-          <div className="flex items-center bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
+          <div className="flex items-center bg-gray-100 dark:bg-slate-800/80 p-1 rounded-xl border border-gray-200/50 dark:border-white/5">
             {(['7d', '30d', '90d', '1y'] as const).map(range => (
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   timeRange === range
-                    ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-brand-red text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
@@ -202,7 +202,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             <button
               onClick={onRefresh}
               disabled={isLoading}
-              className="p-2 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              className="p-2 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800/80 transition-colors disabled:opacity-50"
               title="Refresh Firestore Metrics"
             >
               <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
@@ -212,8 +212,8 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-slate-800/80 bg-gray-50/50 dark:bg-slate-950/40">
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Student Growth Rate</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
@@ -228,7 +228,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Weekly Login Volume</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
@@ -243,7 +243,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Resource Utilization</span>
             <span className="flex items-center text-blue-600 dark:text-blue-400 font-bold">
@@ -258,7 +258,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">CBT Exam Pass Rate</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
@@ -275,7 +275,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
       </div>
 
       {/* Tab Navigation */}
-      <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {[
           { key: 'growth', label: 'Student Growth Trend', icon: Users },
           { key: 'logins', label: 'Portal Login Frequency', icon: Activity },

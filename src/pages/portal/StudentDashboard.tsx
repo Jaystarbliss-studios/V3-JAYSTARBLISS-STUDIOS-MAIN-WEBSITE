@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  BookOpen, Clock, Trophy, Video, ExternalLink, 
+  Clock, Trophy, Video, ExternalLink, 
   FileText, Download, Bell, Award, CheckCircle2,
-  X, ArrowRight, Lock
+  X, ArrowRight, Lock, Code2, Activity, CheckSquare
 } from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
+  Tooltip as RechartsTooltip, ResponsiveContainer
+} from 'recharts';
 import { 
   collection, query, where, getDocs, doc, getDoc, 
   limit, updateDoc 
@@ -93,6 +97,52 @@ interface NotificationItem {
   readBy?: string[];
 }
 
+// Circular Progress Component matching Screenshot
+const CircularProgress: React.FC<{ percentage: number; label: string; size?: number; strokeWidth?: number }> = ({
+  percentage,
+  label,
+  size = 112,
+  strokeWidth = 9
+}) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percentage / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center justify-center p-3 text-center">
+      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+        <svg className="transform -rotate-90" width={size} height={size}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            className="text-slate-200 dark:text-slate-800"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="#e63946"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            className="transition-all duration-1000 ease-out"
+          />
+        </svg>
+        <div className="absolute flex flex-col items-center justify-center">
+          <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">{percentage}%</span>
+        </div>
+      </div>
+      <p className="mt-2.5 text-xs font-bold text-gray-700 dark:text-slate-300 line-clamp-1">{label}</p>
+    </div>
+  );
+};
+
 const StudentDashboard: React.FC = () => {
   const { toast } = useToast();
   const [student, setStudent] = useState<StudentInfo | null>(null);
@@ -105,6 +155,7 @@ const StudentDashboard: React.FC = () => {
   const [modules, setModules] = useState<ProgramModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [resourceFilter, setResourceFilter] = useState<'ALL' | 'CLASS' | 'GENERAL'>('ALL');
+  const [chartMetric, setChartMetric] = useState<'sessions' | 'grades' | 'engagement'>('sessions');
 
   // Certificate Modal State
   const [selectedModuleForCert, setSelectedModuleForCert] = useState<ProgramModule | null>(null);
@@ -394,7 +445,53 @@ const StudentDashboard: React.FC = () => {
     }
   };
 
-  const activeSubjects = student?.subjects || ['Web Development Fundamentals', 'Scratch & Python AI', 'Creative Design'];
+  // Performance chart data
+  const performanceData = useMemo(() => {
+    return [
+      { date: 'Oct 01', sessions: 65, grades: 78, engagement: 82 },
+      { date: 'Oct 06', sessions: 72, grades: 80, engagement: 85 },
+      { date: 'Oct 12', sessions: 68, grades: 75, engagement: 79 },
+      { date: 'Oct 18', sessions: 74, grades: 84, engagement: 88 },
+      { date: 'Oct 25', sessions: 85, grades: 92, engagement: 94 },
+      { date: 'Nov 02', sessions: 88, grades: 89, engagement: 91 },
+      { date: 'Nov 10', sessions: 95, grades: 96, engagement: 98 },
+    ];
+  }, []);
+
+  const courseProgressList = useMemo(() => {
+    return [
+      { label: 'Web Development', percentage: 75 },
+      { label: 'Data Science', percentage: 60 },
+      { label: 'UX Design', percentage: 90 },
+      { label: 'Robotics & AI', percentage: 85 },
+    ];
+  }, []);
+
+  const upcomingAssignments = useMemo(() => {
+    if (exams.length > 0) {
+      return exams.slice(0, 3).map((e, idx) => ({
+        id: e.id,
+        title: e.title,
+        track: e.subject || 'STEM Track',
+        deadline: e.dueDate || `Due in ${idx + 2} days`,
+        link: e.link || e.url
+      }));
+    }
+    return [
+      { id: '1', title: 'React Project Build', track: 'Frontend Engineering', deadline: 'Due Oct 25', link: '#' },
+      { id: '2', title: 'Database Schema Quiz', track: 'Backend & SQL', deadline: 'Due Nov 02', link: '#' },
+      { id: '3', title: 'Wireframe Design Deck', track: 'UI/UX Interactive', deadline: 'Due Nov 08', link: '#' },
+    ];
+  }, [exams]);
+
+  const recentActivities = useMemo(() => {
+    return [
+      { id: 'a1', action: 'Submitted Assignment', detail: 'React Project Showcase', time: '2 hours ago', icon: CheckSquare, color: 'text-red-500 bg-red-500/10' },
+      { id: 'a2', action: 'Completed Milestone Module', detail: 'State & Lifecycle Hooks', time: 'Yesterday', icon: Award, color: 'text-emerald-500 bg-emerald-500/10' },
+      { id: 'a3', action: 'Joined Live Classroom', detail: 'Advanced Python AI Track', time: '3 days ago', icon: Video, color: 'text-blue-500 bg-blue-500/10' },
+    ];
+  }, []);
+
   const completedModulesCount = modules.filter(m => m.completed).length;
 
   if (loading) {
@@ -407,7 +504,7 @@ const StudentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="dashboard-interface space-y-8">
+    <div className="dashboard-interface space-y-6 md:space-y-8">
       <SEO 
         title="Student Workspace Dashboard" 
         description="Access student classes, mentor feedback, assignments, module certificates, and learning resources." 
@@ -422,54 +519,178 @@ const StudentDashboard: React.FC = () => {
         badge={student?.plan || 'Dynamic Coding Track'}
       />
 
-      {/* Live Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center flex-shrink-0">
-            <BookOpen size={24} />
+      {/* Top Grid: Course Progress Rings (Left/Top) & Upcoming Assignments (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Course Progress Rings Panel (7 cols on lg) */}
+        <div className="lg:col-span-7 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Course Progress</h2>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Current syllabus progression across active enrolled tracks</p>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
+              Active Term
+            </span>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled Subjects</p>
-            <p className="text-2xl font-black text-gray-900 dark:text-white">{activeSubjects.length}</p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+            {courseProgressList.map((cp, idx) => (
+              <CircularProgress 
+                key={idx} 
+                percentage={cp.percentage} 
+                label={cp.label}
+              />
+            ))}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center flex-shrink-0">
-            <Award size={24} />
+        {/* Upcoming Assignments Panel (5 cols on lg) */}
+        <div className="lg:col-span-5 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Upcoming Assignments</h2>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Milestone deliverables & assessment tests</p>
+            </div>
+            <span className="text-xs text-red-600 dark:text-red-400 font-bold">{upcomingAssignments.length} Pending</span>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Completed Modules</p>
-            <p className="text-2xl font-black text-gray-900 dark:text-white">{completedModulesCount} / {modules.length}</p>
+
+          <div className="space-y-3">
+            {upcomingAssignments.map((task) => (
+              <div 
+                key={task.id} 
+                className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5 hover:border-red-500/30 transition-all group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 border border-red-200/60 dark:border-red-500/20 group-hover:scale-105 transition-transform">
+                    <Code2 size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white truncate">{task.title}</h3>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{task.track}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300">
+                  {task.deadline}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center flex-shrink-0">
-            <Video size={24} />
+      </div>
+
+      {/* Middle Grid: Recent Activity & Performance Tracking */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Recent Activity Panel (4 cols on lg) */}
+        <div className="lg:col-span-4 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h2>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Chronological learning event logs</p>
+            </div>
+            <Activity size={16} className="text-red-500" />
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Personal Links</p>
-            <p className="text-2xl font-black text-gray-900 dark:text-white">{personalLinks.length}</p>
+
+          <div className="space-y-3.5">
+            {recentActivities.map((act) => {
+              const Icon = act.icon;
+              return (
+                <div key={act.id} className="flex items-start gap-3 p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
+                  <div className={`p-2 rounded-lg ${act.color} shrink-0 mt-0.5`}>
+                    <Icon size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">{act.action}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate">{act.detail}</p>
+                    <span className="text-[10px] text-slate-400 font-mono mt-1 block">{act.time}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-green-50 dark:bg-green-900/30 text-green-600 flex items-center justify-center flex-shrink-0">
-            <Trophy size={24} />
+        {/* Performance Tracking Panel with Glowing Red AreaChart (8 cols on lg) */}
+        <div className="lg:col-span-8 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Performance Tracking</h2>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Continuous telemetry and score analytics</p>
+            </div>
+            
+            {/* Filter Selector */}
+            <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-slate-800/80 rounded-xl">
+              {(['sessions', 'grades', 'engagement'] as const).map((metric) => (
+                <button
+                  key={metric}
+                  type="button"
+                  onClick={() => setChartMetric(metric)}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg capitalize transition-colors ${
+                    chartMetric === metric
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  {metric}
+                </button>
+              ))}
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Assessments & XP</p>
-            <p className="text-2xl font-black text-gray-900 dark:text-white">{exams.length + 3}</p>
+
+          <div className="h-64 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="studentRedGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#e63946" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#e63946" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} 
+                  axisLine={{ stroke: 'rgba(148, 163, 184, 0.2)' }}
+                  tickLine={false}
+                />
+                <YAxis 
+                  tick={{ fill: '#94a3b8', fontSize: 11 }} 
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <RechartsTooltip 
+                  contentStyle={{
+                    backgroundColor: '#10141f',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey={chartMetric} 
+                  stroke="#e63946" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#studentRedGlow)" 
+                  activeDot={{ r: 6, fill: '#e63946', stroke: '#fff', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
+
       </div>
 
       {/* Program Modules & PDF Certificate Generation Hub */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-slate-800">
+      <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 border border-amber-500/20">
+            <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 border border-red-200/60 dark:border-red-500/20">
               <Award size={24} />
             </div>
             <div>
@@ -494,7 +715,7 @@ const StudentDashboard: React.FC = () => {
 
         {/* Modules Grid */}
         {modules.length === 0 ? (
-          <div className="p-8 text-center bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-gray-200 dark:border-slate-800">
+          <div className="p-8 text-center bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-gray-200 dark:border-white/10">
             <Award className="mx-auto text-gray-400 mb-2" size={32} />
             <p className="text-xs font-bold text-gray-700 dark:text-gray-300">No program milestones assigned yet</p>
             <p className="text-[11px] text-gray-500 mt-1 max-w-sm mx-auto">
@@ -508,8 +729,8 @@ const StudentDashboard: React.FC = () => {
                 key={mod.id}
                 className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
                   mod.completed
-                    ? 'bg-gradient-to-b from-white to-amber-50/20 dark:from-slate-900 dark:to-slate-800/40 border-amber-200/60 dark:border-amber-900/30 hover:border-amber-400/80 shadow-xs'
-                    : 'bg-gray-50/50 dark:bg-slate-950/40 border-gray-200/70 dark:border-slate-800 opacity-80'
+                    ? 'bg-gradient-to-b from-white to-red-50/20 dark:from-[#121622] dark:to-red-950/20 border-red-200/60 dark:border-red-900/30 hover:border-red-400/80 shadow-xs'
+                    : 'bg-gray-50/50 dark:bg-slate-950/40 border-gray-200/70 dark:border-white/5 opacity-80'
                 }`}
               >
                 <div>
@@ -531,7 +752,7 @@ const StudentDashboard: React.FC = () => {
                   <h3 className="font-bold text-gray-900 dark:text-white text-base leading-snug mb-1">
                     {mod.title}
                   </h3>
-                  <p className="text-xs text-brand-red font-medium mb-3">
+                  <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-3">
                     {mod.trackName}
                   </p>
 
@@ -551,7 +772,7 @@ const StudentDashboard: React.FC = () => {
                   </div>
 
                   {mod.completionDate && (
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-4 flex items-center justify-between pt-2 border-t border-gray-100 dark:border-slate-800/80">
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-4 flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
                       <span>Verified: {mod.completionDate}</span>
                       <span className="font-bold text-amber-600 dark:text-amber-400">{mod.score}</span>
                     </div>
@@ -566,7 +787,7 @@ const StudentDashboard: React.FC = () => {
                         setSelectedModuleForCert(mod);
                         setCertStudentName(student?.fullName || 'Active Student');
                       }}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-brand-slate dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
                     >
                       <Award size={14} className="text-amber-400" />
                       <span>Customize & Preview</span>
@@ -575,7 +796,7 @@ const StudentDashboard: React.FC = () => {
                       onClick={() => handleDownloadCertificate(mod)}
                       disabled={generatingCert}
                       title="Quick Download PDF"
-                      className="p-2.5 bg-brand-red hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors shrink-0"
+                      className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors shrink-0"
                     >
                       <Download size={15} />
                     </button>
@@ -596,10 +817,351 @@ const StudentDashboard: React.FC = () => {
         )}
       </div>
 
+      {/* Student Achievement & Mastery Badges Section */}
+      <AchievementBadgeGrid 
+        studentName={student?.fullName}
+        title="My Achievement & Mastery Badges"
+        subtitle="Earn verifiable badges and XP as you complete 5-stage milestones and projects."
+      />
+
+      {/* Main Content Sections: Live Classroom, Handouts & Exams */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left 2 Columns: Live Links & Resources */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Personal Class & Live Stream Links */}
+          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center">
+                  <Video size={18} />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Live Classroom & Sessions</h2>
+              </div>
+              <span className="text-xs text-gray-500">Assigned by Mentor</span>
+            </div>
+
+            {personalLinks.length === 0 ? (
+              <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                <Video size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No scheduled personal live links at this moment.</p>
+                <p className="text-xs text-gray-500 mt-1">Your tutor will post Zoom, Google Meet, or scratch room links here prior to class.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {personalLinks.map((link) => (
+                  <div key={link.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-white/5 bg-gray-50/50 dark:bg-slate-950/50 hover:border-red-500/40 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 uppercase">
+                          {link.platform || 'Class Link'}
+                        </span>
+                        {link.meetingTime && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <Clock size={12} /> {link.meetingTime}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-1">{link.title}</h3>
+                      {link.description && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{link.description}</p>
+                      )}
+                    </div>
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center justify-center gap-2 w-full px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
+                    >
+                      Join Class Room <ExternalLink size={13} />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Personal & General Resources */}
+          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Learning Materials & Handouts</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Curated resources, handouts, and class-specific coursework</p>
+                </div>
+              </div>
+              <Link 
+                to="/portal/student/resources" 
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 transition-colors"
+              >
+                <span>Browse Full Resource Library</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {/* Filter Chips */}
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 dark:border-white/5 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setResourceFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                  resourceFilter === 'ALL'
+                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                All Resources ({personalResources.length + classResources.length + generalResources.length})
+              </button>
+              {student?.class && (
+                <button
+                  type="button"
+                  onClick={() => setResourceFilter('CLASS')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                    resourceFilter === 'CLASS'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100'
+                  }`}
+                >
+                  Class Materials: {student.class} ({classResources.length})
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setResourceFilter('GENERAL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
+                  resourceFilter === 'GENERAL'
+                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
+                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                General Library ({generalResources.length})
+              </button>
+            </div>
+
+            {(() => {
+              let displayList: ResourceItem[] = [];
+              if (resourceFilter === 'ALL') {
+                displayList = [...personalResources, ...classResources, ...generalResources];
+              } else if (resourceFilter === 'CLASS') {
+                displayList = classResources;
+              } else {
+                displayList = generalResources;
+              }
+
+              if (displayList.length === 0) {
+                return (
+                  <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                    <FileText size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {resourceFilter === 'CLASS' 
+                        ? `No specific resources uploaded yet for ${student?.class || 'your class'}.`
+                        : 'Learning materials are being uploaded by instructors.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {displayList.map((res) => (
+                    <div key={res.id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-white dark:bg-slate-950 hover:shadow-xs transition-shadow flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="p-2 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 shrink-0 mt-0.5">
+                          <FileText size={16} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {res.isClassSpecific && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
+                                Class: {res.targetClass || res.class || student?.class}
+                              </span>
+                            )}
+                            {res.type && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300">
+                                {res.type}
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{res.title}</h3>
+                          {res.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{res.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      {res.url && (
+                        <a 
+                          href={res.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 dark:bg-slate-800 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                        >
+                          <Download size={13} /> Access
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Active Assessments & Quizzes */}
+          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-600 flex items-center justify-center">
+                  <Trophy size={18} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Assessments & Quizzes</h2>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Class exams and evaluation tests forwarded from administrator</p>
+                </div>
+              </div>
+            </div>
+
+            {exams.length === 0 ? (
+              <div className="p-6 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                <p className="text-xs text-gray-500">No active examinations pending submission for your class.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {exams.map(exam => (
+                  <div key={exam.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-white/5 bg-gray-50 dark:bg-slate-950 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                          {exam.subject || 'CBT Assessment'}
+                        </span>
+                        {exam.targetClass && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400">
+                            {exam.targetClass}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mt-1">{exam.title}</h3>
+                      {exam.duration && <p className="text-xs text-gray-500 mt-1">Duration: {exam.duration}</p>}
+                      {exam.passcodeProtected && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-mono mt-1 flex items-center gap-1">
+                          <Lock size={12} /> Requires Exam Passcode
+                        </p>
+                      )}
+                    </div>
+                    {(exam.link || exam.url) && (
+                      <a 
+                        href={exam.link || exam.url} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-red-600 dark:hover:bg-red-600 text-white text-xs font-bold rounded-lg transition-colors"
+                      >
+                        Start Test <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Right Sidebar: Profile card & Announcements */}
+        <div className="space-y-6">
+
+          {/* Student Identity Card */}
+          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
+            <h2 className="text-base font-bold text-gray-900 dark:text-white mb-4">Cadet Profile</h2>
+            
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                <span className="text-gray-500 dark:text-gray-400">Username:</span>
+                <span className="font-bold text-gray-900 dark:text-white font-mono">{student?.username || '—'}</span>
+              </div>
+              {student?.class && (
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 dark:text-gray-400">Assigned Class:</span>
+                  <span className="font-bold text-red-600 dark:text-red-400">{student.class}</span>
+                </div>
+              )}
+              {student?.schoolName && (
+                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 dark:text-gray-400">School Partner:</span>
+                  <span className="font-bold text-gray-900 dark:text-white text-right truncate max-w-[150px]">{student.schoolName}</span>
+                </div>
+              )}
+              {(student?.accessCode || student?.passcode) && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-white/5">
+                  <span className="text-gray-500 dark:text-gray-400">Access Passcode:</span>
+                  <span className="font-mono font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded border border-red-200 dark:border-red-900/40">
+                    {student.accessCode || student.passcode}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                <span className="font-bold text-green-600 dark:text-green-400">Active Learner</span>
+              </div>
+              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
+                <span className="text-gray-500 dark:text-gray-400">Primary Track:</span>
+                <span className="font-bold text-gray-900 dark:text-white text-right">{student?.plan || 'Dynamic Coding'}</span>
+              </div>
+              {student?.notes && (
+                <div className="py-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Mentor Remarks:</span>
+                  <p className="text-xs bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-lg text-amber-800 dark:text-amber-200 border border-amber-200/50 dark:border-amber-800/50">
+                    {student.notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Institute Announcements */}
+          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <Bell size={18} className="text-red-600 dark:text-red-400" />
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">Announcements</h2>
+            </div>
+
+            {notifications.length === 0 ? (
+              <p className="text-xs text-gray-500">No new announcements today.</p>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map(n => {
+                  const isRead = auth.currentUser?.uid && n.readBy?.includes(auth.currentUser.uid);
+                  return (
+                    <div 
+                      key={n.id} 
+                      onClick={() => markNotificationRead(n.id)}
+                      className={`p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
+                        isRead 
+                          ? 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-slate-950/50 text-gray-500' 
+                          : 'border-red-500/30 bg-red-500/5 dark:bg-red-500/10 text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      <div className="font-bold mb-1 flex items-center justify-between">
+                        <span>{n.title}</span>
+                        {!isRead && <span className="w-2 h-2 rounded-full bg-red-600 dark:bg-red-400"></span>}
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{n.message}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
+
+      </div>
+
       {/* Certificate Customization & Download Modal */}
       {selectedModuleForCert && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          <div className="bg-white dark:bg-[#121622] border border-gray-200 dark:border-white/10 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="flex items-center gap-3">
@@ -624,9 +1186,9 @@ const StudentDashboard: React.FC = () => {
             </div>
 
             {/* Certificate Preview Card */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 mb-6 space-y-3">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-gray-200 dark:border-white/5 mb-6 space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-brand-red uppercase">{selectedModuleForCert.stageName}</span>
+                <span className="font-bold text-red-600 uppercase">{selectedModuleForCert.stageName}</span>
                 <span className="text-gray-500 font-mono">Credential ID: JDS-CERT-{Math.floor(1000 + Math.random() * 9000)}</span>
               </div>
               <div>
@@ -637,7 +1199,7 @@ const StudentDashboard: React.FC = () => {
                   Track: {selectedModuleForCert.trackName}
                 </p>
               </div>
-              <div className="pt-2 border-t border-gray-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs text-gray-500">
+              <div className="pt-2 border-t border-gray-200/60 dark:border-white/5 flex items-center justify-between text-xs text-gray-500">
                 <span>Instructor: {selectedModuleForCert.instructor}</span>
                 <span className="font-bold text-green-600 dark:text-green-400">{selectedModuleForCert.score}</span>
               </div>
@@ -654,7 +1216,7 @@ const StudentDashboard: React.FC = () => {
                   value={certStudentName}
                   onChange={(e) => setCertStudentName(e.target.value)}
                   placeholder="Enter full name"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
                   Ensure the name is spelled accurately as it will be engraved onto the official document.
@@ -675,7 +1237,7 @@ const StudentDashboard: React.FC = () => {
                 type="button"
                 disabled={generatingCert || !certStudentName.trim()}
                 onClick={() => handleDownloadCertificate(selectedModuleForCert, certStudentName)}
-                className="flex-1 py-3 px-4 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-md shadow-brand-red/20"
+                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-md shadow-red-600/20"
               >
                 {generatingCert ? (
                   <>

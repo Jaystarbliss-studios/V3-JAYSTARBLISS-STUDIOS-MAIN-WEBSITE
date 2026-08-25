@@ -217,22 +217,22 @@ const AdminLayout: React.FC = () => {
 
       {/* Desktop Sidebar (Collapsible & Independently Scrollable) */}
       <aside 
-        className={`hidden lg:flex bg-slate-950/95 backdrop-blur-xl text-white flex-col h-full max-h-screen border-r border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out ${
+        className={`hidden lg:flex bg-white dark:bg-[#10141f]/95 backdrop-blur-xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-gray-200/80 dark:border-white/5 shrink-0 select-none transition-all duration-300 ease-in-out ${
           sidebarCollapsed ? 'w-20' : 'w-72'
         }`}
       >
         {/* Header with Logo and Collapse Toggle */}
-        <div className={`flex items-center justify-between h-16 px-4 bg-brand-slate border-b border-white/10 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
+        <div className={`flex items-center justify-between h-16 px-4 bg-white dark:bg-[#10141f] border-b border-gray-100 dark:border-white/5 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
           <Tooltip content="Return to Public Website" placement="right">
             <Link to="/" className="flex items-center gap-2.5 group">
               <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0" />
               {!sidebarCollapsed && (
                 <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-xs sm:text-sm tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
+                  <span className="font-bold text-xs sm:text-sm tracking-tight text-gray-900 dark:text-white flex items-center gap-1 whitespace-nowrap">
                     JAYSTARBLISS STUDIOS
-                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity" />
+                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity text-slate-400" />
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono font-semibold">Admin Console</span>
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-mono font-semibold">Admin Console</span>
                 </div>
               )}
             </Link>
@@ -240,7 +240,7 @@ const AdminLayout: React.FC = () => {
 
           <Tooltip content={sidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar Menu"} placement="right">
             <button 
-              className="text-white/60 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors" 
+              className="text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors" 
               onClick={toggleSidebarCollapse}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -254,11 +254,11 @@ const AdminLayout: React.FC = () => {
           {navigationGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
               {!sidebarCollapsed ? (
-                <div className="px-3 text-[10px] font-mono font-bold tracking-widest text-slate-400 uppercase truncate">
+                <div className="px-3 text-[10px] font-mono font-bold tracking-widest text-gray-400 dark:text-slate-400 uppercase truncate">
                   {group.sectionTitle}
                 </div>
               ) : (
-                <div className="h-px bg-white/10 mx-2 my-2" />
+                <div className="h-px bg-gray-100 dark:bg-white/10 mx-2 my-2" />
               )}
               
               <nav className="space-y-0.5">
@@ -278,15 +278,15 @@ const AdminLayout: React.FC = () => {
                           sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
                         } ${
                           isActive 
-                            ? 'bg-brand-red text-white shadow-sm' 
-                            : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                            ? 'bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/80 dark:border-red-500/25 shadow-xs' 
+                            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
                         <Icon 
                           className={`flex-shrink-0 h-4 w-4 transition-colors ${
                             sidebarCollapsed ? '' : 'mr-2.5'
                           } ${
-                            isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                            isActive ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-slate-500 group-hover:text-gray-900 dark:group-hover:text-white'
                           }`} 
                         />
                         {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
@@ -300,17 +300,17 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Desktop Sidebar Footer */}
-        <div className={`p-3 border-t border-white/10 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <div className={`p-3 border-t border-gray-100 dark:border-white/5 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
           <Tooltip content="End administrative session" placement={sidebarCollapsed ? "right" : "top"}>
             <button 
               id="btn-admin-sidebar-logout"
               type="button"
               onClick={handleLogout}
-              className={`flex items-center text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors cursor-pointer ${
+              className={`flex items-center text-xs font-bold text-gray-500 dark:text-slate-400 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer ${
                 sidebarCollapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2'
               }`}
             >
-              <LogOut className={`h-4 w-4 text-gray-400 ${sidebarCollapsed ? '' : 'mr-2.5'}`} />
+              <LogOut className={`h-4 w-4 text-gray-400 dark:text-slate-500 ${sidebarCollapsed ? '' : 'mr-2.5'}`} />
               {!sidebarCollapsed && <span>Exit Session</span>}
             </button>
           </Tooltip>
@@ -318,9 +318,9 @@ const AdminLayout: React.FC = () => {
       </aside>
 
       {/* Main content - Independently Scrollable */}
-      <div className="flex-1 h-full max-h-screen flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 h-full max-h-screen flex flex-col min-w-0 overflow-hidden bg-[#f8fafc] dark:bg-[#0c1017]">
         {/* Topbar */}
-        <div className="flex-shrink-0 flex items-center justify-between h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 sm:px-6 lg:px-8 z-20 transition-colors shadow-xs">
+        <div className="flex-shrink-0 flex items-center justify-between h-16 bg-white/80 dark:bg-[#0f141e]/80 backdrop-blur-md border-b border-gray-200/80 dark:border-white/5 px-4 sm:px-6 lg:px-8 z-20 transition-colors shadow-xs">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Button */}
             <Tooltip content="Open navigation menu" placement="right">

@@ -130,52 +130,52 @@ const StaffDashboard: React.FC = () => {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl flex items-center justify-center">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
             <Users size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Cadets</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Active Cadets</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{students.length}</p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
           <div className="w-12 h-12 bg-brand-red/10 text-brand-red rounded-xl flex items-center justify-center">
             <UserCheck size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrollment Applications</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Enrollment Applications</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{enrollments.length}</p>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-xl flex items-center justify-center">
+        <div className="pro-surface p-6 rounded-2xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
             <FileText size={24} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Guides</p>
+            <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Staff Guides</p>
             <p className="text-3xl font-black text-gray-900 dark:text-white">{resources.length}</p>
           </div>
         </div>
       </div>
 
       {/* Cadets List */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
+      <div className="pro-surface rounded-3xl p-6 md:p-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Active Institute Cadets</h2>
-          <span className="text-xs text-gray-500">{students.length} Enrolled</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">{students.length} Enrolled</span>
         </div>
 
         {loading ? (
           <div className="text-sm text-gray-500 py-6">Loading student roster...</div>
         ) : students.length === 0 ? (
-          <p className="text-sm text-gray-500 py-6">No students found.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 py-6">No students found.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {students.map(st => (
-              <div key={st.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950 flex flex-col justify-between">
+              <div key={st.id} className="p-4 rounded-2xl border border-gray-200/80 dark:border-white/5 bg-gray-50/50 dark:bg-slate-900/60 flex flex-col justify-between shadow-2xs">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-bold text-gray-900 dark:text-white text-sm">{st.fullName || st.studentName || 'Student'}</h3>
@@ -183,10 +183,10 @@ const StaffDashboard: React.FC = () => {
                       {st.accessCode || 'CODE'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">@{st.username || 'cadet'} • {st.email || 'No email'}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">@{st.username || 'cadet'} • {st.email || 'No email'}</p>
                   
                   <div className="mt-3 text-xs">
-                    <span className="text-gray-500 block mb-1">Track / Plan:</span>
+                    <span className="text-gray-500 dark:text-slate-400 block mb-1">Track / Plan:</span>
                     <span className="font-medium text-gray-800 dark:text-gray-200">{st.plan || 'Dynamic Coding Plan'}</span>
                   </div>
 
@@ -197,7 +197,7 @@ const StaffDashboard: React.FC = () => {
                   )}
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="mt-4 pt-3 border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => {
@@ -216,7 +216,7 @@ const StaffDashboard: React.FC = () => {
       </div>
 
       {/* Staff General Resources */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
+      <div className="pro-surface rounded-3xl p-6 md:p-8">
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Staff Curriculum & Teaching Documents</h2>
         {resources.length === 0 ? (
           <div className="text-sm text-gray-500 py-6">No teaching documents currently uploaded.</div>

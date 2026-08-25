@@ -17,9 +17,10 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
-import { JaystarblissIcon } from '../components/common/JaystarblissLogo';
 import SEO from '../components/ui/SEO';
 import { useToast } from '../contexts/ToastContext';
+import CyberTerrainCanvas from '../components/portal/CyberTerrainCanvas';
+import CyberLiquidButton from '../components/portal/CyberLiquidButton';
 import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
@@ -834,7 +835,7 @@ const Portal: React.FC = () => {
   ];
 
   return (
-    <div className="jdh-portal">
+    <div className={`jdh-portal ${theme === 'dark' ? 'dark' : 'light'}`}>
       <SEO 
         title="Academy & Client Portal — Jaystarbliss Studios" 
         description="Access student dashboards, school portals, parent progress reports, and staff workspace." 
@@ -843,34 +844,31 @@ const Portal: React.FC = () => {
       
       <div className="card">
         {/* LEFT DECO PANEL */}
-        <div className="deco-panel">
-          <div className="deco-left-col">
-            <div className="deco-brand">
-              <div className="brand-mark flex items-center justify-center">
-                <JaystarblissIcon className="w-10 h-10" />
+        <div className="deco-panel relative">
+          <CyberTerrainCanvas theme={theme} />
+
+          <div className="deco-brand">
+            <div className="brand-mark-wrapper">
+              <div className="brand-aura-rotating" />
+              <div className="brand-mark">
+                <img 
+                  src="/logo.png" 
+                  alt="Jaystarbliss Studios Logo" 
+                  className="w-full h-full object-cover select-none"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/favicon.png';
+                  }}
+                />
               </div>
-              <div className="brand-name">Jaystarbliss<br/>Studios</div>
             </div>
-            
-            <div className="deco-content mt-8">
-              <div className="deco-tagline">Learn. <br/><span>Grow.</span> <br/>Thrive.</div>
-            </div>
-            
-            <div className="sys-stats">
-              <span className="sys-stat">Security: Active (TLS 1.3)</span>
-              <span className="sys-stat">Node: JDH-HUB-Lagos</span>
-              <span className="sys-stat">Engine: Dynamic Institute 4.5</span>
+            <div className="brand-name">
+              <span className="brand-title">Jaystarbliss</span>
+              <span className="brand-sub">Studios</span>
             </div>
           </div>
           
-          <div className="orbital-wrap">
-            <div className="ring ring-1"></div>
-            <div className="ring ring-2"></div>
-            <div className="ring ring-4"></div>
-            <div className="ring ring-3"></div>
-            <div className="orbital-core">
-              <KeyRound className="w-7 h-7 text-white" />
-            </div>
+          <div className="deco-bottom">
+            <div className="deco-tagline">Learn. <br/><span>Grow.</span> <br/>Thrive.</div>
           </div>
         </div>
 
@@ -967,10 +965,9 @@ const Portal: React.FC = () => {
                     </div>
                   </div>
 
-                  <button type="submit" className={`submit-btn ${loading ? 'loading' : ''}`} disabled={loading}>
-                    {loading && <div className="btn-spinner" style={{ display: 'block' }}></div>}
-                    <span className="btn-text">Complete Staff Registration →</span>
-                  </button>
+                  <CyberLiquidButton type="submit" loading={loading}>
+                    Complete Staff Registration →
+                  </CyberLiquidButton>
 
                   <div className="toggle-link mt-4">
                     Already registered? <button type="button" onClick={() => setShowStaffReg(false)} className="text-brand-red font-semibold underline">Back to Login</button>
@@ -1059,12 +1056,9 @@ const Portal: React.FC = () => {
                     )}
                   </div>
                   
-                  <button type="submit" className={`submit-btn ${loading ? 'loading' : ''}`} disabled={loading}>
-                    {loading && <div className="btn-spinner" style={{ display: 'block' }}></div>}
-                    <span className="btn-text">
-                      {activeTab === 'student' ? 'Launch Student Hub →' : 'Initialize Access →'}
-                    </span>
-                  </button>
+                  <CyberLiquidButton type="submit" loading={loading}>
+                    {activeTab === 'student' ? 'LAUNCH STUDENT HUB →' : 'INITIALIZE ACCESS →'}
+                  </CyberLiquidButton>
                 </form>
 
                 {(activeTab === 'parent' || activeTab === 'staff') && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { 
   collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc,
@@ -119,9 +120,51 @@ export function getEmbeddableUrl(url: string): string {
   return url;
 }
 
-const SchoolDashboard: React.FC = () => {
+export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
+
+export interface SchoolDashboardProps {
+  initialTab?: SchoolDashboardTab;
+}
+
+const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership'>('overview');
+
+  const resolveTabFromLocation = (): SchoolDashboardTab => {
+    if (initialTab) return initialTab;
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/portal/school/roster')) return 'roster';
+    if (path.includes('/portal/school/passcodes')) return 'passcodes';
+    if (path.includes('/portal/school/exams')) return 'exams';
+    if (path.includes('/portal/school/curriculum') || path.includes('/portal/school/resources')) return 'resources';
+    if (path.includes('/portal/school/links')) return 'links';
+    if (path.includes('/portal/school/schedules') || path.includes('/portal/school/timetable')) return 'schedules';
+    if (path.includes('/portal/school/partnership')) return 'partnership';
+
+    const tabQuery = searchParams.get('tab') as SchoolDashboardTab;
+    if (tabQuery && ['overview', 'roster', 'exams', 'passcodes', 'resources', 'links', 'schedules', 'partnership'].includes(tabQuery)) {
+      return tabQuery;
+    }
+    return 'overview';
+  };
+
+  const [activeTab, setActiveTab] = useState<SchoolDashboardTab>(resolveTabFromLocation);
+
+  useEffect(() => {
+    const nextTab = resolveTabFromLocation();
+    setActiveTab(nextTab);
+  }, [location.pathname, searchParams, initialTab]);
+
+  const handleTabChange = (tab: SchoolDashboardTab) => {
+    setActiveTab(tab);
+    if (tab === 'overview') {
+      navigate('/portal/school');
+    } else {
+      navigate(`/portal/school/${tab}`);
+    }
+  };
   const [schoolData, setSchoolData] = useState<any>(null);
   const [students, setStudents] = useState<SchoolStudent[]>([]);
   const [exams, setExams] = useState<SchoolExam[]>([]);
@@ -660,7 +703,7 @@ const SchoolDashboard: React.FC = () => {
       />
 
       {/* TABS NAVIGATION - CLEAN HUB-MIND DESIGN */}
-      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center gap-1.5 overflow-x-auto">
+      <div className="pro-surface p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto">
         <button
           id="school-tab-overview"
           className={`py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 ${
@@ -668,7 +711,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('overview')}
+          onClick={() => handleTabChange('overview')}
         >
           <Layers size={16} />
           <span>Hub Overview</span>
@@ -681,7 +724,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('roster')}
+          onClick={() => handleTabChange('roster')}
         >
           <Users size={16} />
           <span>Cadet Roster</span>
@@ -697,7 +740,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('passcodes')}
+          onClick={() => handleTabChange('passcodes')}
         >
           <Key size={16} className="text-amber-500" />
           <span>Exam Passcodes</span>
@@ -713,7 +756,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('exams')}
+          onClick={() => handleTabChange('exams')}
         >
           <Award size={16} />
           <span>CBT Assessments</span>
@@ -729,7 +772,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('resources')}
+          onClick={() => handleTabChange('resources')}
         >
           <BookOpen size={16} />
           <span>Curriculum Guides</span>
@@ -745,7 +788,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('links')}
+          onClick={() => handleTabChange('links')}
         >
           <Link2 size={16} />
           <span>School Links</span>
@@ -761,7 +804,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('schedules')}
+          onClick={() => handleTabChange('schedules')}
         >
           <Calendar size={16} />
           <span>Lab Timetable</span>
@@ -774,7 +817,7 @@ const SchoolDashboard: React.FC = () => {
               ? 'bg-slate-900 text-white dark:bg-brand-red dark:text-white shadow-xs' 
               : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800/60'
           }`}
-          onClick={() => setActiveTab('partnership')}
+          onClick={() => handleTabChange('partnership')}
         >
           <CreditCard size={16} />
           <span>Partnership & Plan</span>
@@ -790,7 +833,7 @@ const SchoolDashboard: React.FC = () => {
           {/* 3 CIRCULAR METRIC RING CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Card 1: TASK & SYLLABUS COMPLETION */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
+            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Syllabus Progression
@@ -829,7 +872,7 @@ const SchoolDashboard: React.FC = () => {
             </div>
 
             {/* Card 2: ACTIVE CADET COHORTS */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
+            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Enrolled Cadets
@@ -867,7 +910,7 @@ const SchoolDashboard: React.FC = () => {
             </div>
 
             {/* Card 3: EXAM READINESS & PASSCODES */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
+            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   CBT & Passcode Readiness
@@ -909,7 +952,7 @@ const SchoolDashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* LEFT COLUMN: TODAY'S FOCUS & PRIORITIES (7 cols) */}
-            <div className="lg:col-span-7 bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-7 pro-surface p-6 md:p-7 rounded-3xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2.5">
@@ -964,7 +1007,7 @@ const SchoolDashboard: React.FC = () => {
               {/* Quick Action Buttons */}
               <div className="pt-6 mt-6 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center gap-3">
                 <button
-                  onClick={() => setActiveTab('passcodes')}
+                  onClick={() => handleTabChange('passcodes')}
                   className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs flex items-center gap-2 transition-all shadow-xs"
                 >
                   <Key size={14} />
@@ -972,7 +1015,7 @@ const SchoolDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('roster')}
+                  onClick={() => handleTabChange('roster')}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-white font-bold text-xs flex items-center gap-2 transition-all"
                 >
                   <Users size={14} />
@@ -980,7 +1023,7 @@ const SchoolDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('exams')}
+                  onClick={() => handleTabChange('exams')}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-white font-bold text-xs flex items-center gap-2 transition-all"
                 >
                   <Award size={14} />
@@ -990,7 +1033,7 @@ const SchoolDashboard: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN: LAB INFRASTRUCTURE & COHORT HEALTH (5 cols) */}
-            <div className="lg:col-span-5 bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+            <div className="lg:col-span-5 pro-surface p-6 md:p-7 rounded-3xl flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2.5 mb-5">
                   <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
@@ -1069,7 +1112,7 @@ const SchoolDashboard: React.FC = () => {
               </div>
 
               <button
-                onClick={() => setActiveTab('passcodes')}
+                onClick={() => handleTabChange('passcodes')}
                 className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto hover:opacity-90 transition-opacity shrink-0"
               >
                 <span>View All Passcodes</span>
@@ -1117,7 +1160,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'roster' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1301,7 +1344,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'passcodes' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <div className="flex items-center gap-2">
@@ -1425,7 +1468,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'exams' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1563,7 +1606,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'resources' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1672,7 +1715,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'links' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1761,7 +1804,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'schedules' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
               <Calendar size={20} className="text-brand-red" />
               <span>Weekly Computer Lab & STEM Schedule</span>
@@ -1810,7 +1853,7 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'partnership' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs">
+          <div className="pro-surface p-6 md:p-8 rounded-3xl">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
               <CreditCard size={20} className="text-brand-red" />
               <span>Institutional Partnership Plan & Invoicing</span>
