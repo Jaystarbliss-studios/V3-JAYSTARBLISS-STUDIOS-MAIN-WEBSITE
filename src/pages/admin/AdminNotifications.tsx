@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, 
   query, where, orderBy, serverTimestamp 
@@ -27,7 +27,7 @@ const AdminNotifications: React.FC = () => {
   // Sent notifications list
   const [notifications, setNotifications] = useState<any[]>([]);
 
-  const fetchNotificationData = async () => {
+  const fetchNotificationData = useCallback(async () => {
     setLoading(true);
     try {
       // 1. Fetch staff
@@ -48,11 +48,11 @@ const AdminNotifications: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchNotificationData();
-  }, []);
+  }, [fetchNotificationData]);
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();

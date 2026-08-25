@@ -3,7 +3,6 @@ import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { autoSeedCollectionsIfEmpty, defaultNewsBulletins } from '../lib/seedFirestore';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { 
@@ -52,8 +51,6 @@ const Blog: React.FC = () => {
   useEffect(() => {
     const fetchContent = async () => {
       try {
-        await autoSeedCollectionsIfEmpty();
-
         // 1. Fetch Blog Posts
         const blogQ = query(
           collection(db, 'blog'),
@@ -69,15 +66,11 @@ const Blog: React.FC = () => {
         );
         const newsSnap = await getDocs(newsQ);
         const fetchedNews = newsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        if (fetchedNews.length > 0) {
-          setNews(fetchedNews);
-        } else {
-          setNews(defaultNewsBulletins);
-        }
+        setNews(fetchedNews);
       } catch (error) {
         console.error("Error fetching content:", error);
-        setNews(defaultNewsBulletins);
+        setPosts([]);
+        setNews([]);
       } finally {
         setLoading(false);
       }

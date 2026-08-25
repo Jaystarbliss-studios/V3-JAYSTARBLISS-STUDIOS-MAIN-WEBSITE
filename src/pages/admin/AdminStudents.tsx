@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, setDoc, 
   query, where, orderBy, serverTimestamp 
@@ -7,7 +7,7 @@ import { db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { 
   Users, UserPlus, Send, Trash2, Search, 
-  ExternalLink, Mail, Sparkles
+  ExternalLink, Mail, Key
 } from 'lucide-react';
 
 const AdminStudents: React.FC = () => {
@@ -45,7 +45,7 @@ const AdminStudents: React.FC = () => {
   const [personalDispatches, setPersonalDispatches] = useState<any[]>([]);
 
   // Fetch all students & dispatches
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch individualStudents
@@ -71,11 +71,11 @@ const AdminStudents: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // Generate unique access code
   const generateRandomCode = () => {
@@ -342,7 +342,7 @@ const AdminStudents: React.FC = () => {
                     onClick={generateRandomCode}
                     className="text-[11px] font-bold text-brand-red hover:underline flex items-center gap-1"
                   >
-                    <Sparkles size={12} /> Auto-Generate
+                    <Key size={12} /> Auto-Generate
                   </button>
                 </div>
                 <input

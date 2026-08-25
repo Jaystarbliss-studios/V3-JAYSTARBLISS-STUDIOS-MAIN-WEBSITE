@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { autoSeedCollectionsIfEmpty, defaultOrganisationProjects } from '../lib/seedFirestore';
 import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
 import { motion } from 'motion/react';
@@ -9,7 +8,7 @@ import {
   ExternalLink, 
   Gamepad2, 
   Briefcase, 
-  Sparkles, 
+  Zap, 
   X, 
   Search,
   ArrowRight,
@@ -32,16 +31,15 @@ const Portfolio: React.FC = () => {
   useEffect(() => {
     const fetchOrgProjects = async () => {
       try {
-        await autoSeedCollectionsIfEmpty();
         const q = query(collection(db, 'portfolio'), where('status', '==', 'PUBLISHED'));
         const snapshot = await getDocs(q);
         const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         const orgList = docs.filter((p: any) => p.portfolioType === 'CLIENT_WORK' || p.portfolioType === 'ORGANISATION' || !p.portfolioType);
-        setOrgProjects(docs.length > 0 ? (orgList.length > 0 ? orgList : docs) : defaultOrganisationProjects);
+        setOrgProjects(orgList);
       } catch (error) {
         console.error('Error fetching organisation portfolio:', error);
-        setOrgProjects(defaultOrganisationProjects);
+        setOrgProjects([]);
       } finally {
         setLoading(false);
       }
@@ -162,7 +160,7 @@ const Portfolio: React.FC = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2.5 rounded-xl bg-white/10 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors">
-                  <Sparkles size={20} />
+                  <Zap size={20} />
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
                   Interactive Lab

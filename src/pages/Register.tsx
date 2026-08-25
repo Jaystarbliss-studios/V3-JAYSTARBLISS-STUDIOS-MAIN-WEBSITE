@@ -4,7 +4,7 @@ import {
   Sun, Moon, CheckCircle2, Users, GraduationCap, AlertCircle, 
   User, Phone, Mail, Lock, ShieldCheck, BookOpen, Contact, UserPlus, Send,
   ArrowRight, ArrowLeft, Briefcase, DollarSign, Calendar, Award, ExternalLink,
-  Clock, MapPin, Sparkles
+  Clock, MapPin
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
@@ -922,7 +922,7 @@ const Register: React.FC = () => {
                   >
                     <div className="reg-spinner"></div>
                     <span className="reg-btn-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                      {mode === 'parent' ? <UserPlus size={16} /> : mode === 'student' ? <Send size={16} /> : <Sparkles size={16} />}
+                      {mode === 'parent' ? <UserPlus size={16} /> : mode === 'student' ? <Send size={16} /> : <Award size={16} />}
                       {mode === 'parent' ? 'Complete Registration' : mode === 'student' ? 'Submit Student Request' : 'Submit Tutor Application'}
                     </span>
                   </button>

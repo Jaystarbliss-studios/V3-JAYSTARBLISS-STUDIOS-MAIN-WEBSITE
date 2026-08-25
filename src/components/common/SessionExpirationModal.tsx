@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, ShieldAlert, LogOut, Sparkles, RefreshCw } from 'lucide-react';
+import { Clock, ShieldAlert, LogOut, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 interface SessionExpirationModalProps {
   isOpen: boolean;
@@ -182,7 +182,7 @@ export const SessionExpirationModal: React.FC<SessionExpirationModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <Sparkles size={16} />
+                      <CheckCircle2 size={16} />
                       <span>Stay Signed In (Extend Session)</span>
                     </>
                   )}

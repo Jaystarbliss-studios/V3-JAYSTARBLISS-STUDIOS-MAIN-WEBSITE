@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, doc, setDoc, addDoc, 
+  collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
-  Users, Calendar, GraduationCap, BookOpen, ExternalLink, 
+  Users, Calendar, GraduationCap, BookOpen, ExternalLink,
   Download, CheckCircle2, Clock, Award, Layers, 
   Key, Lock, Unlock, Copy, 
-  Plus, Search, RefreshCw, Sparkles, 
+  Plus, Search, RefreshCw, 
   ChevronRight, Laptop, CheckSquare, Square,
-  CreditCard, Loader2, Link2, Eye, X
+  CreditCard, Loader2, Link2, Eye, X, Edit3, Trash2, UserCheck
 } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
@@ -22,11 +22,17 @@ export interface SchoolStudent {
   studentName?: string;
   username?: string;
   accessCode?: string;
+  passcode?: string;
   grade?: string;
   class?: string;
+  email?: string;
+  track?: string;
   subjects?: string[] | string;
   attendanceRate?: number;
   avgScore?: number;
+  schoolId?: string;
+  schoolName?: string;
+  createdAt?: any;
 }
 
 export interface SchoolExam {
@@ -94,53 +100,6 @@ const KNOWN_SCHOOL_NAMES: Record<string, string> = {
   royalbreed: 'Royal Breed Academy'
 };
 
-const DEFAULT_PASSCODES: ClassPasscodeConfig[] = [
-  {
-    id: 'pc-1',
-    classLevel: 'Primary 4 & 5',
-    subject: 'Computer Studies & Scratch Logic',
-    examTitle: 'Mid-Term Block Algorithms Assessment',
-    passcode: 'P45-BLOCK-882',
-    isActive: true,
-    validUntil: 'End of Term 2',
-    invigilatorName: 'Lead STEM Tutor',
-    allocatedCadetsCount: 18
-  },
-  {
-    id: 'pc-2',
-    classLevel: 'Junior Secondary 1 (JSS 1)',
-    subject: 'Digital Technology & Web Basics',
-    examTitle: 'HTML5 Elements & Algorithmic Thinking CBT',
-    passcode: 'JSS1-HTML-419',
-    isActive: true,
-    validUntil: 'Friday 4:00 PM',
-    invigilatorName: 'Engr. J. Rufai',
-    allocatedCadetsCount: 22
-  },
-  {
-    id: 'pc-3',
-    classLevel: 'Junior Secondary 2 (JSS 2)',
-    subject: 'Python Foundations & Pygame',
-    examTitle: 'Python Data Structures & Game Loops Evaluation',
-    passcode: 'JSS2-PY-773',
-    isActive: true,
-    validUntil: 'Live Assessment Window',
-    invigilatorName: 'Academic Directorate',
-    allocatedCadetsCount: 15
-  },
-  {
-    id: 'pc-4',
-    classLevel: 'Senior Secondary 1 & 2 (SS 1-2)',
-    subject: 'Full-Stack Web & Robotics Hardware',
-    examTitle: 'React Components & Microcontroller Circuit Defense',
-    passcode: 'SS12-ROBO-905',
-    isActive: false,
-    validUntil: 'Coming Next Week',
-    invigilatorName: 'STEM Faculty Lead',
-    allocatedCadetsCount: 12
-  }
-];
-
 export function getEmbeddableUrl(url: string): string {
   if (!url) return '';
   const gdMatch = url.match(/drive\.google\.com\/file\/d\/([^/?]+)/);
@@ -168,7 +127,7 @@ const SchoolDashboard: React.FC = () => {
   const [exams, setExams] = useState<SchoolExam[]>([]);
   const [resources, setResources] = useState<SchoolResource[]>([]);
   const [links, setLinks] = useState<SchoolLink[]>([]);
-  const [passcodes, setPasscodes] = useState<ClassPasscodeConfig[]>(DEFAULT_PASSCODES);
+  const [passcodes, setPasscodes] = useState<ClassPasscodeConfig[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Document Reader Modal State
@@ -188,8 +147,24 @@ const SchoolDashboard: React.FC = () => {
   // Modals state
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentUsername, setNewStudentUsername] = useState('');
   const [newStudentClass, setNewStudentClass] = useState('JSS 1');
+  const [newStudentPasscode, setNewStudentPasscode] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [newStudentTrack, setNewStudentTrack] = useState('Coding & Python Algorithms');
+
+  // Edit Cadet Modal State
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<SchoolStudent | null>(null);
+  const [editStudentName, setEditStudentName] = useState('');
+  const [editStudentUsername, setEditStudentUsername] = useState('');
+  const [editStudentClass, setEditStudentClass] = useState('JSS 1');
+  const [editStudentPasscode, setEditStudentPasscode] = useState('');
+  const [editStudentEmail, setEditStudentEmail] = useState('');
+  const [editStudentTrack, setEditStudentTrack] = useState('Coding & Python Algorithms');
+
+  // Cadet Activity Details Modal State
+  const [selectedStudentForActivity, setSelectedStudentForActivity] = useState<SchoolStudent | null>(null);
 
   // Passcode modal state
   const [showPasscodeModal, setShowPasscodeModal] = useState(false);
@@ -297,73 +272,18 @@ const SchoolDashboard: React.FC = () => {
               id: d.id, 
               ...data,
               class: data.class || data.grade || 'JSS 1',
+              accessCode: data.accessCode || data.passcode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
+              passcode: data.passcode || data.accessCode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
+              username: data.username || (data.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.'),
               attendanceRate: data.attendanceRate || (Math.floor(Math.random() * 15) + 85),
               avgScore: data.avgScore || (Math.floor(Math.random() * 20) + 78)
             });
           }
         });
 
-        // If empty, provide representative cadet cohorts for immediate utility
-        if (sList.length === 0) {
-          const demoCadets: SchoolStudent[] = [
-            { id: 'cad-1', fullName: 'David Adeleke', class: 'Primary 5', attendanceRate: 96, avgScore: 92, accessCode: 'SCH-P5-01', subjects: ['Scratch', 'Robotics'] },
-            { id: 'cad-2', fullName: 'Fatima Bello', class: 'JSS 1', attendanceRate: 98, avgScore: 95, accessCode: 'SCH-J1-02', subjects: ['Python', 'HTML/CSS'] },
-            { id: 'cad-3', fullName: 'Chinedu Okeke', class: 'JSS 2', attendanceRate: 90, avgScore: 84, accessCode: 'SCH-J2-03', subjects: ['Python', 'Game Logic'] },
-            { id: 'cad-4', fullName: 'Zainab Usman', class: 'SS 1', attendanceRate: 94, avgScore: 88, accessCode: 'SCH-S1-04', subjects: ['Web Dev', 'Robotics'] },
-            { id: 'cad-5', fullName: 'Tunde Bakare', class: 'JSS 1', attendanceRate: 92, avgScore: 89, accessCode: 'SCH-J1-05', subjects: ['Python', 'Algorithms'] },
-            { id: 'cad-6', fullName: 'Blessing Eze', class: 'Primary 4', attendanceRate: 100, avgScore: 98, accessCode: 'SCH-P4-06', subjects: ['Scratch', 'Math Blocks'] }
-          ];
-          setStudents(demoCadets);
-        } else {
-          setStudents(sList);
-        }
+        setStudents(sList);
 
         // 2. Fetch Exams & Quizzes from Firestore (matching schoolExams & exams)
-        const defaultExams: SchoolExam[] = [
-          {
-            id: 'ex-1',
-            title: 'Mid-Term Coding Assessment: Scratch & Block Algorithms',
-            subject: 'Computer Studies / Coding',
-            term: 'Term 2 (2025/2026)',
-            duration: '45 Mins',
-            link: 'https://forms.google.com',
-            url: 'https://forms.google.com',
-            status: 'ACTIVE',
-            date: 'Live Now',
-            targetClass: 'Primary 4 & 5',
-            passcodeProtected: true,
-            passcode: 'P45-BLOCK-882'
-          },
-          {
-            id: 'ex-2',
-            title: 'Python Fundamentals & Logic Evaluation',
-            subject: 'Digital Technology',
-            term: 'Term 2 (2025/2026)',
-            duration: '60 Mins',
-            link: 'https://forms.google.com',
-            url: 'https://forms.google.com',
-            status: 'ACTIVE',
-            date: 'Live Assessment Window',
-            targetClass: 'JSS 1 & JSS 2',
-            passcodeProtected: true,
-            passcode: 'JSS2-PY-773'
-          },
-          {
-            id: 'ex-3',
-            title: 'Robotics & Hardware IoT Quiz',
-            subject: 'STEM Robotics',
-            term: 'Term 2 (2025/2026)',
-            duration: '30 Mins',
-            link: 'https://forms.google.com',
-            url: 'https://forms.google.com',
-            status: 'UPCOMING',
-            date: 'Scheduled for Next Friday',
-            targetClass: 'SS 1 & SS 2',
-            passcodeProtected: true,
-            passcode: 'SS12-ROBO-905'
-          }
-        ];
-
         try {
           const exSnap1 = await getDocs(collection(db, 'schoolExams'));
           const liveSchoolExams = exSnap1.docs
@@ -375,98 +295,32 @@ const SchoolDashboard: React.FC = () => {
           } else {
             const exSnap2 = await getDocs(collection(db, 'exams'));
             const generalExams = exSnap2.docs.map(d => ({ id: d.id, ...d.data() } as SchoolExam));
-            setExams(generalExams.length > 0 ? generalExams : defaultExams);
+            setExams(generalExams);
           }
         } catch {
-          setExams(defaultExams);
+          setExams([]);
         }
 
         // 3. Fetch Curriculum & School Resources from Firestore (matching schoolResources)
-        const defaultResources: SchoolResource[] = [
-          {
-            id: 'res-1',
-            title: 'Complete 2026 STEM & Coding Syllabus (Primary & JSS)',
-            category: 'Curriculum Guide',
-            fileType: 'PDF Syllabus',
-            url: 'https://drive.google.com/file/d/1demo-syllabus/view',
-            description: 'Weekly term breakdown of modules: Scratch animation, web design basics, game logic.',
-            classLevel: 'Primary & JSS',
-            isSecured: false
-          },
-          {
-            id: 'res-2',
-            title: 'Term 2 Lesson Slides & Coding Worksheets Pack',
-            category: 'Teaching Slides',
-            fileType: 'ZIP / PPTX',
-            url: 'https://drive.google.com/file/d/1demo-slides/view',
-            description: 'Classroom presentation decks and offline lab practice exercises for students.',
-            classLevel: 'All Grades',
-            isSecured: false
-          },
-          {
-            id: 'res-3',
-            title: 'Robotics Kit Assembly & Circuit Wiring Manual',
-            category: 'Lab Hardware Manual',
-            fileType: 'PDF Manual',
-            url: 'https://drive.google.com/file/d/1demo-robotics/view',
-            description: 'Step-by-step schematic instructions for student microcontroller projects.',
-            classLevel: 'JSS 2 & SS 1',
-            isSecured: true,
-            accessCode: 'ROBO-CIRCUIT-2026'
-          },
-          {
-            id: 'res-4',
-            title: 'Official CBT Invigilator Exam Key & Answer Blueprint',
-            category: 'Exam Blueprint',
-            fileType: 'Protected PDF',
-            url: 'https://drive.google.com/file/d/1demo-blueprint/view',
-            description: 'Confidential marking rubric for invigilators and school academic coordinators.',
-            classLevel: 'School Admins Only',
-            isSecured: true,
-            accessCode: 'ADMIN-KEY-773'
-          }
-        ];
-
         try {
           const resSnap = await getDocs(collection(db, 'schoolResources'));
           const liveRes = resSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolResource))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
-          setResources(liveRes.length > 0 ? liveRes : defaultResources);
+          setResources(liveRes);
         } catch {
-          setResources(defaultResources);
+          setResources([]);
         }
 
         // 4. Fetch School Links from Firestore (matching schoolLinks)
-        const defaultLinks: SchoolLink[] = [
-          {
-            id: 'link-1',
-            title: 'Official CBT Testing & Assessment Server',
-            url: 'https://jaystarbliss-studios.web.app',
-            description: 'Live testing terminal for student terminal exams and quizzes.'
-          },
-          {
-            id: 'link-2',
-            title: 'Cloud STEM Lab Project Repository & Scratch Cloud',
-            url: 'https://scratch.mit.edu',
-            description: 'Cloud storage and project gallery for cadet games and animations.'
-          },
-          {
-            id: 'link-3',
-            title: 'Jaystarbliss Interactive Robotics Simulator',
-            url: 'https://wokwi.com',
-            description: 'Browser-based Arduino & ESP32 breadboard circuit simulation workbench.'
-          }
-        ];
-
         try {
           const linkSnap = await getDocs(collection(db, 'schoolLinks'));
           const liveLinks = linkSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolLink))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
-          setLinks(liveLinks.length > 0 ? liveLinks : defaultLinks);
+          setLinks(liveLinks);
         } catch {
-          setLinks(defaultLinks);
+          setLinks([]);
         }
 
         // 5. Fetch Passcodes from firestore if existing
@@ -476,12 +330,13 @@ const SchoolDashboard: React.FC = () => {
             const list = pcSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as ClassPasscodeConfig))
               .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
-            if (list.length > 0) {
-              setPasscodes(list);
-            }
+            setPasscodes(list);
+          } else {
+            setPasscodes([]);
           }
         } catch (e) {
           console.warn('schoolPasscodes fetch error:', e);
+          setPasscodes([]);
         }
 
       } catch (err) {
@@ -498,8 +353,9 @@ const SchoolDashboard: React.FC = () => {
   const filteredStudents = useMemo(() => {
     return students.filter(student => {
       const name = (student.fullName || student.studentName || student.username || '').toLowerCase();
-      const code = (student.accessCode || '').toLowerCase();
-      const matchesSearch = name.includes(rosterSearch.toLowerCase()) || code.includes(rosterSearch.toLowerCase());
+      const code = (student.accessCode || student.passcode || '').toLowerCase();
+      const username = (student.username || '').toLowerCase();
+      const matchesSearch = name.includes(rosterSearch.toLowerCase()) || code.includes(rosterSearch.toLowerCase()) || username.includes(rosterSearch.toLowerCase());
       const sClass = (student.class || student.grade || '').toUpperCase();
       const matchesClass = selectedClassFilter === 'ALL' || sClass.includes(selectedClassFilter);
       return matchesSearch && matchesClass;
@@ -521,6 +377,162 @@ const SchoolDashboard: React.FC = () => {
   const generateRandomCode = (prefix: string = 'EXAM') => {
     const randomNum = Math.floor(100 + Math.random() * 900);
     return `${prefix.toUpperCase()}-${randomNum}`;
+  };
+
+  const openAddStudentModal = () => {
+    setNewStudentName('');
+    setNewStudentUsername('');
+    setNewStudentClass('JSS 1');
+    setNewStudentPasscode(generateRandomCode('JSS1'));
+    setNewStudentEmail('');
+    setNewStudentTrack('Coding & Python Algorithms');
+    setShowAddStudentModal(true);
+  };
+
+  const handleNameChangeForNewStudent = (name: string) => {
+    setNewStudentName(name);
+    if (name.trim()) {
+      const clean = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '.');
+      setNewStudentUsername(clean);
+    }
+  };
+
+  const handleClassChangeForNewStudent = (cls: string) => {
+    setNewStudentClass(cls);
+    const prefix = cls.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4).toUpperCase();
+    setNewStudentPasscode(generateRandomCode(prefix || 'SCH'));
+  };
+
+  // Add new student
+  const handleAddStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudentName.trim()) {
+      toast.error('Please enter the student full name.');
+      return;
+    }
+
+    const effectiveUsername = (newStudentUsername.trim() || newStudentName.trim().toLowerCase().replace(/[^a-z0-9]/g, '.'));
+    const effectivePasscode = (newStudentPasscode.trim() || generateRandomCode('SCH')).toUpperCase();
+
+    const newCadet: SchoolStudent = {
+      id: `cad-${Date.now()}`,
+      fullName: newStudentName.trim(),
+      studentName: newStudentName.trim(),
+      username: effectiveUsername,
+      class: newStudentClass,
+      grade: newStudentClass,
+      accessCode: effectivePasscode,
+      passcode: effectivePasscode,
+      email: newStudentEmail.trim() || undefined,
+      track: newStudentTrack,
+      attendanceRate: 100,
+      avgScore: 90,
+      subjects: ['STEM', 'Python', 'Coding', newStudentTrack],
+      schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
+      schoolName: schoolData?.name || 'Partner Academy'
+    };
+
+    setStudents(prev => [newCadet, ...prev]);
+
+    try {
+      const docRef = await addDoc(collection(db, 'individualStudents'), {
+        fullName: newCadet.fullName,
+        studentName: newCadet.fullName,
+        username: newCadet.username,
+        class: newCadet.class,
+        grade: newCadet.class,
+        accessCode: effectivePasscode,
+        passcode: effectivePasscode,
+        email: newStudentEmail.trim() || undefined,
+        track: newStudentTrack,
+        role: 'student',
+        attendanceRate: 100,
+        avgScore: 90,
+        schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
+        schoolName: schoolData?.name || 'Partner Academy',
+        schoolCode: schoolData?.schoolCode || 'SCH-JAYSTAR',
+        createdAt: serverTimestamp()
+      });
+      newCadet.id = docRef.id;
+    } catch (err) {
+      console.warn('Student firebase save warning:', err);
+    }
+
+    toast.success(`Cadet ${newCadet.fullName} enrolled! Username: "${effectiveUsername}", Passcode: "${effectivePasscode}"`);
+    setShowAddStudentModal(false);
+  };
+
+  const handleOpenEditStudent = (st: SchoolStudent) => {
+    setEditingStudent(st);
+    setEditStudentName(st.fullName || st.studentName || '');
+    setEditStudentUsername(st.username || (st.fullName || '').toLowerCase().replace(/[^a-z0-9]/g, '.'));
+    setEditStudentClass(st.class || st.grade || 'JSS 1');
+    setEditStudentPasscode(st.accessCode || st.passcode || generateRandomCode('SCH'));
+    setEditStudentEmail(st.email || '');
+    setEditStudentTrack(st.track || 'Coding & Python Algorithms');
+    setShowEditStudentModal(true);
+  };
+
+  const handleSaveEditStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    if (!editStudentName.trim()) {
+      toast.error('Student name cannot be empty.');
+      return;
+    }
+
+    const updatedData: Partial<SchoolStudent> = {
+      fullName: editStudentName.trim(),
+      studentName: editStudentName.trim(),
+      username: editStudentUsername.trim().toLowerCase(),
+      class: editStudentClass,
+      grade: editStudentClass,
+      accessCode: editStudentPasscode.trim().toUpperCase(),
+      passcode: editStudentPasscode.trim().toUpperCase(),
+      email: editStudentEmail.trim() || undefined,
+      track: editStudentTrack,
+      subjects: ['STEM', 'Python', 'Coding', editStudentTrack]
+    };
+
+    setStudents(prev => prev.map(s => s.id === editingStudent.id ? { ...s, ...updatedData } : s));
+
+    try {
+      await updateDoc(doc(db, 'individualStudents', editingStudent.id), {
+        ...updatedData,
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('Student update error:', err);
+    }
+
+    toast.success(`Cadet ${editStudentName} updated successfully!`);
+    setShowEditStudentModal(false);
+    setEditingStudent(null);
+  };
+
+  const handleDeleteStudent = async (studentId: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove Cadet "${name}" from this school cohort?`)) {
+      return;
+    }
+    setStudents(prev => prev.filter(s => s.id !== studentId));
+    try {
+      await deleteDoc(doc(db, 'individualStudents', studentId));
+      toast.success(`Cadet ${name} removed from roster.`);
+    } catch (err) {
+      console.warn('Student deletion warning:', err);
+      toast.success(`Cadet ${name} removed from active roster.`);
+    }
+  };
+
+  const copyStudentFullCredentials = (st: SchoolStudent) => {
+    const name = st.fullName || st.studentName || 'Cadet';
+    const username = st.username || 'cadet';
+    const passcode = st.accessCode || st.passcode || 'N/A';
+    const cls = st.class || st.grade || 'General';
+    const school = schoolData?.name || 'Partner Academy';
+    const text = `Jaystarbliss Portal Credentials\nSchool: ${school}\nCadet: ${name}\nClass: ${cls}\nUsername: ${username}\nPasscode: ${passcode}\nPortal Login: ${window.location.origin}/portal`;
+    navigator.clipboard.writeText(text);
+    toast.success(`Credentials for ${name.split(' ')[0]} copied to clipboard!`);
   };
 
   // Save new or edited passcode
@@ -590,48 +602,6 @@ const SchoolDashboard: React.FC = () => {
       return p;
     }));
     toast.success('Passcode authorization state toggled.');
-  };
-
-  // Add new student
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStudentName.trim()) {
-      toast.error('Please enter the student full name.');
-      return;
-    }
-
-    const newCode = `SCH-${newStudentClass.replace(/\s+/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
-    const newCadet: SchoolStudent = {
-      id: `cad-${Date.now()}`,
-      fullName: newStudentName.trim(),
-      class: newStudentClass,
-      accessCode: newCode,
-      attendanceRate: 100,
-      avgScore: 90,
-      subjects: ['STEM', 'Python', 'Coding']
-    };
-
-    setStudents(prev => [newCadet, ...prev]);
-
-    try {
-      await addDoc(collection(db, 'individualStudents'), {
-        fullName: newCadet.fullName,
-        studentName: newCadet.fullName,
-        class: newCadet.class,
-        accessCode: newCode,
-        email: newStudentEmail.trim() || undefined,
-        schoolName: schoolData?.name || 'Partner Academy',
-        schoolCode: schoolData?.schoolCode || 'SCH-JAYSTAR',
-        createdAt: serverTimestamp()
-      });
-    } catch (err) {
-      console.warn('Student firebase save warning:', err);
-    }
-
-    toast.success(`Cadet ${newCadet.fullName} enrolled with Access Code ${newCode}!`);
-    setNewStudentName('');
-    setNewStudentEmail('');
-    setShowAddStudentModal(false);
   };
 
   // Export roster to CSV
@@ -944,7 +914,7 @@ const SchoolDashboard: React.FC = () => {
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center">
-                      <Sparkles size={16} />
+                      <CheckSquare size={16} />
                     </div>
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                       Today's Priorities & Action Items
@@ -1169,11 +1139,11 @@ const SchoolDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => setShowAddStudentModal(true)}
+                  onClick={openAddStudentModal}
                   className="px-4 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
                 >
                   <Plus size={14} />
-                  <span>Add Cadet</span>
+                  <span>Enroll Cadet</span>
                 </button>
               </div>
             </div>
@@ -1186,7 +1156,7 @@ const SchoolDashboard: React.FC = () => {
                   type="text"
                   value={rosterSearch}
                   onChange={e => setRosterSearch(e.target.value)}
-                  placeholder="Search cadet name or access code..."
+                  placeholder="Search cadet name, username or access code..."
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-brand-red outline-none"
                 />
               </div>
@@ -1198,9 +1168,10 @@ const SchoolDashboard: React.FC = () => {
                   className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none font-bold"
                 >
                   <option value="ALL">All Class Cohorts</option>
-                  <option value="PRIMARY">Primary Cadets</option>
-                  <option value="JSS 1">JSS 1 Cohort</option>
-                  <option value="JSS 2">JSS 2 Cohort</option>
+                  <option value="PRIMARY">Primary Cadets (P4-P6)</option>
+                  <option value="JSS 1">Junior Secondary 1 (JSS 1)</option>
+                  <option value="JSS 2">Junior Secondary 2 (JSS 2)</option>
+                  <option value="JSS 3">Junior Secondary 3 (JSS 3)</option>
                   <option value="SS">Senior Secondary (SS 1-3)</option>
                 </select>
               </div>
@@ -1211,11 +1182,12 @@ const SchoolDashboard: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 dark:bg-slate-800/80 text-gray-500 dark:text-slate-400 uppercase font-black tracking-wider border-b border-gray-200 dark:border-slate-700">
                   <tr>
-                    <th className="py-3.5 px-4">Cadet Name</th>
-                    <th className="py-3.5 px-4">Class / Grade</th>
-                    <th className="py-3.5 px-4">Individual Access Code</th>
+                    <th className="py-3.5 px-4">Cadet & Username</th>
+                    <th className="py-3.5 px-4">Class Level</th>
+                    <th className="py-3.5 px-4">Individual Passcode</th>
+                    <th className="py-3.5 px-4">Assigned Track</th>
                     <th className="py-3.5 px-4">Attendance</th>
-                    <th className="py-3.5 px-4">Avg Score</th>
+                    <th className="py-3.5 px-4">Score</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1225,31 +1197,50 @@ const SchoolDashboard: React.FC = () => {
                       <tr key={st.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/40 transition-colors">
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-brand-red/10 text-brand-red font-black flex items-center justify-center text-xs">
-                              {(st.fullName || st.studentName || 'C').charAt(0)}
+                            <div className="w-8 h-8 rounded-full bg-brand-red/10 text-brand-red font-black flex items-center justify-center text-xs shrink-0">
+                              {(st.fullName || st.studentName || 'C').charAt(0).toUpperCase()}
                             </div>
-                            <span className="font-bold text-gray-900 dark:text-white">
-                              {st.fullName || st.studentName || st.username || 'Unnamed Cadet'}
-                            </span>
+                            <div className="min-w-0">
+                              <div className="font-bold text-gray-900 dark:text-white truncate">
+                                {st.fullName || st.studentName || 'Unnamed Cadet'}
+                              </div>
+                              <div className="text-[11px] font-mono text-gray-500 dark:text-slate-400 flex items-center gap-1">
+                                <span>@{st.username || (st.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.')}</span>
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 font-semibold text-gray-600 dark:text-slate-300">
-                          {st.class || st.grade || 'JSS 1'}
-                        </td>
                         <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-brand-red bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded border border-red-200 dark:border-red-900/40">
-                            {st.accessCode || 'SCH-AUTOGEN-01'}
+                          <span className="font-bold text-gray-700 dark:text-slate-200 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
+                            {st.class || st.grade || 'JSS 1'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-brand-red bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded border border-red-200 dark:border-red-900/40">
+                              {st.accessCode || st.passcode || 'SCH-KEY-101'}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(st.accessCode || st.passcode || '', 'Passcode')}
+                              className="p-1 text-gray-400 hover:text-brand-red transition-colors"
+                              title="Copy passcode"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-gray-600 dark:text-slate-300">
+                          {st.track || (Array.isArray(st.subjects) ? st.subjects.join(', ') : st.subjects) || 'Coding & STEM'}
+                        </td>
+                        <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-16 bg-gray-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-12 bg-gray-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-emerald-500 h-full rounded-full" 
                                 style={{ width: `${st.attendanceRate || 90}%` }}
                               ></div>
                             </div>
-                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
                               {st.attendanceRate || 90}%
                             </span>
                           </div>
@@ -1258,20 +1249,43 @@ const SchoolDashboard: React.FC = () => {
                           {st.avgScore || 88}%
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => copyToClipboard(st.accessCode || '', 'Cadet Code')}
-                            className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-red/10 text-gray-600 dark:text-slate-300 hover:text-brand-red transition-colors"
-                            title="Copy code"
-                          >
-                            <Copy size={13} />
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setSelectedStudentForActivity(st)}
+                              className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-red/10 text-gray-600 dark:text-slate-300 hover:text-brand-red transition-colors"
+                              title="View Activity & Class Resources"
+                            >
+                              <Eye size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditStudent(st)}
+                              className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-red/10 text-gray-600 dark:text-slate-300 hover:text-brand-red transition-colors"
+                              title="Edit Cadet"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => copyStudentFullCredentials(st)}
+                              className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-brand-red/10 text-gray-600 dark:text-slate-300 hover:text-brand-red transition-colors"
+                              title="Copy Login Credentials"
+                            >
+                              <Copy size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteStudent(st.id, st.fullName || st.studentName || 'Cadet')}
+                              className="p-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 hover:bg-red-500/10 text-gray-600 dark:text-slate-300 hover:text-red-600 transition-colors"
+                              title="Remove Cadet"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-gray-500 dark:text-slate-400">
-                        No cadets matched your search criteria.
+                      <td colSpan={7} className="py-8 text-center text-gray-500 dark:text-slate-400">
+                        No cadets matched your search criteria. Click "Enroll Cadet" above to register students.
                       </td>
                     </tr>
                   )}
@@ -1834,41 +1848,113 @@ const SchoolDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {showAddStudentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-gray-200 dark:border-slate-800 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-              Enroll New Cadet to School Cohort
-            </h3>
-            <form onSubmit={handleAddStudent} className="space-y-3">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-gray-200 dark:border-slate-800 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Users size={18} className="text-brand-red" />
+                <span>Enroll New Cadet</span>
+              </h3>
+              <button
+                onClick={() => setShowAddStudentModal(false)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStudent} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
-                  Cadet Full Name
+                  Cadet Full Name *
                 </label>
                 <input
                   type="text"
                   required
                   value={newStudentName}
-                  onChange={e => setNewStudentName(e.target.value)}
+                  onChange={e => handleNameChangeForNewStudent(e.target.value)}
                   placeholder="e.g. David Adeleke"
-                  className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
-                  Grade / Class Level
+                  Login Username (Unique) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-mono">@</span>
+                  <input
+                    type="text"
+                    required
+                    value={newStudentUsername}
+                    onChange={e => setNewStudentUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                    placeholder="david.adeleke"
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                    Grade / Class *
+                  </label>
+                  <select
+                    value={newStudentClass}
+                    onChange={e => handleClassChangeForNewStudent(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none font-bold"
+                  >
+                    <option value="Primary 4">Primary 4</option>
+                    <option value="Primary 5">Primary 5</option>
+                    <option value="Primary 6">Primary 6</option>
+                    <option value="JSS 1">JSS 1</option>
+                    <option value="JSS 2">JSS 2</option>
+                    <option value="JSS 3">JSS 3</option>
+                    <option value="SS 1">SS 1</option>
+                    <option value="SS 2">SS 2</option>
+                    <option value="SS 3">SS 3</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                    Passcode *
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={newStudentPasscode}
+                      onChange={e => setNewStudentPasscode(e.target.value.toUpperCase())}
+                      placeholder="SCH-101"
+                      className="w-full px-2.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-mono font-bold text-brand-red focus:ring-2 focus:ring-brand-red outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentPasscode(generateRandomCode(newStudentClass.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4) || 'SCH'))}
+                      className="p-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-700 dark:text-slate-300 text-xs shrink-0"
+                      title="Generate new random passcode"
+                    >
+                      <RefreshCw size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                  STEM Track / Elective
                 </label>
                 <select
-                  value={newStudentClass}
-                  onChange={e => setNewStudentClass(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none font-bold"
+                  value={newStudentTrack}
+                  onChange={e => setNewStudentTrack(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
                 >
-                  <option value="Primary 4">Primary 4</option>
-                  <option value="Primary 5">Primary 5</option>
-                  <option value="JSS 1">Junior Secondary 1 (JSS 1)</option>
-                  <option value="JSS 2">Junior Secondary 2 (JSS 2)</option>
-                  <option value="JSS 3">Junior Secondary 3 (JSS 3)</option>
-                  <option value="SS 1">Senior Secondary 1 (SS 1)</option>
-                  <option value="SS 2">Senior Secondary 2 (SS 2)</option>
+                  <option value="Coding & Python Algorithms">Coding & Python Algorithms</option>
+                  <option value="Robotics & Physical Computing">Robotics & Physical Computing</option>
+                  <option value="Web & Software Engineering">Web & Software Engineering</option>
+                  <option value="Artificial Intelligence & Data">Artificial Intelligence & Data</option>
+                  <option value="UI/UX & Product Design">UI/UX & Product Design</option>
                 </select>
               </div>
 
@@ -1880,8 +1966,8 @@ const SchoolDashboard: React.FC = () => {
                   type="email"
                   value={newStudentEmail}
                   onChange={e => setNewStudentEmail(e.target.value)}
-                  placeholder="cadet@gmail.com"
-                  className="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                  placeholder="parent@gmail.com"
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
                 />
               </div>
 
@@ -1889,18 +1975,345 @@ const SchoolDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddStudentModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold shadow-xs"
+                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
                 >
-                  Save & Issue Code
+                  <UserCheck size={14} />
+                  <span>Enroll & Generate Key</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDIT CADET DETAILS */}
+      {/* ========================================================================= */}
+      {showEditStudentModal && editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-gray-200 dark:border-slate-800 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Edit3 size={18} className="text-brand-red" />
+                <span>Edit Cadet Profile</span>
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditStudentModal(false);
+                  setEditingStudent(null);
+                }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStudent} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                  Cadet Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editStudentName}
+                  onChange={e => setEditStudentName(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                  Username *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-mono">@</span>
+                  <input
+                    type="text"
+                    required
+                    value={editStudentUsername}
+                    onChange={e => setEditStudentUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                    className="w-full pl-8 pr-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                    Grade / Class *
+                  </label>
+                  <select
+                    value={editStudentClass}
+                    onChange={e => setEditStudentClass(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none font-bold"
+                  >
+                    <option value="Primary 4">Primary 4</option>
+                    <option value="Primary 5">Primary 5</option>
+                    <option value="Primary 6">Primary 6</option>
+                    <option value="JSS 1">JSS 1</option>
+                    <option value="JSS 2">JSS 2</option>
+                    <option value="JSS 3">JSS 3</option>
+                    <option value="SS 1">SS 1</option>
+                    <option value="SS 2">SS 2</option>
+                    <option value="SS 3">SS 3</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                    Passcode *
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={editStudentPasscode}
+                      onChange={e => setEditStudentPasscode(e.target.value.toUpperCase())}
+                      className="w-full px-2.5 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs font-mono font-bold text-brand-red focus:ring-2 focus:ring-brand-red outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditStudentPasscode(generateRandomCode(editStudentClass.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4) || 'SCH'))}
+                      className="p-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 text-gray-700 dark:text-slate-300 text-xs shrink-0"
+                      title="Generate new passcode"
+                    >
+                      <RefreshCw size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                  STEM Track / Elective
+                </label>
+                <select
+                  value={editStudentTrack}
+                  onChange={e => setEditStudentTrack(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                >
+                  <option value="Coding & Python Algorithms">Coding & Python Algorithms</option>
+                  <option value="Robotics & Physical Computing">Robotics & Physical Computing</option>
+                  <option value="Web & Software Engineering">Web & Software Engineering</option>
+                  <option value="Artificial Intelligence & Data">Artificial Intelligence & Data</option>
+                  <option value="UI/UX & Product Design">UI/UX & Product Design</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-gray-600 dark:text-slate-400 mb-1">
+                  Parent / Student Email
+                </label>
+                <input
+                  type="email"
+                  value={editStudentEmail}
+                  onChange={e => setEditStudentEmail(e.target.value)}
+                  placeholder="parent@gmail.com"
+                  className="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditStudentModal(false);
+                    setEditingStudent(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5"
+                >
+                  <CheckSquare size={14} />
+                  <span>Update Cadet</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CADET ACTIVITY & CLASS CURRICULUM INSPECTOR */}
+      {/* ========================================================================= */}
+      {selectedStudentForActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-2xl w-full border border-gray-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-brand-red/10 text-brand-red font-black flex items-center justify-center text-lg">
+                  {(selectedStudentForActivity.fullName || selectedStudentForActivity.studentName || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {selectedStudentForActivity.fullName || selectedStudentForActivity.studentName || 'Cadet Profile'}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span className="font-mono font-bold text-brand-red">@{selectedStudentForActivity.username || 'cadet'}</span>
+                    <span>•</span>
+                    <span className="font-semibold text-gray-700 dark:text-slate-300">{selectedStudentForActivity.class || selectedStudentForActivity.grade || 'JSS 1'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => copyStudentFullCredentials(selectedStudentForActivity)}
+                  className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Copy size={13} />
+                  <span>Copy Login</span>
+                </button>
+                <button
+                  onClick={() => setSelectedStudentForActivity(null)}
+                  className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Credentials Card */}
+            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Class Cohort</span>
+                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.class || selectedStudentForActivity.grade || 'JSS 1'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Passcode / Key</span>
+                <span className="font-mono font-bold text-brand-red">{selectedStudentForActivity.accessCode || selectedStudentForActivity.passcode || 'SCH-101'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Attendance</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedStudentForActivity.attendanceRate || 92}%</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Lab Score Avg</span>
+                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.avgScore || 88}%</span>
+              </div>
+            </div>
+
+            {/* Section 1: Assigned Class Resources & Worksheets */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <BookOpen size={14} className="text-brand-red" />
+                  <span>Assigned Class Curriculum & Coursework</span>
+                </h4>
+                <span className="text-[11px] text-gray-500 dark:text-slate-400">
+                  {selectedStudentForActivity.class || 'JSS 1'} + General Materials
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {resources.filter(r => {
+                  const target = (r.classLevel || '').toUpperCase();
+                  const stClass = (selectedStudentForActivity.class || selectedStudentForActivity.grade || '').toUpperCase();
+                  return !target || target === 'ALL' || target === 'GENERAL' || target.includes(stClass) || stClass.includes(target);
+                }).length > 0 ? (
+                  resources.filter(r => {
+                    const target = (r.classLevel || '').toUpperCase();
+                    const stClass = (selectedStudentForActivity.class || selectedStudentForActivity.grade || '').toUpperCase();
+                    return !target || target === 'ALL' || target === 'GENERAL' || target.includes(stClass) || stClass.includes(target);
+                  }).slice(0, 5).map(res => (
+                    <div key={res.id} className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 dark:text-white truncate">{res.title}</div>
+                        <div className="text-[11px] text-gray-500 dark:text-slate-400">{res.category || 'Curriculum Material'} • {res.classLevel || 'All Classes'}</div>
+                      </div>
+                      <button
+                        onClick={() => openReader(res.url || res.fileUrl || '', res.title)}
+                        className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-brand-red/10 text-gray-700 dark:text-slate-200 hover:text-brand-red font-bold text-[11px] flex items-center gap-1 shrink-0"
+                      >
+                        <Eye size={12} />
+                        <span>Preview</span>
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-slate-700 text-center text-xs text-gray-500 dark:text-slate-400">
+                    No curriculum materials currently uploaded specifically for this class.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Forwarded CBT Examinations */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black uppercase tracking-wider text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Award size={14} className="text-brand-red" />
+                  <span>Forwarded CBT Examinations & Quizzes</span>
+                </h4>
+                <span className="text-[11px] text-gray-500 dark:text-slate-400">
+                  Class Assessments
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {exams.filter(ex => {
+                  const target = (ex.targetClass || '').toUpperCase();
+                  const stClass = (selectedStudentForActivity.class || selectedStudentForActivity.grade || '').toUpperCase();
+                  return !target || target === 'ALL' || target.includes(stClass) || stClass.includes(target);
+                }).length > 0 ? (
+                  exams.filter(ex => {
+                    const target = (ex.targetClass || '').toUpperCase();
+                    const stClass = (selectedStudentForActivity.class || selectedStudentForActivity.grade || '').toUpperCase();
+                    return !target || target === 'ALL' || target.includes(stClass) || stClass.includes(target);
+                  }).slice(0, 4).map(exam => (
+                    <div key={exam.id} className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-between gap-3 text-xs">
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 dark:text-white truncate">{exam.title}</div>
+                        <div className="text-[11px] text-gray-500 dark:text-slate-400">{exam.subject || 'STEM & Coding'} • Duration: {exam.duration || '45 mins'}</div>
+                      </div>
+                      <span className="px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] shrink-0 border border-emerald-200 dark:border-emerald-900/40">
+                        {exam.status || 'ACTIVE'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-slate-700 text-center text-xs text-gray-500 dark:text-slate-400">
+                    No active examinations scheduled for this cohort.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  const cadet = selectedStudentForActivity;
+                  setSelectedStudentForActivity(null);
+                  handleOpenEditStudent(cadet);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center gap-1.5"
+              >
+                <Edit3 size={13} />
+                <span>Edit Cadet Information</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedStudentForActivity(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -16,7 +16,7 @@ const STORAGE_KEY = 'jaystar_last_session_activity';
 const isProtectedPath = () => {
   const path = window.location.pathname;
   const isProtectedPortal = path.startsWith('/portal/') && path !== '/portal';
-  const isProtectedAdmin = path.startsWith('/admin') && path !== '/admin/login';
+  const isProtectedAdmin = path.startsWith('/admin');
   return isProtectedPortal || isProtectedAdmin;
 };
 
@@ -102,9 +102,6 @@ export const SessionTimeoutProvider: React.FC<{ children: ReactNode }> = ({ chil
     } catch (e) {
       console.warn('Firebase sign out notice:', e);
     }
-
-    const currentPath = window.location.pathname;
-    const wasAdmin = currentPath.startsWith('/admin') && !currentPath.startsWith('/admin/login');
     
     // Clear session and activity tracking
     sessionStorage.clear();
@@ -119,12 +116,8 @@ export const SessionTimeoutProvider: React.FC<{ children: ReactNode }> = ({ chil
       toast.info('You have been signed out.');
     }
 
-    // Redirect to relevant portal/admin login
-    if (wasAdmin) {
-      window.location.href = '/admin/login';
-    } else {
-      window.location.href = '/portal';
-    }
+    // Redirect to main portal login
+    window.location.href = '/portal';
 
     setTimeout(() => {
       isLoggingOutRef.current = false;

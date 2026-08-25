@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Bell, CheckCircle2, Clock, BookOpen, 
   ExternalLink, Trash2, Calendar, ShieldAlert,
-  Sparkles, CheckCheck
+  CheckCheck
 } from 'lucide-react';
 import { 
   collection, query, orderBy, limit, onSnapshot, Timestamp 
@@ -384,7 +384,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
             {displayList.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-400 mx-auto flex items-center justify-center">
-                  <Sparkles size={18} />
+                  <Bell size={18} />
                 </div>
                 <p className="text-xs font-bold text-gray-700 dark:text-slate-300">
                   No notifications in this filter

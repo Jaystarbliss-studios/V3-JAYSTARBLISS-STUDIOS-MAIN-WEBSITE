@@ -4,7 +4,7 @@ import { db } from '../../lib/firebase';
 import { Link } from 'react-router-dom';
 import { 
   Gamepad2, 
-  Sparkles, 
+  Zap, 
   Play, 
   RotateCcw, 
   ExternalLink, 
@@ -37,87 +37,6 @@ export interface KidsProjectItem {
   createdAt?: string;
 }
 
-// Default initial games built by students in coding cohorts
-const defaultKidsProjects: KidsProjectItem[] = [
-  {
-    id: 'scratch-funfinity',
-    title: 'Funfinity Arena',
-    creator: 'Sarah (Age 11)',
-    studentName: 'sarah_playzcraft',
-    studentAge: '11',
-    category: 'Multi-Game',
-    embedUrl: 'https://scratch.mit.edu/projects/1236660351/embed',
-    liveUrl: 'https://scratch.mit.edu/projects/1236660351/',
-    description: 'A game of games! Seven different mini-games packed into one colorful Scratch challenge with obstacles, mazes, and reflex testing.',
-    status: 'PUBLISHED',
-    isFeatured: true
-  },
-  {
-    id: 'scratch-blue-vs-red',
-    title: 'Blue vs Red Defense',
-    creator: 'Sarah (Age 11)',
-    studentName: 'sarah_playzcraft',
-    studentAge: '11',
-    category: 'Action',
-    embedUrl: 'https://scratch.mit.edu/projects/1249342539/embed',
-    liveUrl: 'https://scratch.mit.edu/projects/1249342539/',
-    description: 'Defend your base from alien invaders! Shoot incoming ships, rack up high combos, and upgrade defensive laser abilities.',
-    status: 'PUBLISHED',
-    isFeatured: true
-  },
-  {
-    id: 'scratch-flappy-parrot',
-    title: 'Flappy Parrot',
-    creator: 'Nel (Age 13)',
-    studentName: 'nel-jdn',
-    studentAge: '13',
-    category: 'Arcade',
-    embedUrl: 'https://scratch.mit.edu/projects/1247225428/embed',
-    liveUrl: 'https://scratch.mit.edu/projects/1247225428/',
-    description: 'Tap to flap wings and navigate through dense bamboo columns in this physics-based reflex game.',
-    status: 'PUBLISHED',
-    isFeatured: true
-  },
-  {
-    id: 'scratch-dragon-minds',
-    title: 'Dragon Minds Math Calculator',
-    creator: 'Nel (Age 13)',
-    studentName: 'nel-jdn',
-    studentAge: '13',
-    category: 'Educational',
-    embedUrl: 'https://scratch.mit.edu/projects/1236645755/embed',
-    liveUrl: 'https://scratch.mit.edu/projects/1236645755/',
-    description: 'Interactive calculator and mental math trainer designed to make algebraic speed drills engaging.',
-    status: 'PUBLISHED',
-    isFeatured: false
-  },
-  {
-    id: 'scratch-dino-run',
-    title: 'Dino Run Adventure',
-    creator: 'Nel (Age 13)',
-    studentName: 'nel-jdn',
-    studentAge: '13',
-    category: 'Runner',
-    embedUrl: 'https://scratch.mit.edu/projects/1249354249/embed',
-    liveUrl: 'https://scratch.mit.edu/projects/1249354249/',
-    description: 'Jump over obstacles, duck under flying pterodactyls, and survive as the game acceleration increases over time.',
-    status: 'PUBLISHED',
-    isFeatured: false
-  },
-  {
-    id: 'scratch-art-canvas',
-    title: 'Pixel Sprite Art Studio',
-    creator: 'Maya (Age 12)',
-    studentName: 'Maya',
-    studentAge: '12',
-    category: 'Creative Tool',
-    liveUrl: 'https://scratch.mit.edu',
-    description: 'Creative digital drawing canvas for kids to design 8-bit characters, paint pixel palettes, and export artwork.',
-    status: 'PUBLISHED',
-    isFeatured: false
-  }
-];
-
 interface KidsGalleryProps {
   showHeroBanner?: boolean;
 }
@@ -145,22 +64,17 @@ const KidsGallery: React.FC<KidsGalleryProps> = ({ showHeroBanner = true }) => {
         const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as KidsProjectItem));
 
         if (fetched.length > 0) {
-          // Merge with default games ensuring no duplicate IDs
-          const existingIds = new Set(fetched.map(p => p.id));
-          const combined = [
-            ...fetched,
-            ...defaultKidsProjects.filter(p => !existingIds.has(p.id))
-          ];
-          setProjects(combined);
-          setActiveProject(combined[0]);
+          setProjects(fetched);
+          const firstPlayable = fetched.find(p => p.embedUrl) || fetched[0];
+          setActiveProject(firstPlayable || null);
         } else {
-          setProjects(defaultKidsProjects);
-          setActiveProject(defaultKidsProjects[0]);
+          setProjects([]);
+          setActiveProject(null);
         }
       } catch (err) {
-        console.warn('Using default kids projects due to fetch error:', err);
-        setProjects(defaultKidsProjects);
-        setActiveProject(defaultKidsProjects[0]);
+        console.warn('Kids projects fetch error:', err);
+        setProjects([]);
+        setActiveProject(null);
       } finally {
         setLoading(false);
       }
@@ -212,7 +126,7 @@ const KidsGallery: React.FC<KidsGalleryProps> = ({ showHeroBanner = true }) => {
               id="magic-particles-gallery-btn"
               className="px-6 py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-sm rounded-xl shadow-lg shadow-cyan-500/20 flex items-center gap-2 transition-all transform hover:scale-105"
             >
-              <Sparkles size={16} /> Play Magic 3D Particles
+              <Zap size={16} /> Play Magic 3D Particles
             </Link>
           </div>
         </div>

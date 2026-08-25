@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+import { useToast } from '../../contexts/ToastContext';
 import SearchModal from '../ui/SearchModal';
 import { Tooltip } from '../ui/Tooltip';
 import { JaystarblissIcon } from '../common/JaystarblissLogo';
@@ -27,8 +30,6 @@ import {
   Bell,
   Activity,
   Layers,
-  PanelLeftClose,
-  PanelLeftOpen,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -51,6 +52,24 @@ const AdminLayout: React.FC = () => {
     return localStorage.getItem('admin_sidebar_collapsed') === 'true';
   });
 
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn('Sign out error:', err);
+    }
+    sessionStorage.clear();
+    localStorage.removeItem('jaystar_cached_user_role');
+    localStorage.removeItem('jaystar_cached_user_id');
+    localStorage.removeItem('admin_sidebar_collapsed');
+    toast.success('Admin session terminated');
+    navigate('/portal');
+  };
+
   const toggleSidebarCollapse = () => {
     setSidebarCollapsed(prev => {
       const next = !prev;
@@ -59,13 +78,11 @@ const AdminLayout: React.FC = () => {
     });
   };
 
-  const location = useLocation();
-
   const navigationGroups: NavGroup[] = [
     {
-      sectionTitle: "Command & Telemetry",
+      sectionTitle: "Overview & Operations",
       items: [
-        { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & telemetry" },
+        { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
         { name: "Inquiries & Leads", href: "/admin/inquiries", icon: MessageSquare, desc: "Public inquiries & contact requests" },
         { name: "Activity Logs", href: "/admin/activity", icon: Activity, desc: "Real-time authentication & operation audit" },
       ]
@@ -129,11 +146,14 @@ const AdminLayout: React.FC = () => {
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex items-center justify-between h-16 px-6 bg-brand-slate border-b border-white/10 shrink-0">
-          <Link to="/" className="flex items-center gap-2 group" onClick={closeSidebar}>
-            <JaystarblissIcon className="w-8 h-8" />
-            <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1">
-              ADMIN COMMAND
-            </span>
+          <Link to="/" className="flex items-center gap-2.5 group" onClick={closeSidebar}>
+            <JaystarblissIcon className="w-8 h-8 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="font-bold text-xs sm:text-sm tracking-tight text-white whitespace-nowrap">
+                JAYSTARBLISS STUDIOS
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono font-semibold">Admin Console</span>
+            </div>
           </Link>
           <button 
             className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10" 
@@ -180,14 +200,18 @@ const AdminLayout: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-white/10 shrink-0">
-          <Link 
-            to="/admin/login" 
-            onClick={closeSidebar}
-            className="flex items-center w-full px-3 py-2 text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors"
+          <button 
+            id="btn-admin-mobile-logout"
+            type="button"
+            onClick={() => {
+              closeSidebar();
+              handleLogout();
+            }}
+            className="flex items-center w-full px-3 py-2 text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
           >
             <LogOut className="mr-2.5 h-4 w-4 text-gray-400" />
-            Exit Session
-          </Link>
+            <span>Exit Session</span>
+          </button>
         </div>
       </div>
 
@@ -200,13 +224,16 @@ const AdminLayout: React.FC = () => {
         {/* Header with Logo and Collapse Toggle */}
         <div className={`flex items-center justify-between h-16 px-4 bg-brand-slate border-b border-white/10 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
           <Tooltip content="Return to Public Website" placement="right">
-            <Link to="/" className="flex items-center gap-2 group">
+            <Link to="/" className="flex items-center gap-2.5 group">
               <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0" />
               {!sidebarCollapsed && (
-                <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
-                  ADMIN COMMAND
-                  <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity" />
-                </span>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold text-xs sm:text-sm tracking-tight text-white flex items-center gap-1 whitespace-nowrap">
+                    JAYSTARBLISS STUDIOS
+                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity" />
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono font-semibold">Admin Console</span>
+                </div>
               )}
             </Link>
           </Tooltip>
@@ -275,15 +302,17 @@ const AdminLayout: React.FC = () => {
         {/* Desktop Sidebar Footer */}
         <div className={`p-3 border-t border-white/10 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
           <Tooltip content="End administrative session" placement={sidebarCollapsed ? "right" : "top"}>
-            <Link 
-              to="/admin/login" 
-              className={`flex items-center text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors ${
+            <button 
+              id="btn-admin-sidebar-logout"
+              type="button"
+              onClick={handleLogout}
+              className={`flex items-center text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors cursor-pointer ${
                 sidebarCollapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2'
               }`}
             >
               <LogOut className={`h-4 w-4 text-gray-400 ${sidebarCollapsed ? '' : 'mr-2.5'}`} />
               {!sidebarCollapsed && <span>Exit Session</span>}
-            </Link>
+            </button>
           </Tooltip>
         </div>
       </aside>
@@ -304,18 +333,7 @@ const AdminLayout: React.FC = () => {
               </button>
             </Tooltip>
 
-            {/* Desktop Quick Toggle Button */}
-            <Tooltip content={sidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar Menu"} placement="bottom">
-              <button 
-                className="hidden lg:flex text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-white p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors" 
-                onClick={toggleSidebarCollapse}
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-              </button>
-            </Tooltip>
-
-            <span className="text-sm font-bold text-gray-900 dark:text-white hidden sm:inline-block">
+            <span className="text-sm font-bold text-gray-900 dark:text-white">
               {currentNav?.name || 'Overview'}
             </span>
           </div>

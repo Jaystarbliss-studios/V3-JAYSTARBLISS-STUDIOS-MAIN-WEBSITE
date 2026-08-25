@@ -180,11 +180,8 @@ const AdminDashboard: React.FC = () => {
       {/* Top Banner & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2.5">
-            <span>Super Admin Command Hub</span>
-            <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-brand-red/10 text-brand-red border border-brand-red/20">
-              Live Telemetry
-            </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+            Super Admin Dashboard
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
             System health, student growth trajectory, portal login frequencies, and curriculum engagement metrics.

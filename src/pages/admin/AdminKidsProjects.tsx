@@ -7,7 +7,6 @@ import {
   Edit3, 
   Gamepad2, 
   ExternalLink, 
-  Sparkles, 
   Play, 
   X, 
   Loader2, 
@@ -186,7 +185,7 @@ const AdminKidsProjects: React.FC = () => {
       {/* Info Card */}
       <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Sparkles className="text-amber-400 shrink-0" size={20} />
+          <Gamepad2 className="text-amber-400 shrink-0" size={20} />
           <p className="text-xs text-slate-300">
             <strong>Scratch Embeds Tip:</strong> Use embed URLs formatted like <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300 font-mono">https://scratch.mit.edu/projects/[PROJECT_ID]/embed</code> to enable seamless in-browser play!
           </p>

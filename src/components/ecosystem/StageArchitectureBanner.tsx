@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ECOSYSTEM_STAGES } from '../../data/learningEcosystem';
-import { Compass, Hammer, Cpu, Rocket, Crown, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Compass, Hammer, Cpu, Rocket, Crown, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const ICON_COMPONENTS: Record<string, React.FC<{ size?: number; className?: string }>> = {
@@ -15,7 +15,7 @@ export const StageArchitectureBanner: React.FC<{ compact?: boolean }> = ({ compa
   const [activeStage, setActiveStage] = useState<number>(1);
 
   const currentStage = ECOSYSTEM_STAGES.find(s => s.stage === activeStage) || ECOSYSTEM_STAGES[0];
-  const IconComponent = ICON_COMPONENTS[currentStage.icon] || Sparkles;
+  const IconComponent = ICON_COMPONENTS[currentStage.icon] || Compass;
 
   return (
     <div className={`w-full bg-slate-900 dark:bg-slate-950 text-white rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden ${
@@ -40,7 +40,7 @@ export const StageArchitectureBanner: React.FC<{ compact?: boolean }> = ({ compa
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mb-6">
           {ECOSYSTEM_STAGES.map((stage) => {
             const isSelected = stage.stage === activeStage;
-            const StageIcon = ICON_COMPONENTS[stage.icon] || Sparkles;
+            const StageIcon = ICON_COMPONENTS[stage.icon] || Compass;
 
             return (
               <button

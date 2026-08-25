@@ -6,7 +6,7 @@ import { MetaTagsProvider } from "./contexts/MetaTagsContext";
 import { SearchProvider } from "./contexts/SearchContext";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 import PageLoader from "./components/ui/PageLoader";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 import PageTransition from "./components/ui/PageTransition";
 
@@ -48,7 +48,6 @@ const PortalSettings = lazy(() => import("./pages/portal/PortalSettings"));
 
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout"));
 const ProtectedRoute = lazy(() => import("./components/admin/ProtectedRoute"));
-const Login = lazy(() => import("./pages/admin/Login"));
 const AdminPages = lazy(() => import("./pages/admin/AdminPages"));
 const AdminPageForm = lazy(() => import("./pages/admin/AdminPageForm"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
@@ -147,8 +146,8 @@ function AnimatedRoutes() {
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
 
-        {/* Admin Login */}
-        <Route path="/admin/login" element={<Suspense fallback={<LazyFallback />}><PageTransition><Login /></PageTransition></Suspense>} />
+        {/* Admin Login Redirect */}
+        <Route path="/admin/login" element={<Navigate to="/portal" replace />} />
 
         {/* Protected Admin Routes */}
         <Route path="/admin" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute><AdminLayout /></ProtectedRoute></Suspense>}>

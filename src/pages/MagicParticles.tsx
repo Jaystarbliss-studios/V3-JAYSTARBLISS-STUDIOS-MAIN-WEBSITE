@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import * as THREE from 'three';
 import SEO from '../components/ui/SEO';
 import { 
-  Sparkles, 
   Camera, 
   CameraOff, 
   Maximize, 
@@ -1929,7 +1928,7 @@ const MagicParticles: React.FC = () => {
 
           {/* Active Shape Badge */}
           <div className="hidden md:inline-flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-400/30 rounded-xl text-purple-200 text-xs font-bold">
-            <Sparkles size={14} className="text-purple-400" />
+            <Zap size={14} className="text-purple-400" />
             <span>Active: {availableShapes.find(s => s.id === selectedShapeId)?.name || 'Custom Shape'}</span>
           </div>
         </div>
@@ -1996,7 +1995,7 @@ const MagicParticles: React.FC = () => {
           <div className="text-left">
             <div className="text-xs font-black text-white group-hover:text-cyan-200 flex items-center gap-1.5">
               <span>Lab Controls</span>
-              <Sparkles size={12} className="text-cyan-400 animate-pulse" />
+              <Zap size={12} className="text-cyan-400 animate-pulse" />
             </div>
             <div className="text-[10px] text-cyan-400/80 font-mono flex items-center gap-1">
               <span>{availableShapes.find(s => s.id === selectedShapeId)?.name || 'Model'}</span>
@@ -2553,7 +2552,7 @@ const MagicParticles: React.FC = () => {
                   disabled={isGeneratingShape || !magicPrompt.trim()}
                   className="px-5 py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg"
                 >
-                  {isGeneratingShape ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                  {isGeneratingShape ? <RefreshCw size={15} className="animate-spin" /> : <Zap size={15} />}
                   <span>{isGeneratingShape ? 'Synthesizing...' : 'Synthesize'}</span>
                 </button>
               </div>

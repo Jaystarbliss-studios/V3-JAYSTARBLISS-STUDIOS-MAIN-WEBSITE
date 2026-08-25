@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, User, Lock, Moon, Sun, 
   Mail, CheckCircle2, AlertCircle, RefreshCw,
-  Bell, Save, Sparkles, Contrast
+  Bell, Save, Contrast
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { sendEmailVerification, updateProfile } from 'firebase/auth';
@@ -289,7 +289,7 @@ export const PortalSettings: React.FC = () => {
         {/* Appearance & Interface */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs space-y-6">
           <div className="flex items-center gap-3 border-b border-gray-100 dark:border-slate-800 pb-4">
-            <Sparkles size={20} className="text-brand-red" />
+            <SettingsIcon size={20} className="text-brand-red" />
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Interface & Theme Preferences</h2>
           </div>
 

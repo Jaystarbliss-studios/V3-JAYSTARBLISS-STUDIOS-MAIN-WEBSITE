@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Search, X, Loader2, BookOpen, 
-  Laptop, Briefcase, Newspaper, Sparkles, 
+  Laptop, Briefcase, Newspaper, FolderOpen, 
   Compass, ChevronRight, CornerDownLeft
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -393,7 +393,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
       case 'SERVICE':
         return <Briefcase className="w-4 h-4 text-purple-500" />;
       case 'PORTFOLIO':
-        return <Sparkles className="w-4 h-4 text-amber-500" />;
+        return <FolderOpen className="w-4 h-4 text-amber-500" />;
       default:
         return <Compass className="w-4 h-4 text-slate-400" />;
     }

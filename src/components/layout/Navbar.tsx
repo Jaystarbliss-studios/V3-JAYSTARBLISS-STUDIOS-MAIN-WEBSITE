@@ -14,7 +14,7 @@ import {
   School,
   Gamepad2,
   Briefcase,
-  Sparkles,
+  Zap,
   Newspaper,
   BookOpen,
   HelpCircle,
@@ -324,7 +324,7 @@ const Navbar: React.FC = () => {
                         className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors group"
                       >
                         <div className="p-2 rounded-lg bg-brand-red/10 text-brand-red dark:bg-brand-red/20 shrink-0 group-hover:scale-110 transition-transform">
-                          <Sparkles size={16} />
+                          <Zap size={16} />
                         </div>
                         <div>
                           <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-brand-red">Magic 3D Particles Lab</div>
@@ -635,7 +635,7 @@ const Navbar: React.FC = () => {
                       <Briefcase size={15} className="text-brand-red" /> Organisation Case Studies
                     </Link>
                     <Link to="/magic-particles" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-brand-red">
-                      <Sparkles size={15} className="text-brand-red" /> Magic 3D Particles Playground
+                      <Zap size={15} className="text-brand-red" /> Magic 3D Particles Playground
                     </Link>
                   </div>
                 )}

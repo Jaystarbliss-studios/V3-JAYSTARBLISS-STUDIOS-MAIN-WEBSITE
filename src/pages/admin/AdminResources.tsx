@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, 
   query, orderBy, serverTimestamp 
@@ -48,7 +48,7 @@ const AdminResources: React.FC = () => {
   const [examSubmitting, setExamSubmitting] = useState(false);
 
   // Fetch all data
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [resSnap, linksSnap, examsSnap] = await Promise.all([
@@ -66,11 +66,11 @@ const AdminResources: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // Post Resource
   const handlePostResource = async (e: React.FormEvent) => {

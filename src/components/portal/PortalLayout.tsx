@@ -6,7 +6,7 @@ import {
   Calendar, ExternalLink, Building2, CreditCard,
   User, Lock, Moon, Sun, ChevronDown, CheckCircle2,
   AlertCircle, Menu, X, ShieldCheck, Video, Contrast,
-  PanelLeftClose, PanelLeftOpen, ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -142,8 +142,8 @@ const PortalLayout: React.FC = () => {
       {/* Mobile Top Navigation Bar */}
       <div className="md:hidden bg-brand-slate text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 shadow-md shrink-0">
         <Link to="/" className="flex items-center gap-2">
-          <JaystarblissIcon className="w-7 h-7" />
-          <span className="font-bold text-base tracking-tight">STUDIOS</span>
+          <JaystarblissIcon className="w-7 h-7 shrink-0" />
+          <span className="font-bold text-xs sm:text-sm tracking-tight whitespace-nowrap">JAYSTARBLISS STUDIOS</span>
           <span className="text-[10px] uppercase font-bold bg-brand-red px-2 py-0.5 rounded ml-1">{role}</span>
         </Link>
 
@@ -214,8 +214,8 @@ const PortalLayout: React.FC = () => {
             <Link to="/" className="flex items-center gap-2.5 group">
               <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0" />
               {!sidebarCollapsed && (
-                <span className="font-bold text-lg tracking-tight flex items-center gap-1.5 whitespace-nowrap">
-                  STUDIOS
+                <span className="font-bold text-xs sm:text-sm tracking-tight flex items-center gap-1.5 whitespace-nowrap">
+                  JAYSTARBLISS STUDIOS
                   <ExternalLink size={13} className="opacity-0 group-hover:opacity-60 transition-opacity" />
                 </span>
               )}
@@ -344,21 +344,9 @@ const PortalLayout: React.FC = () => {
           </div>
         )}
 
-        {/* Header with Profile Dropdown & Quick Sidebar Toggle */}
+        {/* Header with Profile Dropdown */}
         <header className="bg-white dark:bg-slate-900 border-b border-gray-200/80 dark:border-slate-800 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between sticky top-0 z-20 shrink-0 transition-colors shadow-xs">
           <div className="flex items-center gap-3">
-            {/* Desktop Quick Toggle Button in Header */}
-            <Tooltip content={sidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar Menu"} placement="bottom">
-              <button
-                type="button"
-                onClick={toggleSidebarCollapse}
-                className="hidden md:flex items-center justify-center p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-slate-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              >
-                {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-              </button>
-            </Tooltip>
-
             <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white capitalize">
               {navLinks.find(l => l.path === location.pathname)?.name || 'Dashboard'}
             </h1>

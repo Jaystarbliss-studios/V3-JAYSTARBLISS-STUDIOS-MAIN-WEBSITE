@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, 
   query, where, orderBy, serverTimestamp 
@@ -38,7 +38,7 @@ const AdminStaff: React.FC = () => {
   const [newStaffSchoolCode, setNewStaffSchoolCode] = useState('');
   const [updatingStaffSchoolCode, setUpdatingStaffSchoolCode] = useState(false);
 
-  const fetchStaffData = async () => {
+  const fetchStaffData = useCallback(async () => {
     setLoading(true);
     try {
       // 1. Fetch staff & tutor users
@@ -70,11 +70,11 @@ const AdminStaff: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchStaffData();
-  }, []);
+  }, [fetchStaffData]);
 
   // Create Staff Invitation
   const handleInviteStaff = async (e: React.FormEvent) => {

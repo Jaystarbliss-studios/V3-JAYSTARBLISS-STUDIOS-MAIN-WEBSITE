@@ -185,11 +185,6 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
     title: `${BRAND_NAME} | Studio Administration`,
     description: 'Jaystarbliss Studios internal administration console.',
     noindex: true
-  },
-  '/admin/login': {
-    title: `${BRAND_NAME} | Admin Portal Login`,
-    description: 'Secure admin authentication.',
-    noindex: true
   }
 };
 

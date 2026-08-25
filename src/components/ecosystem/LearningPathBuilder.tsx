@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Check, 
-  Sparkles, 
   ArrowRight, 
   ArrowLeft, 
   Send, 
@@ -13,7 +12,8 @@ import {
   Brain, 
   Gamepad2, 
   Baby, 
-  ShieldCheck
+  ShieldCheck,
+  Award
 } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -27,7 +27,7 @@ interface LearningPathBuilderProps {
 
 const AGE_GROUPS = [
   { id: '4-7', label: 'Ages 4–7', grade: 'Early Childhood & Nursery / Primary 1-2', icon: Baby, description: 'Playful foundation & multisensory learning' },
-  { id: '8-11', label: 'Ages 8–11', grade: 'Primary 3–6 / Junior Foundation', icon: Sparkles, description: 'Visual logic, reading fluency & hands-on creation' },
+  { id: '8-11', label: 'Ages 8–11', grade: 'Primary 3–6 / Junior Foundation', icon: Brain, description: 'Visual logic, reading fluency & hands-on creation' },
   { id: '12-16', label: 'Ages 12–16', grade: 'JSS 1 – SSS 3 / High School', icon: Laptop, description: 'Real coding, advanced sciences & exam mastery' },
   { id: '17+', label: 'Ages 17+ / Adults', grade: 'Tertiary, Pre-University & Professionals', icon: GraduationCap, description: 'Career software development, AI tools & design' }
 ];
@@ -39,7 +39,7 @@ const GOAL_OPTIONS = [
   { id: 'music', label: 'Music & Instrument Playing', icon: Music, desc: 'Master piano keyboard, violin, recorder or theory' },
   { id: 'creative', label: 'Design & Visual Arts', icon: Palette, desc: 'Graphic design, branding, Canva and digital drawing' },
   { id: 'critical_thinking', label: 'Chess & Strategic Thinking', icon: Gamepad2, desc: 'Improve focus, patience, tactical calculation & logic' },
-  { id: 'confidence', label: 'Confidence & Discovery', icon: Sparkles, desc: 'Multi-disciplinary exploration for young creators' }
+  { id: 'confidence', label: 'Confidence & Discovery', icon: Award, desc: 'Multi-disciplinary exploration for young creators' }
 ];
 
 const DISCIPLINE_CHOICES = [

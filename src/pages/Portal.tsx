@@ -19,6 +19,7 @@ import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
 import { JaystarblissIcon } from '../components/common/JaystarblissLogo';
 import SEO from '../components/ui/SEO';
+import { useToast } from '../contexts/ToastContext';
 import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
@@ -47,6 +48,7 @@ function deriveSchoolAuthPassword(code: string): string {
 const Portal: React.FC = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const toast = useToast();
   
   const [activeTab, setActiveTab] = useState<Role>('student');
   const [showPassword, setShowPassword] = useState(false);
@@ -294,6 +296,9 @@ const Portal: React.FC = () => {
     sessionStorage.setItem('studentDocId', sdoc ? sdoc.id : firebaseUid);
     sessionStorage.setItem('userName', studentName);
     sessionStorage.setItem('studentUsername', effectiveUsername);
+    sessionStorage.setItem('studentClass', sdata?.class || sdata?.grade || '');
+    sessionStorage.setItem('schoolId', sdata?.schoolId || '');
+    sessionStorage.setItem('schoolName', sdata?.schoolName || '');
     
     localStorage.setItem('jaystar_cached_user_role', 'student');
     localStorage.setItem('jaystar_cached_user_id', firebaseUid);
@@ -307,7 +312,7 @@ const Portal: React.FC = () => {
     const code = password.trim();
 
     if (!rawInput || !code) {
-      throw new Error('Please enter your School Email / Access Code and Password.');
+      throw new Error('Please enter your School Email / Access Code or Cadet Username and Passcode.');
     }
 
     // 1. Try direct Firebase Auth
@@ -323,6 +328,23 @@ const Portal: React.FC = () => {
           localStorage.setItem('jaystar_cached_user_role', 'super_admin');
           localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
           navigate('/admin');
+          return;
+        }
+
+        if (userData.role === 'student') {
+          const studentName = userData.name || rawInput.split('@')[0];
+          sessionStorage.setItem('userRole', 'student');
+          sessionStorage.setItem('userId', cred.user.uid);
+          sessionStorage.setItem('studentDocId', userData.studentDocId || cred.user.uid);
+          sessionStorage.setItem('userName', studentName);
+          sessionStorage.setItem('studentUsername', rawInput.split('@')[0]);
+          sessionStorage.setItem('studentClass', userData.class || userData.grade || '');
+          sessionStorage.setItem('schoolId', userData.schoolId || '');
+          sessionStorage.setItem('schoolName', userData.schoolName || '');
+          localStorage.setItem('jaystar_cached_user_role', 'student');
+          localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
+          localStorage.setItem('jaystar_cached_user_name', studentName);
+          navigate('/portal/student');
           return;
         }
 
@@ -362,7 +384,97 @@ const Portal: React.FC = () => {
     });
 
     if (!matchedSchool) {
-      throw new Error('Invalid school credentials or access code. Contact administrator for school partnership access.');
+      // 3. Check if this is a School Cadet logging in with their Username / Access Code and Passcode
+      try {
+        let sdoc: any = null;
+        let sdata: any = null;
+
+        const cleanUsername = rawInput.toLowerCase().replace(/^@/, '').replace(/\s+/g, '');
+        const uQuery = query(collection(db, 'individualStudents'), where('username', '==', cleanUsername));
+        const uSnap = await getDocs(uQuery);
+        if (!uSnap.empty) {
+          sdoc = uSnap.docs[0];
+          sdata = sdoc.data();
+        }
+
+        if (!sdoc) {
+          const cQuery = query(collection(db, 'individualStudents'), where('accessCode', '==', rawInput.toUpperCase()));
+          const cSnap = await getDocs(cQuery);
+          if (!cSnap.empty) {
+            sdoc = cSnap.docs[0];
+            sdata = cSnap.docs[0].data();
+          }
+        }
+
+        if (!sdoc) {
+          const eQuery = query(collection(db, 'individualStudents'), where('email', '==', rawInput.toLowerCase()));
+          const eSnap = await getDocs(eQuery);
+          if (!eSnap.empty) {
+            sdoc = eSnap.docs[0];
+            sdata = sdoc.data();
+          }
+        }
+
+        if (sdoc && sdata) {
+          const storedCode = String(sdata.accessCode || sdata.passcode || '').trim().toUpperCase();
+          const enteredCode = code.trim().toUpperCase();
+          if (storedCode === enteredCode || sdata.accessCode === code || sdata.passcode === code) {
+            // Sign in or create auth session for student
+            const effectiveUsername = (sdata.username || cleanUsername || 'cadet').toLowerCase();
+            const authEmailToUse = sdata.email || studentAuthEmail(effectiveUsername);
+            const authPassword = deriveStudentAuthPassword(code.toUpperCase());
+            let firebaseUid = '';
+
+            try {
+              const cred = await signInWithEmailAndPassword(auth, authEmailToUse, authPassword);
+              firebaseUid = cred.user.uid;
+            } catch (e: any) {
+              if (
+                e.code === 'auth/user-not-found' || 
+                e.code === 'auth/invalid-credential' ||
+                e.code === 'auth/invalid-login-credentials'
+              ) {
+                const cred = await createUserWithEmailAndPassword(auth, authEmailToUse, authPassword);
+                firebaseUid = cred.user.uid;
+              } else {
+                throw e;
+              }
+            }
+
+            await setDoc(doc(db, 'users', firebaseUid), {
+              email: authEmailToUse,
+              name: sdata.fullName || sdata.studentName || effectiveUsername,
+              role: 'student',
+              schoolId: sdata.schoolId || '',
+              schoolName: sdata.schoolName || '',
+              studentDocId: sdoc.id,
+              class: sdata.class || sdata.grade || '',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            const studentName = sdata.fullName || sdata.studentName || effectiveUsername;
+            sessionStorage.setItem('userRole', 'student');
+            sessionStorage.setItem('userId', firebaseUid);
+            sessionStorage.setItem('studentDocId', sdoc.id);
+            sessionStorage.setItem('userName', studentName);
+            sessionStorage.setItem('studentUsername', effectiveUsername);
+            sessionStorage.setItem('studentClass', sdata.class || sdata.grade || '');
+            sessionStorage.setItem('schoolId', sdata.schoolId || '');
+            sessionStorage.setItem('schoolName', sdata.schoolName || '');
+            localStorage.setItem('jaystar_cached_user_role', 'student');
+            localStorage.setItem('jaystar_cached_user_id', firebaseUid);
+            localStorage.setItem('jaystar_cached_user_name', studentName);
+
+            toast.success(`Welcome Cadet ${studentName.split(' ')[0]}! Logged in successfully.`);
+            navigate('/portal/student');
+            return;
+          }
+        }
+      } catch (cadetErr) {
+        console.warn('Cadet login lookup notice:', cadetErr);
+      }
+
+      throw new Error('Invalid school credentials, cadet username, or access passcode. Please verify your credentials or contact your school administrator.');
     }
 
     // Sign in or create auth session for school

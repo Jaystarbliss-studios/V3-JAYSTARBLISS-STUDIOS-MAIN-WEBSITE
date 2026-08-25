@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc,
   query, orderBy, serverTimestamp 
@@ -52,7 +52,7 @@ const AdminSchools: React.FC = () => {
   const [examSubmitting, setExamSubmitting] = useState(false);
 
   // Load all school data
-  const fetchSchoolData = async () => {
+  const fetchSchoolData = useCallback(async () => {
     setLoading(true);
     try {
       // 1. Fetch access codes
@@ -105,11 +105,11 @@ const AdminSchools: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     fetchSchoolData();
-  }, []);
+  }, [fetchSchoolData]);
 
   // Update Access Code
   const handleUpdateAccessCode = async (schoolId: string) => {

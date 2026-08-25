@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { 
-  Edit, ExternalLink, Layers, Sparkles, CheckCircle2, 
+  Edit, ExternalLink, Layers, CheckCircle2, 
   Image as ImageIcon, BookOpen, Briefcase, FolderOpen, 
   Gamepad2, FileText, ArrowRight, Newspaper
 } from 'lucide-react';
@@ -231,7 +231,7 @@ const AdminPages: React.FC = () => {
 
                   <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                      <Sparkles size={14} className="text-brand-red" />
+                      <Layers size={14} className="text-brand-red" />
                       {page.sectionsCount} Sections Configurable
                     </span>
 

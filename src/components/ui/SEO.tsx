@@ -34,7 +34,7 @@ const SEO: React.FC<SEOProps> = ({
       image,
       canonical,
       type,
-      structuredData,
+      structuredData: structuredDataString ? JSON.parse(structuredDataString) : undefined,
       noindex
     });
   }, [title, description, keywords, image, canonical, type, structuredDataString, noindex, setMeta]);

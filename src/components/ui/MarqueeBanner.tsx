@@ -3,7 +3,7 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { 
   AlertTriangle, X, Radio, ArrowRight, ShieldAlert, 
-  Info, Sparkles 
+  Info, CheckCircle2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -88,7 +88,7 @@ export const MarqueeBanner: React.FC = () => {
     },
     emerald: {
       bg: 'bg-emerald-950/95 backdrop-blur-md text-emerald-200 border-emerald-500/40',
-      icon: <Sparkles size={14} className="text-emerald-300 shrink-0" />
+      icon: <CheckCircle2 size={14} className="text-emerald-300 shrink-0" />
     }
   };
 

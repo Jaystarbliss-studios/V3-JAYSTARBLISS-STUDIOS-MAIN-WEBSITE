@@ -7,7 +7,7 @@ import {
   Crown, 
   Calculator, 
   ShieldCheck, 
-  Sparkles, 
+  Award, 
   Trophy, 
   CheckCircle2, 
   Lock, 
@@ -33,111 +33,7 @@ export interface AchievementBadgeData {
   isLocked?: boolean;
 }
 
-export const PRESET_ACHIEVEMENTS: AchievementBadgeData[] = [
-  {
-    id: 'master-coder',
-    title: 'Master Coder',
-    category: 'coding',
-    tier: 'master',
-    description: 'Architected and deployed a multi-module full-stack application with clean code and interactive state.',
-    criteria: 'Complete Stage 4 & 5 Capstone in School of Technology & Programming.',
-    iconName: 'Code2',
-    xpValue: 500,
-    unlockedAt: '2025-01-15',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'top-logic',
-    title: 'Top Logic & Algorithmic Thinker',
-    category: 'logic',
-    tier: 'gold',
-    description: 'Demonstrated superior pattern recognition and tactical problem solving in chess and logic puzzles.',
-    criteria: 'Solve 50+ computational logic exercises and tactical puzzles.',
-    iconName: 'Brain',
-    xpValue: 400,
-    unlockedAt: '2025-02-10',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'creative-virtuoso',
-    title: 'Creative Virtuoso',
-    category: 'creative',
-    tier: 'gold',
-    description: 'Produced an original multimedia brand identity or musical composition demonstrating Stage 4 mastery.',
-    criteria: 'Complete capstone project in School of Creative Design or Music Academy.',
-    iconName: 'Palette',
-    xpValue: 450,
-    unlockedAt: '2025-02-28',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'speed-typer-pro',
-    title: 'Speed Typer (40+ WPM)',
-    category: 'literacy',
-    tier: 'silver',
-    description: 'Achieved 40+ Words Per Minute with 95%+ touch-typing accuracy in Junior Digital Explorers.',
-    criteria: 'Pass the timed touch-typing diagnostic test in Digital Literacy School.',
-    iconName: 'Keyboard',
-    xpValue: 250,
-    unlockedAt: '2025-01-20',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'stage-5-master',
-    title: 'Stage 5 Ecosystem Master',
-    category: 'milestone',
-    tier: 'diamond',
-    description: 'Successfully navigated the complete 5-stage pathway from DISCOVER to MASTER with demo day exhibition.',
-    criteria: 'Complete all 5 stages in any Jaystarbliss Academy pathway.',
-    iconName: 'Crown',
-    xpValue: 1000,
-    progress: 75,
-    isLocked: false
-  },
-  {
-    id: 'math-clinic-ace',
-    title: 'Math Clinic High Achiever',
-    category: 'academics',
-    tier: 'gold',
-    description: 'Earned distinction marks in diagnostic math clinic exams and exam prep drills.',
-    criteria: 'Achieve 85%+ in consecutive CBT mock examinations.',
-    iconName: 'Calculator',
-    xpValue: 350,
-    unlockedAt: '2025-02-05',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'cyber-safety-shield',
-    title: 'Cyber Safety & Ethics Certified',
-    category: 'literacy',
-    tier: 'silver',
-    description: 'Mastered digital footprints, safe web browsing, credential hygiene, and ethical AI utilization.',
-    criteria: 'Complete Digital Safety and Smart Search modules.',
-    iconName: 'ShieldCheck',
-    xpValue: 200,
-    unlockedAt: '2025-01-10',
-    progress: 100,
-    isLocked: false
-  },
-  {
-    id: 'curiosity-explorer',
-    title: 'Curiosity Explorer (10+ Sessions)',
-    category: 'milestone',
-    tier: 'bronze',
-    description: 'Maintained consistent attendance and project submissions across 10 consecutive mentored sessions.',
-    criteria: 'Attend 10+ live or classroom sessions with active participation.',
-    iconName: 'Sparkles',
-    xpValue: 200,
-    unlockedAt: '2025-01-30',
-    progress: 100,
-    isLocked: false
-  }
-];
+export const PRESET_ACHIEVEMENTS: AchievementBadgeData[] = [];
 
 const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> = {
   Code2,
@@ -147,7 +43,7 @@ const ICON_MAP: Record<string, React.FC<{ size?: number; className?: string }>> 
   Crown,
   Calculator,
   ShieldCheck,
-  Sparkles,
+  Award,
   Trophy
 };
 
@@ -397,11 +293,21 @@ export const AchievementBadgeGrid: React.FC<{
       </div>
 
       {/* Badges Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filteredBadges.map(badge => (
-          <AchievementBadge key={badge.id} badge={badge} />
-        ))}
-      </div>
+      {filteredBadges.length === 0 ? (
+        <div className="py-10 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+          <Trophy className="mx-auto text-slate-400 mb-2" size={32} />
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No achievement badges recorded yet</p>
+          <p className="text-[11px] text-slate-500 mt-1 max-w-sm mx-auto">
+            Earned milestone certifications, skill mastery emblems, and awards will appear here.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {filteredBadges.map(badge => (
+            <AchievementBadge key={badge.id} badge={badge} />
+          ))}
+        </div>
+      )}
     </div>
   );
 };
