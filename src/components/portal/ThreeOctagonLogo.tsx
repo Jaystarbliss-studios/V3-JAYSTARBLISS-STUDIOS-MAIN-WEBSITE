@@ -35,33 +35,33 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.3;
+      renderer.toneMappingExposure = 1.25;
       container.appendChild(renderer.domElement);
     } catch {
       return;
     }
 
-    // 2. Dynamic Lighting for Glassmorphic Reflections
-    const ambientLight = new THREE.AmbientLight(0xffffff, 2.4);
+    // 2. Multi-angle Studio Lighting for Glassy Sheen & Crisp Reflections
+    const ambientLight = new THREE.AmbientLight(0xffffff, 2.6);
     scene.add(ambientLight);
 
-    const dirLightFront = new THREE.DirectionalLight(0xffffff, 3.0);
-    dirLightFront.position.set(3.5, 4, 5);
+    const dirLightFront = new THREE.DirectionalLight(0xffffff, 3.2);
+    dirLightFront.position.set(4, 4, 5);
     scene.add(dirLightFront);
 
-    const dirLightBack = new THREE.DirectionalLight(0xffffff, 1.8);
+    const dirLightBack = new THREE.DirectionalLight(0xffffff, 2.0);
     dirLightBack.position.set(-4, -3, -4);
     scene.add(dirLightBack);
 
-    const dirLightCyan = new THREE.DirectionalLight(0x38bdf8, 2.2);
-    dirLightCyan.position.set(-4, 3, 4);
-    scene.add(dirLightCyan);
+    const dirLightTop = new THREE.DirectionalLight(0xffffff, 2.4);
+    dirLightTop.position.set(0, 5, 2);
+    scene.add(dirLightTop);
 
-    const pointLight = new THREE.PointLight(0xffffff, 3.0, 15);
+    const pointLight = new THREE.PointLight(0xffffff, 3.8, 16);
     pointLight.position.set(0, 2, 4);
     scene.add(pointLight);
 
-    // 3. Volumetric Polyhedron & Bounding Cube Hierarchy
+    // 3. Volumetric Polyhedron Hierarchy
     const mainGroup = new THREE.Group();
     scene.add(mainGroup);
 
@@ -71,7 +71,6 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
     // -------------------------------------------------------------
     // Build Truncated Octahedron (8 Hexagons + 6 Squares)
     // -------------------------------------------------------------
-    // The 24 canonical vertices are all permutations of (0, ±1, ±2) * s
     type Vec3Tuple = [number, number, number];
     
     // Define the 6 Square Faces (Perpendicular to coordinate axes)
@@ -113,21 +112,28 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
     // Texture Loader for mapping the official emblem cleanly on every facet
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(logoImg, (texture) => {
+      // Preserve authentic original logo colors via standard sRGB space
+      texture.colorSpace = THREE.SRGBColorSpace;
       texture.generateMipmaps = true;
       texture.minFilter = THREE.LinearMipmapLinearFilter;
       texture.magFilter = THREE.LinearFilter;
+      if (renderer) {
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      }
       texture.needsUpdate = true;
 
-      // Glassmorphic translucent crystal material (substantial & refined)
-      const glassMat = new THREE.MeshStandardMaterial({
+      // Glassy sheen with reflective physical properties & slight transparency
+      const glassMat = new THREE.MeshPhysicalMaterial({
         map: texture,
         transparent: true,
-        opacity: 0.88,
-        roughness: 0.16,
-        metalness: 0.28,
-        color: 0xffffff,
-        emissive: 0x081b33,
-        emissiveIntensity: 0.35,
+        opacity: 0.91,             // Slightly transparent
+        roughness: 0.07,           // Ultra-smooth glossy finish
+        metalness: 0.06,           // Low metalness preserves vivid logo colors
+        clearcoat: 1.0,            // Glass clearcoat outer sheen
+        clearcoatRoughness: 0.04,  // Sharp glassy specular reflections
+        reflectivity: 0.95,        // High reflectivity
+        color: 0xffffff,           // Pure white multiplier retains 100% original color fidelity
+        emissive: 0x000000,        // No emissive tinting that alters brand colors
         side: THREE.DoubleSide,
       });
 
@@ -195,8 +201,8 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
 
           // UVs mapping
           const uv0 = [0.5, 0.5];
-          const uv1 = [0.5 + (projected[i].u / (maxR * 2.2)), 0.5 + (projected[i].v / (maxR * 2.2))];
-          const uv2 = [0.5 + (projected[next].u / (maxR * 2.2)), 0.5 + (projected[next].v / (maxR * 2.2))];
+          const uv1 = [0.5 + (projected[i].u / (maxR * 2.15)), 0.5 + (projected[i].v / (maxR * 2.15))];
+          const uv2 = [0.5 + (projected[next].u / (maxR * 2.15)), 0.5 + (projected[next].v / (maxR * 2.15))];
 
           combinedGeoUvs.push(
             uv0[0], uv0[1],
@@ -214,12 +220,12 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
       const polyMesh = new THREE.Mesh(polyGeo, glassMat);
       polyGroup.add(polyMesh);
 
-      // --- C. Polyhedron Wireframe Edge Outlines ---
+      // --- Subtle Beveled Glass Wireframe Edge Highlights ---
       const edgesGeo = new THREE.EdgesGeometry(polyGeo, 24);
       const edgeLineMat = new THREE.LineBasicMaterial({
-        color: 0x38bdf8,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.88,
+        opacity: 0.55,
       });
       const polyWireframe = new THREE.LineSegments(edgesGeo, edgeLineMat);
       polyGroup.add(polyWireframe);
@@ -256,7 +262,7 @@ export const ThreeOctagonLogo: React.FC<ThreeOctagonLogoProps> = ({
       mainGroup.rotation.x = currentRotX + Math.sin(clock * 0.65) * 0.12;
       mainGroup.rotation.z = Math.cos(clock * 0.5) * 0.08;
 
-      // Orbiting specular light
+      // Orbiting specular highlight light
       pointLight.position.x = Math.sin(clock * 1.2) * 3.5;
       pointLight.position.y = Math.cos(clock * 0.9) * 3.5;
 

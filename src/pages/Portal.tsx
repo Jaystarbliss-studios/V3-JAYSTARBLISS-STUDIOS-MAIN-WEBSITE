@@ -852,7 +852,7 @@ const Portal: React.FC = () => {
           {/* Top-Left Clean Brand Header */}
           <Link to="/" className="deco-brand flex items-center gap-3 select-none group" aria-label="Home">
             <JaystarblissIcon className="w-9 h-9 rounded-xl group-hover:scale-105 transition-transform shrink-0" />
-            <span className="font-black text-white text-base tracking-wider uppercase whitespace-nowrap">
+            <span className="font-black text-base tracking-wider uppercase whitespace-nowrap">
               JAYSTARBLISS STUDIOS
             </span>
           </Link>
@@ -967,7 +967,7 @@ const Portal: React.FC = () => {
                   </CyberLiquidButton>
 
                   <div className="toggle-link mt-4">
-                    Already registered? <button type="button" onClick={() => setShowStaffReg(false)} className="text-brand-red font-semibold underline">Back to Login</button>
+                    Already registered? <button type="button" onClick={() => setShowStaffReg(false)} className="font-semibold underline" style={{ color: 'var(--link)' }}>Back to Login</button>
                   </div>
                 </form>
               </div>
@@ -1037,7 +1037,7 @@ const Portal: React.FC = () => {
                         onChange={e => setRememberMe(e.target.checked)}
                         style={{ width: 'auto' }} 
                       />
-                      <label htmlFor="rememberMe" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--muted)', textTransform: 'none', letterSpacing: 'normal' }}>
+                      <label htmlFor="rememberMe" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-dim)', textTransform: 'none', letterSpacing: 'normal' }}>
                         Remember me
                       </label>
                     </div>
@@ -1046,7 +1046,8 @@ const Portal: React.FC = () => {
                       <button 
                         type="button" 
                         onClick={() => { setShowStaffReg(true); setError(''); setSuccess(''); }}
-                        className="text-xs font-semibold text-brand-red hover:underline"
+                        className="text-xs font-semibold hover:underline"
+                        style={{ color: 'var(--link)' }}
                       >
                         Register as Staff
                       </button>

@@ -23,88 +23,90 @@
 }
 
 /* ========================================================= */
-/* 1. DARK THEME — SKY BLUE DUSK NIGHT WITH CRIMSON LASERS   */
+/* 1. DARK THEME — SLEEK OBSIDIAN BLACK & LASER RED + WHITE TEXT */
 /* ========================================================= */
 .jdh-portal.dark,
 .dark .jdh-portal {
-  --bg: #071526;
-  --surface: #0a1e36;
-  --surf2: #0e2744;
-  --border: rgba(255,46,0,0.28);
-  --border2: rgba(255,46,0,0.48);
+  --bg: #040404;
+  --surface: #0a0a0a;
+  --surf2: #121212;
+  --border: rgba(255, 46, 0, 0.28);
+  --border2: rgba(255, 46, 0, 0.48);
   --text: #ffffff;
   --text-dim: #ffffff;
   --muted: #ffffff;
   --dim: #ffffff;
   --link: #ff3311;
   
-  background: #071526;
+  background: linear-gradient(180deg, #000000 0%, #060202 35%, #0d0202 70%, #150302 100%);
 }
 
 .jdh-portal.dark::after,
 .dark .jdh-portal::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: linear-gradient(rgba(255,46,0,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,46,0,0.08) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(255, 46, 0, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 46, 0, 0.08) 1px, transparent 1px);
   background-size: 36px 36px;
 }
 
 .jdh-portal.dark::before,
 .dark .jdh-portal::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: radial-gradient(ellipse 80% 60% at 20% 30%, rgba(16, 75, 140, 0.45) 0%, transparent 70%),
-              radial-gradient(ellipse 50% 50% at 85% 75%, rgba(255,46,0,0.22) 0%, transparent 60%);
+  background: radial-gradient(ellipse 85% 55% at 50% 80%, rgba(255, 46, 0, 0.28) 0%, rgba(185, 28, 28, 0.16) 45%, transparent 75%),
+              radial-gradient(ellipse 60% 45% at 20% 20%, rgba(255, 46, 0, 0.15) 0%, transparent 65%);
 }
 
 .jdh-portal.dark .scanlines,
 .dark .jdh-portal .scanlines {
   position: absolute; inset: 0; pointer-events: none; z-index: 1;
-  background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.22) 50%);
-  background-size: 100% 3px; opacity: 0.2;
+  background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.3) 50%);
+  background-size: 100% 3px; opacity: 0.25;
 }
 
 .jdh-portal.dark .card,
 .dark .jdh-portal .card {
   position: relative; z-index: 2; display: flex; width: 100%; max-width: 1140px; min-height: 640px;
   border-radius: var(--r); overflow: hidden; border: 1.5px solid var(--border2);
-  background: #091b30;
-  box-shadow: 0 0 0 1px rgba(255,46,0,0.18), 0 32px 90px rgba(2,10,22,0.9), 0 0 75px rgba(255,46,0,0.18);
+  background: rgba(10, 10, 10, 0.96);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 0 0 1px rgba(255, 46, 0, 0.2), 0 32px 90px rgba(0, 0, 0, 0.95), 0 0 65px rgba(255, 46, 0, 0.22);
   animation: cardIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
 }
 
 .jdh-portal.dark .deco-panel,
 .dark .jdh-portal .deco-panel {
-  width: 48%; flex-shrink: 0; background: #071526;
+  width: 48%; flex-shrink: 0; 
+  background: linear-gradient(180deg, #000000 0%, #060101 40%, #0d0202 75%, #180302 100%);
   position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
   padding: 2.4rem 2.2rem; border-right: 1.5px solid var(--border2);
 }
 
 .jdh-portal.dark .form-panel,
 .dark .jdh-portal .form-panel { 
-  flex: 1; width: 52%; background: #091c32; display: flex; flex-direction: column; 
+  flex: 1; width: 52%; background: #0a0a0a; display: flex; flex-direction: column; 
   overflow-y: auto; transition: background 0.3s; 
 }
 
 .jdh-portal.dark .role-tabs,
 .dark .jdh-portal .role-tabs { 
-  display: flex; border-bottom: 1.5px solid var(--border); flex-shrink: 0; background: #061424; 
+  display: flex; border-bottom: 1.5px solid var(--border); flex-shrink: 0; background: #060606; 
 }
 .jdh-portal.dark .role-tab,
 .dark .jdh-portal .role-tab {
   flex: 1; padding: 1.15rem 0.65rem 1rem; font-family: var(--mono); font-size: 0.62rem; font-weight: 800;
-  text-transform: uppercase; letter-spacing: 0.08em; color: #ffffff; opacity: 0.85; background: none; border: none;
+  text-transform: uppercase; letter-spacing: 0.08em; color: #ffffff; opacity: 0.88; background: none; border: none;
   cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; transition: all 0.2s;
   display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
 }
 .jdh-portal.dark .role-tab .tab-ico,
-.dark .jdh-portal .role-tab .tab-ico { display: flex; align-items: center; justify-content: center; opacity: 0.88; color: #ffffff; }
+.dark .jdh-portal .role-tab .tab-ico { display: flex; align-items: center; justify-content: center; opacity: 0.9; color: #ffffff; }
 .jdh-portal.dark .role-tab:hover,
-.dark .jdh-portal .role-tab:hover { opacity: 1; color: #ffffff; background: rgba(255,46,0,0.1); }
+.dark .jdh-portal .role-tab:hover { opacity: 1; color: #ffffff; background: rgba(255, 46, 0, 0.12); }
 .jdh-portal.dark .role-tab.active,
 .dark .jdh-portal .role-tab.active { 
-  color: #ff3c17; border-bottom-color: #ff3c17; background: rgba(255,46,0,0.08); opacity: 1;
+  color: #ffffff; border-bottom-color: #ff2e00; background: rgba(255, 46, 0, 0.14); opacity: 1;
 }
 .jdh-portal.dark .role-tab.active .tab-ico,
-.dark .jdh-portal .role-tab.active .tab-ico { opacity: 1; color: #ff3c17; }
+.dark .jdh-portal .role-tab.active .tab-ico { opacity: 1; color: #ff3b14; }
 
 .jdh-portal.dark .form-title,
 .dark .jdh-portal .form-title { 
@@ -113,7 +115,7 @@
 }
 .jdh-portal.dark .form-title em,
 .dark .jdh-portal .form-title em { 
-  color: #ff3311; font-style: normal; text-shadow: 0 0 14px rgba(255, 46, 0, 0.4);
+  color: #ff2e00; font-style: normal; text-shadow: 0 0 14px rgba(255, 46, 0, 0.55);
 }
 .jdh-portal.dark .form-sub,
 .dark .jdh-portal .form-sub { font-size: 0.86rem; color: #ffffff; margin-bottom: 1.85rem; opacity: 0.95; }
@@ -126,60 +128,60 @@
 
 .jdh-portal.dark .input-icon,
 .dark .jdh-portal .input-icon {
-  color: #ffffff; opacity: 0.85;
+  color: #ff3b14; opacity: 0.9;
 }
 
 .jdh-portal.dark .field input,
 .dark .jdh-portal .field input {
-  width: 100%; padding: 0.82rem 1rem 0.82rem 2.75rem; background: rgba(8, 24, 44, 0.9); 
-  border: 1px solid rgba(255,46,0,0.35);
+  width: 100%; padding: 0.82rem 1rem 0.82rem 2.75rem; background: rgba(16, 16, 16, 0.95); 
+  border: 1px solid rgba(255, 46, 0, 0.35);
   border-radius: 10px; color: #ffffff; font-family: var(--sans); font-size: 0.88rem; 
   outline: none !important; transition: all 0.2s ease;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
 }
 .jdh-portal.dark .field input:focus,
 .dark .jdh-portal .field input:focus { 
-  border-color: #ff3311 !important; 
-  box-shadow: 0 0 18px rgba(255,46,0,0.4), inset 0 0 8px rgba(255,46,0,0.15) !important;
-  background: rgba(10, 30, 56, 0.98);
+  border-color: #ff2e00 !important; 
+  box-shadow: 0 0 18px rgba(255, 46, 0, 0.4), inset 0 0 8px rgba(255, 46, 0, 0.15) !important;
+  background: rgba(22, 22, 22, 0.98);
 }
 .jdh-portal.dark .field input::placeholder,
-.dark .jdh-portal .field input::placeholder { color: rgba(255, 255, 255, 0.65); }
+.dark .jdh-portal .field input::placeholder { color: rgba(255, 255, 255, 0.6); }
 
 .jdh-portal.dark .pw-eye,
 .dark .jdh-portal .pw-eye { 
   color: #ffffff; opacity: 0.85; 
 }
 .jdh-portal.dark .pw-eye:hover,
-.dark .jdh-portal .pw-eye:hover { color: #ff5533; opacity: 1; }
+.dark .jdh-portal .pw-eye:hover { color: #ff3b14; opacity: 1; }
 
 .jdh-portal.dark .auth-divider,
 .dark .jdh-portal .auth-divider { 
-  color: #ffffff; opacity: 0.85; 
+  color: #ffffff; opacity: 0.9; 
 }
 .jdh-portal.dark .auth-divider::before,
 .jdh-portal.dark .auth-divider::after,
 .dark .jdh-portal .auth-divider::before,
 .dark .jdh-portal .auth-divider::after { 
-  background: rgba(255,46,0,0.3); 
+  background: rgba(255, 46, 0, 0.3); 
 }
 
 .jdh-portal.dark .toggle-link,
 .dark .jdh-portal .toggle-link { color: #ffffff; }
 .jdh-portal.dark .toggle-link button,
-.dark .jdh-portal .toggle-link button { color: #ff4d26; }
+.dark .jdh-portal .toggle-link button { color: #ff3b14; }
 .jdh-portal.dark .toggle-link button:hover,
-.dark .jdh-portal .toggle-link button:hover { color: #ff8566; }
+.dark .jdh-portal .toggle-link button:hover { color: #ff6a40; }
 .jdh-portal.dark .toggle-link a,
 .dark .jdh-portal .toggle-link a { 
-  color: #ff3311; text-shadow: 0 0 10px rgba(255,46,0,0.45);
+  color: #ff2e00; text-shadow: 0 0 10px rgba(255, 46, 0, 0.45);
 }
 .jdh-portal.dark .toggle-link a:hover,
-.dark .jdh-portal .toggle-link a:hover { color: #ff7755; }
+.dark .jdh-portal .toggle-link a:hover { color: #ff6a40; }
 
 .jdh-portal.dark .form-foot,
 .dark .jdh-portal .form-foot {
-  background: #061424; border-top: 1.5px solid var(--border);
+  background: #060606; border-top: 1.5px solid var(--border);
 }
 .jdh-portal.dark .back-link,
 .dark .jdh-portal .back-link { 
@@ -187,58 +189,58 @@
 }
 .jdh-portal.dark .back-link:hover,
 .dark .jdh-portal .back-link:hover { 
-  color: #ffffff; background: rgba(255,46,0,0.25); 
+  color: #ffffff; background: rgba(255, 46, 0, 0.25); 
 }
 .jdh-portal.dark .theme-btn,
 .dark .jdh-portal .theme-btn {
-  background: rgba(255,46,0,0.12); border: 1px solid rgba(255,46,0,0.35); color: #ffffff;
+  background: rgba(255, 46, 0, 0.12); border: 1px solid rgba(255, 46, 0, 0.35); color: #ffffff;
 }
 .jdh-portal.dark .theme-btn:hover,
 .dark .jdh-portal .theme-btn:hover { 
-  border-color: #ff3311; color: #ffffff; background: rgba(255,46,0,0.3); 
+  border-color: #ff2e00; color: #ffffff; background: rgba(255, 46, 0, 0.3); 
 }
 
 .jdh-portal.dark .google-btn,
 .dark .jdh-portal .google-btn {
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,46,0,0.35); color: #ffffff;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255, 46, 0, 0.35); color: #ffffff;
 }
 .jdh-portal.dark .google-btn:hover:not(:disabled),
 .dark .jdh-portal .google-btn:hover:not(:disabled) { 
-  background: rgba(255,46,0,0.15); border-color: rgba(255,46,0,0.6); 
-  box-shadow: 0 0 18px rgba(255,46,0,0.3);
+  background: rgba(255, 46, 0, 0.15); border-color: rgba(255, 46, 0, 0.6); 
+  box-shadow: 0 0 18px rgba(255, 46, 0, 0.3);
 }
 
 /* ========================================================= */
-/* 2. LIGHT THEME — CRISP WHITE WITH CONTRASTING RED TEXT   */
+/* 2. LIGHT THEME — CRISP SKY BLUE DAYLIGHT PALETTE         */
 /* ========================================================= */
 .jdh-portal.light,
 html:not(.dark) .jdh-portal {
-  --bg: #f8fafc;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surf2: #f1f5f9;
-  --border: rgba(220, 38, 38, 0.22);
-  --border2: rgba(220, 38, 38, 0.38);
+  --surf2: #f0f9ff;
+  --border: rgba(2, 132, 199, 0.25);
+  --border2: rgba(2, 132, 199, 0.38);
   --text: #0f172a;
-  --text-dim: #475569;
-  --muted: #64748b;
-  --dim: #94a3b8;
-  --link: #dc2626;
+  --text-dim: #334155;
+  --muted: #475569;
+  --dim: #64748b;
+  --link: #0284c7;
   
-  background: #f8fafc;
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 20%, #e0f2fe 45%, #bae6fd 70%, #7dd3fc 90%, #38bdf8 100%);
 }
 
 .jdh-portal.light::after,
 html:not(.dark) .jdh-portal::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: linear-gradient(rgba(220, 38, 38, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(220, 38, 38, 0.05) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(2, 132, 199, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(2, 132, 199, 0.05) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
 .jdh-portal.light::before,
 html:not(.dark) .jdh-portal::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: radial-gradient(ellipse 80% 60% at 20% 25%, rgba(220, 38, 38, 0.08) 0%, transparent 60%),
-              radial-gradient(ellipse 50% 50% at 85% 80%, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
+  background: radial-gradient(ellipse 80% 50% at 50% 15%, rgba(255, 255, 255, 0.95) 0%, rgba(186, 230, 253, 0.45) 50%, transparent 75%),
+              radial-gradient(ellipse 60% 50% at 85% 85%, rgba(56, 189, 248, 0.25) 0%, transparent 60%);
 }
 
 .jdh-portal.light .scanlines,
@@ -251,13 +253,14 @@ html:not(.dark) .jdh-portal .card {
   position: relative; z-index: 2; display: flex; width: 100%; max-width: 1140px; min-height: 640px;
   border-radius: var(--r); overflow: hidden; border: 1.5px solid var(--border2);
   background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.12), 0 24px 70px rgba(15, 23, 42, 0.09), 0 0 45px rgba(220, 38, 38, 0.06);
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.18), 0 24px 70px rgba(14, 116, 144, 0.14), 0 0 45px rgba(56, 189, 248, 0.16);
   animation: cardIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
 }
 
 .jdh-portal.light .deco-panel,
 html:not(.dark) .jdh-portal .deco-panel {
-  width: 48%; flex-shrink: 0; background: #081322;
+  width: 48%; flex-shrink: 0; 
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 25%, #bae6fd 65%, #7dd3fc 100%);
   position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;
   padding: 2.4rem 2.2rem; border-right: 1.5px solid var(--border2);
 }
@@ -282,13 +285,13 @@ html:not(.dark) .jdh-portal .role-tab {
 .jdh-portal.light .role-tab .tab-ico,
 html:not(.dark) .jdh-portal .role-tab .tab-ico { display: flex; align-items: center; justify-content: center; opacity: 0.85; color: #475569; }
 .jdh-portal.light .role-tab:hover,
-html:not(.dark) .jdh-portal .role-tab:hover { opacity: 1; color: #dc2626; background: rgba(220, 38, 38, 0.05); }
+html:not(.dark) .jdh-portal .role-tab:hover { opacity: 1; color: #0284c7; background: rgba(2, 132, 199, 0.06); }
 .jdh-portal.light .role-tab.active,
 html:not(.dark) .jdh-portal .role-tab.active { 
-  color: #dc2626; border-bottom-color: #dc2626; background: rgba(220, 38, 38, 0.06); opacity: 1;
+  color: #0284c7; border-bottom-color: #0284c7; background: rgba(2, 132, 199, 0.08); opacity: 1;
 }
 .jdh-portal.light .role-tab.active .tab-ico,
-html:not(.dark) .jdh-portal .role-tab.active .tab-ico { opacity: 1; color: #dc2626; }
+html:not(.dark) .jdh-portal .role-tab.active .tab-ico { opacity: 1; color: #0284c7; }
 
 .jdh-portal.light .form-title,
 html:not(.dark) .jdh-portal .form-title { 
@@ -297,34 +300,34 @@ html:not(.dark) .jdh-portal .form-title {
 }
 .jdh-portal.light .form-title em,
 html:not(.dark) .jdh-portal .form-title em { 
-  color: #dc2626; font-style: normal; text-shadow: 0 0 10px rgba(220, 38, 38, 0.2);
+  color: #0284c7; font-style: normal; text-shadow: 0 0 12px rgba(2, 132, 199, 0.25);
 }
 .jdh-portal.light .form-sub,
-html:not(.dark) .jdh-portal .form-sub { font-size: 0.86rem; color: #475569; margin-bottom: 1.85rem; opacity: 0.95; }
+html:not(.dark) .jdh-portal .form-sub { font-size: 0.86rem; color: #334155; margin-bottom: 1.85rem; opacity: 0.95; }
 
 .jdh-portal.light .field label,
 html:not(.dark) .jdh-portal .field label { 
   display: block; margin-bottom: 0.45rem; font-family: var(--mono); font-size: 0.64rem; 
-  font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #dc2626; 
+  font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #0284c7; 
 }
 
 .jdh-portal.light .input-icon,
 html:not(.dark) .jdh-portal .input-icon {
-  color: #dc2626; opacity: 0.85;
+  color: #0284c7; opacity: 0.9;
 }
 
 .jdh-portal.light .field input,
 html:not(.dark) .jdh-portal .field input {
   width: 100%; padding: 0.82rem 1rem 0.82rem 2.75rem; background: #ffffff; 
-  border: 1.5px solid rgba(220, 38, 38, 0.28);
+  border: 1.5px solid rgba(2, 132, 199, 0.32);
   border-radius: 10px; color: #0f172a; font-family: var(--sans); font-size: 0.88rem; 
   outline: none !important; transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 .jdh-portal.light .field input:focus,
 html:not(.dark) .jdh-portal .field input:focus { 
-  border-color: #dc2626 !important; 
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+  border-color: #0284c7 !important; 
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.18), 0 1px 3px rgba(15, 23, 42, 0.06) !important;
   background: #ffffff;
 }
 .jdh-portal.light .field input::placeholder,
@@ -335,31 +338,31 @@ html:not(.dark) .jdh-portal .pw-eye {
   color: #64748b; opacity: 0.85; 
 }
 .jdh-portal.light .pw-eye:hover,
-html:not(.dark) .jdh-portal .pw-eye:hover { color: #dc2626; opacity: 1; }
+html:not(.dark) .jdh-portal .pw-eye:hover { color: #0284c7; opacity: 1; }
 
 .jdh-portal.light .auth-divider,
 html:not(.dark) .jdh-portal .auth-divider { 
-  color: #64748b; opacity: 0.9; 
+  color: #475569; opacity: 0.9; 
 }
 .jdh-portal.light .auth-divider::before,
 .jdh-portal.light .auth-divider::after,
 html:not(.dark) .jdh-portal .auth-divider::before,
 html:not(.dark) .jdh-portal .auth-divider::after { 
-  background: rgba(220, 38, 38, 0.22); 
+  background: rgba(2, 132, 199, 0.25); 
 }
 
 .jdh-portal.light .toggle-link,
-html:not(.dark) .jdh-portal .toggle-link { color: #475569; }
+html:not(.dark) .jdh-portal .toggle-link { color: #334155; }
 .jdh-portal.light .toggle-link button,
-html:not(.dark) .jdh-portal .toggle-link button { color: #dc2626; font-weight: 700; }
+html:not(.dark) .jdh-portal .toggle-link button { color: #0284c7; font-weight: 700; }
 .jdh-portal.light .toggle-link button:hover,
-html:not(.dark) .jdh-portal .toggle-link button:hover { color: #b91c1c; }
+html:not(.dark) .jdh-portal .toggle-link button:hover { color: #0369a1; }
 .jdh-portal.light .toggle-link a,
 html:not(.dark) .jdh-portal .toggle-link a { 
-  color: #dc2626; font-weight: 700;
+  color: #0284c7; font-weight: 700;
 }
 .jdh-portal.light .toggle-link a:hover,
-html:not(.dark) .jdh-portal .toggle-link a:hover { color: #b91c1c; }
+html:not(.dark) .jdh-portal .toggle-link a:hover { color: #0369a1; }
 
 .jdh-portal.light .form-foot,
 html:not(.dark) .jdh-portal .form-foot {
@@ -367,29 +370,29 @@ html:not(.dark) .jdh-portal .form-foot {
 }
 .jdh-portal.light .back-link,
 html:not(.dark) .jdh-portal .back-link { 
-  color: #475569; 
+  color: #334155; 
 }
 .jdh-portal.light .back-link:hover,
 html:not(.dark) .jdh-portal .back-link:hover { 
-  color: #dc2626; background: rgba(220, 38, 38, 0.08); 
+  color: #0284c7; background: rgba(2, 132, 199, 0.08); 
 }
 .jdh-portal.light .theme-btn,
 html:not(.dark) .jdh-portal .theme-btn {
-  background: #ffffff; border: 1px solid rgba(220, 38, 38, 0.25); color: #dc2626;
+  background: #ffffff; border: 1px solid rgba(2, 132, 199, 0.28); color: #0284c7;
 }
 .jdh-portal.light .theme-btn:hover,
 html:not(.dark) .jdh-portal .theme-btn:hover { 
-  border-color: #dc2626; color: #b91c1c; background: rgba(220, 38, 38, 0.08); 
+  border-color: #0284c7; color: #0369a1; background: rgba(2, 132, 199, 0.08); 
 }
 
 .jdh-portal.light .google-btn,
 html:not(.dark) .jdh-portal .google-btn {
-  background: #ffffff; border: 1.5px solid rgba(220, 38, 38, 0.25); color: #0f172a;
+  background: #ffffff; border: 1.5px solid rgba(2, 132, 199, 0.28); color: #0f172a;
 }
 .jdh-portal.light .google-btn:hover:not(:disabled),
 html:not(.dark) .jdh-portal .google-btn:hover:not(:disabled) { 
-  background: rgba(220, 38, 38, 0.05); border-color: #dc2626; 
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.12);
+  background: rgba(2, 132, 199, 0.06); border-color: #0284c7; 
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.15);
 }
 
 /* ========================================================= */
@@ -421,10 +424,19 @@ html:not(.dark) .jdh-portal .google-btn:hover:not(:disabled) {
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(255, 46, 0, 0.28) 45%, transparent 70%);
   filter: blur(24px);
   pointer-events: none;
   animation: pulseStageGlow 4s ease-in-out infinite alternate;
+}
+
+.jdh-portal.dark .stage-glow-reflection,
+.dark .jdh-portal .stage-glow-reflection {
+  background: radial-gradient(circle, rgba(255, 46, 0, 0.65) 0%, rgba(220, 38, 38, 0.4) 45%, rgba(185, 28, 28, 0.15) 70%, transparent 80%);
+}
+
+.jdh-portal.light .stage-glow-reflection,
+html:not(.dark) .jdh-portal .stage-glow-reflection {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(186, 230, 253, 0.6) 35%, rgba(56, 189, 248, 0.3) 60%, transparent 75%);
 }
 
 @keyframes pulseStageGlow {
@@ -434,12 +446,38 @@ html:not(.dark) .jdh-portal .google-btn:hover:not(:disabled) {
 
 .jdh-portal .deco-bottom { position: relative; z-index: 5; }
 .jdh-portal .deco-tagline { 
-  font-family: var(--sans); font-size: 1.55rem; font-weight: 800; color: #ffffff; 
+  font-family: var(--sans); font-size: 1.55rem; font-weight: 800; 
   line-height: 1.2; letter-spacing: -0.01em; 
 }
-.jdh-portal .deco-tagline span { 
-  color: #ff3311; 
-  text-shadow: 0 0 16px rgba(255, 46, 0, 0.65);
+
+.jdh-portal.dark .deco-tagline,
+.dark .jdh-portal .deco-tagline {
+  color: #ffffff;
+}
+.jdh-portal.dark .deco-tagline span,
+.dark .jdh-portal .deco-tagline span { 
+  color: #ff2e00; 
+  text-shadow: 0 0 16px rgba(255, 46, 0, 0.7);
+}
+
+.jdh-portal.light .deco-tagline,
+html:not(.dark) .jdh-portal .deco-tagline {
+  color: #0f172a;
+}
+.jdh-portal.light .deco-tagline span,
+html:not(.dark) .jdh-portal .deco-tagline span { 
+  color: #0284c7; 
+  text-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+}
+
+.jdh-portal.light .deco-brand span,
+html:not(.dark) .jdh-portal .deco-brand span {
+  color: #0f172a;
+}
+
+.jdh-portal.dark .deco-brand span,
+.dark .jdh-portal .deco-brand span {
+  color: #ffffff;
 }
 
 .jdh-portal .form-body { 
@@ -481,8 +519,8 @@ html:not(.dark) .jdh-portal .google-btn:hover:not(:disabled) {
   position: relative;
   width: 100%;
   border-radius: 12px;
-  border: 1.5px solid #ff300a;
-  background: #1a0201;
+  border: 1.5px solid #ff2e00;
+  background: #150201;
   box-shadow: 0 0 24px rgba(255, 46, 0, 0.55), inset 0 0 16px rgba(255, 60, 20, 0.4);
   cursor: pointer;
   margin-top: 0.6rem;
@@ -506,15 +544,47 @@ html:not(.dark) .jdh-portal .google-btn:hover:not(:disabled) {
   box-shadow: 0 0 10px rgba(255, 46, 0, 0.2);
 }
 
+.jdh-portal.light .cyber-liquid-button,
+html:not(.dark) .jdh-portal .cyber-liquid-button {
+  border: 1.5px solid #0284c7;
+  background: #075985;
+  box-shadow: 0 0 24px rgba(2, 132, 199, 0.45), inset 0 0 16px rgba(56, 189, 248, 0.35);
+}
+
+.jdh-portal.light .cyber-liquid-button:hover:not(:disabled),
+html:not(.dark) .jdh-portal .cyber-liquid-button:hover:not(:disabled) {
+  border-color: #38bdf8;
+  box-shadow: 0 0 36px rgba(2, 132, 199, 0.7), inset 0 0 24px rgba(56, 189, 248, 0.55);
+}
+
+.jdh-portal.light .cyber-liquid-button .btn-base-bg,
+html:not(.dark) .jdh-portal .cyber-liquid-button .btn-base-bg {
+  background: radial-gradient(ellipse at 50% 50%, #0284c7 0%, #0369a1 60%, #075985 100%);
+}
+
+.jdh-portal.light .cyber-liquid-button .btn-liquid-waves,
+html:not(.dark) .jdh-portal .cyber-liquid-button .btn-liquid-waves {
+  background-image: 
+    radial-gradient(ellipse 65% 55% at 25% 45%, rgba(56, 189, 248, 0.9) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 65% at 75% 55%, rgba(2, 132, 199, 0.9) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 45% at 50% 85%, rgba(186, 230, 253, 0.65) 0%, transparent 70%);
+}
+
+.jdh-portal.light .cyber-liquid-button .btn-label-text,
+html:not(.dark) .jdh-portal .cyber-liquid-button .btn-label-text {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.6), 0 0 12px rgba(255, 255, 255, 0.65), 0 0 20px rgba(2, 132, 199, 0.85);
+}
+
 .jdh-portal .btn-base-bg {
-  background: radial-gradient(ellipse at 50% 50%, #d61800 0%, #880900 50%, #290000 100%);
+  background: radial-gradient(ellipse at 50% 50%, #d61800 0%, #880900 50%, #200201 100%);
 }
 
 .jdh-portal .btn-liquid-waves {
   background-image: 
-    radial-gradient(ellipse 65% 55% at 25% 45%, rgba(255, 110, 40, 0.85) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 55% at 25% 45%, rgba(255, 80, 40, 0.9) 0%, transparent 60%),
     radial-gradient(ellipse 55% 65% at 75% 55%, rgba(255, 30, 0, 0.9) 0%, transparent 60%),
-    radial-gradient(ellipse 90% 45% at 50% 85%, rgba(255, 160, 60, 0.5) 0%, transparent 70%);
+    radial-gradient(ellipse 90% 45% at 50% 85%, rgba(255, 140, 60, 0.5) 0%, transparent 70%);
   filter: blur(6px);
   animation: cyberFluidWave 4.5s ease-in-out infinite alternate;
 }
