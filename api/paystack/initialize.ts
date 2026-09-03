@@ -23,11 +23,26 @@ export default async function handler(req: any, res: any) {
     if (!token) return res.status(401).json({ error: 'Authentication required' });
 
     const decoded = await adminAuth.verifyIdToken(token);
-    const { plan, role } = req.body || {};
+    const { plan, role: requestedRole } = req.body || {};
     const amountNaira = PLANS[String(plan || '')];
+    const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
+    const userData = userSnap.exists ? userSnap.data() || {} : {};
+    const storedRole = String(userData.role || (decoded as any).role || '').toLowerCase();
+    const role = storedRole.includes('school') ? 'school'
+      : storedRole.includes('parent') ? 'parent'
+      : storedRole.includes('student') ? 'student'
+      : '';
+    const normalizedRequestedRole = String(requestedRole || '').toLowerCase();
 
     if (!amountNaira) return res.status(400).json({ error: 'Invalid payment plan' });
     if (!decoded.email) return res.status(400).json({ error: 'Authenticated email is required' });
+    if (!role || role !== normalizedRequestedRole) return res.status(403).json({ error: 'Portal role does not match the authenticated account.' });
+
+    const schoolPlans = new Set(['Institutional STEM Lab Partner', 'CBT Exam Portal & Lab Suite']);
+    const studentPlans = new Set(['Weekend STEM & Coding Track', '1-on-1 Intensive Mentorship', 'Smart Robotics & IoT Hardware Lab']);
+    if ((role === 'school' && !schoolPlans.has(String(plan))) || (role !== 'school' && !studentPlans.has(String(plan)))) {
+      return res.status(400).json({ error: 'That plan is not available for this portal account.' });
+    }
 
     const reference = `JBL-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 10)}`;
     const amountSubunit = amountNaira * 100;
