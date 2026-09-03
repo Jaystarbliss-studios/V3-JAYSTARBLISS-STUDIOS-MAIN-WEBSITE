@@ -1,0 +1,204 @@
+name: Harden Admin Account Integrity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/maintenance-admin-integrity.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[admin-integrity]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch admin integrity paths
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          students = Path('src/pages/admin/AdminStudents.tsx')
+          text = students.read_text()
+          old = '''  // Update Access Code
+  const handleUpdateCode = async (studentId: string) => {
+    if (!tempCode.trim()) {
+      toast.error('Access code cannot be blank.');
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'individualStudents', studentId), {
+        accessCode: tempCode.trim().toUpperCase()
+      }, { merge: true });
+
+      toast.success(`Access code updated to ${tempCode.trim().toUpperCase()}!`);
+      setEditingCodeId(null);
+      setTempCode('');
+      fetchData();
+    } catch (err: any) {
+      toast.error('Failed to update code: ' + err.message);
+    }
+  };
+'''
+          new = '''  // Update Access Code across the current and legacy student records.
+  const handleUpdateCode = async (studentId: string) => {
+    const nextCode = tempCode.trim().toUpperCase();
+    if (!nextCode) {
+      toast.error('Access code cannot be blank.');
+      return;
+    }
+
+    try {
+      const student = students.find((item) => item.id === studentId);
+      const writes: Promise<unknown>[] = [
+        setDoc(doc(db, 'individualStudents', studentId), { accessCode: nextCode }, { merge: true }),
+      ];
+
+      if (student?.username) {
+        const legacySnap = await getDocs(
+          query(collection(db, 'students'), where('username', '==', student.username))
+        );
+        legacySnap.forEach((studentDoc) => {
+          writes.push(setDoc(studentDoc.ref, { accessCode: nextCode }, { merge: true }));
+        });
+      }
+
+      await Promise.all(writes);
+      toast.success(`Access code updated to ${nextCode} across linked student records.`);
+      setEditingCodeId(null);
+      setTempCode('');
+      fetchData();
+    } catch (err: any) {
+      toast.error('Failed to update code: ' + err.message);
+    }
+  };
+'''
+          if old not in text:
+              raise SystemExit('Student access-code target not found')
+          students.write_text(text.replace(old, new, 1))
+
+          old_delete = '''  // Delete Student
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to delete student \\\"${studentName}\\\" and all their assigned resources?`)) return;
+    try {
+      await deleteDoc(doc(db, 'individualStudents', studentId));
+
+      // Also clean up personal resources and links
+      const [rSnap, lSnap] = await Promise.all([
+        getDocs(query(collection(db, 'personalResources'), where('studentId', '==', studentId))),
+        getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))
+      ]);
+
+      const deletions: Promise<void>[] = [];
+      rSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
+      lSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
+      await Promise.all(deletions);
+
+      toast.success(`Student \\\"${studentName}\\\" and personal files deleted.`);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Error deleting student: ' + err.message);
+    }
+  };
+'''
+          new_delete = '''  // Delete Student and clean up both current and legacy student records.
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
+    if (!window.confirm(`Are you sure you want to delete student \\\"${studentName}\\\" and all their assigned resources?`)) return;
+    try {
+      const student = students.find((item) => item.id === studentId);
+      const legacyStudentRefs: ReturnType<typeof doc>[] = [];
+      if (student?.username) {
+        const legacySnap = await getDocs(
+          query(collection(db, 'students'), where('username', '==', student.username))
+        );
+        legacySnap.forEach((studentDoc) => legacyStudentRefs.push(studentDoc.ref));
+      }
+
+      await deleteDoc(doc(db, 'individualStudents', studentId));
+      await Promise.all(legacyStudentRefs.map((studentRef) => deleteDoc(studentRef)));
+
+      // Also clean up personal resources and links.
+      const [rSnap, lSnap] = await Promise.all([
+        getDocs(query(collection(db, 'personalResources'), where('studentId', '==', studentId))),
+        getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))
+      ]);
+
+      const deletions: Promise<void>[] = [];
+      rSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
+      lSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
+      await Promise.all(deletions);
+
+      toast.success(`Student \\\"${studentName}\\\" and linked student records deleted.`);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Error deleting student: ' + err.message);
+    }
+  };
+'''
+          if old_delete not in students.read_text():
+              raise SystemExit('Student delete target not found')
+          students.write_text(students.read_text().replace(old_delete, new_delete, 1))
+
+          staff = Path('src/pages/admin/AdminStaff.tsx')
+          text = staff.read_text()
+          old_staff_delete = '''  // Delete Staff Member
+  const handleDeleteStaff = async (id: string, name: string) => {
+    if (!window.confirm(`Revoke staff privileges and remove \\\"${name}\\\"?`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', id));
+      toast.success(`Staff member \\\"${name}\\\" removed.`);
+      fetchStaffData();
+    } catch (err: any) {
+      toast.error('Error removing staff: ' + err.message);
+    }
+  };
+'''
+          new_staff_delete = '''  // Disable Staff Member without deleting the authoritative user record.
+  const handleDeleteStaff = async (id: string, name: string) => {
+    if (!window.confirm(`Disable staff access for \\\"${name}\\\"? This preserves the account record for audit history.`)) return;
+    try {
+      await setDoc(
+        doc(db, 'users', id),
+        { accountStatus: 'DISABLED', disabledAt: serverTimestamp(), updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setStaffList((prev) => prev.map((member) => member.id === id ? { ...member, accountStatus: 'DISABLED' } : member));
+      toast.success(`Staff member \\\"${name}\\\" has been disabled.`);
+    } catch (err: any) {
+      toast.error('Error disabling staff: ' + err.message);
+    }
+  };
+'''
+          if old_staff_delete not in text:
+              raise SystemExit('Staff disable target not found')
+          text = text.replace(old_staff_delete, new_staff_delete, 1)
+          text = text.replace('title=\\\"Remove Staff\\\"', 'title=\\\"Disable Staff\\\"', 1)
+          text = text.replace('>\n                        <Trash2 size={16} />', '>\n                        <Trash2 size={16} aria-hidden=\\\"true\\\" />', 1)
+          staff.write_text(text)
+          PY
+
+      - name: Build verification
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit and clean up
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/maintenance-admin-integrity.yml
+          git add src/pages/admin/AdminStudents.tsx src/pages/admin/AdminStaff.tsx .github/workflows/maintenance-admin-integrity.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: harden admin account integrity [admin-integrity]'
+          git push origin main
