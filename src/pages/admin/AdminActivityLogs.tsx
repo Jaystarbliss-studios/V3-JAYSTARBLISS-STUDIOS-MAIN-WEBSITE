@@ -42,7 +42,7 @@ const AdminActivityLogs: React.FC = () => {
     if (item.type === 'staff_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to student`;
     if (item.type === 'staff_school_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to school`;
     if (item.type === 'student_added') return `Staff ${item.staffEmail || 'member'} registered student: ${item.studentUsername || ''}`;
-    if (item.type === 'student_request_approved') return `Approved student application (ID: ${item.studentId || ''}) · Generated passcode: ${item.accessCode || ''}`;
+    if (item.type === 'student_request_approved') return `Approved student application (ID: ${item.studentId || ''}) · Access credentials generated.`;
     if (item.type === 'enrollment_approved') return `Approved family enrollment for ${item.studentName || 'Student'} (ID: ${item.studentId || ''})`;
     
     return item.message || item.description || item.type || 'System transaction recorded.';
