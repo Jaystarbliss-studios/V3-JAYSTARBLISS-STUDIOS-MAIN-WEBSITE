@@ -81,7 +81,13 @@ service cloud.firestore {
       allow update: if isAuth() && (
         isSuperAdmin() || 
         isAnyAdmin() ||
-        request.auth.uid == userId
+        (
+          request.auth.uid == userId &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.schoolId == resource.data.schoolId &&
+          request.resource.data.accountStatus == resource.data.accountStatus &&
+          request.resource.data.forcePasswordReset == resource.data.forcePasswordReset
+        )
       );
       allow delete: if isSuperAdmin();
     }
@@ -102,7 +108,7 @@ service cloud.firestore {
     // ==========================================
     match /individualStudents/{studentId} {
       allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isOwnStudent(resource.data) && request.resource.data.firebaseUid == request.auth.uid);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /students/{studentId} {
