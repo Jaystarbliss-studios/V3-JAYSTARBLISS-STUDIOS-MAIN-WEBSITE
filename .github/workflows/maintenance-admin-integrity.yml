@@ -1,6 +1,7 @@
 name: Apply Admin Integrity Patch
 
 # Temporary migration runner; removed automatically after a successful patch.
+# Trigger 2026-09-03-3
 
 on:
   push:
