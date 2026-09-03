@@ -424,17 +424,6 @@ const AdminSettings: React.FC = () => {
               <p className="text-[11px] text-slate-400 mt-1">Created in Cloudinary Settings &gt; Upload &gt; Upload Presets (set to Unsigned).</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cloudinary API Key (Optional / Private)</label>
-              <input
-                type="text"
-                name="cloudinaryApiKey"
-                value={settings.cloudinaryApiKey}
-                onChange={handleChange}
-                placeholder="e.g. 123456789012345"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
-              />
-            </div>
         </div>
         </section>
 
