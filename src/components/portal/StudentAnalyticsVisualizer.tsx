@@ -37,6 +37,12 @@ import {
   Radar
 } from 'recharts';
 
+interface LearningProgressItem { subject: string; progress: number; modulesDone: number; modulesTotal: number; hours: number; }
+interface CompetencyItem { skill: string; score: number; classAvg: number; }
+interface AssignmentWeeklyItem { week: string; completed: number; submittedLate: number; pending: number; }
+interface AssignmentStatusItem { name: string; value: number; color: string; }
+interface GradeTrendItem { id: string; date: string; assessment: string; subject: string; classAvg: number; grade: number; tier: string; }
+
 export interface StudentAnalyticsProps {
   studentName?: string;
   studentClass?: string;
@@ -65,19 +71,19 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
   }, [enrolledSubjects]);
 
   // 1. Learning Progress Data across Course Tracks
-  const learningProgressData = useMemo(() => [], []);
+  const learningProgressData = useMemo<LearningProgressItem[]>(() => [], []);
 
   // 2. Skill Competency Radar Data
-  const competencyRadarData = useMemo(() => [], []);
+  const competencyRadarData = useMemo<CompetencyItem[]>(() => [], []);
 
   // 3. Assignment Completion Rate Timeline (Weekly Velocity)
-  const assignmentWeeklyData = useMemo(() => [], []);
+  const assignmentWeeklyData = useMemo<AssignmentWeeklyItem[]>(() => [], []);
 
   // 4. Assignment Completion Breakdown (Status Donut)
-  const assignmentStatusPie = useMemo(() => [], []);
+  const assignmentStatusPie = useMemo<AssignmentStatusItem[]>(() => [], []);
 
   // 5. Recent Grade Trends over time (Quizzes, Exams & Capstones)
-  const gradeTrendsData = useMemo(() => [], []);
+  const gradeTrendsData = useMemo<GradeTrendItem[]>(() => [], []);
 
   // Filtered Grade Trends based on subject selector
   const filteredGradeTrends = useMemo(() => {
