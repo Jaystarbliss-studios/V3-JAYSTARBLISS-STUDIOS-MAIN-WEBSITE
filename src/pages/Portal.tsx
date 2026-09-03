@@ -682,6 +682,7 @@ const Portal: React.FC = () => {
       localStorage.setItem('jaystar_cached_user_id', user.uid);
       localStorage.setItem('jaystar_cached_user_name', detectedName);
 
+      await recordPortalLogin(sessionRole);
       navigate(targetRoute);
     } catch (err: any) {
       console.error('Login error:', err);
@@ -753,6 +754,7 @@ const Portal: React.FC = () => {
         localStorage.setItem('jaystar_cached_user_role', 'super_admin');
         localStorage.setItem('jaystar_cached_user_id', user.uid);
         localStorage.setItem('jaystar_cached_user_name', user.displayName || 'Admin');
+        await recordPortalLogin('ADMIN');
         navigate('/admin');
         return;
       }
@@ -783,6 +785,7 @@ const Portal: React.FC = () => {
       localStorage.setItem('jaystar_cached_user_id', user.uid);
       localStorage.setItem('jaystar_cached_user_name', user.displayName || '');
 
+      await recordPortalLogin(sessionRole);
       navigate(targetRoute);
     } catch (err: any) {
       console.error('Google login error:', err);
