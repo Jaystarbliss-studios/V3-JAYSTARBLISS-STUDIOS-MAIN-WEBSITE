@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Users, BookOpen, Activity, ArrowUpRight, Award, BarChart3, RefreshCw,
+  Users, BookOpen, Activity, Award, BarChart3, RefreshCw,
   Database
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
+  Tooltip as RechartsTooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
 interface AdminAnalyticsWidgetProps {
