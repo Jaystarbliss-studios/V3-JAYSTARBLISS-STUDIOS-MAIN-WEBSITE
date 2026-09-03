@@ -116,8 +116,6 @@ export const PortalPayments: React.FC = () => {
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setRenewing(true);
-    setRenewalSuccess(false);
-
     try {
       const user = auth.currentUser;
       if (!user?.email) throw new Error('You must be signed in with an email address to make a payment.');
@@ -129,73 +127,70 @@ export const PortalPayments: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          plan: selectedPlan,
-          role
-        })
+        body: JSON.stringify({ plan: selectedPlan, role })
       });
 
       const initData = await initResponse.json();
-      if (!initResponse.ok || !initData.accessCode) {
+      if (!initResponse.ok || !initData.authorizationUrl) {
         throw new Error(initData.error || 'Unable to start secure Paystack checkout.');
       }
 
-      const PaystackPop = (window as any).PaystackPop;
-      if (!PaystackPop) {
-        throw new Error('Paystack checkout is unavailable. Please refresh and try again.');
-      }
-
-      const popup = new PaystackPop();
-      popup.resumeTransaction(initData.accessCode, {
-        onSuccess: async (transaction: { reference: string }) => {
-          try {
-            const verifyToken = await auth.currentUser?.getIdToken(true);
-            if (!verifyToken) throw new Error('Your session expired. Please sign in again.');
-
-            const verifyResponse = await fetch('/api/paystack/verify', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${verifyToken}`
-              },
-              body: JSON.stringify({ reference: transaction.reference })
-            });
-            const verifyData = await verifyResponse.json();
-
-            if (!verifyResponse.ok || !verifyData.verified) {
-              throw new Error(verifyData.error || 'Payment could not be verified.');
-            }
-
-            setRenewalSuccess(true);
-            toast.success('Payment verified successfully. Your receipt is now available.');
-            const refreshed = await getDocs(query(collection(db, 'payments'), where('userId', '==', user.uid)));
-            setPayments(refreshed.docs.map(d => ({ id: d.id, ...d.data() })));
-            setTimeout(() => {
-              setShowCheckoutModal(false);
-              setRenewalSuccess(false);
-            }, 2500);
-          } catch (verifyError: any) {
-            console.error('Payment verification error:', verifyError);
-            toast.error(verifyError.message || 'Payment verification failed.');
-          } finally {
-            setRenewing(false);
-          }
-        },
-        onCancel: () => {
-          setRenewing(false);
-          toast.info('Payment checkout was cancelled.');
-        },
-        onError: (error: any) => {
-          setRenewing(false);
-          toast.error(error?.message || 'Paystack checkout failed.');
-        }
-      });
+      // Payment is initialized server-side and Paystack returns to this page
+      // with a reference. The server verifies status and amount before
+      // recording the transaction as VERIFIED.
+      window.location.assign(initData.authorizationUrl);
     } catch (err: any) {
-      console.error('Error processing payment:', err);
+      console.error('Error starting payment:', err);
       toast.error(err.message || 'Unable to start payment.');
       setRenewing(false);
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get('reference') || params.get('trxref');
+    if (!reference || params.get('payment') !== 'complete') return;
+
+    let cancelled = false;
+    const verifyReturnedPayment = async () => {
+      try {
+        await auth.authStateReady();
+        const user = auth.currentUser;
+        if (!user) throw new Error('Please sign in again to verify your payment.');
+
+        setRenewing(true);
+        const token = await user.getIdToken(true);
+        const response = await fetch('/api/paystack/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ reference })
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.verified) {
+          throw new Error(data.error || 'Payment verification failed.');
+        }
+
+        if (!cancelled) {
+          setRenewalSuccess(true);
+          toast.success('Payment verified successfully. Your receipt is now available.');
+          const refreshed = await getDocs(query(collection(db, 'payments'), where('userId', '==', user.uid)));
+          setPayments(refreshed.docs.map(d => ({ id: d.id, ...d.data() })));
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (err: any) {
+        if (!cancelled) toast.error(err.message || 'Payment verification failed.');
+      } finally {
+        if (!cancelled) setRenewing(false);
+      }
+    };
+
+    verifyReturnedPayment();
+    return () => { cancelled = true; };
+  }, [toast]);
 
   return (
     <div className="space-y-8">
