@@ -50,6 +50,7 @@ export interface StudentAnalyticsProps {
   completedModulesCount?: number;
   totalModulesCount?: number;
   className?: string;
+  learningTracks?: Array<{ subject: string; progress: number; modulesDone: number; modulesTotal: number; hours?: number }>;
 }
 
 export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
@@ -58,7 +59,8 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
   enrolledSubjects = [],
   completedModulesCount = 0,
   totalModulesCount = 0,
-  className = ''
+  className = '',
+  learningTracks = []
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'progress' | 'assignments' | 'grades'>('overview');
   const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
@@ -71,7 +73,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
   }, [enrolledSubjects]);
 
   // 1. Learning Progress Data across Course Tracks
-  const learningProgressData = useMemo<LearningProgressItem[]>(() => [], []);
+  const learningProgressData = useMemo<LearningProgressItem[]>(() => learningTracks.map(track => ({ ...track, hours: track.hours ?? 0 })), [learningTracks]);
 
   // 2. Skill Competency Radar Data
   const competencyRadarData = useMemo<CompetencyItem[]>(() => [], []);
