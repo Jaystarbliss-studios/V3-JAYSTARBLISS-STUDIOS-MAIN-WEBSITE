@@ -140,17 +140,23 @@ service cloud.firestore {
 
     match /schoolResources/{resourceId} {
       allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /schoolLinks/{linkId} {
       allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /schoolExams/{examId} {
       allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /schoolPasscodes/{docId} {
