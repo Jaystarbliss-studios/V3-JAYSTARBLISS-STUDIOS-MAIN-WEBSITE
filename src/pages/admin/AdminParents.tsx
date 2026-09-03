@@ -3,7 +3,7 @@ import {
   collection, addDoc, updateDoc, doc, getDoc, 
   query, orderBy, serverTimestamp, onSnapshot 
 } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { 
   CreditCard, CheckCircle2, Clock, Plus, 
@@ -134,6 +134,7 @@ const AdminParents: React.FC = () => {
 
       // Log activity
       await addDoc(collection(db, 'activityLogs'), {
+        actorUid: auth.currentUser?.uid || '',
         type: 'enrollment_approved',
         enrId: enr.id,
         studentId,
