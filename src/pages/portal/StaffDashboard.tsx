@@ -30,6 +30,9 @@ const StaffDashboard: React.FC = () => {
     const fetchStaffData = async () => {
       setLoading(true);
       try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+
         // 1. Fetch Staff Resources
         try {
           const resSnap = await getDocs(collection(db, 'staffGeneralResources'));
@@ -61,7 +64,7 @@ const StaffDashboard: React.FC = () => {
 
         // 3. Fetch Enrollment Requests
         try {
-          const erSnap = await getDocs(collection(db, 'enrollment_requests'));
+          const erSnap = await getDocs(query(collection(db, 'enrollment_requests'), where('status', '==', 'PENDING_REVIEW')));
           setEnrollments(erSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (e) {
           console.warn('enrollment_requests error:', e);
