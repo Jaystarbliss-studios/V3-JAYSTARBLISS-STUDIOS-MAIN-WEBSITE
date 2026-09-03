@@ -53,9 +53,14 @@ export const handler: Handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Payment details could not be verified." }) };
     }
 
-    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
-    if (!existing.empty) {
-      const existingPayment = existing.docs[0].data();
+    const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
+    const canonicalExisting = await canonicalPaymentRef.get();
+    const existing = canonicalExisting.exists
+      ? canonicalExisting
+      : (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
+
+    if (existing) {
+      const existingPayment = existing.data();
       if (
         String(existingPayment.userId || "") !== decoded.uid ||
         String(existingPayment.planId || "") !== metadataPlanId ||
@@ -114,7 +119,18 @@ export const handler: Handler = async (event) => {
       paidAt: tx.paid_at || null
     };
 
-    await adminDb.collection("payments").add(paymentData);
+    try {
+      await canonicalPaymentRef.create(paymentData);
+    } catch (writeError: any) {
+      if (writeError?.code !== 6 && !String(writeError?.message || "").toLowerCase().includes("already exists")) {
+        throw writeError;
+      }
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified: true, reference, enrollmentRequestId: enrollmentRequestId || null, alreadyRecorded: true })
+      };
+    }
 
     if (enrollmentRequestId && enrollmentRequest) {
       await enrollmentRequest.ref.set({
