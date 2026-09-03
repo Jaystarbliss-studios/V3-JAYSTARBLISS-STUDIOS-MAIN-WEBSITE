@@ -166,8 +166,6 @@ const StudentDashboard: React.FC = () => {
         const studentDocId = sessionStorage.getItem('studentDocId');
         const studentUsername = sessionStorage.getItem('studentUsername');
         const cachedClass = sessionStorage.getItem('studentClass');
-        const cachedSchoolId = sessionStorage.getItem('schoolId');
-        const cachedSchoolName = sessionStorage.getItem('schoolName');
 
         let sData: StudentInfo | null = null;
         let sId = studentDocId || '';
