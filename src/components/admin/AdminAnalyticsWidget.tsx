@@ -194,24 +194,23 @@ const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20">
         {[
-          ['Student records', studentsData.length, 'Current Firestore records'],
-          ['Active accounts', usersData.length, 'Current user records'],
-          ['Published resources', resourcesData.length, trackedViews ? `${trackedViews} tracked views` : 'Views not yet tracked'],
-          ['Assessments', examsData.length, trackedCbt ? `${trackedCbt} with performance data` : 'Performance data not yet tracked']
-        ].map(([label, value, note], index) => (
-          <div key={String(label)} className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-              <span className="font-semibold">{label}</span>
-              {index === 0 && <ArrowUpRight size={14} className="text-emerald-500" />}
-              {index === 1 && <Users size={14} className="text-blue-500" />}
-              {index === 2 && <BookOpen size={14} className="text-blue-500" />}
-              {index === 3 && <Award size={14} className="text-emerald-500" />}
+          { label: 'Student records', value: String(studentsData.length), note: 'Current Firestore records', icon: Users },
+          { label: 'Active accounts', value: String(usersData.length), note: 'Current user records', icon: Users },
+          { label: 'Published resources', value: String(resourcesData.length), note: trackedViews ? `${trackedViews} tracked views` : 'Views not yet tracked', icon: BookOpen },
+          { label: 'Assessments', value: String(examsData.length), note: trackedCbt ? `${trackedCbt} with performance data` : 'Performance data not yet tracked', icon: Award }
+        ].map(metric => {
+          const Icon = metric.icon;
+          return (
+            <div key={metric.label} className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
+                <span className="font-semibold">{metric.label}</span>
+                <Icon size={14} />
+              </div>
+              <div className="text-2xl font-black text-gray-900 dark:text-white">{metric.value}</div>
+              <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">{metric.note}</div>
             </div>
-            <div className="text-2xl font-black text-gray-900 dark:text-white">{value}</div>
-            <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">{note}</div>
-          </div>
-        ))}
-      </div>
+          );
+        })/div>
 
       <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {tabs.map(tab => {
