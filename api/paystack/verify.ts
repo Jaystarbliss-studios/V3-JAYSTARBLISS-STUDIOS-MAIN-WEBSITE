@@ -1,13 +1,12 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from '../_lib/firebase-admin';
 
-function getBearer(req: VercelRequest) {
+function getBearer(req: any) {
   const header = req.headers.authorization || '';
   return header.startsWith('Bearer ') ? header.slice(7) : '';
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
