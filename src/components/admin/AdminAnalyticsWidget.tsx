@@ -235,39 +235,39 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-            <span className="font-semibold">Student Growth Rate</span>
+            <span className="font-semibold">Student Records</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <ArrowUpRight size={14} /> Recorded data
+              <span className="text-xs">Current</span>
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
             {totalCadets} <span className="text-xs font-medium text-gray-400">Cadets</span>
           </div>
           <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            Across 6 partner school cohorts
+            Persisted student records loaded for this dashboard
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-            <span className="font-semibold">Weekly Login Volume</span>
+            <span className="font-semibold">Recorded Login Activity</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <ArrowUpRight size={14} /> Recorded events
+              <span className="text-xs">From logs</span>
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
             {totalLogins} <span className="text-xs font-medium text-gray-400">Recorded sessions</span>
           </div>
           <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            {totalActiveUsers} verified active portal accounts
+            {totalActiveUsers} user records loaded for this dashboard
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-            <span className="font-semibold">Resource Utilization</span>
+            <span className="font-semibold">Published Resource Inventory</span>
             <span className="flex items-center text-blue-600 dark:text-blue-400 font-bold">
-              <ArrowUpRight size={14} /> Inventory
+              <span className="text-xs">Current</span>
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
@@ -280,9 +280,9 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
 
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-            <span className="font-semibold">CBT Exam Pass Rate</span>
+            <span className="font-semibold">CBT Exam Results</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <CheckCircle2 size={13} className="mr-0.5" /> {overallPassRate === null ? 'No scored data' : `${overallPassRate}%`}
+              <CheckCircle2 size={13} className="mr-0.5" /> {overallPassRate === null ? "No scored data" : `${overallPassRate}%`}
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
