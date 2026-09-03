@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, addDoc, serverTimestamp 
+  collection, getDocs, addDoc, serverTimestamp, query, where 
 } from 'firebase/firestore';
 import { 
   GraduationCap, PlusCircle, CreditCard, 
@@ -97,7 +97,7 @@ const ParentDashboard: React.FC = () => {
 
         // 3. Fetch Pending Enrollment Requests
         try {
-          const eSnap = await getDocs(collection(db, 'enrollment_requests'));
+          const eSnap = await getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid)));
           const eList: any[] = [];
           eSnap.forEach(d => {
             const data = d.data();
