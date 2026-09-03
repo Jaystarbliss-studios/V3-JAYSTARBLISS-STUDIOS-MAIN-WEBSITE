@@ -3,8 +3,9 @@ import {
   collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, 
   query, where, orderBy, serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import StaffSchoolAssignments from './StaffSchoolAssignments';
 import { 
   UserCheck, Key, Plus, Trash2, 
   ExternalLink, Mail, BookOpen, 
@@ -108,34 +109,33 @@ const AdminStaff: React.FC = () => {
     }
   };
 
-  // Disable Staff Member without deleting the authoritative user record.
-  const handleDeleteStaff = async (id: string, name: string) => {
-    if (!window.confirm(`Disable staff access for "${name}"? This preserves the account record for audit history.`)) return;
-    try {
-      await setDoc(doc(db, 'users', id), {
-        accountStatus: 'DISABLED',
-        disabledAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      setStaffList((prev) => prev.map((member) => member.id === id ? { ...member, accountStatus: 'DISABLED' } : member));
-      toast.success(`Staff member "${name}" has been disabled.`);
-    } catch (err: any) {
-      toast.error('Error disabling staff: ' + err.message);
-    }
-  };
-
-  // Change staff account access state. ProtectedRoute enforces these states at sign-in/route access.
-  const handleAccountStatus = async (id: string, name: string, nextStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED') => {
-    const action = nextStatus === 'ACTIVE' ? 'restore' : nextStatus === 'SUSPENDED' ? 'suspend' : 'ban';
+  const updateStaffAccountStatus = async (id: string, name: string, nextStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'DISABLED') => {
+    const action = nextStatus === 'ACTIVE' ? 'restore' : nextStatus === 'SUSPENDED' ? 'suspend' : nextStatus === 'BANNED' ? 'ban' : 'disable';
     if (!window.confirm(`Are you sure you want to ${action} "${name}"?`)) return;
     try {
-      await setDoc(doc(db, 'users', id), { accountStatus: nextStatus, updatedAt: serverTimestamp() }, { merge: true });
+      if (!auth.currentUser) throw new Error('Your admin session has expired. Please sign in again.');
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/.netlify/functions/admin-account-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: id, status: nextStatus })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Unable to update account access securely.');
       setStaffList(prev => prev.map(member => member.id === id ? { ...member, accountStatus: nextStatus } : member));
       toast.success(`${name} is now ${nextStatus.toLowerCase()}.`);
     } catch (err: any) {
       console.error(err);
-      toast.error('Failed to update account status: ' + err.message);
+      toast.error('Failed to update account status: ' + (err?.message || 'Unknown error'));
     }
+  };
+
+  const handleDeleteStaff = async (id: string, name: string) => {
+    await updateStaffAccountStatus(id, name, 'DISABLED');
+  };
+
+  const handleAccountStatus = async (id: string, name: string, nextStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED') => {
+    await updateStaffAccountStatus(id, name, nextStatus);
   };
 
   // Post Staff Resource
@@ -532,50 +532,9 @@ const AdminStaff: React.FC = () => {
         </div>
       )}
 
-      {/* ══ TAB 3: STAFF SCHOOL ACCESS CODE ══ */}
+      {/* ══ TAB 3: STAFF SCHOOL ACCESS ══ */}
       {activeTab === 'schoolAccess' && (
-        <div className="max-w-xl bg-white dark:bg-slate-900 p-8 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-              <Key size={20} className="text-brand-red" />
-              Staff School Dispatch Access Code
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
-              Faculty and staff members require this security passcode to authorize and send curriculum resources or examination tests to affiliated schools.
-            </p>
-          </div>
-
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-gray-200 dark:border-slate-700">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-              Current Active Passcode:
-            </span>
-            <div className="text-2xl font-black font-mono tracking-wider text-brand-red">
-              {currentStaffSchoolCode}
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-              Update Staff School Access Passcode:
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newStaffSchoolCode}
-                onChange={(e) => setNewStaffSchoolCode(e.target.value.toUpperCase())}
-                placeholder="ENTER_NEW_PASSCODE"
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-              />
-              <button
-                onClick={handleUpdateStaffSchoolCode}
-                disabled={updatingStaffSchoolCode}
-                className="px-6 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors disabled:opacity-50 shadow-sm"
-              >
-                {updatingStaffSchoolCode ? 'Updating...' : 'Update Passcode'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <StaffSchoolAssignments />
       )}
     </div>
   );

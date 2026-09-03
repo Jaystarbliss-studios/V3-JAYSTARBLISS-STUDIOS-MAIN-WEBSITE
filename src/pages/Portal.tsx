@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   School, GraduationCap, Users, ShieldCheck, Mail, Lock, 
-  Eye, EyeOff, ArrowLeft, Sun, Moon, KeyRound, UserCheck
+  Eye, EyeOff, ArrowLeft, Sun, Moon
 } from 'lucide-react';
 import { 
   signInWithEmailAndPassword, 
@@ -43,10 +43,6 @@ function deriveStudentAuthPassword(code: string): string {
   return `jdh_std_${code}_2024`;
 }
 
-function deriveSchoolAuthPassword(code: string): string {
-  if (code.length >= 6) return code;
-  return `jdh_sch_${code}_2024`;
-}
 
 const isBlockedAccount = (data: Record<string, any>) =>
   ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(data.accountStatus || data.status || 'ACTIVE').toUpperCase());
@@ -713,6 +709,10 @@ const Portal: React.FC = () => {
       let userRole = user.email === 'johnrufai242@gmail.com' ? 'SUPER_ADMIN' : activeTab.toUpperCase();
 
       if (!userSnap.exists()) {
+        if (activeTab === 'staff' || activeTab === 'school') {
+          await signOut(auth).catch(() => undefined);
+          throw new Error(`${activeTab === 'staff' ? 'Staff' : 'School'} accounts are created by administrators. Please contact an administrator for access.`);
+        }
         const inviteDocRef = doc(db, 'invites', (user.email || '').toLowerCase());
         const inviteSnap = await getDoc(inviteDocRef);
         

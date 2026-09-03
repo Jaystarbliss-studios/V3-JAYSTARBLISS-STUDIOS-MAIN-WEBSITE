@@ -397,7 +397,9 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
   // Generate random new passcode
   const generateRandomCode = (prefix: string = 'EXAM') => {
-    const randomNum = Math.floor(100 + Math.random() * 900);
+    const randomValues = new Uint32Array(1);
+    crypto.getRandomValues(randomValues);
+    const randomNum = 100 + (randomValues[0] % 900);
     return `${prefix.toUpperCase()}-${randomNum}`;
   };
 

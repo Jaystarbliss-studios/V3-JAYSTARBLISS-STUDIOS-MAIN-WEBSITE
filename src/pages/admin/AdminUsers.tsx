@@ -61,12 +61,20 @@ const AdminUsers: React.FC = () => {
   const handleAccountStatus = async (userId: string, currentStatus: string | undefined) => {
     const nextStatus = String(currentStatus || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
     try {
-      await updateDoc(doc(db, 'users', userId), { accountStatus: nextStatus, updatedAt: new Date().toISOString() });
+      if (!auth.currentUser) throw new Error('Your admin session has expired. Please sign in again.');
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/.netlify/functions/admin-account-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, status: nextStatus })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Unable to update account access securely.');
       setUsers((prev) => prev.map((user) => user.id === userId ? { ...user, accountStatus: nextStatus } : user));
       toast.success(nextStatus === 'ACTIVE' ? 'Account restored.' : 'Account suspended.');
     } catch (error) {
       console.error('Error updating account status:', error);
-      toast.error('Unable to update account access.');
+      toast.error(error instanceof Error ? error.message : 'Unable to update account access.');
     }
   };
 
