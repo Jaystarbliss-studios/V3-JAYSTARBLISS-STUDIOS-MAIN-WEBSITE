@@ -76,9 +76,9 @@ service cloud.firestore {
     // ==========================================
     match /individualStudents/{studentId} {
       allow read: if isStaffOrTutor() || (isAuth() && (resource.data.firebaseUid == request.auth.uid || resource.data.parentId == request.auth.uid || resource.data.parentId == request.auth.token.email));
-      allow create: if isStaffOrTutor();
-      allow update: if isStaffOrTutor() || (isAuth() && resource.data.firebaseUid == request.auth.uid);
-      allow delete: if isAnyAdmin();
+      allow create: if isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.schoolId));
+      allow update: if isStaffOrTutor() || (isAuth() && (resource.data.firebaseUid == request.auth.uid || isSchoolOwner(resource.data.schoolId)));
+      allow delete: if isAnyAdmin() || (isAuth() && isSchoolOwner(resource.data.schoolId));
     }
 
     match /students/{studentId} {
@@ -124,23 +124,27 @@ service cloud.firestore {
     }
 
     match /schoolResources/{docId} {
-      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
-      allow create, update, delete: if isAdmin() || isStaffOrTutor();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.schoolId));
+      allow update, delete: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
     }
 
     match /schoolLinks/{docId} {
-      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
-      allow create, update, delete: if isAdmin() || isStaffOrTutor();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.schoolId));
+      allow update, delete: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
     }
 
     match /schoolExams/{docId} {
-      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
-      allow create, update, delete: if isAdmin() || isStaffOrTutor();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.schoolId));
+      allow update, delete: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
     }
 
     match /schoolPasscodes/{docId} {
-      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
-      allow create, update, delete: if isAdmin() || isStaffOrTutor();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.schoolId));
+      allow update, delete: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
     }
 
     match /staffGeneralResources/{resId} {
