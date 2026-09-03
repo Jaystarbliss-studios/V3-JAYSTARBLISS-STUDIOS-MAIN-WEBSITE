@@ -39,6 +39,11 @@ export const handler: Handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Payment plan is not available for this portal role." }) };
     }
 
+    const requestedMethod = String(body.paymentMethod || "card").toLowerCase();
+    if (requestedMethod !== "card" && requestedMethod !== "bank_transfer") {
+      return { statusCode: 400, body: JSON.stringify({ error: "Unsupported payment method." }) };
+    }
+
     const callback = process.env.PUBLIC_APP_URL;
     if (!callback) return { statusCode: 500, body: JSON.stringify({ error: "Payment callback is not configured." }) };
 
@@ -53,13 +58,14 @@ export const handler: Handler = async (event) => {
         amount: plan.amount * 100,
         currency: "NGN",
         callback_url: `${callback.replace(/\/$/, "")}${getCallbackPath(requestedRole, plan.role)}`,
-        channels: ["card", "bank_transfer"],
+        channels: [requestedMethod],
         metadata: {
           userId: decoded.uid,
           role: requestedRole,
           planRole: plan.role,
           planId,
-          planName: plan.name
+          planName: plan.name,
+          paymentMethod: requestedMethod
         }
       })
     });
