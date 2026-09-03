@@ -48,6 +48,23 @@ function deriveSchoolAuthPassword(code: string): string {
   return `jdh_sch_${code}_2024`;
 }
 
+const recordPortalLogin = async (role: string) => {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await addDoc(collection(db, 'activityLogs'), {
+      actorUid: user.uid,
+      type: 'login',
+      userType: role.toUpperCase(),
+      role: role.toUpperCase(),
+      timestamp: serverTimestamp()
+    });
+  } catch (error) {
+    // Telemetry must never prevent a successful login.
+    console.warn('Login telemetry could not be recorded:', error);
+  }
+};
+
 const Portal: React.FC = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -92,7 +109,8 @@ const Portal: React.FC = () => {
           sessionStorage.setItem('userRole', 'super_admin');
           sessionStorage.setItem('userId', user.uid);
           sessionStorage.setItem('userEmail', user.email || '');
-          navigate('/admin');
+          await recordPortalLogin('ADMIN');
+      navigate('/admin');
           return;
         }
 
@@ -116,7 +134,9 @@ const Portal: React.FC = () => {
         sessionStorage.setItem('userName', studentName);
         sessionStorage.setItem('userEmail', user.email || '');
 
-        navigate('/portal/student');
+        await recordPortalLogin('STUDENT');
+        await recordPortalLogin('STUDENT');
+    navigate('/portal/student');
         return;
       } catch (directAuthErr: any) {
         // If it was invalid credentials and it looks like a student access code rather than standard password, proceed to student record lookup
@@ -330,7 +350,8 @@ const Portal: React.FC = () => {
           sessionStorage.setItem('userId', cred.user.uid);
           localStorage.setItem('jaystar_cached_user_role', 'super_admin');
           localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
-          navigate('/admin');
+          await recordPortalLogin('ADMIN');
+        navigate('/admin');
           return;
         }
 
@@ -347,6 +368,7 @@ const Portal: React.FC = () => {
           localStorage.setItem('jaystar_cached_user_role', 'student');
           localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
           localStorage.setItem('jaystar_cached_user_name', studentName);
+          await recordPortalLogin('STUDENT');
           navigate('/portal/student');
           return;
         }
@@ -359,7 +381,9 @@ const Portal: React.FC = () => {
         localStorage.setItem('jaystar_cached_user_role', 'school');
         localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
         localStorage.setItem('jaystar_cached_user_name', schoolName);
-        navigate('/portal/school');
+        await recordPortalLogin('SCHOOL');
+        await recordPortalLogin('SCHOOL');
+    navigate('/portal/school');
         return;
       } catch (authErr) {
         console.warn('Direct auth failed, checking schools collection:', authErr);
