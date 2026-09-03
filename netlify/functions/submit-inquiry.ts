@@ -44,11 +44,16 @@ export const handler: Handler = async (event) => {
     const since = Timestamp.fromMillis(Date.now() - 60 * 60 * 1000);
     const recent = await adminDb.collection("inquiries")
       .where("email", "==", email)
-      .where("createdAt", ">=", since)
       .limit(4)
       .get();
 
-    if (recent.size >= 3) {
+    const recentCount = recent.docs.filter(doc => {
+      const createdAt = doc.data().createdAt;
+      const millis = typeof createdAt?.toMillis === "function" ? createdAt.toMillis() : 0;
+      return millis >= since.toMillis();
+    }).length;
+
+    if (recentCount >= 3) {
       return { statusCode: 429, body: JSON.stringify({ error: "Too many submissions from this email. Please try again later." }) };
     }
 
