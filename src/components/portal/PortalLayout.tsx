@@ -329,10 +329,10 @@ const PortalLayout: React.FC = () => {
         {/* Unverified Email Warning Banner */}
         {!isEmailVerified && userEmail && !isStudentAccessCodeOnly && (
           <div className="bg-amber-500 text-slate-950 px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-bold shadow-xs shrink-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2 min-w-0 pr-2">
               <AlertCircle size={16} className="shrink-0 text-slate-950" />
-              <span>
-                Please verify your email address (<strong>{userEmail}</strong>) to guarantee uninterrupted portal access.
+              <span className="min-w-0 break-words leading-5">
+                Please verify your email address (<strong className="break-all">{userEmail}</strong>) to guarantee uninterrupted portal access.
               </span>
             </div>
             <button
