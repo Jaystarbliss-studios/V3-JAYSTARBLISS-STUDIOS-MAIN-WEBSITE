@@ -66,36 +66,36 @@ service cloud.firestore {
     // STUDENTS & INDIVIDUAL LEARNERS
     // ==========================================
     match /individualStudents/{studentId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /students/{studentId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /studentModules/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /personalResources/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /personalLinks/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     // ==========================================
     // GENERAL & SCHOOL RESOURCES / EXAMS / LINKS
     // ==========================================
     match /resources/{resourceId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /links/{linkId} {
@@ -124,8 +124,8 @@ service cloud.firestore {
     }
 
     match /schoolPasscodes/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /staffGeneralResources/{resId} {
@@ -159,24 +159,26 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
-      allow read: if true;
-      allow create: if isAuth() || true;
+      allow read: if isAuth();
+      allow create: if isAnyAdmin() || (isAuth() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending');
       allow update, delete: if isAnyAdmin();
     }
 
     match /enrollment_requests/{reqId} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
+      allow update: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid && request.resource.data.parentId == request.auth.uid);
+      allow delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
     }
 
     match /student_requests/{requestId} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
     }
 
     match /tutor_applications/{appId} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if isAnyAdmin();
     }
 
     match /tutors/{tutorId} {
@@ -188,15 +190,13 @@ service cloud.firestore {
     // NOTIFICATIONS & MESSAGES & LOGS
     // ==========================================
     match /notifications/{notificationId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if isAnyAdmin();
+      allow read: if isAuth();
+      allow create, update, delete: if isAnyAdmin();
     }
 
     match /activityLogs/{logId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAnyAdmin();
+      allow write: if isAnyAdmin();
     }
 
     match /contact_messages/{msgId} {
