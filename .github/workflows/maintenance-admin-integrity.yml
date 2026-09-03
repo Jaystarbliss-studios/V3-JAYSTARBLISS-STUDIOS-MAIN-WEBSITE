@@ -1,5 +1,7 @@
 name: Apply Admin Integrity Patch
 
+# This workflow is intentionally temporary and self-removing after a successful patch.
+
 on:
   push:
     branches:
