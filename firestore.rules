@@ -282,7 +282,7 @@ service cloud.firestore {
 
     match /activityLogs/{logId} {
       allow read: if isAnyAdmin();
-      allow create: if isAuth() && request.resource.data.get('actorUid', '') == request.auth.uid;
+      allow create: if isAnyAdmin();
       allow update, delete: if isAnyAdmin();
     }
 
