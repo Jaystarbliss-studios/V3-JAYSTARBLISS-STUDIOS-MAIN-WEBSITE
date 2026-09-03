@@ -77,10 +77,10 @@ service cloud.firestore {
     // ==========================================
     match /users/{userId} {
       allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
-      allow create: if isAuth() && (request.auth.uid == userId || isAnyAdmin());
+      allow create: if isSuperAdmin() || (isAuth() && request.auth.uid == userId && request.resource.data.role in ['STUDENT','student','PARENT','parent','SCHOOL','school','STAFF','staff','TUTOR','tutor']);
       allow update: if isAuth() && (
         isSuperAdmin() || 
-        isAnyAdmin() ||
+        (isAnyAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','email','phone','photoURL','accountStatus','forcePasswordReset','updatedAt'])) ||
         (
           request.auth.uid == userId &&
           request.resource.data.get('role', null) == resource.data.get('role', null) &&
