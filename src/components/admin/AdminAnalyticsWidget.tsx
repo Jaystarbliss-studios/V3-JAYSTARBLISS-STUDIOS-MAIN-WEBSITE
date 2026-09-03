@@ -47,119 +47,139 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [activeTab, setActiveTab] = useState<'growth' | 'logins' | 'resources' | 'cbt'>('growth');
 
-  // 1. Calculate Growth Trends
-  const studentGrowthData = useMemo(() => {
-    // Generate intelligent timeline aggregation based on existing records or dynamic progression
-    const totalStudents = studentsData.length > 0 ? studentsData.length : 38;
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonthIdx = new Date().getMonth();
-    
-    // Generate responsive trailing months
-    const sliceCount = timeRange === '7d' ? 7 : timeRange === '30d' ? 6 : timeRange === '90d' ? 8 : 12;
-    const result = [];
-    
-    for (let i = sliceCount - 1; i >= 0; i--) {
-      const targetMonthIdx = (currentMonthIdx - i + 12) % 12;
-      const monthName = months[targetMonthIdx];
-      const factor = (sliceCount - i) / sliceCount;
-      
-      const individualCount = Math.max(2, Math.round(totalStudents * 0.45 * factor));
-      const schoolCohortCount = Math.max(4, Math.round(totalStudents * 0.55 * factor));
-      const cumulative = individualCount + schoolCohortCount;
-      const newAdmissions = Math.max(1, Math.round((Math.sin(i * 1.2) + 1.5) * (totalStudents / 12)));
-
-      result.push({
-        name: monthName,
-        individual: individualCount,
-        schoolCohort: schoolCohortCount,
-        total: cumulative,
-        newSignups: newAdmissions
-      });
+  const toDate = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value?.toDate === 'function') {
+      const d = value.toDate();
+      return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
     }
+    if (typeof value === 'string' || typeof value === 'number') {
+      const d = new Date(value);
+      return !Number.isNaN(d.getTime()) ? d : null;
+    }
+    return null;
+  };
 
-    return result;
+  const studentGrowthData = useMemo(() => {
+    const now = new Date();
+    const rangeDays = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - rangeDays + 1);
+    if (studentsData.length === 0) return [];
+
+    const bucketCount = timeRange === '7d' ? 7 : timeRange === '30d' ? 6 : timeRange === '90d' ? 8 : 12;
+    const bucketMs = rangeDays * 86400000 / bucketCount;
+    const buckets = Array.from({ length: bucketCount }, (_, index) => ({
+      start: new Date(startDate.getTime() + index * bucketMs),
+      individual: 0,
+      schoolCohort: 0,
+      newSignups: 0
+    }));
+
+    studentsData.forEach(student => {
+      const created = toDate(student.createdAt || student.enrolledAt || student.registrationDate);
+      if (!created || created < startDate || created > now) return;
+      const index = Math.min(bucketCount - 1, Math.floor((created.getTime() - startDate.getTime()) / bucketMs));
+      buckets[index].newSignups += 1;
+      if (student.schoolId) buckets[index].schoolCohort += 1;
+      else buckets[index].individual += 1;
+    });
+
+    let cumulative = 0;
+    return buckets.map(bucket => {
+      cumulative += bucket.newSignups;
+      return {
+        name: bucket.start.toLocaleDateString(undefined, { month: 'short', day: timeRange === '1y' ? undefined : 'numeric' }),
+        individual: bucket.individual,
+        schoolCohort: bucket.schoolCohort,
+        total: cumulative,
+        newSignups: bucket.newSignups
+      };
+    });
   }, [studentsData, timeRange]);
 
-  // 2. Calculate Login & Telemetry Frequency
   const loginFrequencyData = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
-    // Count actual logins from activityLogs if available
-    const loginsByDay: Record<string, { student: number; staff: number; parent: number; school: number }> = {
-      Mon: { student: 14, staff: 6, parent: 4, school: 8 },
-      Tue: { student: 22, staff: 9, parent: 7, school: 12 },
-      Wed: { student: 28, staff: 11, parent: 9, school: 15 },
-      Thu: { student: 34, staff: 12, parent: 11, school: 18 },
-      Fri: { student: 42, staff: 15, parent: 14, school: 24 },
-      Sat: { student: 56, staff: 8, parent: 22, school: 10 },
-      Sun: { student: 38, staff: 5, parent: 18, school: 6 }
-    };
+    const loginsByDay: Record<string, { student: number; staff: number; parent: number; school: number }> = Object.fromEntries(
+      days.map(day => [day, { student: 0, staff: 0, parent: 0, school: 0 }])
+    );
 
-    if (activityLogsData.length > 0) {
-      activityLogsData.forEach(log => {
-        if (log.type === 'login' || log.type?.includes('login')) {
-          const d = log.timestamp?.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-          if (!isNaN(d.getTime())) {
-            const dayName = days[(d.getDay() + 6) % 7];
-            const role = (log.userType || 'student').toLowerCase();
-            if (loginsByDay[dayName]) {
-              if (role.includes('staff') || role.includes('tutor')) loginsByDay[dayName].staff += 1;
-              else if (role.includes('parent')) loginsByDay[dayName].parent += 1;
-              else if (role.includes('school')) loginsByDay[dayName].school += 1;
-              else loginsByDay[dayName].student += 1;
-            }
-          }
-        }
-      });
-    }
+    activityLogsData.forEach(log => {
+      const type = String(log.type || '').toLowerCase();
+      if (!type.includes('login')) return;
+      const date = toDate(log.timestamp || log.createdAt);
+      if (!date) return;
+      const dayName = days[(date.getDay() + 6) % 7];
+      const role = String(log.userType || log.role || 'student').toLowerCase();
+      if (role.includes('staff') || role.includes('tutor') || role.includes('instructor')) loginsByDay[dayName].staff += 1;
+      else if (role.includes('parent')) loginsByDay[dayName].parent += 1;
+      else if (role.includes('school')) loginsByDay[dayName].school += 1;
+      else loginsByDay[dayName].student += 1;
+    });
 
     return days.map(day => ({
       day,
       ...loginsByDay[day],
-      totalLogins: loginsByDay[day].student + loginsByDay[day].staff + loginsByDay[day].parent + loginsByDay[day].school
+      totalLogins: Object.values(loginsByDay[day]).reduce((sum, value) => sum + value, 0)
     }));
   }, [activityLogsData]);
 
-  // 3. Calculate Resource Engagement
   const resourceEngagementData = useMemo(() => {
-    const totalRes = resourcesData.length > 0 ? resourcesData.length : 16;
-    
-    return [
-      { category: 'Robotics & Hardware', downloads: totalRes * 8 + 42, views: totalRes * 24 + 115, completion: 88 },
-      { category: 'Python & AI Labs', downloads: totalRes * 12 + 65, views: totalRes * 32 + 180, completion: 94 },
-      { category: 'Scratch & Animation', downloads: totalRes * 15 + 85, views: totalRes * 40 + 230, completion: 96 },
-      { category: 'Web & App Engineering', downloads: totalRes * 9 + 48, views: totalRes * 28 + 140, completion: 82 },
-      { category: 'Syllabi & CBT Keys', downloads: totalRes * 6 + 32, views: totalRes * 18 + 92, completion: 91 },
-    ];
+    const counts = new Map<string, number>();
+    resourcesData.forEach(resource => {
+      const category = String(resource.category || resource.subject || resource.track || 'Uncategorized').trim() || 'Uncategorized';
+      counts.set(category, (counts.get(category) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([category, resources]) => ({ category, resources }));
   }, [resourcesData]);
 
-  // 4. Curriculum Category Breakdown
   const categoryDistributionData = useMemo(() => {
-    return [
-      { name: 'Scratch Animation', value: 35 },
-      { name: 'Python & AI Logic', value: 28 },
-      { name: 'Robotics & Circuitry', value: 20 },
-      { name: 'Web Dev & HTML/CSS', value: 12 },
-      { name: 'Game Design', value: 5 }
-    ];
-  }, []);
+    return resourceEngagementData.map(item => ({ name: item.category, value: item.resources }));
+  }, [resourceEngagementData]);
 
-  // 5. CBT Exam Participation Trend
   const cbtAssessmentData = useMemo(() => {
-    return [
-      { grade: 'Primary 3-4', registered: 45, taken: 42, passed: 39, avgScore: 84 },
-      { grade: 'Primary 5-6', registered: 62, taken: 58, passed: 55, avgScore: 88 },
-      { grade: 'JSS 1-2', registered: 54, taken: 51, passed: 47, avgScore: 81 },
-      { grade: 'JSS 3', registered: 38, taken: 38, passed: 36, avgScore: 90 },
-      { grade: 'SS 1-2', registered: 29, taken: 27, passed: 25, avgScore: 86 }
-    ];
-  }, []);
+    const grouped = new Map<string, { grade: string; registered: number; taken: number; passed: number; scoreTotal: number; scoredCount: number }>();
+    examsData.forEach(exam => {
+      const grade = String(exam.grade || exam.class || exam.targetClass || 'Unclassified');
+      const existing = grouped.get(grade) || { grade, registered: 0, taken: 0, passed: 0, scoreTotal: 0, scoredCount: 0 };
+      const registered = Number(exam.registered ?? exam.registeredCount ?? 0);
+      const taken = Number(exam.taken ?? exam.completed ?? exam.completedCount ?? 0);
+      const passed = Number(exam.passed ?? exam.passedCount ?? 0);
+      const avgScore = Number(exam.avgScore ?? exam.averageScore);
+      if (Number.isFinite(registered)) existing.registered += registered;
+      if (Number.isFinite(taken)) existing.taken += taken;
+      if (Number.isFinite(passed)) existing.passed += passed;
+      if (Number.isFinite(avgScore)) {
+        existing.scoreTotal += avgScore;
+        existing.scoredCount += 1;
+      }
+      grouped.set(grade, existing);
+    });
+    return Array.from(grouped.values()).map(item => ({
+      grade: item.grade,
+      registered: item.registered,
+      taken: item.taken,
+      passed: item.passed,
+      avgScore: item.scoredCount ? Math.round(item.scoreTotal / item.scoredCount) : 0
+    }));
+  }, [examsData]);
 
-  // KPI Metrics
-  const totalCadets = studentsData.length > 0 ? studentsData.length : 38;
-  const totalActiveUsers = usersData.length > 0 ? usersData.length : 48;
-  const totalResCount = resourcesData.length > 0 ? resourcesData.length : 18;
-  const totalExamsCount = examsData.length > 0 ? examsData.length : 9;
+  const totalCadets = studentsData.length;
+  const totalActiveUsers = usersData.length;
+  const totalResCount = resourcesData.length;
+  const totalExamsCount = examsData.length;
+  const totalLogins = loginFrequencyData.reduce((sum, day) => sum + day.totalLogins, 0);
+  const totalRegistered = cbtAssessmentData.reduce((sum, item) => sum + item.registered, 0);
+  const totalPassed = cbtAssessmentData.reduce((sum, item) => sum + item.passed, 0);
+  const overallPassRate = totalRegistered > 0 ? Math.round((totalPassed / totalRegistered) * 100) : null;
+  const scoredExams = cbtAssessmentData.filter(item => item.avgScore > 0);
+  const overallAvgScore = scoredExams.length > 0
+    ? Math.round(scoredExams.reduce((sum, item) => sum + item.avgScore, 0) / scoredExams.length)
+    : null;
 
   return (
     <div className="pro-surface rounded-3xl overflow-hidden transition-colors">
@@ -217,7 +237,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Student Growth Rate</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <ArrowUpRight size={14} /> +28.4%
+              <ArrowUpRight size={14} /> Recorded data
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
@@ -232,11 +252,11 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Weekly Login Volume</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <ArrowUpRight size={14} /> +19.2%
+              <ArrowUpRight size={14} /> Recorded events
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
-            248 <span className="text-xs font-medium text-gray-400">Sessions</span>
+            {totalLogins} <span className="text-xs font-medium text-gray-400">Recorded sessions</span>
           </div>
           <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
             {totalActiveUsers} verified active portal accounts
@@ -247,14 +267,14 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Resource Utilization</span>
             <span className="flex items-center text-blue-600 dark:text-blue-400 font-bold">
-              <ArrowUpRight size={14} /> 92.6%
+              <ArrowUpRight size={14} /> Inventory
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalResCount * 42} <span className="text-xs font-medium text-gray-400">Reads</span>
+            {totalResCount} <span className="text-xs font-medium text-gray-400">Resources</span>
           </div>
           <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            Robotics slides &amp; Python guides
+            Published resource records
           </div>
         </div>
 
@@ -262,14 +282,14 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">CBT Exam Pass Rate</span>
             <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <CheckCircle2 size={13} className="mr-0.5" /> 89.2%
+              <CheckCircle2 size={13} className="mr-0.5" /> {overallPassRate === null ? 'No scored data' : `${overallPassRate}%`}
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalExamsCount * 24} <span className="text-xs font-medium text-gray-400">Exams</span>
+            {totalExamsCount} <span className="text-xs font-medium text-gray-400">Exam records</span>
           </div>
           <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            Average score: 85.8%
+            Average score: {overallAvgScore === null ? '—' : `${overallAvgScore}%`}
           </div>
         </div>
       </div>
@@ -279,7 +299,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         {[
           { key: 'growth', label: 'Student Growth Trend', icon: Users },
           { key: 'logins', label: 'Portal Login Frequency', icon: Activity },
-          { key: 'resources', label: 'Resource Engagement', icon: BookOpen },
+          { key: 'resources', label: 'Published Resource Inventory', icon: BookOpen },
           { key: 'cbt', label: 'CBT Assessment Performance', icon: Award },
         ].map(tab => {
           const Icon = tab.icon;
@@ -310,10 +330,10 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Cumulative Cadet Admissions &amp; Cohort Influx
+                  Student Registration Trend
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Trajectory comparing individual student registrations against institutional school partnerships.
+                  New student records grouped by the selected period. No synthetic values are generated.
                 </p>
               </div>
               <div className="flex items-center gap-4 text-xs font-bold">
@@ -321,7 +341,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                   <span className="w-3 h-3 rounded-full bg-brand-red inline-block" /> Total Cadets
                 </span>
                 <span className="flex items-center gap-1.5 text-blue-500">
-                  <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> School Cohorts
+                  <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> School-linked registrations
                 </span>
               </div>
             </div>
@@ -354,7 +374,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                   <Area 
                     type="monotone" 
                     dataKey="total" 
-                    name="Cumulative Total"
+                    name="Cumulative registrations"
                     stroke={BRAND_PALETTE.red} 
                     strokeWidth={3}
                     fillOpacity={1} 
@@ -363,7 +383,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                   <Area 
                     type="monotone" 
                     dataKey="schoolCohort" 
-                    name="School Cohorts"
+                    name="School-linked registrations"
                     stroke={BRAND_PALETTE.blue} 
                     strokeWidth={2}
                     fillOpacity={1} 
@@ -372,7 +392,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                   <Line 
                     type="monotone" 
                     dataKey="newSignups" 
-                    name="New Monthly Signups"
+                    name="New registrations"
                     stroke={BRAND_PALETTE.emerald} 
                     strokeWidth={2}
                     dot={{ r: 4, fill: BRAND_PALETTE.emerald }} 
@@ -391,10 +411,10 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Active Portal Authentication &amp; Sessions by User Role
+                  Recorded Portal Login Activity by User Role
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Weekly login distribution across Students, Faculty/Tutors, Parents, and Partner School Admins.
+                  Only login events recorded in the activity log are included.
                 </p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
@@ -446,10 +466,10 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             <div className="lg:col-span-2 space-y-4">
               <div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Curriculum Views &amp; Slide Downloads by Track
+                  Published Resources by Subject / Track
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Engagement metrics for student lab kits, coding notes, and syllabus packages.
+                  Inventory derived from the resource records currently available to the administrator.
                 </p>
               </div>
 
@@ -467,7 +487,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                         color: '#fff'
                       }} 
                     />
-                    <Bar dataKey="views" name="Resource Views" fill={BRAND_PALETTE.slate} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="views" name="Resources" fill={BRAND_PALETTE.slate} radius={[0, 4, 4, 0]} />
                     <Bar dataKey="downloads" name="Downloads" fill={BRAND_PALETTE.red} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -481,7 +501,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                   Subject Domain Share
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Distribution of student resource consumption.
+                  Distribution of published resources by their persisted subject or category.
                 </p>
               </div>
 
