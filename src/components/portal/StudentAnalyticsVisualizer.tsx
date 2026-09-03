@@ -90,20 +90,20 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
     const totalAssignments = assignmentStatusPie.reduce((acc, curr) => acc + curr.value, 0);
     const completedAssignments = assignmentStatusPie.find(p => p.name.includes('On-Time'))?.value || 0;
     const completedLate = assignmentStatusPie.find(p => p.name.includes('Late'))?.value || 0;
-    const completionRate = Math.round(((completedAssignments + completedLate) / totalAssignments) * 100);
+    const completionRate = totalAssignments ? Math.round(((completedAssignments + completedLate) / totalAssignments) * 100) : 0;
 
-    const avgGrade = Math.round(
+    const avgGrade = gradeTrendsData.length ? Math.round(
       gradeTrendsData.reduce((acc, curr) => acc + curr.grade, 0) / gradeTrendsData.length
-    );
+    ) : 0;
 
     const latestGrade = gradeTrendsData[gradeTrendsData.length - 1]?.grade || 0;
     const previousGrade = gradeTrendsData[gradeTrendsData.length - 2]?.grade || 0;
     const gradeDelta = latestGrade - previousGrade;
 
     const totalLearningHours = learningProgressData.reduce((acc, curr) => acc + curr.hours, 0);
-    const overallSyllabusProgress = Math.round(
+    const overallSyllabusProgress = learningProgressData.length ? Math.round(
       learningProgressData.reduce((acc, curr) => acc + curr.progress, 0) / learningProgressData.length
-    );
+    ) : 0;
 
     return {
       completionRate,
