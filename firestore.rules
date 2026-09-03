@@ -188,8 +188,7 @@ service cloud.firestore {
     }
 
     match /staffRegistration/{docId} {
-      allow read: if true;
-      allow write: if isSuperAdmin() || isAnyAdmin();
+      allow read, write: if isAnyAdmin();
     }
 
     match /pendingStaff/{docId} {
