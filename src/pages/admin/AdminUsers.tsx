@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { Shield, User, Download, Plus, X, KeyRound } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
@@ -53,6 +53,18 @@ const AdminUsers: React.FC = () => {
         role: newRole,
         updatedAt: new Date().toISOString()
       });
+
+      const adminRoles = ['SUPER_ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN', 'ADMIN'];
+      if (adminRoles.includes(newRole)) {
+        await setDoc(doc(db, 'admins', userId), {
+          role: newRole,
+          userId,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        await deleteDoc(doc(db, 'admins', userId)).catch(() => {});
+      }
+
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
       toast.success(`Role successfully updated to ${newRole}`);
     } catch (error) {
