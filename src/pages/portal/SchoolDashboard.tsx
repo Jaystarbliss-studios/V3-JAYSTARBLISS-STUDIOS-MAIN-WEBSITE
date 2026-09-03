@@ -222,12 +222,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   });
 
   // Priorities checklist state
-  const [priorities, setPriorities] = useState([
-    { id: 1, text: 'Distribute CBT Access Passcodes for JSS 1 & JSS 2', done: true, priority: 'High' },
-    { id: 2, text: 'Verify Computer Lab workstation network connectivity', done: true, priority: 'Normal' },
-    { id: 3, text: 'Download Term 2 Python Worksheets & Robotics Diagrams', done: false, priority: 'Normal' },
-    { id: 4, text: 'Conduct Weekly Attendance & Gradebook Audit', done: false, priority: 'Low' }
-  ]);
+  const [priorities, setPriorities] = useState<any[]>([]);
 
   const openReader = (url: string, title?: string) => {
     if (!url) {
@@ -468,8 +463,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       passcode: effectivePasscode,
       email: newStudentEmail.trim() || undefined,
       track: newStudentTrack,
-      attendanceRate: 100,
-      avgScore: 90,
+      attendanceRate: undefined,
+      avgScore: undefined,
       subjects: ['STEM', 'Python', 'Coding', newStudentTrack],
       schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
       schoolName: schoolData?.name || 'Partner Academy'
@@ -489,8 +484,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         email: newStudentEmail.trim() || undefined,
         track: newStudentTrack,
         role: 'student',
-        attendanceRate: 100,
-        avgScore: 90,
+        attendanceRate: undefined,
+        avgScore: undefined,
         schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
         schoolName: schoolData?.name || 'Partner Academy',
         schoolCode: schoolData?.schoolCode || 'SCH-JAYSTAR',
@@ -659,8 +654,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       `"${s.fullName || s.studentName || s.username || ''}"`,
       `"${s.class || s.grade || ''}"`,
       `"${s.accessCode || ''}"`,
-      s.attendanceRate || 90,
-      s.avgScore || 85
+      s.attendanceRate ?? '',
+      s.avgScore ?? ''
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -710,121 +705,22 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           
-          {/* 3 CIRCULAR METRIC RING CARDS */}
+          {/* Live operational metrics — never display synthetic completion percentages. */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Card 1: TASK & SYLLABUS COMPLETION */}
-            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Syllabus Progression
-                </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  78%
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
-                  <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                  <span>18 of 23 Modules Completed</span>
-                </p>
-              </div>
-
-              {/* Animated SVG Donut Ring */}
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-gray-200 dark:text-slate-800"
-                    strokeWidth="3.5"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path
-                    className="text-emerald-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="78, 100"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <span className="absolute text-xs font-black text-gray-900 dark:text-white">78%</span>
-              </div>
+            <div className="pro-surface p-6 rounded-3xl">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Enrolled Cadets</span>
+              <h3 className="text-3xl font-black text-gray-900 dark:text-white">{students.length}</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium"><Users size={13} className="text-blue-500" />Live school roster</p>
             </div>
-
-            {/* Card 2: ACTIVE CADET COHORTS */}
-            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Enrolled Cadets
-                </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  {students.length}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
-                  <Users size={13} className="text-blue-500 shrink-0" />
-                  <span>4 Grade Cohorts Active</span>
-                </p>
-              </div>
-
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-gray-200 dark:text-slate-800"
-                    strokeWidth="3.5"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path
-                    className="text-blue-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="92, 100"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <GraduationCap size={18} className="absolute text-blue-500" />
-              </div>
+            <div className="pro-surface p-6 rounded-3xl">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">CBT Assessments</span>
+              <h3 className="text-3xl font-black text-gray-900 dark:text-white">{exams.length}</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium"><Award size={13} className="text-emerald-500" />Configured assessments</p>
             </div>
-
-            {/* Card 3: EXAM READINESS & PASSCODES */}
-            <div className="pro-surface p-6 rounded-3xl flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  CBT & Passcode Readiness
-                </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  95%
-                </h3>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5 font-medium">
-                  <Key size={13} className="shrink-0" />
-                  <span>{passcodes.filter(p => p.isActive).length} Passcode Keys Authorized</span>
-                </p>
-              </div>
-
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
-                  <path
-                    className="text-gray-200 dark:text-slate-800"
-                    strokeWidth="3.5"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path
-                    className="text-amber-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="95, 100"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    stroke="currentColor"
-                    fill="none"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-                <Key size={18} className="absolute text-amber-500" />
-              </div>
+            <div className="pro-surface p-6 rounded-3xl">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">School Resources</span>
+              <h3 className="text-3xl font-black text-gray-900 dark:text-white">{resources.length}</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium"><BookOpen size={13} className="text-amber-500" />Available to this school</p>
             </div>
           </div>
 
@@ -1160,16 +1056,16 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                             <div className="w-12 bg-gray-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-emerald-500 h-full rounded-full" 
-                                style={{ width: `${st.attendanceRate || 90}%` }}
+                                style={{ width: `${st.attendanceRate ?? 0}%` }}
                               ></div>
                             </div>
                             <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                              {st.attendanceRate || 90}%
+                              {st.attendanceRate != null ? `${st.attendanceRate}%` : '—'}
                             </span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-bold text-gray-900 dark:text-white">
-                          {st.avgScore || 88}%
+                          {st.avgScore != null ? `${st.avgScore}%` : '—'}
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -2120,11 +2016,11 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Attendance</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedStudentForActivity.attendanceRate || 92}%</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedStudentForActivity.attendanceRate != null ? `${selectedStudentForActivity.attendanceRate}%` : '—'}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Lab Score Avg</span>
-                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.avgScore || 88}%</span>
+                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.avgScore != null ? `${selectedStudentForActivity.avgScore}%` : '—'}</span>
               </div>
             </div>
 
