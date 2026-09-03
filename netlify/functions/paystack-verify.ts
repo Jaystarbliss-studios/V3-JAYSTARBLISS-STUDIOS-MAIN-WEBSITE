@@ -27,8 +27,29 @@ export const handler: Handler = async (event) => {
 
     const tx = data.data;
     const metadataUserId = tx.metadata?.userId;
+    const metadataRole = String(tx.metadata?.role || "").toLowerCase();
+    const metadataPlanId = String(tx.metadata?.planId || "");
+    const expectedAmounts: Record<string, { amount: number; role: "student" | "school" }> = {
+      plan_weekend: { amount: 45000, role: "student" },
+      plan_mentorship: { amount: 120000, role: "student" },
+      plan_robotics: { amount: 85000, role: "student" },
+      school_standard: { amount: 350000, role: "school" },
+      school_cbt: { amount: 600000, role: "school" }
+    };
+    const expected = expectedAmounts[metadataPlanId];
+
     if (metadataUserId !== decoded.uid) {
       return { statusCode: 403, body: JSON.stringify({ error: "Payment ownership could not be verified." }) };
+    }
+    if (!expected || metadataRole !== expected.role || String(tx.currency || "").toUpperCase() !== "NGN" || Number(tx.amount) !== expected.amount * 100) {
+      console.error("Paystack transaction integrity check failed:", {
+        reference,
+        planId: metadataPlanId,
+        role: metadataRole,
+        currency: tx.currency,
+        amount: tx.amount
+      });
+      return { statusCode: 400, body: JSON.stringify({ error: "Payment details could not be verified." }) };
     }
 
     const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
