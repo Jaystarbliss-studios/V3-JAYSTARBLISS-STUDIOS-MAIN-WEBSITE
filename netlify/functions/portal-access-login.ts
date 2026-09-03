@@ -27,14 +27,19 @@ async function findStudent(identifier: string, db: FirebaseFirestore.Firestore) 
   return null;
 }
 
-async function getOrCreateUid(email: string | undefined, displayName: string, preferredUid?: string) {
+async function getOrCreateUid(email: string | undefined, displayName: string, fallbackKey: string, preferredUid?: string) {
   if (preferredUid) {
     try { await adminAuth.getUser(preferredUid); return preferredUid; } catch {}
   }
   if (email) {
     try { return (await adminAuth.getUserByEmail(email)).uid; } catch {}
   }
-  const syntheticEmail = `portal-${Math.random().toString(36).slice(2, 12)}@${email ? "jdh-student.local" : "jdh-portal.local"}`;
+
+  const safeKey = fallbackKey.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "record";
+  const syntheticEmail = `portal-${safeKey}@${email ? "jdh-student.local" : "jdh-portal.local"}`;
+  try {
+    return (await adminAuth.getUserByEmail(syntheticEmail)).uid;
+  } catch {}
   return (await adminAuth.createUser({ email: email || syntheticEmail, displayName })).uid;
 }
 
@@ -64,12 +69,14 @@ export const handler: Handler = async (event) => {
       uid = await getOrCreateUid(
         typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined,
         String(profile.fullName || profile.studentName || profile.username || "Student"),
+        `student-${snap.id}`,
         typeof profile.firebaseUid === "string" ? profile.firebaseUid : undefined
       );
       const schoolId = String(profile.schoolId || "");
-      await snap.ref.set({ firebaseUid: uid, authEmail: (await adminAuth.getUser(uid)).email || null }, { merge: true });
+      const authUser = await adminAuth.getUser(uid);
+      await snap.ref.set({ firebaseUid: uid, authEmail: authUser.email || null }, { merge: true });
       await adminDb.collection("users").doc(uid).set({
-        email: (await adminAuth.getUser(uid)).email || null,
+        email: authUser.email || null,
         name: profile.fullName || profile.studentName || profile.username || "Student",
         role: "student",
         studentDocId: snap.id,
@@ -104,9 +111,15 @@ export const handler: Handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ error: "Invalid school credentials." }) };
       }
       const email = typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined;
-      uid = await getOrCreateUid(email, String(profile.name || "Partner School"), String(profile.adminUid || profile.userId || "") || undefined);
+      uid = await getOrCreateUid(
+        email,
+        String(profile.name || "Partner School"),
+        `school-${schoolSnap.id}`,
+        String(profile.adminUid || profile.userId || "") || undefined
+      );
+      const authUser = await adminAuth.getUser(uid);
       await adminDb.collection("users").doc(uid).set({
-        email: email || (await adminAuth.getUser(uid)).email || null,
+        email: email || authUser.email || null,
         name: profile.name || "Partner School",
         role: "school",
         schoolId: schoolSnap.id,
