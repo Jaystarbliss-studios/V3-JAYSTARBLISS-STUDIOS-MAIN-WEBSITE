@@ -85,7 +85,7 @@ const AdminDashboard: React.FC = () => {
       setMetrics({
         users: usersSnap.size,
         students: studentsSnap.size,
-        schools: schoolsSnap.size || 6,
+        schools: schoolsSnap.size,
         programs: programsSnap.size,
         inquiries: inquiriesSnap.size,
         services: servicesSnap.size,
@@ -139,10 +139,10 @@ const AdminDashboard: React.FC = () => {
   };
 
   const stats = [
-    { name: 'Enrolled Cadets', value: metrics.students > 0 ? metrics.students : 38, icon: Users, color: 'bg-brand-red', href: '/admin/students', badge: 'Active Cohorts' },
-    { name: 'Partner Schools', value: metrics.schools > 0 ? metrics.schools : 6, icon: School, color: 'bg-slate-800', href: '/admin/schools', badge: 'Montessori Portals' },
-    { name: 'Curriculum Guides', value: metrics.resources > 0 ? metrics.resources : 24, icon: BookOpen, color: 'bg-blue-600', href: '/admin/resources', badge: 'PDF & Labs' },
-    { name: 'CBT Assessments', value: metrics.exams > 0 ? metrics.exams : 12, icon: Award, color: 'bg-emerald-600', href: '/admin/schools', badge: 'Testing Windows' },
+    { name: 'Enrolled Cadets', value: metrics.students, icon: Users, color: 'bg-brand-red', href: '/admin/students', badge: 'Active Cohorts' },
+    { name: 'Partner Schools', value: metrics.schools, icon: School, color: 'bg-slate-800', href: '/admin/schools', badge: 'Montessori Portals' },
+    { name: 'Curriculum Guides', value: metrics.resources, icon: BookOpen, color: 'bg-blue-600', href: '/admin/resources', badge: 'PDF & Labs' },
+    { name: 'CBT Assessments', value: metrics.exams, icon: Award, color: 'bg-emerald-600', href: '/admin/schools', badge: 'Testing Windows' },
   ];
 
   const inquiriesByType = inquiriesData.reduce((acc, curr) => {
@@ -151,14 +151,7 @@ const AdminDashboard: React.FC = () => {
     return acc;
   }, {});
 
-  const chartDataInquiries = Object.keys(inquiriesByType).length > 0 
-    ? Object.keys(inquiriesByType).map(key => ({ name: key, value: inquiriesByType[key] }))
-    : [
-        { name: 'Robotics Inquiry', value: 8 },
-        { name: 'School Partnership', value: 5 },
-        { name: 'Coding Bootcamp', value: 12 },
-        { name: 'Software Solution', value: 4 }
-      ];
+  const chartDataInquiries = Object.keys(inquiriesByType).map(key => ({ name: key, value: inquiriesByType[key] }));
 
   const usersByRole = usersData.reduce((acc, curr) => {
     const role = curr.role || 'STUDENT';
@@ -166,14 +159,7 @@ const AdminDashboard: React.FC = () => {
     return acc;
   }, {});
 
-  const chartDataUsers = Object.keys(usersByRole).length > 0
-    ? Object.keys(usersByRole).map(key => ({ name: key, value: usersByRole[key] }))
-    : [
-        { name: 'STUDENT', value: 38 },
-        { name: 'STAFF/TUTOR', value: 8 },
-        { name: 'PARENT', value: 16 },
-        { name: 'SCHOOL_ADMIN', value: 6 }
-      ];
+  const chartDataUsers = Object.keys(usersByRole).map(key => ({ name: key, value: usersByRole[key] }));
 
   return (
     <div className="dashboard-interface space-y-8">
@@ -278,6 +264,8 @@ const AdminDashboard: React.FC = () => {
           <div className="h-[280px] w-full mt-2">
             {loading ? (
               <div className="h-full flex items-center justify-center text-gray-400 text-xs">Loading inquiry metrics...</div>
+            ) : chartDataInquiries.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-gray-400 text-xs">No inquiry data yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartDataInquiries} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -317,6 +305,8 @@ const AdminDashboard: React.FC = () => {
           <div className="h-[280px] w-full mt-2">
             {loading ? (
               <div className="h-full flex items-center justify-center text-gray-400 text-xs">Loading user roles...</div>
+            ) : chartDataUsers.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-gray-400 text-xs">No account data yet.</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
