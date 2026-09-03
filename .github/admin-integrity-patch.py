@@ -79,13 +79,13 @@ s = s.replace(
     if (!window.confirm(`Are you sure you want to delete student "${studentName}" and all their assigned resources?`)) return;
     try {
       const student = students.find((item) => item.id === studentId);
-      const legacyRefs = [];
-      if (student?.username) {
-        const legacySnap = await getDocs(query(collection(db, 'students'), where('username', '==', student.username)));
-        legacySnap.forEach((studentDoc) => legacyRefs.push(studentDoc.ref));
-      }
+      const legacyRefs = student?.username
+        ? (await getDocs(query(collection(db, 'students'), where('username', '==', student.username)))).docs.map((studentDoc) => studentDoc.ref)
+        : [];
+
       await deleteDoc(doc(db, 'individualStudents', studentId));
       await Promise.all(legacyRefs.map((studentRef) => deleteDoc(studentRef)));
+
       const [rSnap, lSnap] = await Promise.all([
         getDocs(query(collection(db, 'personalResources'), where('studentId', '==', studentId))),
         getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))
