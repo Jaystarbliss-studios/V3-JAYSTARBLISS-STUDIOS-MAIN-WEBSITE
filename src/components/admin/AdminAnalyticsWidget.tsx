@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Users, BookOpen, Activity, 
-  ArrowUpRight, 
   Award, 
   BarChart3, RefreshCw, CheckCircle2
 } from 'lucide-react';
