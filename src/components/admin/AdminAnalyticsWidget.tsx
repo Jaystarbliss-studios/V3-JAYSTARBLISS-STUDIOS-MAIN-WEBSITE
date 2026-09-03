@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Users, BookOpen, Activity, ArrowUpRight, Award, BarChart3, RefreshCw,
-  CheckCircle2, Database
+  Database
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid,
