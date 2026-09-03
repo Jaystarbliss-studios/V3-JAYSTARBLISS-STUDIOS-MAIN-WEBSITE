@@ -121,7 +121,7 @@ export const PortalPayments: React.FC = () => {
       if (!user?.email) throw new Error('You must be signed in with an email address to make a payment.');
 
       const token = await user.getIdToken();
-      const initResponse = await fetch('/api/paystack/initialize', {
+      const initResponse = await fetch('/.netlify/functions/paystack-initialize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,7 +160,7 @@ export const PortalPayments: React.FC = () => {
 
         setRenewing(true);
         const token = await user.getIdToken(true);
-        const response = await fetch('/api/paystack/verify', {
+        const response = await fetch('/.netlify/functions/paystack-verify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
