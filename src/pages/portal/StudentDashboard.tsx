@@ -533,7 +533,7 @@ const StudentDashboard: React.FC = () => {
               <p className="text-xs text-gray-500 dark:text-slate-400">Current syllabus progression across active enrolled tracks</p>
             </div>
             <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
-              Active Term
+              Current Enrollment
             </span>
           </div>
 
@@ -585,11 +585,11 @@ const StudentDashboard: React.FC = () => {
 
       {/* Comprehensive Recharts Data Visualizer Component */}
       <StudentAnalyticsVisualizer 
-        studentName={student?.fullName || 'Active Cadet'}
-        studentClass={student?.class || 'JSS 1 / STEM Track'}
-        enrolledSubjects={student?.subjects || ['Web Development', 'Robotics & AI', 'Creative Design']}
+        studentName={student?.fullName || 'Student'}
+        studentClass={student?.class || student?.grade || 'Not recorded'}
+        enrolledSubjects={student?.subjects || []}
         completedModulesCount={completedModulesCount}
-        totalModulesCount={modules.length || 6}
+        totalModulesCount={modules.length}
       />
 
       {/* Middle Grid: Recent Activity & Milestone Progress */}
@@ -647,16 +647,16 @@ const StudentDashboard: React.FC = () => {
                 <span className="font-bold text-gray-800 dark:text-gray-200">Next Deliverable</span>
                 <span className="text-red-600 dark:text-red-400 font-bold">2 Days</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Full-Stack React Demo Showcase</p>
-              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Assigned by Lead Technical Instructor</p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{upcomingAssignments[0]?.deadline || 'Awaiting an assigned assessment'}</p>
             </div>
 
             <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-bold text-gray-800 dark:text-gray-200">Certificate Readiness</span>
-                <span className="text-emerald-600 font-bold font-mono">80%</span>
+                <span className="text-emerald-600 font-bold font-mono">{modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0}%</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length || 6} Milestones Verified</p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length} Milestones Verified</p>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">PDF auto-issuance enabled upon completion</p>
             </div>
           </div>
