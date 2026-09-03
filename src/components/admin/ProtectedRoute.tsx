@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { Loader2 } from 'lucide-react';
@@ -20,6 +20,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const [loading, setLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [mustResetPassword, setMustResetPassword] = useState(false);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   const location = useLocation();
 
   // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
@@ -74,6 +75,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
             const uData = userDoc.data();
+            const accountStatus = String(uData.accountStatus || uData.status || 'active').toLowerCase();
+            if (['banned', 'suspended', 'disabled'].includes(accountStatus)) {
+              const label = accountStatus === 'banned' ? 'banned' : accountStatus === 'suspended' ? 'suspended' : 'disabled';
+              if (isMounted) {
+                setBlockedMessage(`Your account is currently ${label}. Please contact Jaystarbliss Studios support.`);
+                setIsAuthorized(false);
+              }
+              await signOut(auth);
+              return;
+            }
             userRole = (uData.role || '').toUpperCase();
             if (uData.name && !userName) userName = uData.name;
             if (uData.forcePasswordReset === true) forceReset = true;
@@ -197,6 +208,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthorized) {
+    if (blockedMessage) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-950 p-6">
+          <div className="max-w-md w-full rounded-2xl border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-900 p-7 text-center shadow-xl">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/50 text-red-600 flex items-center justify-center">
+              <span className="font-black text-lg">!</span>
+            </div>
+            <h1 className="text-xl font-black text-gray-900 dark:text-white">Account access restricted</h1>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{blockedMessage}</p>
+          </div>
+        </div>
+      );
+    }
     return <Navigate to={redirectPath} replace />;
   }
 
