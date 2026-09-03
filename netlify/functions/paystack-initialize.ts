@@ -21,7 +21,7 @@ const plans: Record<string, number> = {
   "CBT Exam Portal & Lab Suite": 600000
 };
 
-const allowedRoles = new Set(["student", "parent", "school", "staff"]);
+const allowedRoles = new Set(["student", "parent", "school"]);
 const blockedStatuses = new Set(["SUSPENDED", "BANNED"]);
 
 export const handler: Handler = async (event) => {
@@ -47,6 +47,19 @@ export const handler: Handler = async (event) => {
     const userSnap = await db.collection("users").doc(decoded.uid).get();
     const userData = userSnap.exists ? userSnap.data() || {} : {};
     const accountStatus = String(userData.accountStatus || userData.status || "ACTIVE").toUpperCase();
+    const storedRole = String(userData.role || decoded.token?.role || "").toLowerCase();
+    const normalizedRole = storedRole.includes("school") ? "school"
+      : storedRole.includes("parent") ? "parent"
+      : storedRole.includes("student") ? "student"
+      : "";
+    if (!normalizedRole || normalizedRole !== role) {
+      return { statusCode: 403, body: JSON.stringify({ error: "Portal role does not match the authenticated account." }) };
+    }
+    const schoolPlans = new Set(["Institutional STEM Lab Partner", "CBT Exam Portal & Lab Suite"]);
+    const studentPlans = new Set(["Weekend STEM & Coding Track", "1-on-1 Intensive Mentorship", "Smart Robotics & IoT Hardware Lab"]);
+    if ((role === "school" && !schoolPlans.has(plan)) || (role !== "school" && !studentPlans.has(plan))) {
+      return { statusCode: 400, body: JSON.stringify({ error: "That plan is not available for this portal account." }) };
+    }
     if (blockedStatuses.has(accountStatus)) {
       return { statusCode: 403, body: JSON.stringify({ error: "This account is not permitted to make payments." }) };
     }
