@@ -161,13 +161,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         }
       } catch (error) {
         console.error("Error verifying user role in ProtectedRoute:", error);
-        // Resilient fallback to cached role on network error
-        const fallbackRole = getCachedRole();
-        if (fallbackRole && isRoleMatching(fallbackRole, rolesKey, location.pathname)) {
-          if (isMounted) setIsAuthorized(true);
-        } else {
-          if (isMounted) setIsAuthorized(false);
-        }
+        // Fail closed. A stale client-side role cache must never grant access
+        // when the authoritative Firestore role cannot be verified.
+        if (isMounted) setIsAuthorized(false);
       } finally {
         if (isMounted) setLoading(false);
       }
