@@ -1,0 +1,118 @@
+name: One-Time Final Hardening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/one-time-final-hardening.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply final hardening and payment wiring
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          # Portal: never infer privileged staff/school accounts from the selected login tab.
+          portal = root / 'src/pages/Portal.tsx'
+          text = portal.read_text()
+          guard = '''      if (!userSnap.exists()) {\n        if (activeTab === 'staff' || activeTab === 'school') {\n          await signOut(auth).catch(() => undefined);\n          throw new Error(`${activeTab === 'staff' ? 'Staff' : 'School'} accounts are created by administrators. Please contact an administrator for access.`);\n        }\n'''
+          marker = "      if (!userSnap.exists()) {\n"
+          if text.count(marker) >= 1 and "Staff' : 'School" not in text:
+              text = text.replace(marker, guard, 1)
+          # Google branch has its own userSnap marker; protect it too.
+          google_guard = '''      if (!userSnap.exists()) {\n        if (activeTab === 'staff' || activeTab === 'school') {\n          await signOut(auth).catch(() => undefined);\n          throw new Error(`${activeTab === 'staff' ? 'Staff' : 'School'} accounts are created by administrators. Please contact an administrator for access.`);\n        }\n'''
+          if text.count(marker) >= 1 and text.count("Staff' : 'School") < 2:
+              # Insert immediately before the Google-specific invite logic if still unguarded.
+              google_anchor = "      if (!userSnap.exists()) {\n        const inviteDocRef = doc(db, 'invites', (user.email || '').toLowerCase());"
+              if google_anchor in text:
+                  text = text.replace(google_anchor, "      if (!userSnap.exists()) {\n        if (activeTab === 'staff' || activeTab === 'school') {\n          await signOut(auth).catch(() => undefined);\n          throw new Error(`${activeTab === 'staff' ? 'Staff' : 'School'} accounts are created by administrators. Please contact an administrator for access.`);\n        }\n        const inviteDocRef = doc(db, 'invites', (user.email || '').toLowerCase());", 1)
+          portal.write_text(text)
+
+          # AdminUsers: route role changes through trusted Admin SDK endpoint.
+          users = root / 'src/pages/admin/AdminUsers.tsx'
+          text = users.read_text()
+          old_role = '''  const handleRoleChange = async (userId: string, newRole: string) => {\n    try {\n      await updateDoc(doc(db, 'users', userId), { role: newRole.toLowerCase(), updatedAt: new Date().toISOString() });\n      setUsers((prev) => prev.map((user) => user.id === userId ? { ...user, role: newRole.toLowerCase() } : user));\n      toast.success(`Role updated to ${newRole}.`);\n    } catch (error) {\n      console.error('Error updating role:', error);\n      toast.error('Role change was rejected.');\n    }\n  };'''
+          new_role = '''  const handleRoleChange = async (userId: string, newRole: string) => {\n    try {\n      if (!auth.currentUser) throw new Error('Your admin session has expired. Please sign in again.');\n      const token = await auth.currentUser.getIdToken();\n      const response = await fetch('/.netlify/functions/admin-role-change', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },\n        body: JSON.stringify({ userId, role: newRole })\n      });\n      const payload = await response.json().catch(() => ({}));\n      if (!response.ok) throw new Error(payload.error || 'Role change was rejected.');\n      setUsers((prev) => prev.map((user) => user.id === userId ? { ...user, role: String(payload.role || newRole).toLowerCase() } : user));\n      toast.success(`Role updated to ${String(payload.role || newRole).toUpperCase()}.`);\n    } catch (error) {\n      console.error('Error updating role:', error);\n      toast.error(error instanceof Error ? error.message : 'Role change was rejected.');\n    }\n  };'''
+          if old_role in text:
+              text = text.replace(old_role, new_role, 1)
+          users.write_text(text)
+
+          # AdminStaff: remove the retired hardcoded self-registration invitation flow.
+          staff = root / 'src/pages/admin/AdminStaff.tsx'
+          text = staff.read_text()
+          start = text.find('          {/* Invite Form */}')
+          end = text.find('          {/* Staff Members List */}', start)
+          if start >= 0 and end > start:
+              replacement = '''          {/* Staff onboarding is centralized in Users & Roles Management. */}\n          <div className="lg:col-span-1 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">\n            <h2 className="text-lg font-black text-gray-900 dark:text-white">Staff Onboarding</h2>\n            <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">Staff and tutors are now provisioned through the secure Users &amp; Roles workflow. This removes the retired shared registration passcode and ensures each account receives its own Firebase credentials and audit trail.</p>\n            <a href="/admin/users" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-red px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700">Open Users &amp; Roles</a>\n          </div>\n'''
+              text = text[:start] + replacement + text[end:]
+          # Remove legacy invitation handler and registration-passcode state.
+          text = re.sub(r'\n  // Create Staff Invitation[\s\S]*?\n  const updateStaffAccountStatus', '\n  const updateStaffAccountStatus', text, count=1)
+          text = text.replace("import { collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, \n  query, where, orderBy, serverTimestamp \n} from 'firebase/firestore';", "import { collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, \n  query, where, orderBy, serverTimestamp \n} from 'firebase/firestore';")
+          staff.write_text(text)
+
+          # Parent dashboard: add a direct payment handoff for each enrollment request.
+          parent = root / 'src/pages/portal/ParentDashboard.tsx'
+          text = parent.read_text()
+          if "useNavigate" not in text:
+              text = text.replace("import React, { useEffect, useMemo, useState } from 'react';", "import React, { useEffect, useMemo, useState } from 'react';\nimport { useNavigate } from 'react-router-dom';", 1)
+          if "const navigate = useNavigate();" not in text:
+              text = text.replace("const ParentDashboard: React.FC = () => {", "const ParentDashboard: React.FC = () => {\n  const navigate = useNavigate();", 1)
+          old_row = '''                  <span className={`self-start rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${tone}`}>{status}</span>'''
+          new_row = '''                  <div className="flex items-center gap-2 self-start">\n                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${tone}`}>{status}</span>\n                    {status !== 'rejected' && (\n                      <button\n                        type="button"\n                        onClick={() => navigate(`/portal/parent/payments?enrollmentRequestId=${encodeURIComponent(request.id)}`)}\n                        className="min-h-11 rounded-xl border border-brand-red px-3 py-1.5 text-[10px] font-bold text-brand-red hover:bg-brand-red hover:text-white"\n                      >\n                        Pay for this child\n                      </button>\n                    )}\n                  </div>'''
+          if old_row in text:
+              text = text.replace(old_row, new_row, 1)
+          parent.write_text(text)
+
+          # PortalPayments: load a specific parent enrollment request from the URL and include it in payment metadata.
+          payments = root / 'src/pages/portal/PortalPayments.tsx'
+          text = payments.read_text()
+          text = text.replace("import { collection, getDocs, query, where, limit } from 'firebase/firestore';", "import { collection, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';", 1)
+          text = text.replace("  const [renewalSuccess, setRenewalSuccess] = useState(false);", "  const [renewalSuccess, setRenewalSuccess] = useState(false);\n  const [enrollmentRequestId, setEnrollmentRequestId] = useState('');\n  const [enrollmentContext, setEnrollmentContext] = useState<{ studentName: string; planId: string } | null>(null);", 1)
+          anchor = "    const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();\n    setRole(userRole);"
+          replacement = "    const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();\n    setRole(userRole);\n\n    const requestId = new URLSearchParams(window.location.search).get('enrollmentRequestId') || '';\n    setEnrollmentRequestId(requestId);\n    if (requestId && userRole === 'parent' && auth.currentUser) {\n      getDoc(doc(db, 'enrollment_requests', requestId)).then((snap) => {\n        if (!snap.exists()) return;\n        const request = snap.data();\n        if (request.parentId !== auth.currentUser?.uid) return;\n        const planName = String(request.plan || '').toLowerCase();\n        const planId = planName.includes('intensive') ? 'plan_mentorship' : planName.includes('robotics') || planName.includes('ai') ? 'plan_robotics' : 'plan_weekend';\n        const matched = [...studentPlans, ...schoolPlans].find((plan: any) => plan.id === planId);\n        if (matched) setSelectedPlan(matched.name);\n        setEnrollmentContext({ studentName: String(request.studentName || 'Child'), planId });\n      }).catch(() => undefined);\n    }"
+          if anchor in text and "setEnrollmentContext" not in text.split(anchor, 1)[1][:500]:
+              # studentPlans/schoolPlans are declared later, so defer request resolution until after plan arrays exist by using a separate effect below.
+              text = text.replace(anchor, "    const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();\n    setRole(userRole);\n\n    const requestId = new URLSearchParams(window.location.search).get('enrollmentRequestId') || '';\n    setEnrollmentRequestId(requestId);", 1)
+          effect_marker = "  const plans = isSchool ? schoolPlans : studentPlans;"
+          effect_insert = '''  const plans = isSchool ? schoolPlans : studentPlans;\n\n  useEffect(() => {\n    if (!enrollmentRequestId || role !== 'parent') return;\n    const user = auth.currentUser;\n    if (!user) return;\n    getDoc(doc(db, 'enrollment_requests', enrollmentRequestId)).then((snap) => {\n      if (!snap.exists()) return;\n      const request = snap.data();\n      if (request.parentId !== user.uid) return;\n      const planName = String(request.plan || '').toLowerCase();\n      const planId = planName.includes('intensive') ? 'plan_mentorship' : planName.includes('robotics') || planName.includes('ai') ? 'plan_robotics' : 'plan_weekend';\n      const matched = plans.find((plan: any) => plan.id === planId);\n      if (matched) setSelectedPlan(matched.name);\n      setEnrollmentContext({ studentName: String(request.studentName || 'Child'), planId });\n    }).catch(() => undefined);\n  }, [enrollmentRequestId, role, plans]);'''
+          if effect_marker in text and "[enrollmentRequestId, role, plans]" not in text:
+              text = text.replace(effect_marker, effect_insert, 1)
+          text = text.replace("        body: JSON.stringify({ planId: plan.id, role, paymentMethod })", "        body: JSON.stringify({ planId: plan.id, role, paymentMethod, ...(enrollmentRequestId ? { enrollmentRequestId } : {}) })", 1)
+          context_marker = "        <div className=\"bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4\">"
+          context_html = '''        {enrollmentContext && (\n          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">\n            <strong>Payment linked to:</strong> {enrollmentContext.studentName}. Your payment will be validated against this enrollment request.\n          </div>\n        )}\n\n'''
+          if context_marker in text and 'Payment linked to:' not in text:
+              text = text.replace(context_marker, context_html + context_marker, 1)
+          payments.write_text(text)
+
+          # Remove dormant one-time workflows once their patches have been applied.
+          for workflow in [root / '.github/workflows/one-time-security-hardening.yml', root / '.github/workflows/one-time-final-hardening.yml']:
+              if workflow.exists(): workflow.unlink()
+
+          print('Final hardening applied.')
+
+      - name: Commit and push final hardening
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "security: finalize role controls and enrollment-linked payments"
+          git push origin main
