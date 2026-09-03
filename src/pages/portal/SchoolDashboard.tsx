@@ -288,15 +288,10 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 1. Fetch students associated with this school
         const sList: SchoolStudent[] = [];
-        const isSnap = await getDocs(collection(db, 'individualStudents'));
+        const isSnap = await getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', currentSchoolId)));
         isSnap.forEach(d => {
           const data = d.data();
-          if (
-            data.schoolId === schoolDoc?.id || 
-            data.schoolCode === schoolDoc?.schoolCode || 
-            data.schoolName === schoolDoc?.name ||
-            !data.parentId
-          ) {
+          if (data.schoolId === currentSchoolId) {
             sList.push({ 
               id: d.id, 
               ...data,
