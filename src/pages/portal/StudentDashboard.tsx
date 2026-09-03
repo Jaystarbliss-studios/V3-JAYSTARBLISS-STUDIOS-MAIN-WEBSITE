@@ -378,20 +378,20 @@ const StudentDashboard: React.FC = () => {
             const userModules: ProgramModule[] = [];
             mSnap.docs.forEach(docSnap => {
               const d = docSnap.data();
-              if (!d.studentId || d.studentId === sId || d.studentId === currentUser?.uid || d.studentUsername === studentUsername) {
-                userModules.push({
-                  id: docSnap.id,
-                  title: d.title || 'Course Module',
-                  stageName: d.stageName || 'Stage 1: Discover',
-                  stageNumber: Number(d.stageNumber) || 1,
-                  trackName: d.trackName || 'School of Technology & Programming',
-                  completed: Boolean(d.completed),
-                  completionDate: d.completionDate || '',
-                  score: d.score || (d.completed ? '100% Mastery' : 'In Progress'),
-                  competencies: d.competencies || ['Computational Thinking', 'Project Architecture'],
-                  instructor: d.instructor || 'Jaystarbliss Instructor'
-                });
-              }
+              if (d.studentId === sId || d.studentId === currentUser?.uid || d.studentUsername === studentUsername) {
+                 userModules.push({
+                   id: docSnap.id,
+                   title: d.title || 'Untitled module',
+                   stageName: d.stageName || `Stage ${Number(d.stageNumber) || 1}`,
+                   stageNumber: Number(d.stageNumber) || 1,
+                   trackName: d.trackName || '',
+                   completed: Boolean(d.completed),
+                   completionDate: d.completionDate || '',
+                   score: d.score || '',
+                   competencies: Array.isArray(d.competencies) ? d.competencies : [],
+                   instructor: d.instructor || ''
+                 });
+               }
             });
             setModules(userModules);
           } else {
