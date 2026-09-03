@@ -462,7 +462,7 @@ const StudentDashboard: React.FC = () => {
       color: 'text-emerald-500 bg-emerald-500/10'
     })), [modules]);
 
-  const completedModulesCount = modules.filter(m => m.completed).length;  const completedModulesCount = modules.filter(m => m.completed).length;
+  const completedModulesCount = modules.filter(m => m.completed).length;
 
   if (loading) {
     return (
