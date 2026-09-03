@@ -2092,11 +2092,11 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Attendance</span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedStudentForActivity.attendanceRate || 92}%</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedStudentForActivity.attendanceRate != null ? `${selectedStudentForActivity.attendanceRate}%` : 'Not recorded'}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-gray-500 dark:text-slate-400 block mb-0.5">Lab Score Avg</span>
-                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.avgScore || 88}%</span>
+                <span className="font-bold text-gray-900 dark:text-white">{selectedStudentForActivity.avgScore != null ? `${selectedStudentForActivity.avgScore}%` : 'Not recorded'}</span>
               </div>
             </div>
 
