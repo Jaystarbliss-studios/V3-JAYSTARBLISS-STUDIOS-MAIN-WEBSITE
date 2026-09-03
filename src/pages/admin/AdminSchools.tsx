@@ -11,13 +11,20 @@ import {
 } from 'lucide-react';
 
 const AFFILIATED_SCHOOLS = [
-  { id: 'peniel', name: 'Peniel Lily Montessori School', icon: '🎓', defaultCode: 'PENIEL2026' },
-  { id: 'southgold', name: 'South Gold Montessori School', icon: '🏆', defaultCode: 'SOUTHGOLD2026' },
-  { id: 'sapphire', name: 'Sapphire Explorer Montessori School', icon: '💎', defaultCode: 'SAPPHIRE2026' },
-  { id: 'easystars', name: 'Easy Stars Early Years Academy', icon: '⭐', defaultCode: 'EASYSTARS2026' },
-  { id: 'christycaleb', name: 'Christy Caleb International School', icon: '📚', defaultCode: 'CHRISTY2026' },
-  { id: 'royalbreed', name: 'Royal Breed Academy', icon: '👑', defaultCode: 'ROYAL2026' },
+  { id: 'peniel', name: 'Peniel Lily Montessori School', icon: '🎓' },
+  { id: 'southgold', name: 'South Gold Montessori School', icon: '🏆' },
+  { id: 'sapphire', name: 'Sapphire Explorer Montessori School', icon: '💎' },
+  { id: 'easystars', name: 'Easy Stars Early Years Academy', icon: '⭐' },
+  { id: 'christycaleb', name: 'Christy Caleb International School', icon: '📚' },
+  { id: 'royalbreed', name: 'Royal Breed Academy', icon: '👑' },
 ];
+
+const generateAccessCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const values = new Uint8Array(10);
+  crypto.getRandomValues(values);
+  return Array.from(values, value => chars[value % chars.length]).join('');
+};
 
 const AdminSchools: React.FC = () => {
   const { toast } = useToast();
@@ -66,18 +73,20 @@ const AdminSchools: React.FC = () => {
             codesMap[s.id] = sDoc.data().accessCode;
             inputsMap[s.id] = sDoc.data().accessCode;
           } else {
-            codesMap[s.id] = s.defaultCode;
-            inputsMap[s.id] = s.defaultCode;
-            // Seed default if not existing
+            const generatedCode = generateAccessCode();
+            codesMap[s.id] = generatedCode;
+            inputsMap[s.id] = generatedCode;
+            // Seed a cryptographically random code only when this school has no code.
             await setDoc(doc(db, 'schools', s.id), {
               name: s.name,
-              accessCode: s.defaultCode,
+              accessCode: generatedCode,
               updatedAt: serverTimestamp()
             }, { merge: true });
           }
         } catch {
-          codesMap[s.id] = s.defaultCode;
-          inputsMap[s.id] = s.defaultCode;
+          // Do not expose or invent a fallback credential in the browser.
+          codesMap[s.id] = '';
+          inputsMap[s.id] = '';
         }
       }
       setSchoolCodes(codesMap);
@@ -126,7 +135,7 @@ const AdminSchools: React.FC = () => {
       }, { merge: true });
 
       setSchoolCodes(prev => ({ ...prev, [schoolId]: code }));
-      toast.success(`Access code for ${getSchoolName(schoolId)} updated to: ${code}`);
+      toast.success(`Access code for ${getSchoolName(schoolId)} updated successfully.`);
     } catch (err: any) {
       console.error(err);
       toast.error('Failed to update access code: ' + err.message);
