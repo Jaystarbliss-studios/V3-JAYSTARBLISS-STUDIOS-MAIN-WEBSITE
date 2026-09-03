@@ -42,7 +42,7 @@ const ParentDashboard: React.FC = () => {
 
         // Query individualStudents
         try {
-          const isSnap = await getDocs(collection(db, 'individualStudents'));
+          const isSnap = await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)));
           isSnap.forEach(d => {
             const data = d.data();
             if (
@@ -60,7 +60,7 @@ const ParentDashboard: React.FC = () => {
 
         // Query legacy students
         try {
-          const sSnap = await getDocs(collection(db, 'students'));
+          const sSnap = await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)));
           sSnap.forEach(d => {
             const data = d.data();
             if (
@@ -82,7 +82,7 @@ const ParentDashboard: React.FC = () => {
 
         // 2. Fetch Payments
         try {
-          const pSnap = await getDocs(collection(db, 'payments'));
+          const pSnap = await getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid)));
           const pList: any[] = [];
           pSnap.forEach(d => {
             const data = d.data();
