@@ -43,6 +43,21 @@ const AdminUsers: React.FC = () => {
     }
   };
 
+  const handleAccountStatus = async (userId: string, currentStatus: string | undefined) => {
+    const nextStatus = (currentStatus || 'ACTIVE').toUpperCase() === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        accountStatus: nextStatus,
+        updatedAt: new Date().toISOString()
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, accountStatus: nextStatus } : u));
+      toast.success(nextStatus === 'ACTIVE' ? 'Account restored.' : 'Account suspended. Access is now blocked.');
+    } catch (error) {
+      console.error('Error updating account status:', error);
+      toast.error('Failed to update account status.');
+    }
+  };
+
   const handleToggleForcePasswordReset = async (userId: string, currentVal: boolean) => {
     try {
       const nextVal = !currentVal;
@@ -271,13 +286,14 @@ const AdminUsers: React.FC = () => {
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Type</th>
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Security State</th>
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Portal Role</th>
+              <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Access</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800 text-sm">
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">Loading user records...</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">Loading user records...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">No user records found.</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">No user records found.</td></tr>
             ) : (
               users.map(user => (
                 <tr key={user.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30">
@@ -328,6 +344,24 @@ const AdminUsers: React.FC = () => {
                       <option value="SERVICES_ADMIN">Services Admin</option>
                       <option value="SUPER_ADMIN">Super Admin</option>
                     </select>
+                  </td>
+                  <td className="px-6 py-4">
+                    {(() => {
+                      const status = String(user.accountStatus || 'ACTIVE').toUpperCase();
+                      return (
+                        <button
+                          onClick={() => handleAccountStatus(user.id, status)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                            status === 'SUSPENDED'
+                              ? 'bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200'
+                          }`}
+                          title="Toggle account access"
+                        >
+                          {status === 'SUSPENDED' ? 'Suspended — Restore' : 'Active — Suspend'}
+                        </button>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))
