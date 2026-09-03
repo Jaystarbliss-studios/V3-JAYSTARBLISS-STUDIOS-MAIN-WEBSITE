@@ -337,8 +337,8 @@ service cloud.firestore {
 
     // School records contain portal credentials (access codes). They must not be
     // publicly readable. Public-facing school information belongs in CMS collections.
-    match /schools/{document=**} {
-      allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(document));
+    match /schools/{schoolId} {
+      allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(schoolId));
       allow write: if isAnyAdmin();
     }
 
