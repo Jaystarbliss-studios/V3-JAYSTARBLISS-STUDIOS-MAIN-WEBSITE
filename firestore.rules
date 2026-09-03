@@ -83,10 +83,10 @@ service cloud.firestore {
         isAnyAdmin() ||
         (
           request.auth.uid == userId &&
-          request.resource.data.role == resource.data.role &&
-          request.resource.data.schoolId == resource.data.schoolId &&
-          request.resource.data.accountStatus == resource.data.accountStatus &&
-          request.resource.data.forcePasswordReset == resource.data.forcePasswordReset
+          request.resource.data.get('role', null) == resource.data.get('role', null) &&
+          request.resource.data.get('schoolId', null) == resource.data.get('schoolId', null) &&
+          request.resource.data.get('accountStatus', null) == resource.data.get('accountStatus', null) &&
+          request.resource.data.get('forcePasswordReset', null) == resource.data.get('forcePasswordReset', null)
         )
       );
       allow delete: if isSuperAdmin();
