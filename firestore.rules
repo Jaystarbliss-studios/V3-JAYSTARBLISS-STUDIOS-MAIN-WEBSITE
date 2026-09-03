@@ -13,7 +13,7 @@ service cloud.firestore {
         (request.auth.token.email != null && request.auth.token.email.matches('(?i)^johnrufai242\\.com$')) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'super_admin'] &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') not in ['DISABLED', 'SUSPENDED', 'BANNED'])
+         !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']))
       );
     }
 
@@ -27,7 +27,7 @@ service cloud.firestore {
            'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 
            'MARKETING_ADMIN', 'SUPPORT_ADMIN'
          ] &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') not in ['DISABLED', 'SUSPENDED', 'BANNED'])
+         !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']))
       );
     }
 
@@ -37,7 +37,7 @@ service cloud.firestore {
         (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF', 'staff', 'TUTOR', 'tutor', 'instructor', 'INSTRUCTOR'] &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') not in ['DISABLED', 'SUSPENDED', 'BANNED']
+          !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED'])
         )
       );
     }
@@ -65,7 +65,7 @@ service cloud.firestore {
     function isSchoolUser() {
       return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SCHOOL', 'school'] &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') not in ['DISABLED', 'SUSPENDED', 'BANNED'];
+        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
     }
 
     function userSchoolId() {
@@ -81,7 +81,7 @@ service cloud.firestore {
     function isInUserSchool(schoolId) {
       return isAuth() && schoolId != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') not in ['DISABLED', 'SUSPENDED', 'BANNED'];
+        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
     }
 
     function isOwnStudent(data) {
@@ -416,7 +416,7 @@ service cloud.firestore {
     }
 
     match /testimonials/{document=**} {
-      allow read: true;
+      allow read: if true;
       allow write: if isAnyAdmin();
     }
 
