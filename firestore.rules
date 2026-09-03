@@ -41,7 +41,7 @@ service cloud.firestore {
     // USERS & PORTAL PROFILES
     // ==========================================
     match /users/{userId} {
-      allow read: if true;
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
       allow create: if isAuth() && (request.auth.uid == userId || isAnyAdmin());
       allow update: if isAuth() && (
         isSuperAdmin() || 
@@ -100,17 +100,17 @@ service cloud.firestore {
 
     match /links/{linkId} {
       allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /exams/{examId} {
       allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /schoolResources/{resourceId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAuth();
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /schoolLinks/{linkId} {
@@ -129,12 +129,12 @@ service cloud.firestore {
     }
 
     match /staffGeneralResources/{resId} {
-      allow read: if true;
+      allow read: if isStaffOrTutor();
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /staffSchoolAccess/{docId} {
-      allow read: if true;
+      allow read: if isStaffOrTutor();
       allow write: if isStaffOrTutor() || isAnyAdmin();
     }
 
@@ -144,7 +144,7 @@ service cloud.firestore {
     }
 
     match /pendingStaff/{docId} {
-      allow read: if true;
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == resource.data.userId);
       allow write, delete: if isAnyAdmin() || isStaffOrTutor();
     }
 
@@ -183,7 +183,7 @@ service cloud.firestore {
 
     match /tutors/{tutorId} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isStaffOrTutor() || isAuth();
+      allow write: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && request.auth.uid == tutorId);
     }
 
     // ==========================================
