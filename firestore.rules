@@ -187,7 +187,10 @@ service cloud.firestore {
     }
 
     match /schoolLinks/{docId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.get('schoolId', '')));
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && (
+        isSchoolOwner(resource.data.get('schoolId', '')) ||
+        resource.data.get('schoolId', '') == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('schoolId', '')
+      ));
       allow create: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(request.resource.data.get('schoolId', '')));
       allow update, delete: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.get('schoolId', '')));
     }
