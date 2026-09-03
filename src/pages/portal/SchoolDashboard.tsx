@@ -92,15 +92,6 @@ export interface SchoolLink {
   timestamp?: any;
 }
 
-const KNOWN_SCHOOL_NAMES: Record<string, string> = {
-  peniel: 'Peniel Lily Montessori School',
-  southgold: 'South Gold Montessori School',
-  sapphire: 'Sapphire Explorer Montessori School',
-  easystars: 'Easy Stars Early Years Academy',
-  christycaleb: 'Christy Caleb International School',
-  royalbreed: 'Royal Breed Academy'
-};
-
 function getEmbeddableUrl(url: string): string {
   if (!url) return '';
   const gdMatch = url.match(/drive\.google\.com\/file\/d\/([^/?]+)/);
@@ -222,12 +213,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   });
 
   // Priorities checklist state
-  const [priorities, setPriorities] = useState([
-    { id: 1, text: 'Distribute CBT Access Passcodes for JSS 1 & JSS 2', done: true, priority: 'High' },
-    { id: 2, text: 'Verify Computer Lab workstation network connectivity', done: true, priority: 'Normal' },
-    { id: 3, text: 'Download Term 2 Python Worksheets & Robotics Diagrams', done: false, priority: 'Normal' },
-    { id: 4, text: 'Conduct Weekly Attendance & Gradebook Audit', done: false, priority: 'Low' }
-  ]);
+  const [priorities, setPriorities] = useState<{ id: number; text: string; done: boolean; priority: string }[]>([]);
 
   const openReader = (url: string, title?: string) => {
     if (!url) {
@@ -283,21 +269,17 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         }
 
         if (!schoolDoc) {
-          const matchedName = schoolDocId ? (KNOWN_SCHOOL_NAMES[schoolDocId.toLowerCase()] || schoolDocId) : null;
-          schoolDoc = {
-            id: schoolDocId || 'peniel',
-            name: matchedName || sessionStorage.getItem('userName') || 'Partner Academy',
-            schoolCode: schoolDocId || 'SCH-JAYSTAR',
-            plan: 'School Innovation & STEM Lab Partnership',
-            status: 'ACTIVE',
-            address: 'Lagos, Nigeria',
-            coordinator: 'Academic Directorate',
-            labDays: 'Tuesdays & Thursdays (2:00 PM – 4:00 PM)'
-          };
+          setSchoolData(null);
+          setStudents([]);
+          setExams([]);
+          setResources([]);
+          setLinks([]);
+          setPasscodes([]);
+          return;
         }
         setSchoolData(schoolDoc);
 
-        const currentSchoolId = schoolDoc.id || schoolDoc.schoolId || schoolDocId || 'peniel';
+        const currentSchoolId = schoolDoc.id || schoolDoc.schoolId;
 
         // 1. Fetch students associated with this school
         const sList: SchoolStudent[] = [];
@@ -317,8 +299,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               accessCode: data.accessCode || data.passcode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               passcode: data.passcode || data.accessCode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               username: data.username || (data.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.'),
-              attendanceRate: data.attendanceRate || (Math.floor(Math.random() * 15) + 85),
-              avgScore: data.avgScore || (Math.floor(Math.random() * 20) + 78)
+
             });
           }
         });
@@ -467,8 +448,6 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       passcode: effectivePasscode,
       email: newStudentEmail.trim() || undefined,
       track: newStudentTrack,
-      attendanceRate: 100,
-      avgScore: 90,
       subjects: ['STEM', 'Python', 'Coding', newStudentTrack],
       schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
       schoolName: schoolData?.name || 'Partner Academy'
@@ -488,8 +467,6 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         email: newStudentEmail.trim() || undefined,
         track: newStudentTrack,
         role: 'student',
-        attendanceRate: 100,
-        avgScore: 90,
         schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
         schoolName: schoolData?.name || 'Partner Academy',
         schoolCode: schoolData?.schoolCode || 'SCH-JAYSTAR',
@@ -657,8 +634,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       `"${s.fullName || s.studentName || s.username || ''}"`,
       `"${s.class || s.grade || ''}"`,
       `"${s.accessCode || ''}"`,
-      s.attendanceRate || 90,
-      s.avgScore || 85
+      s.attendanceRate ?? '',
+      s.avgScore ?? ''
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
