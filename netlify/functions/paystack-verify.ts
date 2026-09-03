@@ -29,6 +29,7 @@ export const handler: Handler = async (event) => {
     const metadataUserId = tx.metadata?.userId;
     const metadataRole = String(tx.metadata?.role || "").toLowerCase();
     const metadataPlanId = String(tx.metadata?.planId || "");
+    const enrollmentRequestId = String(tx.metadata?.enrollmentRequestId || "").trim();
     const expectedAmounts: Record<string, { amount: number; role: "student" | "school" }> = {
       plan_weekend: { amount: 45000, role: "student" },
       plan_mentorship: { amount: 120000, role: "student" },
@@ -52,26 +53,65 @@ export const handler: Handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Payment details could not be verified." }) };
     }
 
-    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
-    if (existing.empty) {
-      await adminDb.collection("payments").add({
-        userId: decoded.uid,
-        email: decoded.email || tx.customer?.email || "",
-        plan: tx.metadata?.planName || "Portal Renewal",
-        planId: tx.metadata?.planId || "",
-        amount: tx.amount,
-        currency: tx.currency || "NGN",
-        paymentMethod: tx.channel || "paystack",
-        status: "PAID",
-        reference,
-        role: tx.metadata?.role || "student",
-        description: `Tuition & Fee Renewal: ${tx.metadata?.planName || "Portal Renewal"}`,
-        createdAt: new Date(),
-        paidAt: tx.paid_at || null
-      });
+    let enrollmentRequest: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData> | null = null;
+    if (enrollmentRequestId) {
+      if (metadataRole !== "parent") {
+        return { statusCode: 400, body: JSON.stringify({ error: "Only parent enrollment payments can be linked to an enrollment request." }) };
+      }
+
+      enrollmentRequest = await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).get();
+      if (!enrollmentRequest.exists) {
+        return { statusCode: 404, body: JSON.stringify({ error: "Linked enrollment request could not be found." }) };
+      }
+
+      const enrollmentData = enrollmentRequest.data() || {};
+      if (String(enrollmentData.parentId || "") !== decoded.uid) {
+        return { statusCode: 403, body: JSON.stringify({ error: "Payment is not authorized for this enrollment request." }) };
+      }
+      if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== metadataPlanId) {
+        return { statusCode: 400, body: JSON.stringify({ error: "Payment plan does not match the linked enrollment request." }) };
+      }
+      if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") {
+        return { statusCode: 409, body: JSON.stringify({ error: "This enrollment request has already been paid." }) };
+      }
     }
 
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ verified: true, reference }) };
+    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
+    const paymentData = {
+      userId: decoded.uid,
+      parentId: metadataRole === "parent" ? decoded.uid : null,
+      schoolId: metadataRole === "school" ? decoded.uid : null,
+      email: decoded.email || tx.customer?.email || "",
+      plan: tx.metadata?.planName || "Portal Renewal",
+      planId: metadataPlanId,
+      amount: tx.amount,
+      currency: tx.currency || "NGN",
+      paymentMethod: tx.channel || "paystack",
+      status: "PAID",
+      reference,
+      role: metadataRole,
+      enrollmentRequestId: enrollmentRequestId || null,
+      enrollmentStudentName: tx.metadata?.enrollmentStudentName || null,
+      description: `Tuition & Fee Renewal: ${tx.metadata?.planName || "Portal Renewal"}`,
+      createdAt: new Date(),
+      paidAt: tx.paid_at || null
+    };
+
+    if (existing.empty) {
+      await adminDb.collection("payments").add(paymentData);
+    }
+
+    if (enrollmentRequestId && enrollmentRequest) {
+      await enrollmentRequest.ref.set({
+        paymentStatus: "PAID",
+        paymentReference: reference,
+        paymentPlanId: metadataPlanId,
+        paidAt: new Date(),
+        updatedAt: new Date()
+      }, { merge: true });
+    }
+
+    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ verified: true, reference, enrollmentRequestId: enrollmentRequestId || null }) };
   } catch (error) {
     console.error("Payment verification error:", error);
     return { statusCode: 500, body: JSON.stringify({ error: "Unable to verify payment." }) };
