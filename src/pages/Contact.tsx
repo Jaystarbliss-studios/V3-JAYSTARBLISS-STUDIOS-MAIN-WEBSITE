@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
 import { CheckCircle2, MapPin, Mail, Phone, Globe, ExternalLink } from 'lucide-react';
@@ -38,14 +36,19 @@ const Contact: React.FC = () => {
     setError(false);
         
     try {
-      await addDoc(collection(db, 'inquiries'), {
-        inquirySubject: formData.type,
-        ...formData,
-        type: 'CONTACT',
-        status: 'NEW',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+      const response = await fetch('/.netlify/functions/submit-inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          message: formData.message,
+          type: 'CONTACT',
+          inquirySubject: formData.type
+        })
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to send your message.');
       setSuccess(true);
       toast.success('Your message has been sent successfully! Our team will respond shortly.');
       setFormData({ name: '', email: '', type: 'General Inquiry', message: '' });
