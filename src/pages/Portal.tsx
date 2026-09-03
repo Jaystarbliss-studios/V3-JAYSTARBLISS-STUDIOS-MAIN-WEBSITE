@@ -27,8 +27,6 @@ import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
 
-const STAFF_REG_CODE_FALLBACK = 'JAYSTAR2024';
-
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
