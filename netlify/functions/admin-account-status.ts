@@ -27,7 +27,7 @@ export const handler: Handler = async (event) => {
     const caller = callerSnap.exists ? callerSnap.data() || {} : {};
     const callerRole = String(caller.role || "").toLowerCase();
 
-    if (!ADMIN_ROLES.has(callerRole)) {
+    if (!ADMIN_ROLES.has(callerRole) || ["disabled", "suspended", "banned"].includes(String(caller.accountStatus || "ACTIVE").toLowerCase())) {
       return json(403, { error: "Administrator permissions are required." });
     }
 
@@ -52,6 +52,7 @@ export const handler: Handler = async (event) => {
       return json(403, { error: "Only a Super Admin can change another Super Admin's account state." });
     }
 
+    const previousStatus = String(targetProfile.accountStatus || (targetUser.disabled ? "DISABLED" : "ACTIVE")).toUpperCase();
     const disabled = status !== "ACTIVE";
     await adminAuth.updateUser(userId, { disabled });
 
@@ -78,6 +79,18 @@ export const handler: Handler = async (event) => {
     } else if (targetRole.includes("admin")) {
       await adminDb.collection("admins").doc(userId).set({ status, updatedAt: now, ...(disabled ? { disabledAt: now } : {}) }, { merge: true });
     }
+
+    await adminDb.collection("activityLogs").add({
+      action: "ACCOUNT_STATUS_CHANGED",
+      actorId: decoded.uid,
+      actorRole: callerRole,
+      targetUserId: userId,
+      targetEmail: targetUser.email || null,
+      targetRole,
+      previousStatus,
+      nextStatus: status,
+      createdAt: now,
+    });
 
     return json(200, {
       success: true,
