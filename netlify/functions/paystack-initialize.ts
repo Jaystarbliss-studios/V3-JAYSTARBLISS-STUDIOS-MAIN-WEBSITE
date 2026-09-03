@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { adminAuth } from "../../api/_lib/firebase-admin";
+import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
 const plans: Record<string, { name: string; amount: number; role: "student" | "school" }> = {
   plan_weekend: { name: "Weekend STEM & Coding Track", amount: 45000, role: "student" },
@@ -44,6 +44,33 @@ export const handler: Handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Unsupported payment method." }) };
     }
 
+    const enrollmentRequestId = String(body.enrollmentRequestId || "").trim();
+    let enrollmentRequest: Record<string, any> | null = null;
+    if (enrollmentRequestId) {
+      if (requestedRole !== "parent") {
+        return { statusCode: 400, body: JSON.stringify({ error: "Enrollment-linked payments must be initiated from the parent portal." }) };
+      }
+
+      const enrollmentSnap = await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).get();
+      if (!enrollmentSnap.exists) {
+        return { statusCode: 404, body: JSON.stringify({ error: "Enrollment request could not be found." }) };
+      }
+
+      enrollmentRequest = enrollmentSnap.data() || {};
+      if (String(enrollmentRequest.parentId || "") !== decoded.uid) {
+        return { statusCode: 403, body: JSON.stringify({ error: "You are not authorized to pay for this enrollment request." }) };
+      }
+      if (String(enrollmentRequest.status || "pending").toLowerCase() === "rejected") {
+        return { statusCode: 400, body: JSON.stringify({ error: "This enrollment request has been rejected and cannot receive payment." }) };
+      }
+      if (String(enrollmentRequest.paymentStatus || "").toUpperCase() === "PAID") {
+        return { statusCode: 409, body: JSON.stringify({ error: "This enrollment request has already been paid." }) };
+      }
+      if (String(enrollmentRequest.planId || "") && String(enrollmentRequest.planId) !== planId) {
+        return { statusCode: 400, body: JSON.stringify({ error: "Selected payment plan does not match the enrollment request." }) };
+      }
+    }
+
     const callback = process.env.PUBLIC_APP_URL;
     if (!callback) return { statusCode: 500, body: JSON.stringify({ error: "Payment callback is not configured." }) };
 
@@ -65,7 +92,11 @@ export const handler: Handler = async (event) => {
           planRole: plan.role,
           planId,
           planName: plan.name,
-          paymentMethod: requestedMethod
+          paymentMethod: requestedMethod,
+          ...(enrollmentRequestId ? {
+            enrollmentRequestId,
+            enrollmentStudentName: String(enrollmentRequest?.studentName || "")
+          } : {})
         }
       })
     });
