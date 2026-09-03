@@ -1,19 +1,19 @@
 import React from 'react';
-import { 
-  AchievementBadge, 
-  AchievementBadgeGrid, 
-  type AchievementBadgeData, 
-  type BadgeTier, 
+import {
+  AchievementBadge,
+  AchievementBadgeGrid,
+  type AchievementBadgeData,
+  type BadgeTier,
   type BadgeCategory,
-  PRESET_ACHIEVEMENTS 
+  PRESET_ACHIEVEMENTS,
 } from '../ecosystem/AchievementBadge';
 
-type BadgeVariant = 
-  | 'brand' 
-  | 'success' 
-  | 'warning' 
-  | 'danger' 
-  | 'neutral' 
+type BadgeVariant =
+  | 'brand'
+  | 'success'
+  | 'warning'
+  | 'danger'
+  | 'neutral'
   | 'outline'
   | 'gold'
   | 'purple'
@@ -24,14 +24,20 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
 }
 
-const Badge: React.FC<BadgeProps> = ({ 
-  children, 
-  variant = 'neutral', 
-  className = '', 
-  ...props 
+const Badge: React.FC<BadgeProps> = ({
+  children,
+  variant = 'neutral',
+  className = '',
+  ...props
 }) => {
-  const baseClasses = 'inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full shadow-xs';
-  
+  const baseClasses = [
+    'inline-flex items-center justify-center',
+    'max-w-full min-h-7 px-3 py-1',
+    'text-xs font-bold uppercase tracking-wider',
+    'rounded-full shadow-xs',
+    'leading-tight text-center',
+  ].join(' ');
+
   const variants: Record<BadgeVariant, string> = {
     brand: 'bg-brand-red/10 text-brand-red dark:bg-brand-red/20',
     success: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -42,7 +48,7 @@ const Badge: React.FC<BadgeProps> = ({
     gold: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700',
     purple: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700',
     cyan: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700',
-    achievement: 'bg-gradient-to-r from-amber-500/15 to-purple-500/15 text-slate-800 dark:text-slate-200 border border-amber-500/30'
+    achievement: 'bg-gradient-to-r from-amber-500/15 to-purple-500/15 text-slate-800 dark:text-slate-200 border border-amber-500/30',
   };
 
   return (
@@ -52,15 +58,14 @@ const Badge: React.FC<BadgeProps> = ({
   );
 };
 
-export { 
-  Badge, 
-  AchievementBadge, 
-  AchievementBadgeGrid, 
+export {
+  Badge,
+  AchievementBadge,
+  AchievementBadgeGrid,
   PRESET_ACHIEVEMENTS,
   type AchievementBadgeData,
   type BadgeTier,
-  type BadgeCategory
+  type BadgeCategory,
 };
 
 export default Badge;
-
