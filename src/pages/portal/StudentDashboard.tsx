@@ -346,8 +346,16 @@ const StudentDashboard: React.FC = () => {
 
         // 6. Fetch Announcements / Notifications
         try {
-          const nSnap = await getDocs(query(collection(db, 'notifications'), limit(5)));
-          setNotifications(nSnap.docs.map(d => ({ id: d.id, ...d.data() } as NotificationItem)));
+          const notificationQueries = [
+            query(collection(db, 'notifications'), where('recipientId', '==', currentUser?.uid || '')), 
+            query(collection(db, 'notifications'), where('recipientId', '==', sId)),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all')),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all_students'))
+          ];
+          const notificationSnapshots = await Promise.all(notificationQueries.map(getDocs));
+          const notificationMap = new Map<string, NotificationItem>();
+          notificationSnapshots.forEach(snap => snap.forEach(d => notificationMap.set(d.id, { id: d.id, ...d.data() } as NotificationItem)));
+          setNotifications(Array.from(notificationMap.values()).slice(0, 10));
         } catch (e) {
           console.warn('Notifications fetch error:', e);
         }
