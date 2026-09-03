@@ -56,7 +56,7 @@ export const PortalCourses: React.FC = () => {
         // Published programs are the authoritative curriculum catalogue.
         try {
           const snap = await getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED')));
-          snap.forEach((d, index) => programMap.set(d.id, toModule(d.id, d.data(), index)));
+          snap.forEach((d, index) => { programMap.set(d.id, toModule(d.id, d.data(), index)); });
         } catch (e) {
           console.warn('Published programs query failed:', e);
         }
