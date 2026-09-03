@@ -72,6 +72,31 @@ service cloud.firestore {
       );
     }
 
+    function isAssignedStaffToStudent(studentId) {
+      return isStaffOrTutor() && (
+        (
+          exists(/databases/$(database)/documents/individualStudents/$(studentId)) &&
+          (
+            get(/databases/$(database)/documents/individualStudents/$(studentId)).data.tutorId == request.auth.uid ||
+            get(/databases/$(database)/documents/individualStudents/$(studentId)).data.staffId == request.auth.uid ||
+            get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedTutorId == request.auth.uid ||
+            get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedStaffId == request.auth.uid ||
+            get(/databases/$(database)/documents/individualStudents/$(studentId)).data.instructorId == request.auth.uid
+          )
+        ) ||
+        (
+          exists(/databases/$(database)/documents/students/$(studentId)) &&
+          (
+            get(/databases/$(database)/documents/students/$(studentId)).data.tutorId == request.auth.uid ||
+            get(/databases/$(database)/documents/students/$(studentId)).data.staffId == request.auth.uid ||
+            get(/databases/$(database)/documents/students/$(studentId)).data.assignedTutorId == request.auth.uid ||
+            get(/databases/$(database)/documents/students/$(studentId)).data.assignedStaffId == request.auth.uid ||
+            get(/databases/$(database)/documents/students/$(studentId)).data.instructorId == request.auth.uid
+          )
+        )
+      );
+    }
+
     // ==========================================
     // USERS & PORTAL PROFILES
     // ==========================================
@@ -124,13 +149,25 @@ service cloud.firestore {
     }
 
     match /personalResources/{docId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
+      allow create: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.staffId == request.auth.uid);
+      allow update: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.staffId == request.auth.uid);
+      allow delete: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
     }
 
     match /personalLinks/{docId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
+      allow create: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.tutorId == request.auth.uid);
+      allow update: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.tutorId == request.auth.uid);
+      allow delete: if isAnyAdmin() ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
     }
 
     // ==========================================
