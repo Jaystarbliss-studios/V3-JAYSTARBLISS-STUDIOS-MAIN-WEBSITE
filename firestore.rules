@@ -107,8 +107,10 @@ service cloud.firestore {
     // STUDENTS & INDIVIDUAL LEARNERS
     // ==========================================
     match /individualStudents/{studentId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId);
+      allow create: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(request.resource.data.schoolId);
+      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /students/{studentId} {
