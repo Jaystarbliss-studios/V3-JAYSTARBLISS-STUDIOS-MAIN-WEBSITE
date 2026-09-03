@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { Shield, User, Download, Plus, X, KeyRound } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -15,8 +15,8 @@ const AdminUsers: React.FC = () => {
   const [forcePasswordReset, setForcePasswordReset] = useState(true);
   const [inviting, setInviting] = useState(false);
 
-  const handleAccountStatusChange = async (userId: string, nextStatus: string, currentUser: any) => {
-    if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'super_admin' || currentUser?.email === 'johnrufai242@gmail.com') {
+  const handleAccountStatusChange = async (userId: string, nextStatus: string, targetUser: any) => {
+    if (targetUser?.email?.toLowerCase() === 'johnrufai242@gmail.com') {
       toast.error('The primary super administrator cannot be suspended or banned.');
       return;
     }
@@ -49,6 +49,19 @@ const AdminUsers: React.FC = () => {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
+      const actor = auth.currentUser;
+      if (!actor) throw new Error('Authentication required.');
+      const actorAdminSnap = await getDoc(doc(db, 'admins', actor.uid));
+      const actorIsSuperAdmin = actor.email?.toLowerCase() === 'johnrufai242@gmail.com' ||
+        (actorAdminSnap.exists() && String(actorAdminSnap.data().role || '').toUpperCase() === 'SUPER_ADMIN');
+      if (!actorIsSuperAdmin) {
+        toast.error('Only a Super Admin can change user roles.');
+        return;
+      }
+      if (userId === actor.uid && newRole !== 'SUPER_ADMIN') {
+        toast.error('You cannot remove your own Super Admin access here.');
+        return;
+      }
       await updateDoc(doc(db, 'users', userId), {
         role: newRole,
         updatedAt: new Date().toISOString()
