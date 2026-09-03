@@ -155,6 +155,7 @@ const AdminNotifications: React.FC = () => {
                 <option value="all">🌐 Everyone (All Users)</option>
                 <option value="all_staff">👨‍🏫 All Faculty &amp; Staff Members</option>
                 <option value="all_students">👥 All Students</option>
+                <option value="all_parents">👪 All Parents / Guardians</option>
                 <option value="specific_staff">📧 Specific Staff Member</option>
                 <option value="specific_student">📧 Specific Student</option>
               </select>

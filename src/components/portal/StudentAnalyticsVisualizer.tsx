@@ -47,11 +47,11 @@ export interface StudentAnalyticsProps {
 }
 
 export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
-  studentName = 'Active Student',
-  studentClass = 'JSS 1 / STEM Track',
-  enrolledSubjects = ['Web Development', 'Robotics & AI', 'Data Science', 'Creative Design'],
-  completedModulesCount = 4,
-  totalModulesCount = 6,
+  studentName = 'Student',
+  studentClass = 'Not recorded',
+  enrolledSubjects = [],
+  completedModulesCount = 0,
+  totalModulesCount = 0,
   className = ''
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'progress' | 'assignments' | 'grades'>('overview');
@@ -60,62 +60,24 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
 
   // Dynamic list of subjects for filter
   const filterSubjectList = useMemo(() => {
-    const defaultList = ['Web Development', 'Robotics & AI', 'Data Science', 'Creative Design'];
-    const combined = Array.from(new Set([...(enrolledSubjects || []), ...defaultList]));
+    const combined = Array.from(new Set(enrolledSubjects || []));
     return ['ALL', ...combined];
   }, [enrolledSubjects]);
 
   // 1. Learning Progress Data across Course Tracks
-  const learningProgressData = useMemo(() => [
-    { subject: 'Web Development', progress: 85, target: 100, hours: 28, modulesDone: 5, modulesTotal: 6 },
-    { subject: 'Robotics & AI', progress: 78, target: 100, hours: 24, modulesDone: 4, modulesTotal: 5 },
-    { subject: 'Data Science', progress: 65, target: 100, hours: 19, modulesDone: 3, modulesTotal: 5 },
-    { subject: 'Creative Design', progress: 92, target: 100, hours: 22, modulesDone: 5, modulesTotal: 5 },
-    { subject: 'Computer Logic', progress: 70, target: 100, hours: 16, modulesDone: 3, modulesTotal: 4 },
-  ], []);
+  const learningProgressData = useMemo(() => [], []);
 
   // 2. Skill Competency Radar Data
-  const competencyRadarData = useMemo(() => [
-    { skill: 'Algorithms', score: 88, classAvg: 72 },
-    { skill: 'UI & Frontend', score: 94, classAvg: 76 },
-    { skill: 'Hardware & IoT', score: 75, classAvg: 68 },
-    { skill: 'Data Analysis', score: 82, classAvg: 70 },
-    { skill: 'Problem Solving', score: 90, classAvg: 79 },
-    { skill: 'Code Cleanliness', score: 86, classAvg: 74 },
-  ], []);
+  const competencyRadarData = useMemo(() => [], []);
 
   // 3. Assignment Completion Rate Timeline (Weekly Velocity)
-  const assignmentWeeklyData = useMemo(() => [
-    { week: 'Wk 1', completed: 4, submittedLate: 0, pending: 0, completionRate: 100 },
-    { week: 'Wk 2', completed: 5, submittedLate: 1, pending: 0, completionRate: 100 },
-    { week: 'Wk 3', completed: 3, submittedLate: 0, pending: 1, completionRate: 75 },
-    { week: 'Wk 4', completed: 6, submittedLate: 0, pending: 0, completionRate: 100 },
-    { week: 'Wk 5', completed: 4, submittedLate: 1, pending: 0, completionRate: 100 },
-    { week: 'Wk 6', completed: 5, submittedLate: 0, pending: 1, completionRate: 83 },
-    { week: 'Wk 7', completed: 6, submittedLate: 0, pending: 0, completionRate: 100 },
-    { week: 'Wk 8', completed: 4, submittedLate: 0, pending: 0, completionRate: 100 },
-  ], []);
+  const assignmentWeeklyData = useMemo(() => [], []);
 
   // 4. Assignment Completion Breakdown (Status Donut)
-  const assignmentStatusPie = useMemo(() => [
-    { name: 'Completed On-Time', value: 28, color: '#10b981' },
-    { name: 'Completed Late', value: 3, color: '#f59e0b' },
-    { name: 'Pending Submission', value: 2, color: '#e63946' },
-    { name: 'Under Tutor Review', value: 4, color: '#38bdf8' },
-  ], []);
+  const assignmentStatusPie = useMemo(() => [], []);
 
   // 5. Recent Grade Trends over time (Quizzes, Exams & Capstones)
-  const gradeTrendsData = useMemo(() => [
-    { id: 1, date: 'Oct 04', assessment: 'Diagnostic Quiz', grade: 78, classAvg: 72, subject: 'Web Development', tier: 'B+' },
-    { id: 2, date: 'Oct 12', assessment: 'HTML/CSS Layout Lab', grade: 84, classAvg: 75, subject: 'Web Development', tier: 'A-' },
-    { id: 3, date: 'Oct 19', assessment: 'Logic & Circuits Exam', grade: 80, classAvg: 74, subject: 'Robotics & AI', tier: 'B+' },
-    { id: 4, date: 'Oct 28', assessment: 'JavaScript DOM Project', grade: 92, classAvg: 78, subject: 'Web Development', tier: 'A' },
-    { id: 5, date: 'Nov 04', assessment: 'Python Loops Assessment', grade: 88, classAvg: 76, subject: 'Data Science', tier: 'A-' },
-    { id: 6, date: 'Nov 12', assessment: 'Sensor Robotics Project', grade: 90, classAvg: 79, subject: 'Robotics & AI', tier: 'A' },
-    { id: 7, date: 'Nov 19', assessment: 'UI/UX Interactive Showcase', grade: 96, classAvg: 81, subject: 'Creative Design', tier: 'A+' },
-    { id: 8, date: 'Nov 27', assessment: 'Mid-Term Capstone Sprint', grade: 94, classAvg: 80, subject: 'Web Development', tier: 'A' },
-    { id: 9, date: 'Dec 05', assessment: 'Algorithm Challenge Stage', grade: 97, classAvg: 82, subject: 'Data Science', tier: 'A+' },
-  ], []);
+  const gradeTrendsData = useMemo(() => [], []);
 
   // Filtered Grade Trends based on subject selector
   const filteredGradeTrends = useMemo(() => {
@@ -126,22 +88,22 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
   // Overall Computed Stats
   const stats = useMemo(() => {
     const totalAssignments = assignmentStatusPie.reduce((acc, curr) => acc + curr.value, 0);
-    const completedAssignments = assignmentStatusPie.find(p => p.name.includes('On-Time'))?.value || 28;
-    const completedLate = assignmentStatusPie.find(p => p.name.includes('Late'))?.value || 3;
-    const completionRate = Math.round(((completedAssignments + completedLate) / totalAssignments) * 100);
+    const completedAssignments = assignmentStatusPie.find(p => p.name.includes('On-Time'))?.value || 0;
+    const completedLate = assignmentStatusPie.find(p => p.name.includes('Late'))?.value || 0;
+    const completionRate = totalAssignments ? Math.round(((completedAssignments + completedLate) / totalAssignments) * 100) : 0;
 
-    const avgGrade = Math.round(
+    const avgGrade = gradeTrendsData.length ? Math.round(
       gradeTrendsData.reduce((acc, curr) => acc + curr.grade, 0) / gradeTrendsData.length
-    );
+    ) : 0;
 
-    const latestGrade = gradeTrendsData[gradeTrendsData.length - 1]?.grade || 97;
-    const previousGrade = gradeTrendsData[gradeTrendsData.length - 2]?.grade || 94;
+    const latestGrade = gradeTrendsData[gradeTrendsData.length - 1]?.grade || 0;
+    const previousGrade = gradeTrendsData[gradeTrendsData.length - 2]?.grade || 0;
     const gradeDelta = latestGrade - previousGrade;
 
     const totalLearningHours = learningProgressData.reduce((acc, curr) => acc + curr.hours, 0);
-    const overallSyllabusProgress = Math.round(
+    const overallSyllabusProgress = learningProgressData.length ? Math.round(
       learningProgressData.reduce((acc, curr) => acc + curr.progress, 0) / learningProgressData.length
-    );
+    ) : 0;
 
     return {
       completionRate,

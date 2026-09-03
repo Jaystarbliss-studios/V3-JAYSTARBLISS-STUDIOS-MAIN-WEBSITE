@@ -112,8 +112,15 @@ const ParentDashboard: React.FC = () => {
 
         // 4. Fetch Announcements / Notifications
         try {
-          const nSnap = await getDocs(collection(db, 'notifications'));
-          setNotifications(nSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          const notificationQueries = [
+            query(collection(db, 'notifications'), where('recipientId', '==', userUid)),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all')),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all_parents'))
+          ];
+          const notificationSnapshots = await Promise.all(notificationQueries.map(getDocs));
+          const notificationMap = new Map<string, any>();
+          notificationSnapshots.forEach(snap => snap.forEach(d => notificationMap.set(d.id, { id: d.id, ...d.data() })));
+          setNotifications(Array.from(notificationMap.values()));
         } catch (e) {
           console.warn('Notifications fetch error:', e);
         }

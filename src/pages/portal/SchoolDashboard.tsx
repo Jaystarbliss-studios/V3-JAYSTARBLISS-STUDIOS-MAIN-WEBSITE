@@ -92,15 +92,6 @@ export interface SchoolLink {
   timestamp?: any;
 }
 
-const KNOWN_SCHOOL_NAMES: Record<string, string> = {
-  peniel: 'Peniel Lily Montessori School',
-  southgold: 'South Gold Montessori School',
-  sapphire: 'Sapphire Explorer Montessori School',
-  easystars: 'Easy Stars Early Years Academy',
-  christycaleb: 'Christy Caleb International School',
-  royalbreed: 'Royal Breed Academy'
-};
-
 function getEmbeddableUrl(url: string): string {
   if (!url) return '';
   const gdMatch = url.match(/drive\.google\.com\/file\/d\/([^/?]+)/);
@@ -222,12 +213,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   });
 
   // Priorities checklist state
-  const [priorities, setPriorities] = useState([
-    { id: 1, text: 'Distribute CBT Access Passcodes for JSS 1 & JSS 2', done: true, priority: 'High' },
-    { id: 2, text: 'Verify Computer Lab workstation network connectivity', done: true, priority: 'Normal' },
-    { id: 3, text: 'Download Term 2 Python Worksheets & Robotics Diagrams', done: false, priority: 'Normal' },
-    { id: 4, text: 'Conduct Weekly Attendance & Gradebook Audit', done: false, priority: 'Low' }
-  ]);
+  const [priorities, setPriorities] = useState<{ id: number; text: string; done: boolean; priority: string }[]>([]);
 
   const openReader = (url: string, title?: string) => {
     if (!url) {
@@ -283,21 +269,17 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         }
 
         if (!schoolDoc) {
-          const matchedName = schoolDocId ? (KNOWN_SCHOOL_NAMES[schoolDocId.toLowerCase()] || schoolDocId) : null;
-          schoolDoc = {
-            id: schoolDocId || 'peniel',
-            name: matchedName || sessionStorage.getItem('userName') || 'Partner Academy',
-            schoolCode: schoolDocId || 'SCH-JAYSTAR',
-            plan: 'School Innovation & STEM Lab Partnership',
-            status: 'ACTIVE',
-            address: 'Lagos, Nigeria',
-            coordinator: 'Academic Directorate',
-            labDays: 'Tuesdays & Thursdays (2:00 PM – 4:00 PM)'
-          };
+          setSchoolData(null);
+          setStudents([]);
+          setExams([]);
+          setResources([]);
+          setLinks([]);
+          setPasscodes([]);
+          return;
         }
         setSchoolData(schoolDoc);
 
-        const currentSchoolId = schoolDoc.id || schoolDoc.schoolId || schoolDocId || 'peniel';
+        const currentSchoolId = schoolDoc.id || schoolDoc.schoolId;
 
         // 1. Fetch students associated with this school
         const sList: SchoolStudent[] = [];
@@ -317,8 +299,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               accessCode: data.accessCode || data.passcode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               passcode: data.passcode || data.accessCode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               username: data.username || (data.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.'),
-              attendanceRate: data.attendanceRate || (Math.floor(Math.random() * 15) + 85),
-              avgScore: data.avgScore || (Math.floor(Math.random() * 20) + 78)
+
             });
           }
         });
@@ -467,8 +448,6 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       passcode: effectivePasscode,
       email: newStudentEmail.trim() || undefined,
       track: newStudentTrack,
-      attendanceRate: 100,
-      avgScore: 90,
       subjects: ['STEM', 'Python', 'Coding', newStudentTrack],
       schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
       schoolName: schoolData?.name || 'Partner Academy'
@@ -488,8 +467,6 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         email: newStudentEmail.trim() || undefined,
         track: newStudentTrack,
         role: 'student',
-        attendanceRate: 100,
-        avgScore: 90,
         schoolId: schoolData?.id || schoolData?.schoolId || 'peniel',
         schoolName: schoolData?.name || 'Partner Academy',
         schoolCode: schoolData?.schoolCode || 'SCH-JAYSTAR',
@@ -595,7 +572,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         isActive: editingPasscode.isActive !== false,
         validUntil: editingPasscode.validUntil || 'End of Term',
         invigilatorName: editingPasscode.invigilatorName || 'Staff Invigilator',
-        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || 20
+        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || students.length,
+        schoolId: schoolData?.id || schoolData?.schoolId
       };
 
       setPasscodes(prev => {
@@ -657,8 +635,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       `"${s.fullName || s.studentName || s.username || ''}"`,
       `"${s.class || s.grade || ''}"`,
       `"${s.accessCode || ''}"`,
-      s.attendanceRate || 90,
-      s.avgScore || 85
+      s.attendanceRate ?? '',
+      s.avgScore ?? ''
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -672,7 +650,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     toast.success('Roster CSV downloaded successfully!');
   };
 
-  const schoolDisplayName = schoolData?.name || 'Partner Academy';
+  const schoolDisplayName = schoolData?.name || 'School Portal';
 
   if (loading) {
     return (
@@ -716,12 +694,10 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Syllabus Progression
                 </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  78%
-                </h3>
+                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">—</h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                  <span>18 of 23 Modules Completed</span>
+                  <span>No module completion telemetry recorded</span>
                 </p>
               </div>
 
@@ -737,7 +713,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   />
                   <path
                     className="text-emerald-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="78, 100"
+                    strokeDasharray="0, 100"
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -745,7 +721,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                 </svg>
-                <span className="absolute text-xs font-black text-gray-900 dark:text-white">78%</span>
+                <span className="absolute text-xs font-black text-gray-900 dark:text-white">—</span>
               </div>
             </div>
 
@@ -760,7 +736,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
                   <Users size={13} className="text-blue-500 shrink-0" />
-                  <span>4 Grade Cohorts Active</span>
+                  <span>{new Set(students.map(s => s.class || s.grade).filter(Boolean)).size} Grade Cohorts Recorded</span>
                 </p>
               </div>
 
@@ -793,9 +769,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   CBT & Passcode Readiness
                 </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  95%
-                </h3>
+                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100) : 0}%</h3>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5 font-medium">
                   <Key size={13} className="shrink-0" />
                   <span>{passcodes.filter(p => p.isActive).length} Passcode Keys Authorized</span>
@@ -813,7 +787,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   />
                   <path
                     className="text-amber-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="95, 100"
+                    strokeDasharray={`${passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100 : 0)}, 100`}
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -931,7 +905,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                      Operational (100%)
+                      Not monitored
                     </span>
                   </div>
 
@@ -940,7 +914,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Assigned STEM Instructors
                     </span>
                     <span className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[150px]">
-                      Engr. John Rufai & Team
+                      {schoolData?.coordinator || 'Not assigned'}
                     </span>
                   </div>
 
@@ -949,7 +923,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Next Scheduled Lab Session
                     </span>
                     <span className="text-xs font-bold text-brand-red">
-                      {schoolData?.labDays || 'Tuesday @ 2:00 PM'}
+                      {schoolData?.labDays || 'No session scheduled'}
                     </span>
                   </div>
 
@@ -1139,7 +1113,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono font-bold text-brand-red bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded border border-red-200 dark:border-red-900/40">
-                              {st.accessCode || st.passcode || 'SCH-KEY-101'}
+                              {st.accessCode || st.passcode || '—'}
                             </span>
                             <button
                               onClick={() => copyToClipboard(st.accessCode || st.passcode || '', 'Passcode')}
@@ -1158,11 +1132,11 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                             <div className="w-12 bg-gray-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-emerald-500 h-full rounded-full" 
-                                style={{ width: `${st.attendanceRate || 90}%` }}
+                                style={{ width: `${st.attendanceRate ?? 0}%` }}
                               ></div>
                             </div>
                             <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                              {st.attendanceRate || 90}%
+                              {st.attendanceRate != null ? `${st.attendanceRate}%` : '—'}
                             </span>
                           </div>
                         </td>

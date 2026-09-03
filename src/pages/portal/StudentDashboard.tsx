@@ -166,8 +166,6 @@ const StudentDashboard: React.FC = () => {
         const studentDocId = sessionStorage.getItem('studentDocId');
         const studentUsername = sessionStorage.getItem('studentUsername');
         const cachedClass = sessionStorage.getItem('studentClass');
-        const cachedSchoolId = sessionStorage.getItem('schoolId');
-        const cachedSchoolName = sessionStorage.getItem('schoolName');
 
         let sData: StudentInfo | null = null;
         let sId = studentDocId || '';
@@ -216,25 +214,20 @@ const StudentDashboard: React.FC = () => {
           }
         }
 
-        // Fallback mock profile if standalone demo
+        // No fabricated profile: a protected dashboard must only display authoritative records.
         if (!sData) {
-          sData = {
-            id: currentUser?.uid || 'temp-id',
-            fullName: sessionStorage.getItem('userName') || currentUser?.displayName || 'Active Cadet',
-            username: studentUsername || 'cadet',
-            email: currentUser?.email || 'cadet@jdh.institute',
-            class: cachedClass || 'JSS 1',
-            schoolId: cachedSchoolId || undefined,
-            schoolName: cachedSchoolName || undefined,
-            plan: 'School STEM & Coding Track',
-            subjects: ['Web Development', 'Robotics & AI', 'Creative Design'],
-            schedule: 'Mon / Wed / Fri (4:00 PM - 6:00 PM)',
-            status: 'ACTIVE'
-          };
-        } else {
-          if (!sData.class && cachedClass) {
-            sData.class = cachedClass;
-          }
+          setStudent(null);
+          setPersonalResources([]);
+          setPersonalLinks([]);
+          setGeneralResources([]);
+          setClassResources([]);
+          setExams([]);
+          setNotifications([]);
+          setModules([]);
+          return;
+        }
+        if (!sData.class && cachedClass) {
+          sData.class = cachedClass;
         }
         setStudent(sData);
         setCertStudentName(sData.fullName || 'Active Cadet');
@@ -353,8 +346,16 @@ const StudentDashboard: React.FC = () => {
 
         // 6. Fetch Announcements / Notifications
         try {
-          const nSnap = await getDocs(query(collection(db, 'notifications'), limit(5)));
-          setNotifications(nSnap.docs.map(d => ({ id: d.id, ...d.data() } as NotificationItem)));
+          const notificationQueries = [
+            query(collection(db, 'notifications'), where('recipientId', '==', currentUser?.uid || '')), 
+            query(collection(db, 'notifications'), where('recipientId', '==', sId)),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all')),
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all_students'))
+          ];
+          const notificationSnapshots = await Promise.all(notificationQueries.map(getDocs));
+          const notificationMap = new Map<string, NotificationItem>();
+          notificationSnapshots.forEach(snap => snap.forEach(d => notificationMap.set(d.id, { id: d.id, ...d.data() } as NotificationItem)));
+          setNotifications(Array.from(notificationMap.values()).slice(0, 10));
         } catch (e) {
           console.warn('Notifications fetch error:', e);
         }
@@ -459,38 +460,41 @@ const StudentDashboard: React.FC = () => {
   };
 
   const courseProgressList = useMemo(() => {
-    return [
-      { label: 'Web Development', percentage: 75 },
-      { label: 'Data Science', percentage: 60 },
-      { label: 'UX Design', percentage: 90 },
-      { label: 'Robotics & AI', percentage: 85 },
-    ];
-  }, []);
+    const byTrack = new Map<string, { total: number; completed: number }>();
+    modules.forEach(mod => {
+      const current = byTrack.get(mod.trackName) || { total: 0, completed: 0 };
+      current.total += 1;
+      if (mod.completed) current.completed += 1;
+      byTrack.set(mod.trackName, current);
+    });
+    return Array.from(byTrack.entries()).map(([label, value]) => ({
+      label,
+      percentage: value.total ? Math.round((value.completed / value.total) * 100) : 0
+    }));
+  }, [modules]);
 
-  const upcomingAssignments = useMemo(() => {
-    if (exams.length > 0) {
-      return exams.slice(0, 3).map((e, idx) => ({
-        id: e.id,
-        title: e.title,
-        track: e.subject || 'STEM Track',
-        deadline: e.dueDate || `Due in ${idx + 2} days`,
-        link: e.link || e.url
-      }));
-    }
-    return [
-      { id: '1', title: 'React Project Build', track: 'Frontend Engineering', deadline: 'Due Oct 25', link: '#' },
-      { id: '2', title: 'Database Schema Quiz', track: 'Backend & SQL', deadline: 'Due Nov 02', link: '#' },
-      { id: '3', title: 'Wireframe Design Deck', track: 'UI/UX Interactive', deadline: 'Due Nov 08', link: '#' },
-    ];
-  }, [exams]);
+  const upcomingAssignments = useMemo(() => exams.slice(0, 3).map(e => ({
+    id: e.id,
+    title: e.title,
+    track: e.subject || 'Assessment',
+    deadline: e.dueDate || 'No deadline set',
+    link: e.link || e.url
+  })), [exams]);
 
   const recentActivities = useMemo(() => {
-    return [
-      { id: 'a1', action: 'Submitted Assignment', detail: 'React Project Showcase', time: '2 hours ago', icon: CheckSquare, color: 'text-red-500 bg-red-500/10' },
-      { id: 'a2', action: 'Completed Milestone Module', detail: 'State & Lifecycle Hooks', time: 'Yesterday', icon: Award, color: 'text-emerald-500 bg-emerald-500/10' },
-      { id: 'a3', action: 'Joined Live Classroom', detail: 'Advanced Python AI Track', time: '3 days ago', icon: Video, color: 'text-blue-500 bg-blue-500/10' },
-    ];
-  }, []);
+    return modules
+      .filter(mod => mod.completed)
+      .sort((a, b) => String(b.completionDate || '').localeCompare(String(a.completionDate || '')))
+      .slice(0, 5)
+      .map(mod => ({
+        id: mod.id,
+        action: 'Completed Module',
+        detail: mod.title,
+        time: mod.completionDate || 'Completed',
+        icon: Award,
+        color: 'text-emerald-500 bg-emerald-500/10'
+      }));
+  }, [modules]);
 
   const completedModulesCount = modules.filter(m => m.completed).length;
 
@@ -529,7 +533,7 @@ const StudentDashboard: React.FC = () => {
               <p className="text-xs text-gray-500 dark:text-slate-400">Current syllabus progression across active enrolled tracks</p>
             </div>
             <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
-              Active Term
+              Current Enrollment
             </span>
           </div>
 
@@ -581,11 +585,11 @@ const StudentDashboard: React.FC = () => {
 
       {/* Comprehensive Recharts Data Visualizer Component */}
       <StudentAnalyticsVisualizer 
-        studentName={student?.fullName || 'Active Cadet'}
-        studentClass={student?.class || 'JSS 1 / STEM Track'}
-        enrolledSubjects={student?.subjects || ['Web Development', 'Robotics & AI', 'Creative Design']}
+        studentName={student?.fullName || 'Student'}
+        studentClass={student?.class || student?.grade || 'Not recorded'}
+        enrolledSubjects={student?.subjects || []}
         completedModulesCount={completedModulesCount}
-        totalModulesCount={modules.length || 6}
+        totalModulesCount={modules.length}
       />
 
       {/* Middle Grid: Recent Activity & Milestone Progress */}
@@ -643,16 +647,16 @@ const StudentDashboard: React.FC = () => {
                 <span className="font-bold text-gray-800 dark:text-gray-200">Next Deliverable</span>
                 <span className="text-red-600 dark:text-red-400 font-bold">2 Days</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Full-Stack React Demo Showcase</p>
-              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Assigned by Lead Technical Instructor</p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}</p>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{upcomingAssignments[0]?.deadline || 'Awaiting an assigned assessment'}</p>
             </div>
 
             <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-bold text-gray-800 dark:text-gray-200">Certificate Readiness</span>
-                <span className="text-emerald-600 font-bold font-mono">80%</span>
+                <span className="text-emerald-600 font-bold font-mono">{modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0}%</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length || 6} Milestones Verified</p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length} Milestones Verified</p>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">PDF auto-issuance enabled upon completion</p>
             </div>
           </div>
