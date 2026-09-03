@@ -90,6 +90,12 @@ The application currently connects to the named Firestore database:
 
 Deploy the rules from a trusted local environment after reviewing the rule changes. Do not paste Firebase service-account credentials or private keys into source control or chat.
 
+## Payments
+
+Paystack initialization and verification are performed server-side. Paystack requires secret-key API calls to stay on the backend, and transaction verification checks status, currency, reference and amount before a payment is marked VERIFIED. citeturn3search6turn3search8
+
+The Vercel API layer uses Firebase Admin for trusted writes; the Admin SDK is intended for controlled server/serverless environments and must not be exposed to the browser. citeturn4search0
+
 ## Remaining production verification
 
 The GitHub integration available to this coding session cannot directly inspect the live Firebase project's data, deployed rules, indexes, Authentication users, or Vercel environment variables.
@@ -105,4 +111,4 @@ Before production launch, verify:
 
 ## CI
 
-`.github/workflows/quality.yml` runs the repository lint and production build on pushes and pull requests. The project uses the checked-in Bun lockfile, so CI uses Bun with the frozen lockfile.
+`.github/workflows/quality.yml` runs the repository lint and production build on pushes and pull requests. The CI job uses Bun and installs the dependency graph from package.json so server-side dependencies introduced for the payment API are available.
