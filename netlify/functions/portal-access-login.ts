@@ -35,6 +35,11 @@ async function getOrCreateUid(email: string | undefined, displayName: string, pr
   return (await adminAuth.createUser({ uid: preferredUid, email: email || syntheticEmail, displayName })).uid;
 }
 
+async function isUserBlocked(uid: string) {
+  const snap = await adminDb.collection("users").doc(uid).get();
+  return snap.exists && isBlocked(snap.data() || {});
+}
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   try {
@@ -57,9 +62,10 @@ export const handler: Handler = async (event) => {
 
       const email = typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined;
       const uid = await getOrCreateUid(email, String(profile.fullName || profile.studentName || profile.username || "Student"), String(profile.firebaseUid || `student_${snap.id}`));
+      if (await isUserBlocked(uid)) return { statusCode: 403, body: JSON.stringify({ error: "This account is suspended or banned." }) };
+
       const authEmail = (await adminAuth.getUser(uid)).email || null;
       const schoolId = String(profile.schoolId || "");
-
       await snap.ref.set({ firebaseUid: uid, authEmail }, { merge: true });
       await adminDb.collection("users").doc(uid).set({
         email: authEmail,
@@ -72,20 +78,7 @@ export const handler: Handler = async (event) => {
       }, { merge: true });
 
       const customToken = await adminAuth.createCustomToken(uid, { role: "student", schoolId });
-      return {
-        statusCode: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customToken,
-          role: "student",
-          studentDocId: snap.id,
-          name: profile.fullName || profile.studentName || profile.username || "Student",
-          username: profile.username || "",
-          class: profile.class || profile.grade || "",
-          schoolId,
-          schoolName: profile.schoolName || ""
-        })
-      };
+      return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customToken, role: "student", studentDocId: snap.id, name: profile.fullName || profile.studentName || profile.username || "Student", username: profile.username || "", class: profile.class || profile.grade || "", schoolId, schoolName: profile.schoolName || "" }) };
     }
 
     const raw = identifier;
@@ -116,22 +109,14 @@ export const handler: Handler = async (event) => {
 
     const email = typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined;
     const uid = await getOrCreateUid(email, String(profile.name || "Partner School"), String(profile.adminUid || profile.userId || `school_${schoolSnap.id}`));
+    if (await isUserBlocked(uid)) return { statusCode: 403, body: JSON.stringify({ error: "This account is suspended or banned." }) };
+
     const authEmail = (await adminAuth.getUser(uid)).email || null;
-    await adminDb.collection("users").doc(uid).set({
-      email: authEmail,
-      name: profile.name || "Partner School",
-      role: "school",
-      schoolId: schoolSnap.id,
-      schoolName: profile.name || "",
-      updatedAt: new Date()
-    }, { merge: true });
+    await adminDb.collection("users").doc(uid).set({ email: authEmail, name: profile.name || "Partner School", role: "school", schoolId: schoolSnap.id, schoolName: profile.name || "", updatedAt: new Date() }, { merge: true });
+    await schoolSnap.ref.set({ adminUid: uid }, { merge: true });
 
     const customToken = await adminAuth.createCustomToken(uid, { role: "school", schoolId: schoolSnap.id });
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customToken, role: "school", schoolDocId: schoolSnap.id, schoolId: schoolSnap.id, name: profile.name || "Partner School" })
-    };
+    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customToken, role: "school", schoolDocId: schoolSnap.id, schoolId: schoolSnap.id, name: profile.name || "Partner School" }) };
   } catch (error) {
     console.error("Portal access login error:", error);
     return { statusCode: 500, body: JSON.stringify({ error: "Unable to complete portal login." }) };
