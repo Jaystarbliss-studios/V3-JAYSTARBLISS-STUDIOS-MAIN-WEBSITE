@@ -64,8 +64,15 @@ export const PortalPayments: React.FC = () => {
           }
         }));
         list.sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() ?? 0;
-          const bTime = b.createdAt?.toMillis?.() ?? 0;
+          const timestamp = (value: PaymentRecord['createdAt']): number => {
+            if (!value) return 0;
+            if (typeof value === 'string') return new Date(value).getTime() || 0;
+            if (value instanceof Date) return value.getTime();
+            if (typeof value.toDate === 'function') return value.toDate().getTime();
+            return 0;
+          };
+          const aTime = timestamp(a.createdAt);
+          const bTime = timestamp(b.createdAt);
           return bTime - aTime;
         });
 
