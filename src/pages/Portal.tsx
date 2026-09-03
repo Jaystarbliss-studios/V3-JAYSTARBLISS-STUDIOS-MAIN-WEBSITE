@@ -110,7 +110,7 @@ const Portal: React.FC = () => {
           sessionStorage.setItem('userId', user.uid);
           sessionStorage.setItem('userEmail', user.email || '');
           await recordPortalLogin('ADMIN');
-      navigate('/admin');
+          navigate('/admin');
           return;
         }
 
@@ -134,7 +134,6 @@ const Portal: React.FC = () => {
         sessionStorage.setItem('userName', studentName);
         sessionStorage.setItem('userEmail', user.email || '');
 
-        await recordPortalLogin('STUDENT');
         await recordPortalLogin('STUDENT');
     navigate('/portal/student');
         return;
@@ -381,7 +380,6 @@ const Portal: React.FC = () => {
         localStorage.setItem('jaystar_cached_user_role', 'school');
         localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
         localStorage.setItem('jaystar_cached_user_name', schoolName);
-        await recordPortalLogin('SCHOOL');
         await recordPortalLogin('SCHOOL');
     navigate('/portal/school');
         return;
