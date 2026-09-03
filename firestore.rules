@@ -206,8 +206,12 @@ service cloud.firestore {
     }
 
     match /payments/{paymentId} {
-      allow read: if isAuth();
-      allow create: if isAnyAdmin() || (isAuth() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending');
+      allow read: if isAnyAdmin() || (isAuth() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.parentId == request.auth.uid ||
+        resource.data.schoolId == request.auth.uid
+      ));
+      allow create: if isAnyAdmin();
       allow update, delete: if isAnyAdmin();
     }
 
