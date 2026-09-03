@@ -1,193 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
-import { X, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { collection, doc, onSnapshot, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
+import { Download, X, Search, Mail, Phone, CalendarDays, UserRound, Filter, Save, ArrowUpRight } from 'lucide-react';
+import { db, auth } from '../../lib/firebase';
+import { useToast } from '../../contexts/ToastContext';
+
+type LeadStage = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST' | 'CLOSED';
+const STAGES: { value: LeadStage; label: string }[] = [
+  { value: 'NEW', label: 'New' }, { value: 'CONTACTED', label: 'Contacted' }, { value: 'QUALIFIED', label: 'Qualified' },
+  { value: 'CONVERTED', label: 'Converted' }, { value: 'LOST', label: 'Lost' }, { value: 'CLOSED', label: 'Closed' },
+];
+const toDate = (value: any) => value?.toDate ? value.toDate() : value ? new Date(value) : null;
+const formatDate = (value: any, time = false) => { const date = toDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString(undefined, time ? undefined : { year: 'numeric', month: 'short', day: 'numeric' }) : '—'; };
+const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 
 const AdminInquiries: React.FC = () => {
+  const { toast } = useToast();
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedInquiry, setSelectedInquiry] = useState<any | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [search, setSearch] = useState('');
+  const [stage, setStage] = useState<'ALL' | LeadStage>('ALL');
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({ status: 'NEW' as LeadStage, assignedTo: '', nextFollowUp: '', internalNotes: '' });
 
-  useEffect(() => {
-    getDocs(collection(db, 'inquiries')).then(snapshot => {
-      setInquiries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    });
-  }, []);
+  useEffect(() => onSnapshot(collection(db, 'inquiries'), snap => { setInquiries(snap.docs.map(item => ({ id: item.id, ...item.data() }))); setLoading(false); }, error => { console.error(error); setLoading(false); toast.error('Could not load the lead pipeline.'); }), [toast]);
+  useEffect(() => { if (selected) setDraft({ status: String(selected.status || 'NEW').toUpperCase() as LeadStage, assignedTo: selected.assignedTo || '', nextFollowUp: selected.nextFollowUp || '', internalNotes: selected.internalNotes || '' }); }, [selected]);
 
-  const updateStatus = async (id: string, status: string) => {
-    await updateDoc(doc(db, 'inquiries', id), { status, updatedAt: new Date().toISOString() });
-    setInquiries(prev => prev.map(i => i.id === id ? { ...i, status } : i));
-  };
+  const counts = useMemo(() => inquiries.reduce<Record<string, number>>((acc, item) => { const key = String(item.status || 'NEW').toUpperCase(); acc.ALL = (acc.ALL || 0) + 1; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [inquiries]);
+  const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return [...inquiries].sort((a,b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)).filter(item => { const itemStage = String(item.status || 'NEW').toUpperCase(); if (stage !== 'ALL' && itemStage !== stage) return false; return !q || [item.name,item.email,item.phone,item.schoolName,item.type,item.role,item.message].filter(Boolean).join(' ').toLowerCase().includes(q); }); }, [inquiries, search, stage]);
+  const quickStage = async (item: any, next: LeadStage) => { try { await updateDoc(doc(db, 'inquiries', item.id), { status: next, updatedBy: auth.currentUser?.uid || null, updatedAt: serverTimestamp() }); } catch (error: any) { toast.error(error?.message || 'Could not update lead stage.'); } };
+  const save = async () => { if (!selected) return; setSaving(true); try { const previousStatus = String(selected.status || 'NEW').toUpperCase(); await updateDoc(doc(db, 'inquiries', selected.id), { status: draft.status, assignedTo: draft.assignedTo.trim(), nextFollowUp: draft.nextFollowUp || null, internalNotes: draft.internalNotes.trim(), updatedBy: auth.currentUser?.uid || null, updatedAt: serverTimestamp() }); await addDoc(collection(db, 'activityLogs'), { action: 'INQUIRY_UPDATED', inquiryId: selected.id, actorId: auth.currentUser?.uid || null, previousStatus, nextStatus: draft.status, timestamp: serverTimestamp() }).catch(() => undefined); setSelected(null); toast.success('Lead record updated.'); } catch (error: any) { toast.error(error?.message || 'Could not update lead.'); } finally { setSaving(false); } };
+  const exportCsv = () => { const headers = ['Name','Email','Phone','Type','School','Status','Assigned To','Next Follow Up','Created At']; const rows = filtered.map(item => [item.name,item.email,item.phone,item.type,item.schoolName,item.status || 'NEW',item.assignedTo,item.nextFollowUp,formatDate(item.createdAt,true)]); const blob = new Blob([[headers.map(escapeCsv).join(','), ...rows.map(row => row.map(escapeCsv).join(','))].join('\n')], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `jaystarbliss_leads_${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url); toast.success(`Exported ${filtered.length} lead${filtered.length === 1 ? '' : 's'}.`); };
 
-  const exportToCSV = () => {
-    if (inquiries.length === 0) return;
-    const headers = Object.keys(inquiries[0]).filter(k => typeof inquiries[0][k] !== 'object');
-    const csvContent = [
-      headers.join(','),
-      ...inquiries.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'inquiries_export.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  return (
-    <div>
-      <div className="mb-8 flex justify-between items-start sm:items-center flex-col sm:flex-row gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Inquiries & Leads</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm">Manage contact requests, applications, and school partnerships.</p>
-        </div>
-        <button 
-          onClick={exportToCSV}
-          className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-        >
-          <Download size={16} /> Export CSV
-        </button>
-      </div>
-
-      <div className="bg-white dark:bg-slate-900 dark:border-slate-800 rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50 dark:bg-slate-950">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Contact</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type / Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? <tr><td colSpan={4} className="px-6 py-12 text-center">Loading...</td></tr> :
-              inquiries.length === 0 ? <tr><td colSpan={4} className="px-6 py-12 text-center">No inquiries found.</td></tr> :
-             inquiries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(i => (
-               <tr key={i.id} className="hover:bg-gray-50 dark:bg-slate-950">
-                 <td className="px-6 py-4">
-                   <div className="font-medium text-gray-900 dark:text-white">{i.name}</div>
-                   <div className="text-sm text-gray-500 dark:text-gray-400">{i.email}</div>
-                 </td>
-                 <td className="px-6 py-4 text-sm max-w-xs">
-                   <span className="font-bold text-brand-slate dark:text-white text-xs mb-1 block uppercase tracking-wider">{i.type?.replace('_', ' ')}</span>
-                   <div className="text-gray-500 dark:text-gray-400 text-xs">
-                     {new Date(i.createdAt).toLocaleDateString()}
-                   </div>
-                 </td>
-                 <td className="px-6 py-4">
-                   <select
-                      value={i.status || 'NEW'}
-                      onChange={(e) => updateStatus(i.id, e.target.value)}
-                     className="text-sm border border-slate-200 rounded-lg p-1.5 bg-white dark:bg-slate-900 dark:border-slate-800 focus:ring-brand-red focus:border-brand-red"
-                   >
-                     <option value="NEW">New</option>
-                     <option value="REVIEWING">Reviewing</option>
-                     <option value="RESPONDED">Responded</option>
-                     <option value="CLOSED">Closed</option>
-                   </select>
-                 </td>
-                 <td className="px-6 py-4 text-right">
-                   <button
-                      onClick={() => setSelectedInquiry(i)}
-                     className="text-brand-red font-semibold text-sm hover:text-red-700"
-                   >
-                     View Details
-                   </button>
-                 </td>
-               </tr>
-             ))}
-          </tbody>
-        </table>
-      </div>
-
-      {selectedInquiry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-slate-900 px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between z-10">
-              <div>
-                <h3 className="text-xl font-bold text-brand-slate dark:text-white uppercase tracking-wider text-sm">
-                  {selectedInquiry.type?.replace('_', ' ')}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">{new Date(selectedInquiry.createdAt).toLocaleString()}</p>
-              </div>
-              <button 
-                onClick={() => setSelectedInquiry(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Name</div>
-                  <div className="font-medium">{selectedInquiry.name}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Email</div>
-                  <div className="font-medium"><a href={`mailto:${selectedInquiry.email}`} className="text-brand-red hover:underline">{selectedInquiry.email}</a></div>
-                </div>
-                {selectedInquiry.phone && (
-                  <div>
-                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Phone</div>
-                    <div className="font-medium">{selectedInquiry.phone}</div>
-                  </div>
-                )}
-                {selectedInquiry.schoolName && (
-                  <div>
-                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">School Name</div>
-                    <div className="font-medium">{selectedInquiry.schoolName}</div>
-                  </div>
-                )}
-                {selectedInquiry.role && (
-                  <div>
-                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Role / Position</div>
-                    <div className="font-medium">{selectedInquiry.role}</div>
-                  </div>
-                )}
-              </div>
-
-              {selectedInquiry.programsOfInterest && selectedInquiry.programsOfInterest.length > 0 && (
-                <div>
-                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Programs of Interest</div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedInquiry.programsOfInterest.map((p: string, i: number) => (
-                      <span key={i} className="bg-slate-100 dark:bg-slate-800 text-brand-slate dark:text-white px-3 py-1 rounded-full text-xs font-semibold">
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedInquiry.message && (
-                <div>
-                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Message</div>
-                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap border border-slate-100 dark:border-slate-800">
-                    {selectedInquiry.message}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="px-6 py-4 bg-gray-50 dark:bg-slate-950 border-t border-gray-100 dark:border-slate-800 flex justify-end">
-              <button 
-                onClick={() => setSelectedInquiry(null)}
-                className="px-6 py-2 bg-brand-slate text-white rounded-lg font-bold text-sm hover:bg-gray-800"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="space-y-6">
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="flex items-center gap-2 text-brand-red text-xs font-black uppercase tracking-[0.18em]"><Filter size={14}/> CRM Pipeline</div><h1 className="mt-1 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">Inquiries & Leads</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Track inquiries from first contact through qualification, conversion and closure.</p></div><button type="button" onClick={exportCsv} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><Download size={16}/> Export filtered CSV</button></header>
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lead stages"><button type="button" onClick={() => setStage('ALL')} className={`rounded-2xl border p-4 text-left bg-white dark:bg-slate-900 ${stage === 'ALL' ? 'border-brand-red ring-2 ring-brand-red/10' : 'border-slate-200 dark:border-slate-800'}`}><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">All leads</span><strong className="mt-1 block text-xl text-slate-900 dark:text-white">{counts.ALL || 0}</strong></button>{STAGES.map(item => <button key={item.value} type="button" onClick={() => setStage(item.value)} className={`rounded-2xl border p-4 text-left bg-white dark:bg-slate-900 ${stage === item.value ? 'border-brand-red ring-2 ring-brand-red/10' : 'border-slate-200 dark:border-slate-800'}`}><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{item.label}</span><strong className="mt-1 block text-xl text-slate-900 dark:text-white">{counts[item.value] || 0}</strong></button>)}</section>
+    <label className="relative block"><Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name, email, school, phone or message…" className="min-h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"/></label>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="overflow-x-auto"><table className="min-w-[900px] w-full"><thead className="bg-slate-50 dark:bg-slate-950/70"><tr>{['Lead','Source','Stage','Owner / Follow-up','Received','Action'].map(h => <th key={h} className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{loading ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-400">Loading lead pipeline…</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-400">No leads match the current filters.</td></tr> : filtered.map(item => { const currentStage = String(item.status || 'NEW').toUpperCase() as LeadStage; return <tr key={item.id} className="align-top hover:bg-slate-50/70 dark:hover:bg-slate-950/50"><td className="px-5 py-4"><div className="font-bold text-slate-900 dark:text-white">{item.name || 'Unnamed lead'}</div><div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.email || 'No email'}</div>{item.phone && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.phone}</div>}</td><td className="px-5 py-4"><div className="text-xs font-bold uppercase tracking-wider text-brand-slate dark:text-slate-200">{String(item.type || 'GENERAL').replace(/_/g,' ')}</div>{item.schoolName && <div className="mt-1 text-xs text-slate-500">{item.schoolName}</div>}</td><td className="px-5 py-4"><select value={currentStage} onChange={event => quickStage(item,event.target.value as LeadStage)} className="min-h-10 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-black dark:border-slate-700 dark:bg-slate-900 dark:text-white">{STAGES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></td><td className="px-5 py-4"><div className="text-xs font-semibold text-slate-700 dark:text-slate-300">{item.assignedTo || 'Unassigned'}</div><div className="mt-1 text-[11px] text-slate-400">{item.nextFollowUp ? `Follow-up ${item.nextFollowUp}` : 'No follow-up set'}</div></td><td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500">{formatDate(item.createdAt)}</td><td className="px-5 py-4 text-right"><button type="button" onClick={() => setSelected(item)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-brand-red hover:bg-red-50 dark:hover:bg-red-950/30">Open <ArrowUpRight size={14}/></button></td></tr>; })}</tbody></table></div></div>
+    {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="lead-dialog-title"><div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"><header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-800"><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-red">Lead record</p><h2 id="lead-dialog-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{selected.name || 'Unnamed lead'}</h2><p className="mt-1 text-xs text-slate-500">Received {formatDate(selected.createdAt,true)}</p></div><button type="button" onClick={() => setSelected(null)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close lead details"><X size={20}/></button></header><div className="grid gap-6 overflow-y-auto p-5 lg:grid-cols-[1.15fr_.85fr]"><div className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><a href={selected.email ? `mailto:${selected.email}` : undefined} className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400"><Mail size={14}/> Email</div><div className="mt-2 break-all text-sm font-semibold text-brand-red">{selected.email || 'Not provided'}</div></a><a href={selected.phone ? `tel:${selected.phone}` : undefined} className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400"><Phone size={14}/> Phone</div><div className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{selected.phone || 'Not provided'}</div></a></div>{selected.message && <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Message</div><div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7 whitespace-pre-wrap text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">{selected.message}</div></div>}</div><aside className="space-y-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><div className="flex items-center gap-2 text-sm font-black text-slate-900 dark:text-white"><UserRound size={16}/> Pipeline controls</div><label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">Stage</span><select value={draft.status} onChange={event => setDraft(current => ({...current,status:event.target.value as LeadStage}))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">{STAGES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">Assigned owner</span><input value={draft.assignedTo} onChange={event => setDraft(current => ({...current,assignedTo:event.target.value}))} placeholder="Staff member / team" className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><label className="block"><span className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500"><CalendarDays size={13}/> Next follow-up</span><input type="date" value={draft.nextFollowUp} onChange={event => setDraft(current => ({...current,nextFollowUp:event.target.value}))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><label className="block"><span className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Internal notes</span><textarea rows={7} value={draft.internalNotes} onChange={event => setDraft(current => ({...current,internalNotes:event.target.value}))} placeholder="Private team notes…" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><button type="button" onClick={save} disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-red px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">{saving ? 'Saving…' : <><Save size={16}/> Save lead record</>}</button></aside></div></div></div>}
+  </div>;
 };
 
 export default AdminInquiries;

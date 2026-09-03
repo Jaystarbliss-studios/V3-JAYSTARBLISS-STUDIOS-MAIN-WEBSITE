@@ -7,6 +7,35 @@ import { CMS_PAGES } from '../../lib/cms';
 import type { EditablePageConfig } from '../../lib/cms';
 import CloudinaryImageUpload from '../../components/common/CloudinaryImageUpload';
 
+const SectionField: React.FC<{
+  field: EditablePageConfig['sections'][number]['fields'][number];
+  value: any;
+  onChange: (value: any) => void;
+}> = ({ field, value, onChange }) => {
+  const base = 'w-full rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red';
+
+  if (field.type === 'image') {
+    return <div className="col-span-1 md:col-span-2"><CloudinaryImageUpload label={field.label} value={value || ''} onChange={onChange} helpText="Upload a high-resolution image or paste a Cloudinary URL." /></div>;
+  }
+  if (field.type === 'textarea') {
+    return <div className="col-span-1 md:col-span-2"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><textarea rows={5} value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} className={`${base} px-4 py-3 leading-6`} /></div>;
+  }
+  if (field.type === 'boolean') {
+    return <label className="col-span-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800"><input type="checkbox" checked={Boolean(value)} onChange={event => onChange(event.target.checked)} className="h-4 w-4" /><span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{field.label}</span></label>;
+  }
+  if (field.type === 'select') {
+    return <div className="col-span-1"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><select value={value ?? ''} onChange={event => onChange(event.target.value)} className={`${base} min-h-11 px-4 py-3`}><option value="">Select {field.label.toLowerCase()}</option>{(field.options || []).map(option => <option key={option} value={option}>{option}</option>)}</select></div>;
+  }
+  if (field.type === 'list') {
+    const listValue = Array.isArray(value) ? value.join('\\n') : String(value ?? '');
+    return <div className="col-span-1 md:col-span-2"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><textarea rows={6} value={listValue} onChange={event => onChange(event.target.value.split(/\\r?\\n/).map(item => item.trim()).filter(Boolean))} placeholder={field.placeholder || 'Enter one item per line'} className={`${base} px-4 py-3 leading-6`} /><p className="mt-1 text-[11px] text-slate-400">One item per line.</p></div>;
+  }
+  if (field.type === 'url') {
+    return <div className="col-span-1"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><input type="url" value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder={field.placeholder || 'https://'} className={`${base} min-h-11 px-4 py-3`} /></div>;
+  }
+  return <div className="col-span-1"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><input type="text" value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`} className={`${base} min-h-11 px-4 py-3`} /></div>;
+};
+
 const AdminPageForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [pageConfig, setPageConfig] = useState<EditablePageConfig | null>(null);
@@ -226,52 +255,8 @@ const AdminPageForm: React.FC = () => {
                 <div className="p-6 space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {section.fields.map((field) => {
-                      const val = currentValues[field.key] ?? '';
-
-                      if (field.type === 'image') {
-                        return (
-                          <div key={field.key} className="col-span-1 md:col-span-2">
-                            <CloudinaryImageUpload
-                              label={field.label}
-                              value={val}
-                              onChange={(url) => handleFieldChange(section.id, field.key, url)}
-                              helpText="Upload a high-resolution image to Cloudinary or paste a direct Cloudinary URL."
-                            />
-                          </div>
-                        );
-                      }
-
-                      if (field.type === 'textarea') {
-                        return (
-                          <div key={field.key} className="col-span-1 md:col-span-2">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                              {field.label}
-                            </label>
-                            <textarea
-                              rows={3}
-                              value={val}
-                              onChange={(e) => handleFieldChange(section.id, field.key, e.target.value)}
-                              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red leading-relaxed"
-                            />
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div key={field.key} className="col-span-1">
-                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
-                            {field.label}
-                          </label>
-                          <input
-                            type="text"
-                            value={val}
-                            onChange={(e) => handleFieldChange(section.id, field.key, e.target.value)}
-                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
-                          />
-                        </div>
-                      );
+                      const value = currentValues[field.key] ?? '';
+                      return <SectionField key={field.key} field={field} value={value} onChange={(nextValue) => handleFieldChange(section.id, field.key, nextValue)} />;
                     })}
                   </div>
                 </div>

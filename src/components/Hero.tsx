@@ -25,7 +25,10 @@ const Hero: React.FC = () => {
       <div className="container mx-auto px-4 sm:px-6 relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-8 items-center max-w-7xl">
         {/* Left Content Area */}
         <div className="text-center lg:text-left max-w-2xl mx-auto lg:mx-0 w-full">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight break-words">
+          <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70 backdrop-blur-sm">
+            {data.tagline || 'DIGITAL INNOVATION & EDUCATION'}
+          </span>
+          <h1 className="mt-5 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight break-words">
             {data.headingLine1 || 'LEARN. BUILD.'}
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-red to-red-400">
@@ -34,6 +37,9 @@ const Hero: React.FC = () => {
             <br />
             {data.headingLine2 ? data.headingLine2.split(' ').slice(1).join(' ') || 'GROW.' : 'GROW.'}
           </h1>
+          <p className="mx-auto max-w-xl text-base sm:text-lg leading-7 text-white/70 lg:mx-0">
+            {data.description || 'Jaystarbliss Studios empowers the next generation through practical tech education, coding programs for kids, and scalable software solutions.'}
+          </p>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-6 mt-8 w-full max-w-full">
             <Link
               to={data.primaryCtaLink || '/register'}

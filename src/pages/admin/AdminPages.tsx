@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { 
   Edit, ExternalLink, Layers, CheckCircle2, 
@@ -59,17 +59,6 @@ const AdminPages: React.FC = () => {
           };
         });
 
-        // Ensure these entries exist in Firestore
-        for (const p of merged) {
-          await setDoc(doc(db, 'pages', p.id), {
-            id: p.id,
-            title: p.title,
-            path: p.path,
-            status: p.status,
-            description: p.description
-          }, { merge: true });
-        }
-        
         setPages(merged);
       } catch (error) {
         console.error('Error fetching pages:', error);

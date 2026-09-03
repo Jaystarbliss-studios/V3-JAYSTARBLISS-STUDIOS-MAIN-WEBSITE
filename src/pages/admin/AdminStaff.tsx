@@ -21,9 +21,6 @@ const AdminStaff: React.FC = () => {
   const [staffList, setStaffList] = useState<any[]>([]);
 
   // Invite Form
-  const [inviteName, setInviteName] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
 
   // Staff Resources
   const [staffResources, setStaffResources] = useState<any[]>([]);
@@ -268,7 +265,7 @@ const AdminStaff: React.FC = () => {
                       </div>
 
                       <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
-                        👨‍🏫 {staff.name || staff.fullName || 'Faculty Member'}
+                        {staff.name || staff.fullName || 'Faculty Member'}
                       </h3>
 
                       <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
@@ -277,7 +274,7 @@ const AdminStaff: React.FC = () => {
 
                       {staff.phone && (
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-mono">
-                          📞 {staff.phone}
+                          {staff.phone}
                         </div>
                       )}
                     </div>

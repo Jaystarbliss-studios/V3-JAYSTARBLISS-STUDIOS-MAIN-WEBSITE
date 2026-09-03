@@ -624,14 +624,17 @@ const Portal: React.FC = () => {
           }
         }
 
-        const initialRole = detectedRole ? detectedRole.toLowerCase() : activeTab;
+        if (!detectedRole) {
+          await signOut(auth).catch(() => undefined);
+          throw new Error('No active portal profile was found for this account. Please complete registration or contact an administrator.');
+        }
+
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email?.toLowerCase(),
           name: detectedName,
-          role: initialRole,
+          role: detectedRole.toLowerCase(),
           createdAt: serverTimestamp()
-        });
-        detectedRole = initialRole.toUpperCase();
+        }, { merge: true });
       }
 
       if (detectedRole.includes('ADMIN')) {

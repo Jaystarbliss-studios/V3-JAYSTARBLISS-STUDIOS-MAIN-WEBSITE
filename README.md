@@ -1,36 +1,29 @@
 # Jaystarbliss Studios | Dynamic Hub
 
-A premium, full-stack educational and portfolio platform designed for Jaystarbliss Studios. This platform serves as a modern digital headquarters, featuring dynamic content management, real-time administrative dashboards, role-based portals (Student, Parent, Tutor, School), and a robust React SPA front-end.
+The Jaystarbliss Studios web platform combines the public studio website, education services, role-based portals, school operations, CMS, payments and administrative controls.
 
-## Features
+## Current platform
+- Public Hub: Home, Programs, Services, Portfolio, Resources, FAQ, Blog, contact and project requests.
+- Portals: Student, Parent, Staff/Tutor and School workspaces with role-aware navigation.
+- School operations: school-scoped learners, resources, links, exams, passcodes and staff-school assignments.
+- Learning operations: resources, calendars, live classes, curriculum and learner progress.
+- Payments: authenticated Paystack initialization plus server-side verification, webhook reconciliation and enrollment-linked payment context.
+- Admin CMS: editable pages/sections, Programs, Services, Portfolio, Kids Zone, News/Blog, Resources, Users & Roles, Approvals, Staff operations and settings.
+- Lead CRM: searchable inquiry pipeline, stage management, ownership, follow-ups, notes and activity logging.
+- Security: Firebase Auth state checks, trusted privileged provisioning, account lifecycle enforcement and school-level access isolation.
 
-- **Public Hub:** Home, Programs, Services, Portfolio, Resources, FAQ, Blog.
-- **Portals (RBAC Enforced):** Dedicated environments for Students, Parents, Tutors/Staff, and Schools.
-- **Administrative CMS (Admin):** 
-  - Manage users, roles, programs, services, and blog content.
-  - Interactive charts via Recharts for quick data insights.
-  - CSV Data exports for Inquiries and User Registrations.
-- **Content Management:** Fully integrated Firebase Firestore backend for rapid UI hydration.
-- **Interactive Visuals:** Framer Motion-powered route transitions, page animations, and an aesthetic red-black-white color palette.
+## Stack
+React 19 · TypeScript · Vite · Tailwind CSS · React Router · Firebase Auth/Firestore · Netlify Functions · Paystack · Cloudinary · Motion · Recharts · Lucide React.
 
-## Technical Stack
+## Roles
+`USER`, `STUDENT`, `PARENT`, `STAFF`/`TUTOR`, `SCHOOL`, `CONTENT_ADMIN`, `EDUCATION_ADMIN`, `SERVICES_ADMIN`, `SUPER_ADMIN`.
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS.
-- **Animations:** Framer Motion.
-- **Routing:** React Router v7.
-- **Backend/DB:** Firebase Firestore & Firebase Auth.
-- **Data Visualization:** Recharts (Analytics Dashboard).
-- **Icons:** Lucide React.
+Privileged roles are provisioned through trusted server-side workflows. A selected portal tab is never an authorization source.
 
-## Getting Started
+## Development
+`npm ci` → `npm run dev` → `npm run lint` → `npm run build`
 
-1. Set up a Firebase project and enable Firestore & Authentication.
-2. Ensure Firebase environment settings are loaded (via config files).
-3. Install dependencies: `npm install`
-4. Run locally: `npm run dev`
-5. Build for production: `npm run build`
+The GitHub Quality Gate runs lint and production builds for pushes and pull requests targeting `main`.
 
-## Permissions
-
-The app defines specific roles: `USER` (default), `STUDENT`, `PARENT`, `TUTOR`, `SCHOOL`, `CONTENT_ADMIN`, `SERVICES_ADMIN`, and `SUPER_ADMIN`.
-Use the Admin Dashboard to modify user roles and gain complete access to portal routes and administrative capabilities.
+## Operational docs
+See `SECURITY_MODEL.md` and `docs/PAYSTACK-OPERATIONS.md` for authorization, trusted workflows and payment operations.
