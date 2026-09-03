@@ -25,7 +25,6 @@ const AdminSettings: React.FC = () => {
     instagram: '',
     cloudinaryCloudName: 'jaystarbliss',
     cloudinaryUploadPreset: 'jaystarbliss_cms',
-    cloudinaryApiKey: ''
   });
 
   // Banner State
@@ -68,7 +67,6 @@ const AdminSettings: React.FC = () => {
             ...prev,
             cloudinaryCloudName: cData.cloudName || prev.cloudinaryCloudName,
             cloudinaryUploadPreset: cData.uploadPreset || prev.cloudinaryUploadPreset,
-            cloudinaryApiKey: cData.apiKey || prev.cloudinaryApiKey
           }));
         }
       } catch (error) {
@@ -113,6 +111,7 @@ const AdminSettings: React.FC = () => {
       await setDoc(settingsRef, {
         ...settings,
         cloudinaryApiSecret: deleteField(),
+        cloudinaryApiKey: deleteField(),
         updatedAt: serverTimestamp(),
         updatedBy: user?.uid || 'unknown'
       }, { merge: true });
@@ -130,7 +129,7 @@ const AdminSettings: React.FC = () => {
       await setDoc(cloudinaryRef, {
         cloudName: settings.cloudinaryCloudName || 'jaystarbliss',
         uploadPreset: settings.cloudinaryUploadPreset || 'jaystarbliss_cms',
-        apiKey: settings.cloudinaryApiKey || '',
+        apiKey: deleteField(),
         apiSecret: deleteField(),
         updatedAt: serverTimestamp()
       }, { merge: true });
