@@ -815,7 +815,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                      Operational (100%)
+                      {schoolData?.labStatus || 'Status not reported'}
                     </span>
                   </div>
 
@@ -824,7 +824,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Assigned STEM Instructors
                     </span>
                     <span className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[150px]">
-                      Engr. John Rufai & Team
+                      {schoolData?.assignedInstructor || schoolData?.instructorName || 'No instructor assigned'}
                     </span>
                   </div>
 
@@ -833,7 +833,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Next Scheduled Lab Session
                     </span>
                     <span className="text-xs font-bold text-brand-red">
-                      {schoolData?.labDays || 'Tuesday @ 2:00 PM'}
+                      {schoolData?.labDays || 'No session scheduled'}
                     </span>
                   </div>
 
@@ -842,7 +842,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Active Passcode Protection
                     </span>
                     <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                      <Lock size={12} /> Enabled
+                      <Lock size={12} /> {passcodes.filter(code => code.isActive).length > 0 ? `${passcodes.filter(code => code.isActive).length} active` : 'Not configured'}
                     </span>
                   </div>
                 </div>
