@@ -11,6 +11,15 @@
   --jb-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
   --jb-shadow-md: 0 10px 30px rgba(15, 23, 42, 0.06);
   --jb-shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.10);
+  --jb-space-1: 0.5rem;
+  --jb-space-2: 0.75rem;
+  --jb-space-3: 1rem;
+  --jb-space-4: 1.5rem;
+  --jb-space-5: 2rem;
+  --jb-space-6: 3rem;
+  --jb-radius-sm: 0.75rem;
+  --jb-radius-md: 1rem;
+  --jb-radius-lg: 1.25rem;
 }
 
 html.dark {
@@ -29,7 +38,7 @@ html.dark {
   outline-offset: 2px;
 }
 
-.dashboard-interface :where(button, a, [role='button']) {
+:where(button, a, [role='button']) {
   touch-action: manipulation;
 }
 
@@ -37,11 +46,18 @@ html.dark {
   min-height: 44px;
 }
 
-.dashboard-interface > * {
+.dashboard-interface,
+.portal-interface {
   min-width: 0;
 }
 
-.dashboard-interface .pro-surface {
+.dashboard-interface > *,
+.portal-interface > * {
+  min-width: 0;
+}
+
+.dashboard-interface .pro-surface,
+.portal-interface .pro-surface {
   border-color: var(--jb-border);
   box-shadow: var(--jb-shadow-sm), var(--jb-shadow-md);
   transition:
@@ -50,42 +66,55 @@ html.dark {
     border-color 180ms ease;
 }
 
-.dashboard-interface .pro-surface:hover {
+.dashboard-interface .pro-surface:hover,
+.portal-interface .pro-surface:hover {
   box-shadow: var(--jb-shadow-sm), var(--jb-shadow-lg);
 }
 
-.dashboard-interface .pro-interactive:hover {
+.dashboard-interface .pro-interactive:hover,
+.portal-interface .pro-interactive:hover {
   transform: translateY(-2px);
 }
 
 .dashboard-interface h1,
 .dashboard-interface h2,
-.dashboard-interface h3 {
+.dashboard-interface h3,
+.portal-interface h1,
+.portal-interface h2,
+.portal-interface h3 {
   text-wrap: balance;
 }
 
 .dashboard-interface p,
 .dashboard-interface span,
-.dashboard-interface label {
+.dashboard-interface label,
+.portal-interface p,
+.portal-interface span,
+.portal-interface label {
   overflow-wrap: anywhere;
 }
 
-.dashboard-interface .text-\[11px\] {
+.dashboard-interface .text-\[11px\],
+.portal-interface .text-\[11px\] {
   letter-spacing: 0.055em;
 }
 
 .dashboard-interface .recharts-responsive-container,
-.dashboard-interface .recharts-wrapper {
+.dashboard-interface .recharts-wrapper,
+.portal-interface .recharts-responsive-container,
+.portal-interface .recharts-wrapper {
   min-width: 0;
 }
 
-.dashboard-interface table {
+.dashboard-interface table,
+.portal-interface table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.dashboard-interface th {
+.dashboard-interface th,
+.portal-interface th {
   font-size: 0.6875rem;
   line-height: 1rem;
   letter-spacing: 0.055em;
@@ -93,8 +122,22 @@ html.dark {
   font-weight: 700;
 }
 
-.pro-surface {
-  border-radius: 1.25rem;
+.dashboard-interface :where(a, button),
+.portal-interface :where(a, button) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Shared dashboard panel treatment for legacy Tailwind-heavy surfaces. */
+.dashboard-interface > :where(div[class*='rounded-2xl'][class*='border']),
+.portal-interface > :where(div[class*='rounded-2xl'][class*='border']) {
+  border-color: var(--jb-border);
+  box-shadow: var(--jb-shadow-sm), var(--jb-shadow-md);
+}
+
+/* Prefer wrapping over clipping essential labels on cards and chips. */
+.dashboard-interface :where(.whitespace-nowrap),
+.portal-interface :where(.whitespace-nowrap) {
+  max-width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -111,7 +154,8 @@ html.dark {
     scroll-behavior: auto !important;
   }
 
-  .dashboard-interface .pro-interactive:hover {
+  .dashboard-interface .pro-interactive:hover,
+  .portal-interface .pro-interactive:hover {
     transform: none;
   }
 }
@@ -123,12 +167,14 @@ html.dark {
     font-size: 16px;
   }
 
-  .dashboard-interface {
+  .dashboard-interface,
+  .portal-interface {
     gap: 1rem;
   }
 
-  .dashboard-interface .pro-surface {
-    border-radius: 1rem;
+  .dashboard-interface .pro-surface,
+  .portal-interface .pro-surface {
+    border-radius: var(--jb-radius-md);
   }
 }
 
