@@ -29,8 +29,6 @@ import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
 
-const STAFF_REG_CODE_FALLBACK = 'JAYSTAR2024';
-
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
@@ -68,13 +66,6 @@ const Portal: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
-
-  // Staff registration toggle
-  const [showStaffReg, setShowStaffReg] = useState(false);
-  const [staffRegCode, setStaffRegCode] = useState('');
-  const [staffName, setStaffName] = useState('');
-  const [staffEmail, setStaffEmail] = useState('');
-  const [staffPw, setStaffPw] = useState('');
 
   const tryPortalAccessFunction = async (role: 'student' | 'school', identifierValue: string, codeValue: string) => {
     const response = await fetch('/.netlify/functions/portal-access-login', {
@@ -175,7 +166,6 @@ const Portal: React.FC = () => {
         navigate('/portal/student');
         return;
       } catch (directAuthErr: any) {
-        // If it was invalid credentials and it looks like a student access code rather than standard password, proceed to student record lookup
         console.warn('Direct student email auth notice:', directAuthErr?.code || directAuthErr?.message);
         if (directAuthErr instanceof Error && /account is (disabled|suspended|banned)/i.test(directAuthErr.message)) throw directAuthErr;
       }
@@ -320,7 +310,6 @@ const Portal: React.FC = () => {
 
     await ensureActiveUserAccount(firebaseUid);
 
-    // Ensure users doc exists while preserving admin rights
     const userDocRef = doc(db, 'users', firebaseUid);
     const existingSnap = await getDoc(userDocRef);
     const existingData = existingSnap.exists() ? existingSnap.data() : {};
@@ -343,7 +332,6 @@ const Portal: React.FC = () => {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    // Backfill firebaseUid into individualStudents doc if needed
     if (sdoc && (!sdata.firebaseUid || sdata.firebaseUid !== firebaseUid)) {
       try {
         await updateDoc(doc(db, 'individualStudents', sdoc.id), {
@@ -380,7 +368,6 @@ const Portal: React.FC = () => {
       throw new Error('Please enter your School Email / Access Code or Cadet Username and Passcode.');
     }
 
-    // 1. Try direct Firebase Auth
     if (rawInput.includes('@')) {
       try {
         const cred = await signInWithEmailAndPassword(auth, rawInput.toLowerCase(), code);
@@ -430,8 +417,6 @@ const Portal: React.FC = () => {
       }
     }
 
-    // 2. Verify school access server-side. The schools collection contains
-    // portal credentials and is intentionally not publicly readable.
     let matchedSchool: any = null;
     try {
       const result = await tryPortalAccessFunction('school', rawInput, code);
@@ -446,7 +431,6 @@ const Portal: React.FC = () => {
     }
 
     if (!matchedSchool) {
-      // 3. Check if this is a School Cadet logging in with their Username / Access Code and Passcode
       try {
         let sdoc: any = null;
         let sdata: any = null;
@@ -484,7 +468,6 @@ const Portal: React.FC = () => {
           const storedCode = String(sdata.accessCode || sdata.passcode || '').trim().toUpperCase();
           const enteredCode = code.trim().toUpperCase();
           if (storedCode === enteredCode || sdata.accessCode === code || sdata.passcode === code) {
-            // Sign in or create auth session for student
             const effectiveUsername = (sdata.username || cleanUsername || 'cadet').toLowerCase();
             const authEmailToUse = sdata.email || studentAuthEmail(effectiveUsername);
             const authPassword = deriveStudentAuthPassword(code.toUpperCase());
@@ -543,8 +526,6 @@ const Portal: React.FC = () => {
       throw new Error('Invalid school credentials, cadet username, or access passcode. Please verify your credentials or contact your school administrator.');
     }
 
-    // The server-side function already created/signs in the Firebase session with a custom token.
-    // Do not attempt a second email/password sign-in for this credential-based path.
     if (matchedSchool.firebaseUid) {
       const matchedSchoolName = matchedSchool.name || 'Partner School';
       sessionStorage.setItem('userRole', 'school');
@@ -593,7 +574,6 @@ const Portal: React.FC = () => {
       return;
     }
 
-    // Parent or Staff Email Login
     const email = identifier.trim();
     if (!email || !password) {
       setError('Please enter your email and password.');
@@ -611,7 +591,6 @@ const Portal: React.FC = () => {
       const cred = await signInWithEmailAndPassword(auth, email.toLowerCase(), password);
       const user = cred.user;
       
-      // 1. Super admin check
       if (user.email === 'johnrufai242@gmail.com') {
         sessionStorage.setItem('userRole', 'super_admin');
         sessionStorage.setItem('userId', user.uid);
@@ -620,7 +599,6 @@ const Portal: React.FC = () => {
         return;
       }
 
-      // 2. Fetch user profile
       const userSnap = await getDoc(doc(db, 'users', user.uid));
       let userData = userSnap.exists() ? userSnap.data() : null;
 
@@ -629,7 +607,6 @@ const Portal: React.FC = () => {
         throw new Error(`This account is ${getSafeAccountStatus(userData).toLowerCase()}. Please contact an administrator.`);
       }
 
-      // If user doc doesn't exist yet, check parents, tutors, or individualStudents
       let detectedRole = '';
       let detectedName = user.displayName || email.split('@')[0];
 
@@ -637,14 +614,12 @@ const Portal: React.FC = () => {
         detectedRole = (userData.role || '').toUpperCase();
         if (userData.name) detectedName = userData.name;
       } else {
-        // Fallback check parents collection
         const parentDoc = await getDoc(doc(db, 'parents', user.uid));
         if (parentDoc.exists()) {
           detectedRole = 'PARENT';
           if (parentDoc.data().name) detectedName = parentDoc.data().name;
         }
 
-        // Fallback check tutors collection
         if (!detectedRole) {
           const tutorDoc = await getDoc(doc(db, 'tutors', user.uid));
           if (tutorDoc.exists()) {
@@ -653,7 +628,6 @@ const Portal: React.FC = () => {
           }
         }
 
-        // Auto-create user document
         const initialRole = detectedRole ? detectedRole.toLowerCase() : activeTab;
         await setDoc(doc(db, 'users', user.uid), {
           email: user.email?.toLowerCase(),
@@ -664,7 +638,6 @@ const Portal: React.FC = () => {
         detectedRole = initialRole.toUpperCase();
       }
 
-      // Check admin
       if (detectedRole.includes('ADMIN')) {
         sessionStorage.setItem('userRole', 'super_admin');
         sessionStorage.setItem('userId', user.uid);
@@ -677,7 +650,6 @@ const Portal: React.FC = () => {
         return;
       }
 
-      // Smart role routing: If user logged in from any tab, route them to their proper portal destination seamlessly
       const targetRole = detectedRole || activeTab.toUpperCase();
       let targetRoute = `/portal/${activeTab}`;
       let sessionRole: string = activeTab;
@@ -741,7 +713,6 @@ const Portal: React.FC = () => {
       let userRole = user.email === 'johnrufai242@gmail.com' ? 'SUPER_ADMIN' : activeTab.toUpperCase();
 
       if (!userSnap.exists()) {
-        // Check for pending invite
         const inviteDocRef = doc(db, 'invites', (user.email || '').toLowerCase());
         const inviteSnap = await getDoc(inviteDocRef);
         
@@ -750,7 +721,6 @@ const Portal: React.FC = () => {
           await deleteDoc(inviteDocRef);
         }
 
-        // Auto-create for first-time Google sign-in
         const newRecord = {
           email: user.email,
           name: user.displayName || '',
@@ -783,7 +753,6 @@ const Portal: React.FC = () => {
         return;
       }
 
-      // Route smoothly according to real user role
       let targetRoute = `/portal/${activeTab}`;
       let sessionRole = activeTab;
 
@@ -820,57 +789,6 @@ const Portal: React.FC = () => {
       } else if (err.code === 'auth/cancelled-popup-request') {
         msg = 'Sign-in cancelled. Please try again.';
       }
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStaffRegistration = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setLoading(true);
-
-    try {
-      if (staffPw.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
-      }
-
-      // Check registration code
-      let validCode = STAFF_REG_CODE_FALLBACK;
-      try {
-        const codeSnap = await getDoc(doc(db, 'staffRegistration', 'code'));
-        if (codeSnap.exists() && codeSnap.data().code) {
-          validCode = codeSnap.data().code;
-        }
-      } catch (e) {
-        console.warn('Could not read staffRegistration code doc, using default fallback:', e);
-      }
-
-      if (staffRegCode.trim() !== validCode) {
-        throw new Error('Invalid staff registration code. Please contact your Institute Admin.');
-      }
-
-      const cred = await createUserWithEmailAndPassword(auth, staffEmail.trim(), staffPw);
-      
-      const staffDocData = {
-        email: staffEmail.trim().toLowerCase(),
-        name: staffName.trim(),
-        role: 'staff',
-        createdAt: serverTimestamp()
-      };
-      
-      await setDoc(doc(db, 'users', cred.user.uid), staffDocData);
-      await setDoc(doc(db, 'tutors', cred.user.uid), staffDocData);
-
-      setSuccess('Staff account created successfully! You can now log in.');
-      setShowStaffReg(false);
-      setIdentifier(staffEmail.trim());
-      setPassword(staffPw);
-    } catch (err: any) {
-      let msg = err.message || 'Staff registration failed.';
-      if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered. Please log in instead.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -930,8 +848,7 @@ const Portal: React.FC = () => {
                   setError(''); 
                   setSuccess('');
                   setIdentifier(''); 
-                  setPassword(''); 
-                  setShowStaffReg(false);
+                  setPassword('');
                 }}
               >
                 <span className="tab-ico">{tab.icon}</span>
@@ -941,192 +858,107 @@ const Portal: React.FC = () => {
           </div>
 
           <div className="form-body">
-            {showStaffReg ? (
-              <div className="pane">
-                <div className="form-title">Staff <em>Registration</em></div>
-                <div className="form-sub">Enter your staff authorization credentials</div>
-
-                {error && <div className="msg msg-error show">{error}</div>}
-                {success && <div className="msg msg-success show">{success}</div>}
-
-                <form onSubmit={handleStaffRegistration}>
-                  <div className="field">
-                    <label>Staff Registration Code</label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><KeyRound size={15} /></span>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. JAYSTAR2024" 
-                        required 
-                        value={staffRegCode}
-                        onChange={e => setStaffRegCode(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="field">
-                    <label>Full Name</label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><UserCheck size={15} /></span>
-                      <input 
-                        type="text" 
-                        placeholder="Instructor Name" 
-                        required 
-                        value={staffName}
-                        onChange={e => setStaffName(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="field">
-                    <label>Official Email</label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><Mail size={15} /></span>
-                      <input 
-                        type="email" 
-                        placeholder="tutor@jaystarbliss.ng" 
-                        required 
-                        value={staffEmail}
-                        onChange={e => setStaffEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="field">
-                    <label>Create Password</label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><Lock size={15} /></span>
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        className="has-eye" 
-                        placeholder="Min 6 characters" 
-                        required 
-                        value={staffPw}
-                        onChange={e => setStaffPw(e.target.value)}
-                      />
-                      <button type="button" className="pw-eye" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <CyberLiquidButton type="submit" loading={loading}>
-                    Complete Staff Registration →
-                  </CyberLiquidButton>
-
-                  <div className="toggle-link mt-4">
-                    Already registered? <button type="button" onClick={() => setShowStaffReg(false)} className="font-semibold underline" style={{ color: 'var(--link)' }}>Back to Login</button>
-                  </div>
-                </form>
+            <div className="pane">
+              <div className="form-title capitalize">{activeTab} <em>Portal Login</em></div>
+              <div className="form-sub">
+                {activeTab === 'student' && 'Enter your Student Username & Access Code'}
+                {activeTab === 'school' && 'Enter your School Email or Partner Access Code'}
+                {activeTab === 'parent' && 'Sign in to monitor your children’s classes & progress'}
+                {activeTab === 'staff' && 'Sign in to your tutor & instructor workspace'}
               </div>
-            ) : (
-              <div className="pane">
-                <div className="form-title capitalize">{activeTab} <em>Portal Login</em></div>
-                <div className="form-sub">
-                  {activeTab === 'student' && 'Enter your Student Username & Access Code'}
-                  {activeTab === 'school' && 'Enter your School Email or Partner Access Code'}
-                  {activeTab === 'parent' && 'Sign in to monitor your children’s classes & progress'}
-                  {activeTab === 'staff' && 'Sign in to your tutor & instructor workspace'}
+              
+              {error && <div className="msg msg-error show">{error}</div>}
+              {success && <div className="msg msg-success show">{success}</div>}
+              
+              <form onSubmit={handleGeneralLogin} autoComplete="on">
+                <div className="field">
+                  <label>
+                    {activeTab === 'student' && 'Student Username or Email'}
+                    {activeTab === 'school' && 'School Email or Terminal ID'}
+                    {activeTab === 'parent' && 'Parent Email Address'}
+                    {activeTab === 'staff' && 'Staff / Tutor Email'}
+                  </label>
+                  <div className="input-wrap">
+                    <span className="input-icon"><Mail size={15} /></span>
+                    <input 
+                      type={activeTab === 'student' || activeTab === 'school' ? 'text' : 'email'} 
+                      placeholder={
+                        activeTab === 'student' ? 'e.g. john or john@example.com' :
+                        activeTab === 'school' ? 'school@institution.edu' :
+                        activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'
+                      } 
+                      required 
+                      value={identifier}
+                      onChange={e => setIdentifier(e.target.value)}
+                    />
+                  </div>
                 </div>
                 
-                {error && <div className="msg msg-error show">{error}</div>}
-                {success && <div className="msg msg-success show">{success}</div>}
-                
-                <form onSubmit={handleGeneralLogin} autoComplete="on">
-                  <div className="field">
-                    <label>
-                      {activeTab === 'student' && 'Student Username or Email'}
-                      {activeTab === 'school' && 'School Email or Terminal ID'}
-                      {activeTab === 'parent' && 'Parent Email Address'}
-                      {activeTab === 'staff' && 'Staff / Tutor Email'}
-                    </label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><Mail size={15} /></span>
-                      <input 
-                        type={activeTab === 'student' || activeTab === 'school' ? 'text' : 'email'} 
-                        placeholder={
-                          activeTab === 'student' ? 'e.g. john or john@example.com' :
-                          activeTab === 'school' ? 'school@institution.edu' :
-                          activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'
-                        } 
-                        required 
-                        value={identifier}
-                        onChange={e => setIdentifier(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="field">
-                    <label>
-                      {activeTab === 'student' ? 'Student Access Code (Password)' : 'Password / Access Code'}
-                    </label>
-                    <div className="input-wrap">
-                      <span className="input-icon"><Lock size={15} /></span>
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        className="has-eye" 
-                        placeholder="••••••••" 
-                        required 
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                      />
-                      <button type="button" className="pw-eye" onClick={() => setShowPassword(!showPassword)}>
-                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '-0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <input 
-                        type="checkbox" 
-                        id="rememberMe" 
-                        checked={rememberMe}
-                        onChange={e => setRememberMe(e.target.checked)}
-                        style={{ width: 'auto' }} 
-                      />
-                      <label htmlFor="rememberMe" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-dim)', textTransform: 'none', letterSpacing: 'normal' }}>
-                        Remember me
-                      </label>
-                    </div>
-
-                    {activeTab === 'staff' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setShowStaffReg(true); setError(''); setSuccess(''); }}
-                        className="text-xs font-semibold hover:underline"
-                        style={{ color: 'var(--link)' }}
-                      >
-                        Register as Staff
-                      </button>
-                    )}
-                  </div>
-                  
-                  <CyberLiquidButton type="submit" loading={loading}>
-                    {activeTab === 'student' ? 'LAUNCH STUDENT HUB →' : 'INITIALIZE ACCESS →'}
-                  </CyberLiquidButton>
-                </form>
-
-                {(activeTab === 'parent' || activeTab === 'staff') && (
-                  <>
-                    <div className="auth-divider">or</div>
-                    <button type="button" className="google-btn" onClick={handleGoogleLogin} disabled={loading}>
-                      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-                        <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.5 29.3 35 24 35c-6.1 0-11-4.9-11-11s4.9-11 11-11c2.8 0 5.3 1 7.2 2.7l5.7-5.7C33.5 7.1 29 5 24 5 12.9 5 4 13.9 4 25s8.9 20 20 20c10.8 0 19.6-8.5 19.6-20 0-1.3-.1-2.6-.4-3.9z"/>
-                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c2.8 0 5.3 1 7.2 2.7l5.7-5.7C33.5 7.1 29 5 24 5 16.3 5 9.7 9 6.3 14.7z"/>
-                        <path fill="#4CAF50" d="M24 45c4.9 0 9.3-1.8 12.7-4.8l-5.9-5c-1.8 1.3-4 2-6.8 2-5.2 0-9.6-3.5-11.2-8.2l-6.5 5C9.5 41 16.2 45 24 45z"/>
-                        <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4-4.1 5.3l5.9 5C36.7 39.8 44 34.3 44 25c0-1.3-.1-2.6-.4-3.9z"/>
-                      </svg>
-                      <span className="btn-text">Continue with Google</span>
+                <div className="field">
+                  <label>
+                    {activeTab === 'student' ? 'Student Access Code (Password)' : 'Password / Access Code'}
+                  </label>
+                  <div className="input-wrap">
+                    <span className="input-icon"><Lock size={15} /></span>
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      className="has-eye" 
+                      placeholder="••••••••" 
+                      required 
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                    />
+                    <button type="button" className="pw-eye" onClick={() => setShowPassword(!showPassword)}>
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
-                  </>
-                )}
-
-                <div className="toggle-link">
-                  Don't have an account yet? <Link to="/register">Register / Enroll Here →</Link>
+                  </div>
                 </div>
+                
+                <div className="field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '-0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="rememberMe" 
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      style={{ width: 'auto' }} 
+                    />
+                    <label htmlFor="rememberMe" style={{ margin: 0, fontSize: '0.85rem', fontWeight: 'normal', color: 'var(--text-dim)', textTransform: 'none', letterSpacing: 'normal' }}>
+                      Remember me
+                    </label>
+                  </div>
+
+                  {activeTab === 'staff' && (
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-dim)' }}>
+                      Staff accounts are created by administrators
+                    </span>
+                  )}
+                </div>
+                
+                <CyberLiquidButton type="submit" loading={loading}>
+                  {activeTab === 'student' ? 'LAUNCH STUDENT HUB →' : 'INITIALIZE ACCESS →'}
+                </CyberLiquidButton>
+              </form>
+
+              {(activeTab === 'parent' || activeTab === 'staff') && (
+                <>
+                  <div className="auth-divider">or</div>
+                  <button type="button" className="google-btn" onClick={handleGoogleLogin} disabled={loading}>
+                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                      <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.5 29.3 35 24 35c-6.1 0-11-4.9-11-11s4.9-11 11-11c2.8 0 5.3 1 7.2 2.7l5.7-5.7C33.5 7.1 29 5 24 5 12.9 5 4 13.9 4 25s8.9 20 20 20c10.8 0 19.6-8.5 19.6-20 0-1.3-.1-2.6-.4-3.9z"/>
+                      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c2.8 0 5.3 1 7.2 2.7l5.7-5.7C33.5 7.1 29 5 24 5 16.3 5 9.7 9 6.3 14.7z"/>
+                      <path fill="#4CAF50" d="M24 45c4.9 0 9.3-1.8 12.7-4.8l-5.9-5c-1.8 1.3-4 2-6.8 2-5.2 0-9.6-3.5-11.2-8.2l-6.5 5C9.5 41 16.2 45 24 45z"/>
+                      <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4-4.1 5.3l5.9 5C36.7 39.8 44 34.3 44 25c0-1.3-.1-2.6-.4-3.9z"/>
+                    </svg>
+                    <span className="btn-text">Continue with Google</span>
+                  </button>
+                </>
+              )}
+
+              <div className="toggle-link">
+                Don't have an account yet? <Link to="/register">Register / Enroll Here →</Link>
               </div>
-            )}
+            </div>
           </div>
 
           <div className="form-foot">
