@@ -55,12 +55,11 @@ export const handler: Handler = async (event) => {
 
     const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
     const canonicalExisting = await canonicalPaymentRef.get();
-    const existing = canonicalExisting.exists
-      ? canonicalExisting
+    const legacyExisting = canonicalExisting.exists
+      ? null
       : (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
-
-    if (existing) {
-      const existingPayment = existing.data();
+    if (legacyExisting) {
+      const existingPayment = legacyExisting.data();
       if (
         String(existingPayment.userId || "") !== decoded.uid ||
         String(existingPayment.planId || "") !== metadataPlanId ||
@@ -74,29 +73,6 @@ export const handler: Handler = async (event) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ verified: true, reference, enrollmentRequestId: enrollmentRequestId || null, alreadyRecorded: true })
       };
-    }
-
-    let enrollmentRequest: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData> | null = null;
-    if (enrollmentRequestId) {
-      if (metadataRole !== "parent") {
-        return { statusCode: 400, body: JSON.stringify({ error: "Only parent enrollment payments can be linked to an enrollment request." }) };
-      }
-
-      enrollmentRequest = await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).get();
-      if (!enrollmentRequest.exists) {
-        return { statusCode: 404, body: JSON.stringify({ error: "Linked enrollment request could not be found." }) };
-      }
-
-      const enrollmentData = enrollmentRequest.data() || {};
-      if (String(enrollmentData.parentId || "") !== decoded.uid) {
-        return { statusCode: 403, body: JSON.stringify({ error: "Payment is not authorized for this enrollment request." }) };
-      }
-      if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== metadataPlanId) {
-        return { statusCode: 400, body: JSON.stringify({ error: "Payment plan does not match the linked enrollment request." }) };
-      }
-      if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") {
-        return { statusCode: 409, body: JSON.stringify({ error: "This enrollment request has already been paid." }) };
-      }
     }
 
     const paymentData = {
@@ -119,12 +95,40 @@ export const handler: Handler = async (event) => {
       paidAt: tx.paid_at || null
     };
 
-    try {
-      await canonicalPaymentRef.create(paymentData);
-    } catch (writeError: any) {
-      if (writeError?.code !== 6 && !String(writeError?.message || "").toLowerCase().includes("already exists")) {
-        throw writeError;
+    const result = await adminDb.runTransaction(async (transaction) => {
+      const paymentSnapshot = await transaction.get(canonicalPaymentRef);
+      if (paymentSnapshot.exists) return "existing" as const;
+
+      let enrollmentRequest: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData> | null = null;
+      if (enrollmentRequestId) {
+        if (metadataRole !== "parent") {
+          throw new Error("ENROLLMENT_ROLE_MISMATCH");
+        }
+        const enrollmentRef = adminDb.collection("enrollment_requests").doc(enrollmentRequestId);
+        enrollmentRequest = await transaction.get(enrollmentRef);
+        if (!enrollmentRequest.exists) throw new Error("ENROLLMENT_NOT_FOUND");
+
+        const enrollmentData = enrollmentRequest.data() || {};
+        if (String(enrollmentData.parentId || "") !== decoded.uid) throw new Error("ENROLLMENT_OWNER_MISMATCH");
+        if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== metadataPlanId) throw new Error("ENROLLMENT_PLAN_MISMATCH");
+        if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") throw new Error("ENROLLMENT_ALREADY_PAID");
+
+        transaction.create(canonicalPaymentRef, paymentData);
+        transaction.set(enrollmentRef, {
+          paymentStatus: "PAID",
+          paymentReference: reference,
+          paymentPlanId: metadataPlanId,
+          paidAt: new Date(),
+          updatedAt: new Date()
+        }, { merge: true });
+        return "created" as const;
       }
+
+      transaction.create(canonicalPaymentRef, paymentData);
+      return "created" as const;
+    });
+
+    if (result === "existing") {
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
@@ -132,18 +136,14 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    if (enrollmentRequestId && enrollmentRequest) {
-      await enrollmentRequest.ref.set({
-        paymentStatus: "PAID",
-        paymentReference: reference,
-        paymentPlanId: metadataPlanId,
-        paidAt: new Date(),
-        updatedAt: new Date()
-      }, { merge: true });
-    }
-
     return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ verified: true, reference, enrollmentRequestId: enrollmentRequestId || null }) };
   } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if (code === "ENROLLMENT_NOT_FOUND") return { statusCode: 404, body: JSON.stringify({ error: "Linked enrollment request could not be found." }) };
+    if (code === "ENROLLMENT_OWNER_MISMATCH") return { statusCode: 403, body: JSON.stringify({ error: "Payment is not authorized for this enrollment request." }) };
+    if (code === "ENROLLMENT_PLAN_MISMATCH") return { statusCode: 400, body: JSON.stringify({ error: "Payment plan does not match the linked enrollment request." }) };
+    if (code === "ENROLLMENT_ALREADY_PAID") return { statusCode: 409, body: JSON.stringify({ error: "This enrollment request has already been paid." }) };
+    if (code === "ENROLLMENT_ROLE_MISMATCH") return { statusCode: 400, body: JSON.stringify({ error: "Only parent enrollment payments can be linked to an enrollment request." }) };
     console.error("Payment verification error:", error);
     return { statusCode: 500, body: JSON.stringify({ error: "Unable to verify payment." }) };
   }
