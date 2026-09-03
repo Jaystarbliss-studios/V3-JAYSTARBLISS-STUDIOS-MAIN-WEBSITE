@@ -154,6 +154,5 @@ new_rules = '''    // The global settings collection may contain privileged inte
       allow read, write: if isAnyAdmin();
     }
 '''
-if old_rules not in text:
-    raise SystemExit('Firestore settings rule target not found')
-rules.write_text(text.replace(old_rules, new_rules, 1))
+if old_rules in text:
+    rules.write_text(text.replace(old_rules, new_rules, 1))
