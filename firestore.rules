@@ -98,7 +98,7 @@ service cloud.firestore {
     }
 
     match /invites/{email} {
-      allow read: if true;
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower());
       allow write: if isAnyAdmin();
       allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower());
     }
@@ -147,7 +147,7 @@ service cloud.firestore {
     }
 
     match /exams/{examId} {
-      allow read: if true;
+      allow read: if isAuth();
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
@@ -217,7 +217,7 @@ service cloud.firestore {
     }
 
     match /enrollment_requests/{reqId} {
-      allow create: if true;
+      allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
       allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
       allow update: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid && request.resource.data.parentId == request.auth.uid);
       allow delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
@@ -242,7 +242,14 @@ service cloud.firestore {
     // NOTIFICATIONS & MESSAGES & LOGS
     // ==========================================
     match /notifications/{notificationId} {
-      allow read: if isAuth();
+      // Notifications are private unless explicitly addressed to this account/role,
+      // while administrators retain full visibility for operational history.
+      allow read: if isAnyAdmin() || (isAuth() && (
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.recipientId == 'all' ||
+        (resource.data.recipientId == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STUDENT','student']) ||
+        (resource.data.recipientId == 'all_staff' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])
+      ));
       allow create, delete: if isAnyAdmin();
       allow update: if isAnyAdmin() || (
         isAuth() &&
