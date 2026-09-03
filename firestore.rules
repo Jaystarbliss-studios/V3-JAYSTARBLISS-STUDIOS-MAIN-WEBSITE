@@ -100,7 +100,7 @@ service cloud.firestore {
     match /invites/{email} {
       allow read: if true;
       allow write: if isAnyAdmin();
-      allow delete: if isAuth();
+      allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower());
     }
 
     // ==========================================
