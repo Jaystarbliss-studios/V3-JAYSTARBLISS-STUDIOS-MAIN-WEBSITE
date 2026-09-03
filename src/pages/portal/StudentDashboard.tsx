@@ -527,6 +527,7 @@ const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
+            {upcomingAssignments.length === 0 && <div className="py-10 text-center text-sm text-gray-500">No upcoming assessments or assignments have been scheduled.</div>}
             {upcomingAssignments.map((task) => (
               <div 
                 key={task.id} 
@@ -576,6 +577,7 @@ const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
+            {recentActivities.length === 0 && <div className="py-10 text-center text-sm text-gray-500">No completed learning activities have been recorded yet.</div>}
             {recentActivities.map((act) => {
               const Icon = act.icon;
               return (
