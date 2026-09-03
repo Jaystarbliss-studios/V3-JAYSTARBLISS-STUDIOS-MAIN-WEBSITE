@@ -140,13 +140,16 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
-      allow create, update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow create: if isAnyAdmin() || (isStaffOrTutor() && request.resource.data.get('tutorId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('staffId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('assignedTutorId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('assignedStaffId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('instructorId', '') == request.auth.uid);
+      allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(studentId) && request.resource.data.schoolId == resource.data.schoolId);
       allow delete: if isAnyAdmin();
     }
 
     match /studentModules/{docId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
+      allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId));
+      allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId);
+      allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
     }
 
     match /personalResources/{docId} {
