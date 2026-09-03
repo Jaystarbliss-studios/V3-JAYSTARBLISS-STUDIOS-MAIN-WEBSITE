@@ -1,13 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Clock, Trophy, Video, ExternalLink, 
-  FileText, Download, Bell, Award, CheckCircle2,
-  X, ArrowRight, Lock, Code2, Activity
+import {
+  Activity,
+  ArrowRight,
+  Award,
+  Bell,
+  CheckCircle2,
+  Clock,
+  Code2,
+  Download,
+  ExternalLink,
+  FileText,
+  Lock,
+  Trophy,
+  Video,
+  X,
 } from 'lucide-react';
-import { 
-  collection, query, where, getDocs, doc, getDoc, 
-  limit, updateDoc 
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import SEO from '../../components/ui/SEO';
@@ -15,7 +32,10 @@ import { AchievementBadgeGrid } from '../../components/ecosystem/AchievementBadg
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 import { StudentAnalyticsVisualizer } from '../../components/portal/StudentAnalyticsVisualizer';
 import { useToast } from '../../contexts/ToastContext';
-import { generateModuleCertificatePdf, type ModuleCertificateData } from '../../lib/certificatePdfGenerator';
+import {
+  generateModuleCertificatePdf,
+  type ModuleCertificateData,
+} from '../../lib/certificatePdfGenerator';
 
 interface StudentInfo {
   id?: string;
@@ -59,7 +79,6 @@ interface ResourceItem {
   targetClass?: string;
   class?: string;
   isClassSpecific?: boolean;
-  createdAt?: any;
 }
 
 interface LinkItem {
@@ -82,60 +101,93 @@ interface ExamItem {
   targetClass?: string;
   class?: string;
   passcodeProtected?: boolean;
-  passcode?: string;
 }
 
 interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type?: string;
-  createdAt?: any;
   readBy?: string[];
 }
 
-// Circular Progress Component matching Screenshot
-const CircularProgress: React.FC<{ percentage: number; label: string; size?: number; strokeWidth?: number }> = ({
-  percentage,
-  label,
-  size = 112,
-  strokeWidth = 9
-}) => {
+const stableCredentialId = (studentKey: string, moduleId: string) => {
+  let hash = 0;
+  const source = `${studentKey}:${moduleId}`;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return `JDS-CERT-${hash.toString(36).toUpperCase().padStart(7, '0').slice(-7)}`;
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return 'No deadline set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-NG', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const CircularProgress: React.FC<{
+  percentage: number;
+  label: string;
+  modulesDone: number;
+  modulesTotal: number;
+}> = ({ percentage, label, modulesDone, modulesTotal }) => {
+  const size = 112;
+  const strokeWidth = 9;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (percentage / 100) * circumference;
+  const safePercentage = Math.min(100, Math.max(0, percentage));
+  const offset = circumference - (safePercentage / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center justify-center p-3 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-950/60 px-2 py-4 text-center">
       <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg className="transform -rotate-90" width={size} height={size}>
+        <svg
+          className="-rotate-90"
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          role="img"
+          aria-label={`${label}: ${safePercentage}% complete`}
+        >
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
             stroke="currentColor"
             strokeWidth={strokeWidth}
-            fill="transparent"
+            fill="none"
             className="text-slate-200 dark:text-slate-800"
           />
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke="#e63946"
+            stroke="currentColor"
             strokeWidth={strokeWidth}
-            fill="transparent"
+            fill="none"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             strokeLinecap="round"
-            className="transition-all duration-1000 ease-out"
+            className="text-brand-red transition-all duration-700 ease-out"
           />
         </svg>
-        <div className="absolute flex flex-col items-center justify-center">
-          <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">{percentage}%</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
+            {safePercentage}%
+          </span>
         </div>
       </div>
-      <p className="mt-2.5 text-xs font-bold text-gray-700 dark:text-slate-300 line-clamp-1">{label}</p>
+      <p className="mt-3 text-xs font-bold text-gray-800 dark:text-slate-200 line-clamp-2">
+        {label || 'Learning track'}
+      </p>
+      <p className="mt-1 text-[11px] text-gray-500 dark:text-slate-400">
+        {modulesDone} of {modulesTotal} modules
+      </p>
     </div>
   );
 };
@@ -152,13 +204,13 @@ const StudentDashboard: React.FC = () => {
   const [modules, setModules] = useState<ProgramModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [resourceFilter, setResourceFilter] = useState<'ALL' | 'CLASS' | 'GENERAL'>('ALL');
-
-  // Certificate Modal State
   const [selectedModuleForCert, setSelectedModuleForCert] = useState<ProgramModule | null>(null);
   const [certStudentName, setCertStudentName] = useState('');
   const [generatingCert, setGeneratingCert] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchStudentData = async () => {
       setLoading(true);
       try {
@@ -167,55 +219,55 @@ const StudentDashboard: React.FC = () => {
         const studentUsername = sessionStorage.getItem('studentUsername');
         const cachedClass = sessionStorage.getItem('studentClass');
 
-        let sData: StudentInfo | null = null;
-        let sId = studentDocId || '';
+        let studentRecord: StudentInfo | null = null;
+        let studentId = studentDocId || '';
 
-        // 1. Fetch Student Profile
-        if (sId) {
+        if (studentId) {
           try {
-            const sSnap = await getDoc(doc(db, 'individualStudents', sId));
-            if (sSnap.exists()) {
-              sData = { id: sSnap.id, ...sSnap.data() };
+            const snap = await getDoc(doc(db, 'individualStudents', studentId));
+            if (snap.exists()) {
+              studentRecord = { id: snap.id, ...snap.data() } as StudentInfo;
             }
-          } catch (e) {
-            console.warn('Direct sId fetch error:', e);
+          } catch (error) {
+            console.warn('Direct student lookup failed:', error);
           }
         }
 
-        if (!sData && currentUser) {
+        if (!studentRecord && currentUser) {
           try {
-            const q = query(
-              collection(db, 'individualStudents'),
-              where('firebaseUid', '==', currentUser.uid)
+            const snap = await getDocs(
+              query(collection(db, 'individualStudents'), where('firebaseUid', '==', currentUser.uid), limit(1))
             );
-            const snap = await getDocs(q);
             if (!snap.empty) {
-              sId = snap.docs[0].id;
-              sData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              studentId = snap.docs[0].id;
+              studentRecord = { id: snap.docs[0].id, ...snap.docs[0].data() } as StudentInfo;
             }
-          } catch (e) {
-            console.warn('Uid lookup error:', e);
+          } catch (error) {
+            console.warn('Firebase UID lookup failed:', error);
           }
         }
 
-        if (!sData && studentUsername) {
+        if (!studentRecord && studentUsername) {
           try {
-            const q = query(
-              collection(db, 'individualStudents'),
-              where('username', '==', studentUsername.toLowerCase())
+            const snap = await getDocs(
+              query(
+                collection(db, 'individualStudents'),
+                where('username', '==', studentUsername.toLowerCase()),
+                limit(1)
+              )
             );
-            const snap = await getDocs(q);
             if (!snap.empty) {
-              sId = snap.docs[0].id;
-              sData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              studentId = snap.docs[0].id;
+              studentRecord = { id: snap.docs[0].id, ...snap.docs[0].data() } as StudentInfo;
             }
-          } catch (e) {
-            console.warn('Username lookup error:', e);
+          } catch (error) {
+            console.warn('Username lookup failed:', error);
           }
         }
 
-        // No fabricated profile: a protected dashboard must only display authoritative records.
-        if (!sData) {
+        if (cancelled) return;
+
+        if (!studentRecord) {
           setStudent(null);
           setPersonalResources([]);
           setPersonalLinks([]);
@@ -226,1369 +278,975 @@ const StudentDashboard: React.FC = () => {
           setModules([]);
           return;
         }
-        if (!sData.class && cachedClass) {
-          sData.class = cachedClass;
-        }
-        setStudent(sData);
-        setCertStudentName(sData.fullName || 'Active Cadet');
 
-        const assignedClass = (sData.class || sData.grade || cachedClass || '').trim();
-
-        // 2. Fetch Personal Resources
-        if (sId || currentUser?.uid) {
-          try {
-            const resourceQueries = [
-              query(collection(db, 'personalResources'), where('studentId', '==', sId)),
-              ...(currentUser?.uid ? [query(collection(db, 'personalResources'), where('userId', '==', currentUser.uid))] : [])
-            ];
-            const pResMap = new Map<string, ResourceItem>();
-            for (const rq of resourceQueries) {
-              const snap = await getDocs(rq);
-              snap.forEach(d => pResMap.set(d.id, { id: d.id, ...d.data() } as ResourceItem));
-            }
-            setPersonalResources(Array.from(pResMap.values()));
-          } catch (e) {
-            console.warn('Personal resources query error:', e);
-          }
-
-          // 3. Fetch Personal Links
-          try {
-            const linkQueries = [
-              query(collection(db, 'personalLinks'), where('studentId', '==', sId)),
-              ...(currentUser?.uid ? [query(collection(db, 'personalLinks'), where('userId', '==', currentUser.uid))] : [])
-            ];
-            const pLinksMap = new Map<string, LinkItem>();
-            for (const lq of linkQueries) {
-              const snap = await getDocs(lq);
-              snap.forEach(d => pLinksMap.set(d.id, { id: d.id, ...d.data() } as LinkItem));
-            }
-            setPersonalLinks(Array.from(pLinksMap.values()));
-          } catch (e) {
-            console.warn('Personal links query error:', e);
-          }
+        if (!studentRecord.class && cachedClass) {
+          studentRecord.class = cachedClass;
         }
 
-        // 4. Fetch General Resources & Class Specific Resources
-        try {
-          const genList: ResourceItem[] = [];
-          const clsList: ResourceItem[] = [];
+        setStudent(studentRecord);
+        setCertStudentName(studentRecord.fullName || '');
+        const assignedClass = (studentRecord.class || studentRecord.grade || cachedClass || '').trim();
+        const currentStudentId = studentId;
+        const currentUid = currentUser?.uid;
 
-          // From standard resources collection
-          const resSnap = await getDocs(query(collection(db, 'resources'), limit(15)));
-          resSnap.docs.forEach(d => {
-            const item = { id: d.id, ...d.data() } as ResourceItem;
-            const itemClass = (item.targetClass || item.class || '').trim();
-            if (itemClass && assignedClass && (itemClass.toLowerCase() === assignedClass.toLowerCase() || itemClass.toLowerCase().includes(assignedClass.toLowerCase()))) {
-              clsList.push({ ...item, isClassSpecific: true });
-            } else {
-              genList.push({ ...item, isClassSpecific: false });
-            }
-          });
+        const [personalResourceResults, personalLinkResults, resourceSnapshot, examSnapshot] = await Promise.all([
+          currentStudentId || currentUid
+            ? Promise.all([
+                getDocs(query(collection(db, 'personalResources'), where('studentId', '==', currentStudentId))),
+                ...(currentUid
+                  ? [getDocs(query(collection(db, 'personalResources'), where('userId', '==', currentUid)))]
+                  : []),
+              ])
+            : Promise.resolve([]),
+          currentStudentId || currentUid
+            ? Promise.all([
+                getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', currentStudentId))),
+                ...(currentUid
+                  ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]
+                  : []),
+              ])
+            : Promise.resolve([]),
+          getDocs(query(collection(db, 'resources'), limit(20))),
+          getDocs(query(collection(db, 'exams'), limit(15))),
+        ]);
 
-          // From schoolResources collection
+        if (cancelled) return;
+
+        const personalResourceMap = new Map<string, ResourceItem>();
+        personalResourceResults.forEach((snap) => {
+          snap.forEach((item) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem));
+        });
+        setPersonalResources(Array.from(personalResourceMap.values()));
+
+        const personalLinkMap = new Map<string, LinkItem>();
+        personalLinkResults.forEach((snap) => {
+          snap.forEach((item) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem));
+        });
+        setPersonalLinks(Array.from(personalLinkMap.values()));
+
+        const classList: ResourceItem[] = [];
+        const generalList: ResourceItem[] = [];
+        resourceSnapshot.forEach((resourceDoc) => {
+          const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+          const itemClass = (item.targetClass || item.class || '').trim().toLowerCase();
+          const target = assignedClass.toLowerCase();
+          if (itemClass && target && (itemClass === target || itemClass.includes(target) || target.includes(itemClass))) {
+            classList.push({ ...item, isClassSpecific: true });
+          } else {
+            generalList.push({ ...item, isClassSpecific: false });
+          }
+        });
+
+        if (studentRecord.schoolId) {
           try {
-            const schResSnap = sData?.schoolId
-              ? await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', sData.schoolId)))
-              : { docs: [] } as any;
-            schResSnap.docs.forEach((d: any) => {
-              const item = { id: d.id, ...d.data() } as ResourceItem;
-              const itemClass = (item.targetClass || item.class || '').trim();
-              if (itemClass && assignedClass && (itemClass.toLowerCase() === assignedClass.toLowerCase() || itemClass.toLowerCase().includes(assignedClass.toLowerCase()))) {
-                if (!clsList.some(r => r.id === item.id)) {
-                  clsList.push({ ...item, isClassSpecific: true });
-                }
-              } else {
-                if (!genList.some(r => r.id === item.id)) {
-                  genList.push({ ...item, isClassSpecific: false });
-                }
+            const schoolResourceSnap = await getDocs(
+              query(collection(db, 'schoolResources'), where('schoolId', '==', studentRecord.schoolId), limit(20))
+            );
+            schoolResourceSnap.forEach((resourceDoc) => {
+              const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+              const itemClass = (item.targetClass || item.class || '').trim().toLowerCase();
+              const target = assignedClass.toLowerCase();
+              const destination = itemClass && target && (itemClass === target || itemClass.includes(target) || target.includes(itemClass))
+                ? classList
+                : generalList;
+              if (!destination.some((resource) => resource.id === item.id)) {
+                destination.push({ ...item, isClassSpecific: destination === classList });
               }
             });
-          } catch {
-            // Non-fatal
+          } catch (error) {
+            console.warn('School resource lookup failed:', error);
           }
-
-          setGeneralResources(genList);
-          setClassResources(clsList);
-        } catch (e) {
-          console.warn('Resources fetch error:', e);
         }
 
-        // 5. Fetch Exams & Mock Tests (General + Forwarded Class Exams)
-        try {
-          const examList: ExamItem[] = [];
-          
-          const exSnap = await getDocs(query(collection(db, 'exams'), limit(10)));
-          exSnap.docs.forEach(d => {
-            examList.push({ id: d.id, ...d.data() } as ExamItem);
-          });
+        setClassResources(classList);
+        setGeneralResources(generalList);
 
+        const examList: ExamItem[] = examSnapshot.docs.map((examDoc) => ({
+          id: examDoc.id,
+          ...examDoc.data(),
+        } as ExamItem));
+
+        if (studentRecord.schoolId) {
           try {
-            const schExSnap = sData?.schoolId
-              ? await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', sData.schoolId)))
-              : { docs: [] } as any;
-            schExSnap.docs.forEach((d: any) => {
-              const exData = { id: d.id, ...d.data() } as ExamItem;
-              const exClass = (exData.targetClass || exData.class || '').trim();
-              if (!exClass || !assignedClass || exClass.toLowerCase().includes(assignedClass.toLowerCase()) || assignedClass.toLowerCase().includes(exClass.toLowerCase())) {
-                if (!examList.some(x => x.id === exData.id)) {
-                  examList.push(exData);
-                }
+            const schoolExamSnap = await getDocs(
+              query(collection(db, 'schoolExams'), where('schoolId', '==', studentRecord.schoolId), limit(20))
+            );
+            schoolExamSnap.forEach((examDoc) => {
+              const exam = { id: examDoc.id, ...examDoc.data() } as ExamItem;
+              const examClass = (exam.targetClass || exam.class || '').trim().toLowerCase();
+              const target = assignedClass.toLowerCase();
+              if (!examClass || !target || examClass.includes(target) || target.includes(examClass)) {
+                if (!examList.some((item) => item.id === exam.id)) examList.push(exam);
               }
             });
-          } catch {
-            // Non-fatal
+          } catch (error) {
+            console.warn('School exam lookup failed:', error);
           }
-
-          setExams(examList);
-        } catch (e) {
-          console.warn('Exams fetch error:', e);
         }
+        setExams(examList);
 
-        // 6. Fetch Announcements / Notifications
         try {
           const notificationQueries = [
-            query(collection(db, 'notifications'), where('recipientId', '==', currentUser?.uid || '')), 
-            query(collection(db, 'notifications'), where('recipientId', '==', sId)),
+            ...(currentUid
+              ? [query(collection(db, 'notifications'), where('recipientId', '==', currentUid))]
+              : []),
+            query(collection(db, 'notifications'), where('recipientId', '==', currentStudentId)),
             query(collection(db, 'notifications'), where('recipientId', '==', 'all')),
-            query(collection(db, 'notifications'), where('recipientId', '==', 'all_students'))
+            query(collection(db, 'notifications'), where('recipientId', '==', 'all_students')),
           ];
           const notificationSnapshots = await Promise.all(notificationQueries.map(getDocs));
           const notificationMap = new Map<string, NotificationItem>();
-          notificationSnapshots.forEach(snap => snap.forEach(d => notificationMap.set(d.id, { id: d.id, ...d.data() } as NotificationItem)));
+          notificationSnapshots.forEach((snap) => {
+            snap.forEach((notificationDoc) => {
+              notificationMap.set(notificationDoc.id, {
+                id: notificationDoc.id,
+                ...notificationDoc.data(),
+              } as NotificationItem);
+            });
+          });
           setNotifications(Array.from(notificationMap.values()).slice(0, 10));
-        } catch (e) {
-          console.warn('Notifications fetch error:', e);
+        } catch (error) {
+          console.warn('Notification lookup failed:', error);
+          setNotifications([]);
         }
 
-        // 7. Fetch Student Enrolled Modules
         try {
           const moduleQueries = [
-            query(collection(db, 'studentModules'), where('studentId', '==', sId)),
-            ...(currentUser?.uid ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUser.uid))] : [])
+            query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId)),
+            ...(currentUid
+              ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUid))]
+              : []),
           ];
-          const moduleMap = new Map<string, any>();
-          for (const mq of moduleQueries) {
-            try {
-              const snap = await getDocs(mq);
-              snap.forEach(d => moduleMap.set(d.id, d));
-            } catch {}
-          }
-          const mSnap = { docs: Array.from(moduleMap.values()) };
-          if (mSnap.docs.length > 0) {
-            const userModules: ProgramModule[] = [];
-            mSnap.docs.forEach(docSnap => {
-              const d = docSnap.data();
-              if (d.studentId === sId || d.studentId === currentUser?.uid || d.studentUsername === studentUsername) {
-                 userModules.push({
-                   id: docSnap.id,
-                   title: d.title || 'Untitled module',
-                   stageName: d.stageName || `Stage ${Number(d.stageNumber) || 1}`,
-                   stageNumber: Number(d.stageNumber) || 1,
-                   trackName: d.trackName || '',
-                   completed: Boolean(d.completed),
-                   completionDate: d.completionDate || '',
-                   score: d.score || '',
-                   competencies: Array.isArray(d.competencies) ? d.competencies : [],
-                   instructor: d.instructor || ''
-                 });
-               }
+          const moduleMap = new Map<string, ProgramModule>();
+          const moduleSnapshots = await Promise.all(moduleQueries.map(getDocs));
+          moduleSnapshots.forEach((snap) => {
+            snap.forEach((moduleDoc) => {
+              const data = moduleDoc.data();
+              if (
+                data.studentId === currentStudentId ||
+                data.studentId === currentUid ||
+                data.studentUsername === studentUsername
+              ) {
+                moduleMap.set(moduleDoc.id, {
+                  id: moduleDoc.id,
+                  title: data.title || 'Untitled module',
+                  stageName: data.stageName || `Stage ${Number(data.stageNumber) || 1}`,
+                  stageNumber: Number(data.stageNumber) || 1,
+                  trackName: data.trackName || 'Learning Track',
+                  completed: Boolean(data.completed),
+                  completionDate: data.completionDate || '',
+                  score: data.score || '',
+                  competencies: Array.isArray(data.competencies) ? data.competencies : [],
+                  instructor: data.instructor || '',
+                });
+              }
             });
-            setModules(userModules);
-          } else {
-            setModules([]);
-          }
-        } catch (e) {
-          console.warn('Student modules fetch error:', e);
+          });
+          setModules(Array.from(moduleMap.values()).sort((a, b) => a.stageNumber - b.stageNumber));
+        } catch (error) {
+          console.warn('Student module lookup failed:', error);
           setModules([]);
         }
-
-      } catch (err) {
-        console.error('Error fetching student dashboard data:', err);
+      } catch (error) {
+        console.error('Error loading student dashboard:', error);
+        if (!cancelled) toast.error('Some student dashboard data could not be loaded.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchStudentData();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [toast]);
 
-  const markNotificationRead = async (notifId: string) => {
+  const markNotificationRead = async (notificationId: string) => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    try {
-      const nDoc = doc(db, 'notifications', notifId);
-      const snap = await getDoc(nDoc);
-      if (snap.exists()) {
-        const readBy = snap.data().readBy || [];
-        if (!readBy.includes(uid)) {
-          await updateDoc(nDoc, { readBy: [...readBy, uid] });
-          setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, readBy: [...(n.readBy || []), uid] } : n));
-        }
-      }
-    } catch (e) {
-      console.warn('Could not update notification state:', e);
-    }
-  };
 
-  const handleDownloadCertificate = (mod: ProgramModule, customName?: string) => {
-    setGeneratingCert(true);
     try {
-      const certData: ModuleCertificateData = {
-        studentName: (customName || certStudentName || student?.fullName || 'Scholar').trim(),
-        studentId: student?.username || student?.accessCode || 'JDH-STD',
-        moduleTitle: mod.title,
-        moduleStage: mod.stageName,
-        programTrack: mod.trackName,
-        competencies: mod.competencies,
-        issueDate: mod.completionDate || new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        }),
-        instructorName: mod.instructor || 'Lead Technical Instructor'
-      };
-
-      generateModuleCertificatePdf(certData);
-      toast.success(`Official PDF Certificate for "${mod.title}" generated and downloaded successfully!`);
-      setSelectedModuleForCert(null);
-    } catch (err) {
-      console.error('Error generating certificate:', err);
-      toast.error('Failed to generate certificate PDF. Please try again.');
-    } finally {
-      setGeneratingCert(false);
+      await updateDoc(doc(db, 'notifications', notificationId), {
+        readBy: Array.from(new Set([...(notifications.find((item) => item.id === notificationId)?.readBy || []), uid])),
+      });
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notificationId
+            ? { ...item, readBy: Array.from(new Set([...(item.readBy || []), uid])) }
+            : item
+        )
+      );
+    } catch (error) {
+      console.warn('Could not update notification state:', error);
     }
   };
 
   const courseProgressList = useMemo(() => {
     const byTrack = new Map<string, { total: number; completed: number }>();
-    modules.forEach(mod => {
-      const current = byTrack.get(mod.trackName) || { total: 0, completed: 0 };
+    modules.forEach((module) => {
+      const key = module.trackName || 'Learning Track';
+      const current = byTrack.get(key) || { total: 0, completed: 0 };
       current.total += 1;
-      if (mod.completed) current.completed += 1;
-      byTrack.set(mod.trackName, current);
+      if (module.completed) current.completed += 1;
+      byTrack.set(key, current);
     });
+
     return Array.from(byTrack.entries()).map(([label, value]) => ({
       label,
       percentage: value.total ? Math.round((value.completed / value.total) * 100) : 0,
       modulesDone: value.completed,
-      modulesTotal: value.total
+      modulesTotal: value.total,
     }));
   }, [modules]);
 
-  const upcomingAssignments = useMemo(() => exams.slice(0, 3).map(e => ({
-    id: e.id,
-    title: e.title,
-    track: e.subject || 'Assessment',
-    deadline: e.dueDate || 'No deadline set',
-    link: e.link || e.url
-  })), [exams]);
+  const upcomingAssignments = useMemo(
+    () =>
+      exams
+        .filter((exam) => exam.dueDate)
+        .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
+        .slice(0, 3),
+    [exams]
+  );
 
-  const recentActivities = useMemo(() => {
-    return modules
-      .filter(mod => mod.completed)
-      .sort((a, b) => String(b.completionDate || '').localeCompare(String(a.completionDate || '')))
-      .slice(0, 5)
-      .map(mod => ({
-        id: mod.id,
-        action: 'Completed Module',
-        detail: mod.title,
-        time: mod.completionDate || 'Completed',
-        icon: Award,
-        color: 'text-emerald-500 bg-emerald-500/10'
-      }));
-  }, [modules]);
+  const completedModules = useMemo(() => modules.filter((module) => module.completed), [modules]);
+  const currentModule = useMemo(
+    () => modules.find((module) => !module.completed) || modules[modules.length - 1],
+    [modules]
+  );
+  const recentActivities = useMemo(
+    () =>
+      completedModules
+        .slice()
+        .sort((a, b) => String(b.completionDate || '').localeCompare(String(a.completionDate || '')))
+        .slice(0, 5),
+    [completedModules]
+  );
 
-  const completedModulesCount = modules.filter(m => m.completed).length;
+  const displayedResources = useMemo(() => {
+    if (resourceFilter === 'CLASS') return classResources;
+    if (resourceFilter === 'GENERAL') return generalResources;
+    return [...personalResources, ...classResources, ...generalResources];
+  }, [classResources, generalResources, personalResources, resourceFilter]);
+
+  const completedModulesCount = completedModules.length;
+  const overallProgress = modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0;
+
+  const handleDownloadCertificate = (module: ProgramModule, customName?: string) => {
+    if (!module.completed) return;
+    const studentName = (customName || certStudentName || student?.fullName || '').trim();
+    if (!studentName) {
+      toast.error('Enter the student name before generating the certificate.');
+      return;
+    }
+
+    setGeneratingCert(true);
+    try {
+      const credentialId = stableCredentialId(student?.username || student?.accessCode || student?.id || 'student', module.id);
+      const certificate: ModuleCertificateData = {
+        studentName,
+        studentId: student?.username || student?.accessCode || student?.id || undefined,
+        moduleTitle: module.title,
+        moduleStage: module.stageName,
+        programTrack: module.trackName,
+        competencies: module.competencies,
+        issueDate: module.completionDate || undefined,
+        credentialId,
+        instructorName: module.instructor || undefined,
+      };
+
+      generateModuleCertificatePdf(certificate);
+      toast.success(`Certificate for “${module.title}” generated successfully.`);
+      setSelectedModuleForCert(null);
+    } catch (error) {
+      console.error('Certificate generation failed:', error);
+      toast.error('Failed to generate the certificate PDF.');
+    } finally {
+      setGeneratingCert(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-gray-500 flex flex-col items-center justify-center min-h-[300px]">
-        <div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin mb-3"></div>
-        <p className="text-sm font-medium">Synchronizing student portal profile & resources...</p>
+      <div className="min-h-[360px] flex items-center justify-center p-8">
+        <div className="text-center">
+          <div
+            className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-gray-200 border-t-brand-red dark:border-slate-800 dark:border-t-brand-red"
+            aria-hidden="true"
+          />
+          <p className="mt-4 text-sm font-medium text-gray-600 dark:text-slate-300">
+            Loading your learning workspace…
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="dashboard-interface space-y-6 md:space-y-8">
-      <SEO 
-        title="Student Workspace Dashboard" 
-        description="Access student classes, mentor feedback, assignments, module certificates, and learning resources." 
+      <SEO
+        title="Student Workspace Dashboard"
+        description="Access student classes, mentor feedback, assignments, module certificates, and learning resources."
         noindex={true}
       />
 
-      {/* Dynamic Timezone Greeting Banner */}
-      <DashboardGreeting 
-        name={`Cadet ${student?.fullName || 'Active Cadet'}`}
-        role="STEM Cadet"
-        subtitle="Track your enrolled courses, live classroom links, verified module certificates, and assessments."
-      />
+      {!student ? (
+        <section className="pro-surface rounded-3xl p-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+            <Lock size={26} aria-hidden="true" />
+          </div>
+          <h1 className="mt-4 text-xl font-black text-slate-900 dark:text-white">Student profile not available</h1>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500 dark:text-slate-400">
+            Your portal session is active, but a student record could not be located. Please sign in again or contact an administrator.
+          </p>
+          <Link
+            to="/portal"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+          >
+            Return to Portal <ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </section>
+      ) : (
+        <>
+          <DashboardGreeting
+            name={`Cadet ${student.fullName || 'Student'}`}
+            role="STEM Cadet"
+            subtitle="Track your enrolled courses, live classroom links, verified module certificates, assessments, and learning materials."
+          />
 
-      {/* Top Grid: Course Progress Rings (Left/Top) & Upcoming Assignments (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Course Progress Rings Panel (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Course Progress</h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Current syllabus progression across active enrolled tracks</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="pro-surface rounded-2xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Overall Progress</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{overallProgress}%</p>
+              <p className="mt-1 text-xs text-slate-500">{completedModulesCount} of {modules.length} modules completed</p>
             </div>
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
-              Current Enrollment
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
-            {courseProgressList.map((cp, idx) => (
-              <CircularProgress 
-                key={idx} 
-                percentage={cp.percentage} 
-                label={cp.label}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Upcoming Assignments Panel (5 cols on lg) */}
-        <div className="lg:col-span-5 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Upcoming Assignments</h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Milestone deliverables & assessment tests</p>
+            <div className="pro-surface rounded-2xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Upcoming Assessments</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{exams.length}</p>
+              <p className="mt-1 text-xs text-slate-500">Assessments currently available</p>
             </div>
-            <span className="text-xs text-red-600 dark:text-red-400 font-bold">{upcomingAssignments.length} Pending</span>
-          </div>
-
-          <div className="space-y-3">
-            {upcomingAssignments.map((task) => (
-              <div 
-                key={task.id} 
-                className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5 hover:border-red-500/30 transition-all group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 border border-red-200/60 dark:border-red-500/20 group-hover:scale-105 transition-transform">
-                    <Code2 size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold text-gray-900 dark:text-white truncate">{task.title}</h3>
-                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{task.track}</p>
-                  </div>
-                </div>
-                <span className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300">
-                  {task.deadline}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Comprehensive Recharts Data Visualizer Component */}
-      <StudentAnalyticsVisualizer 
-        studentName={student?.fullName || 'Student'}
-        studentClass={student?.class || student?.grade || 'Not recorded'}
-        enrolledSubjects={student?.subjects || []}
-        completedModulesCount={completedModulesCount}
-        totalModulesCount={modules.length}
-        learningTracks={courseProgressList.map(track => ({
-          subject: track.label,
-          progress: track.percentage,
-          modulesDone: track.modulesDone,
-          modulesTotal: track.modulesTotal
-        }))}
-      />
-
-      {/* Middle Grid: Recent Activity & Milestone Progress */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Recent Activity Panel (5 cols on lg) */}
-        <div className="lg:col-span-5 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Recent Activity</h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">Chronological learning event logs</p>
+            <div className="pro-surface rounded-2xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Learning Resources</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{personalResources.length + classResources.length + generalResources.length}</p>
+              <p className="mt-1 text-xs text-slate-500">Personal, class, and general materials</p>
             </div>
-            <Activity size={16} className="text-red-500" />
-          </div>
-
-          <div className="space-y-3">
-            {recentActivities.map((act) => {
-              const Icon = act.icon;
-              return (
-                <div key={act.id} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
-                  <div className={`p-2 rounded-lg ${act.color} shrink-0 mt-0.5`}>
-                    <Icon size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">{act.action}</p>
-                    <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate">{act.detail}</p>
-                    <span className="text-[10px] text-slate-400 font-mono mt-1 block">{act.time}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Milestone Goals & Focus Track (7 cols on lg) */}
-        <div className="lg:col-span-7 bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center">
-                <Trophy size={18} />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Milestone Focus</h2>
-                <p className="text-xs text-gray-500 dark:text-slate-400">Target requirements for the current academic stage</p>
-              </div>
-            </div>
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
-              Stage {modules.find(m => !m.completed)?.stageNumber || 1} in progress
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-auto">
-            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-bold text-gray-800 dark:text-gray-200">Next Deliverable</span>
-                <span className="text-red-600 dark:text-red-400 font-bold">2 Days</span>
-              </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}</p>
-              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{upcomingAssignments[0]?.deadline || 'Awaiting an assigned assessment'}</p>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-bold text-gray-800 dark:text-gray-200">Certificate Readiness</span>
-                <span className="text-emerald-600 font-bold font-mono">{modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0}%</span>
-              </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length} Milestones Verified</p>
-              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">PDF auto-issuance enabled upon completion</p>
+            <div className="pro-surface rounded-2xl p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Announcements</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{notifications.length}</p>
+              <p className="mt-1 text-xs text-slate-500">Messages visible in your workspace</p>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
-            <span>Primary Track: <strong className="text-gray-800 dark:text-gray-200">{student?.plan || 'STEM & Coding Academy'}</strong></span>
-            <span>Study Cadence: <strong className="text-gray-800 dark:text-gray-200">Active</strong></span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Program Modules & PDF Certificate Generation Hub */}
-      <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 md:p-8 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-gray-100 dark:border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 border border-red-200/60 dark:border-red-500/20">
-              <Award size={24} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Program Modules & Certificates</h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-[11px] font-bold">
-                  PDF Generation Ready
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Generate and download your accredited PDF Certificates of Module Completion upon completing program milestones.
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-              {completedModulesCount} of {modules.length} Completed
-            </span>
-          </div>
-        </div>
-
-        {/* Modules Grid */}
-        {modules.length === 0 ? (
-          <div className="p-8 text-center bg-gray-50/50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-gray-200 dark:border-white/10">
-            <Award className="mx-auto text-gray-400 mb-2" size={32} />
-            <p className="text-xs font-bold text-gray-700 dark:text-gray-300">No program milestones assigned yet</p>
-            <p className="text-[11px] text-gray-500 mt-1 max-w-sm mx-auto">
-              Your instructor will record your course stage completions and milestone scores here.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {modules.map((mod) => (
-              <div 
-                key={mod.id}
-                className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
-                  mod.completed
-                    ? 'bg-gradient-to-b from-white to-red-50/20 dark:from-[#121622] dark:to-red-950/20 border-red-200/60 dark:border-red-900/30 hover:border-red-400/80 shadow-xs'
-                    : 'bg-gray-50/50 dark:bg-slate-950/40 border-gray-200/70 dark:border-white/5 opacity-80'
-                }`}
-              >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <section className="pro-surface rounded-3xl p-6 lg:col-span-7 md:p-7">
+              <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-slate-900 dark:bg-slate-800 text-white">
-                      {mod.stageName}
-                    </span>
-                    {mod.completed ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded-md border border-green-200/60 dark:border-green-900/50">
-                        <CheckCircle2 size={12} /> Completed
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Course Progress</h2>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Verified module completion across active learning tracks.</p>
+                </div>
+                <span className="rounded-full border border-brand-red/20 bg-brand-red/10 px-2.5 py-1 text-[11px] font-bold text-brand-red">
+                  Current Enrollment
+                </span>
+              </div>
+
+              {courseProgressList.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                  <BookOpenIcon />
+                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No enrolled modules recorded yet</p>
+                  <p className="mt-1 text-xs text-slate-500">Your learning progress will appear here after your curriculum is assigned.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {courseProgressList.map((track) => (
+                    <CircularProgress
+                      key={track.label}
+                      percentage={track.percentage}
+                      label={track.label}
+                      modulesDone={track.modulesDone}
+                      modulesTotal={track.modulesTotal}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="pro-surface rounded-3xl p-6 lg:col-span-5 md:p-7">
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Upcoming Assessments</h2>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Deadlines already recorded in your portal.</p>
+                </div>
+                <Trophy size={18} className="text-brand-red" aria-hidden="true" />
+              </div>
+              {upcomingAssignments.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                  <CheckCircle2 className="mx-auto text-slate-300 dark:text-slate-700" size={32} aria-hidden="true" />
+                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No dated assessments pending</p>
+                  <p className="mt-1 text-xs text-slate-500">Assessment dates will appear here when assigned.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingAssignments.map((exam) => (
+                    <div key={exam.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/60">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
+                          <Code2 size={18} aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{exam.title}</p>
+                          <p className="truncate text-xs text-slate-500">{exam.subject || 'Assessment'}</p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                        {formatDate(exam.dueDate)}
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md">
-                        <Clock size={12} /> {mod.score}
-                      </span>
-                    )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <StudentAnalyticsVisualizer
+            studentName={student.fullName || 'Student'}
+            studentClass={student.class || student.grade || 'Not recorded'}
+            enrolledSubjects={student.subjects || []}
+            completedModulesCount={completedModulesCount}
+            totalModulesCount={modules.length}
+            learningTracks={courseProgressList.map((track) => ({
+              subject: track.label,
+              progress: track.percentage,
+              modulesDone: track.modulesDone,
+              modulesTotal: track.modulesTotal,
+            }))}
+          />
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <section className="pro-surface rounded-3xl p-6 lg:col-span-5 md:p-7">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Recent Activity</h2>
+                  <p className="mt-1 text-xs text-slate-500">Latest verified module completions.</p>
+                </div>
+                <Activity size={17} className="text-brand-red" aria-hidden="true" />
+              </div>
+              {recentActivities.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                  <Activity className="mx-auto text-slate-300 dark:text-slate-700" size={30} aria-hidden="true" />
+                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No completed activities yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivities.map((module) => (
+                    <div key={module.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/50">
+                      <div className="mt-0.5 rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
+                        <Award size={15} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">Completed Module</p>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{module.title}</p>
+                        <p className="mt-1 text-[10px] font-mono text-slate-400">{module.completionDate || 'Completion recorded'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="pro-surface rounded-3xl p-6 lg:col-span-7 md:p-7">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
+                    <Trophy size={18} aria-hidden="true" />
                   </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Active Milestone Focus</h2>
+                    <p className="mt-1 text-xs text-slate-500">The next curriculum checkpoint from your recorded modules.</p>
+                  </div>
+                </div>
+                {currentModule && (
+                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                    Stage {currentModule.stageNumber}
+                  </span>
+                )}
+              </div>
 
-                  <h3 className="font-bold text-gray-900 dark:text-white text-base leading-snug mb-1">
-                    {mod.title}
-                  </h3>
-                  <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-3">
-                    {mod.trackName}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next Deliverable</p>
+                  <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+                    {upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}
                   </p>
+                  <p className="mt-1 text-xs text-slate-500">{formatDate(upcomingAssignments[0]?.dueDate)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Certificate Readiness</p>
+                  <p className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400">{overallProgress}%</p>
+                  <p className="mt-1 text-xs text-slate-500">{completedModulesCount} of {modules.length} milestones verified</p>
+                </div>
+              </div>
 
-                  {/* Competencies Mastered Tags */}
-                  <div className="mb-4">
-                    <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Mastered Skills:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {mod.competencies.map((comp, idx) => (
-                        <span 
-                          key={idx} 
-                          className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300"
-                        >
-                          {comp}
-                        </span>
-                      ))}
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs dark:border-slate-800">
+                <span className="text-slate-500">Primary Track: <strong className="text-slate-800 dark:text-slate-200">{student.plan || 'STEM & Coding Academy'}</strong></span>
+                <span className="text-slate-500">Assigned Class: <strong className="text-slate-800 dark:text-slate-200">{student.class || student.grade || 'Not recorded'}</strong></span>
+              </div>
+            </section>
+          </div>
+
+          <section className="pro-surface rounded-3xl p-6 md:p-8">
+            <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
+                  <Award size={23} aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Program Modules & Certificates</h2>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">Generate certificates only for modules that have a verified completion record.</p>
+                </div>
+              </div>
+              <span className="self-start rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                {completedModulesCount} of {modules.length} Completed
+              </span>
+            </div>
+
+            {modules.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                <Award className="mx-auto text-slate-300 dark:text-slate-700" size={32} aria-hidden="true" />
+                <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No program milestones assigned yet</p>
+                <p className="mt-1 text-xs text-slate-500">Your instructor will record your curriculum stages here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {modules.map((module) => {
+                  const credentialId = stableCredentialId(
+                    student.username || student.accessCode || student.id || 'student',
+                    module.id
+                  );
+                  return (
+                    <article
+                      key={module.id}
+                      className={`flex flex-col justify-between rounded-2xl border p-5 ${
+                        module.completed
+                          ? 'border-brand-red/20 bg-brand-red/[0.03] dark:bg-brand-red/[0.05]'
+                          : 'border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40'
+                      }`}
+                    >
+                      <div>
+                        <div className="mb-3 flex items-start justify-between gap-2">
+                          <span className="rounded-md bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white dark:bg-slate-800">
+                            {module.stageName}
+                          </span>
+                          {module.completed ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              <CheckCircle2 size={11} aria-hidden="true" /> Completed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                              <Clock size={11} aria-hidden="true" /> In progress
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white">{module.title}</h3>
+                        <p className="mt-1 text-xs font-semibold text-brand-red">{module.trackName}</p>
+                        {module.competencies.length > 0 && (
+                          <div className="mt-4">
+                            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Competencies</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {module.competencies.slice(0, 6).map((competency) => (
+                                <span key={competency} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                  {competency}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                        <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                          <span>{module.completionDate ? `Verified ${formatDate(module.completionDate)}` : 'Verification pending'}</span>
+                          <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{module.score || '—'}</span>
+                        </div>
+                        {module.completed ? (
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedModuleForCert(module);
+                                setCertStudentName(student.fullName || '');
+                              }}
+                              className="min-h-11 flex-1 rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950"
+                            >
+                              Customize & Preview
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadCertificate(module)}
+                              disabled={generatingCert}
+                              title="Download certificate PDF"
+                              aria-label={`Download certificate for ${module.title}`}
+                              className="min-h-11 min-w-11 rounded-xl bg-brand-red px-3 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                            >
+                              <Download size={15} className="mx-auto" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="min-h-11 w-full rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-400 dark:bg-slate-800/60 dark:text-slate-500"
+                          >
+                            Complete milestone to unlock certificate
+                          </button>
+                        )}
+                        <p className="mt-2 text-[10px] font-mono text-slate-400">{credentialId}</p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <AchievementBadgeGrid
+            studentName={student.fullName}
+            title="My Achievement & Mastery Badges"
+            subtitle="Earn verifiable badges and XP as you complete milestones and projects."
+          />
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
+              <section className="pro-surface rounded-3xl p-6">
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
+                      <Video size={18} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-slate-900 dark:text-white">Live Classroom & Sessions</h2>
+                      <p className="mt-1 text-xs text-slate-500">Links published specifically for your student account.</p>
                     </div>
                   </div>
+                </div>
 
-                  {mod.completionDate && (
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-4 flex items-center justify-between pt-2 border-t border-gray-100 dark:border-white/5">
-                      <span>Verified: {mod.completionDate}</span>
-                      <span className="font-bold text-amber-600 dark:text-amber-400">{mod.score}</span>
+                {personalLinks.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                    <Video size={30} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
+                    <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No live classroom links yet</p>
+                    <p className="mt-1 text-xs text-slate-500">Your tutor will publish meeting links here before scheduled sessions.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {personalLinks.map((link) => (
+                      <article key={link.id} className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                        <div>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold uppercase text-brand-red">{link.platform || 'Class Link'}</span>
+                            {link.meetingTime && <span className="inline-flex items-center gap-1 text-[10px] text-slate-500"><Clock size={11} aria-hidden="true" />{link.meetingTime}</span>}
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{link.title}</h3>
+                          {link.description && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{link.description}</p>}
+                        </div>
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-red px-3 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                        >
+                          Join Classroom <ExternalLink size={13} aria-hidden="true" />
+                        </a>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="pro-surface rounded-3xl p-6">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                      <FileText size={18} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-slate-900 dark:text-white">Learning Materials</h2>
+                      <p className="mt-1 text-xs text-slate-500">Personal, class-specific, and general resources.</p>
+                    </div>
+                  </div>
+                  <Link
+                    to="/portal/student/resources"
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold text-brand-red hover:bg-brand-red/5 focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  >
+                    Full Resource Library <ArrowRight size={13} aria-hidden="true" />
+                  </Link>
+                </div>
+
+                <div className="mb-4 flex gap-2 overflow-x-auto border-b border-slate-100 pb-2 dark:border-slate-800">
+                  {([
+                    ['ALL', `All (${personalResources.length + classResources.length + generalResources.length})`],
+                    ['CLASS', `Class (${classResources.length})`],
+                    ['GENERAL', `General (${generalResources.length})`],
+                  ] as const).map(([filter, label]) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setResourceFilter(filter)}
+                      aria-pressed={resourceFilter === filter}
+                      className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-bold ${
+                        resourceFilter === filter
+                          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {displayedResources.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                    <FileText size={30} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
+                    <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No materials in this view</p>
+                    <p className="mt-1 text-xs text-slate-500">New learning resources will appear when they are published to your account.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {displayedResources.slice(0, 8).map((resource) => (
+                      <div key={`${resource.isClassSpecific ? 'class' : 'resource'}-${resource.id}`} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="mt-0.5 rounded-xl bg-brand-red/10 p-2 text-brand-red">
+                            <FileText size={15} aria-hidden="true" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="mb-1 flex flex-wrap gap-1.5">
+                              {resource.isClassSpecific && (
+                                <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold uppercase text-brand-red">Class Material</span>
+                              )}
+                              {resource.type && <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">{resource.type}</span>}
+                            </div>
+                            <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{resource.title}</p>
+                            {resource.description && <p className="truncate text-xs text-slate-500">{resource.description}</p>}
+                          </div>
+                        </div>
+                        {resource.url ? (
+                          <a
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-brand-red hover:text-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-brand-red"
+                          >
+                            <Download size={13} aria-hidden="true" /> Access
+                          </a>
+                        ) : (
+                          <span className="shrink-0 text-[10px] font-bold text-slate-400">No link</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="pro-surface rounded-3xl p-6">
+                <div className="mb-5 flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <Trophy size={18} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Active Assessments & Quizzes</h2>
+                    <p className="mt-1 text-xs text-slate-500">Exams and evaluation tests currently visible to your portal.</p>
+                  </div>
+                </div>
+                {exams.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                    <p className="text-xs text-slate-500">No active assessments are currently recorded for your account.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {exams.slice(0, 6).map((exam) => (
+                      <article key={exam.id} className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                        <div>
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <span className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{exam.subject || 'Assessment'}</span>
+                            {(exam.targetClass || exam.class) && <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold text-brand-red">{exam.targetClass || exam.class}</span>}
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{exam.title}</h3>
+                          {exam.duration && <p className="mt-1 text-xs text-slate-500">Duration: {exam.duration}</p>}
+                          {exam.passcodeProtected && <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden="true" /> Requires exam passcode</p>}
+                        </div>
+                        {exam.link || exam.url ? (
+                          <a
+                            href={exam.link || exam.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white hover:bg-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:focus:ring-offset-slate-950"
+                          >
+                            Start Test <ExternalLink size={12} aria-hidden="true" />
+                          </a>
+                        ) : (
+                          <span className="mt-4 text-xs font-semibold text-slate-400">Assessment link not published</span>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <aside className="space-y-6">
+              <section className="pro-surface rounded-3xl p-6">
+                <h2 className="text-base font-black text-slate-900 dark:text-white">Cadet Profile</h2>
+                <div className="mt-4 space-y-1 text-sm">
+                  <ProfileRow label="Username" value={student.username || '—'} mono />
+                  <ProfileRow label="Assigned Class" value={student.class || student.grade || '—'} />
+                  <ProfileRow label="School Partner" value={student.schoolName || '—'} />
+                  <ProfileRow label="Primary Track" value={student.plan || '—'} />
+                  {(student.accessCode || student.passcode) && <ProfileRow label="Access Code" value={student.accessCode || student.passcode || '—'} mono highlight />}
+                  <ProfileRow label="Status" value={student.status || 'Active Learner'} highlightSuccess />
+                  {student.notes && (
+                    <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                      <span className="font-bold">Mentor Remarks</span>
+                      <p className="mt-1">{student.notes}</p>
                     </div>
                   )}
                 </div>
+              </section>
 
-                {/* Action Button */}
-                {mod.completed ? (
-                  <div className="flex gap-2 pt-3">
-                    <button
-                      onClick={() => {
-                        setSelectedModuleForCert(mod);
-                        setCertStudentName(student?.fullName || 'Active Student');
-                      }}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                    >
-                      <Award size={14} className="text-amber-400" />
-                      <span>Customize & Preview</span>
-                    </button>
-                    <button
-                      onClick={() => handleDownloadCertificate(mod)}
-                      disabled={generatingCert}
-                      title="Quick Download PDF"
-                      className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-colors shrink-0"
-                    >
-                      <Download size={15} />
-                    </button>
-                  </div>
+              <section className="pro-surface rounded-3xl p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <Bell size={18} className="text-brand-red" aria-hidden="true" />
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">Announcements</h2>
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-slate-500">No announcements are currently visible.</p>
                 ) : (
-                  <div className="pt-3">
-                    <button
-                      disabled
-                      className="w-full py-2.5 bg-gray-100 dark:bg-slate-800/60 text-gray-400 dark:text-gray-500 rounded-xl text-xs font-bold cursor-not-allowed text-center"
-                    >
-                      In Progress • Complete Milestone to Unlock
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Student Achievement & Mastery Badges Section */}
-      <AchievementBadgeGrid 
-        studentName={student?.fullName}
-        title="My Achievement & Mastery Badges"
-        subtitle="Earn verifiable badges and XP as you complete 5-stage milestones and projects."
-      />
-
-      {/* Main Content Sections: Live Classroom, Handouts & Exams */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left 2 Columns: Live Links & Resources */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Personal Class & Live Stream Links */}
-          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center">
-                  <Video size={18} />
-                </div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Live Classroom & Sessions</h2>
-              </div>
-              <span className="text-xs text-gray-500">Assigned by Mentor</span>
-            </div>
-
-            {personalLinks.length === 0 ? (
-              <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
-                <Video size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No scheduled personal live links at this moment.</p>
-                <p className="text-xs text-gray-500 mt-1">Your tutor will post Zoom, Google Meet, or scratch room links here prior to class.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {personalLinks.map((link) => (
-                  <div key={link.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-white/5 bg-gray-50/50 dark:bg-slate-950/50 hover:border-red-500/40 transition-colors flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 uppercase">
-                          {link.platform || 'Class Link'}
-                        </span>
-                        {link.meetingTime && (
-                          <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Clock size={12} /> {link.meetingTime}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-1">{link.title}</h3>
-                      {link.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{link.description}</p>
-                      )}
-                    </div>
-                    <a 
-                      href={link.url} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="mt-3 inline-flex items-center justify-center gap-2 w-full px-3 py-2 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
-                    >
-                      Join Class Room <ExternalLink size={13} />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Personal & General Resources */}
-          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center">
-                  <FileText size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Learning Materials & Handouts</h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Curated resources, handouts, and class-specific coursework</p>
-                </div>
-              </div>
-              <Link 
-                to="/portal/student/resources" 
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 transition-colors"
-              >
-                <span>Browse Full Resource Library</span>
-                <ArrowRight size={13} />
-              </Link>
-            </div>
-
-            {/* Filter Chips */}
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 dark:border-white/5 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setResourceFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                  resourceFilter === 'ALL'
-                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                All Resources ({personalResources.length + classResources.length + generalResources.length})
-              </button>
-              {student?.class && (
-                <button
-                  type="button"
-                  onClick={() => setResourceFilter('CLASS')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                    resourceFilter === 'CLASS'
-                      ? 'bg-red-600 text-white'
-                      : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/30 hover:bg-red-100'
-                  }`}
-                >
-                  Class Materials: {student.class} ({classResources.length})
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setResourceFilter('GENERAL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                  resourceFilter === 'GENERAL'
-                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                General Library ({generalResources.length})
-              </button>
-            </div>
-
-            {(() => {
-              let displayList: ResourceItem[] = [];
-              if (resourceFilter === 'ALL') {
-                displayList = [...personalResources, ...classResources, ...generalResources];
-              } else if (resourceFilter === 'CLASS') {
-                displayList = classResources;
-              } else {
-                displayList = generalResources;
-              }
-
-              if (displayList.length === 0) {
-                return (
-                  <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
-                    <FileText size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {resourceFilter === 'CLASS' 
-                        ? `No specific resources uploaded yet for ${student?.class || 'your class'}.`
-                        : 'Learning materials are being uploaded by instructors.'}
-                    </p>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-3">
-                  {displayList.map((res) => (
-                    <div key={res.id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-white dark:bg-slate-950 hover:shadow-xs transition-shadow flex items-center justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="p-2 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 shrink-0 mt-0.5">
-                          <FileText size={16} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {res.isClassSpecific && (
-                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/60 dark:border-red-500/20">
-                                Class: {res.targetClass || res.class || student?.class}
-                              </span>
-                            )}
-                            {res.type && (
-                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300">
-                                {res.type}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{res.title}</h3>
-                          {res.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{res.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      {res.url && (
-                        <a 
-                          href={res.url} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 dark:bg-slate-800 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                  <div className="space-y-3">
+                    {notifications.map((notification) => {
+                      const isRead = Boolean(auth.currentUser?.uid && notification.readBy?.includes(auth.currentUser.uid));
+                      return (
+                        <button
+                          type="button"
+                          key={notification.id}
+                          onClick={() => markNotificationRead(notification.id)}
+                          className={`w-full rounded-2xl border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-brand-red ${
+                            isRead
+                              ? 'border-slate-100 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/50'
+                              : 'border-brand-red/20 bg-brand-red/[0.04] text-slate-900 dark:border-brand-red/20 dark:bg-brand-red/[0.08] dark:text-white'
+                          }`}
                         >
-                          <Download size={13} /> Access
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Active Assessments & Quizzes */}
-          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-600 flex items-center justify-center">
-                  <Trophy size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Assessments & Quizzes</h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Class exams and evaluation tests forwarded from administrator</p>
-                </div>
-              </div>
-            </div>
-
-            {exams.length === 0 ? (
-              <div className="p-6 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
-                <p className="text-xs text-gray-500">No active examinations pending submission for your class.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {exams.map(exam => (
-                  <div key={exam.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-white/5 bg-gray-50 dark:bg-slate-950 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
-                          {exam.subject || 'CBT Assessment'}
-                        </span>
-                        {exam.targetClass && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400">
-                            {exam.targetClass}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mt-1">{exam.title}</h3>
-                      {exam.duration && <p className="text-xs text-gray-500 mt-1">Duration: {exam.duration}</p>}
-                      {exam.passcodeProtected && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 font-mono mt-1 flex items-center gap-1">
-                          <Lock size={12} /> Requires Exam Passcode
-                        </p>
-                      )}
-                    </div>
-                    {(exam.link || exam.url) && (
-                      <a 
-                        href={exam.link || exam.url} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-red-600 dark:hover:bg-red-600 text-white text-xs font-bold rounded-lg transition-colors"
-                      >
-                        Start Test <ExternalLink size={12} />
-                      </a>
-                    )}
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-bold">{notification.title}</span>
+                            {!isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-red" aria-label="Unread" />}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600 line-clamp-3 dark:text-slate-300">{notification.message}</p>
+                        </button>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Sidebar: Profile card & Announcements */}
-        <div className="space-y-6">
-
-          {/* Student Identity Card */}
-          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white mb-4">Cadet Profile</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                <span className="text-gray-500 dark:text-gray-400">Username:</span>
-                <span className="font-bold text-gray-900 dark:text-white font-mono">{student?.username || '—'}</span>
-              </div>
-              {student?.class && (
-                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                  <span className="text-gray-500 dark:text-gray-400">Assigned Class:</span>
-                  <span className="font-bold text-red-600 dark:text-red-400">{student.class}</span>
-                </div>
-              )}
-              {student?.schoolName && (
-                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                  <span className="text-gray-500 dark:text-gray-400">School Partner:</span>
-                  <span className="font-bold text-gray-900 dark:text-white text-right truncate max-w-[150px]">{student.schoolName}</span>
-                </div>
-              )}
-              {(student?.accessCode || student?.passcode) && (
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-white/5">
-                  <span className="text-gray-500 dark:text-gray-400">Access Passcode:</span>
-                  <span className="font-mono font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded border border-red-200 dark:border-red-900/40">
-                    {student.accessCode || student.passcode}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                <span className="font-bold text-green-600 dark:text-green-400">Active Learner</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-white/5">
-                <span className="text-gray-500 dark:text-gray-400">Primary Track:</span>
-                <span className="font-bold text-gray-900 dark:text-white text-right">{student?.plan || 'Dynamic Coding'}</span>
-              </div>
-              {student?.notes && (
-                <div className="py-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Mentor Remarks:</span>
-                  <p className="text-xs bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-lg text-amber-800 dark:text-amber-200 border border-amber-200/50 dark:border-amber-800/50">
-                    {student.notes}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Institute Announcements */}
-          <div className="bg-white dark:bg-[#121622] rounded-2xl border border-gray-200/80 dark:border-white/5 p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <Bell size={18} className="text-red-600 dark:text-red-400" />
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">Announcements</h2>
-            </div>
-
-            {notifications.length === 0 ? (
-              <p className="text-xs text-gray-500">No new announcements today.</p>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map(n => {
-                  const isRead = auth.currentUser?.uid && n.readBy?.includes(auth.currentUser.uid);
-                  return (
-                    <div 
-                      key={n.id} 
-                      onClick={() => markNotificationRead(n.id)}
-                      className={`p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
-                        isRead 
-                          ? 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-slate-950/50 text-gray-500' 
-                          : 'border-red-500/30 bg-red-500/5 dark:bg-red-500/10 text-gray-900 dark:text-white'
-                      }`}
-                    >
-                      <div className="font-bold mb-1 flex items-center justify-between">
-                        <span>{n.title}</span>
-                        {!isRead && <span className="w-2 h-2 rounded-full bg-red-600 dark:bg-red-400"></span>}
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{n.message}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Certificate Customization & Download Modal */}
-      {selectedModuleForCert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#121622] border border-gray-200 dark:border-white/10 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center flex-shrink-0 border border-amber-500/20">
-                  <Award size={26} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white">
-                    Generate Module Certificate
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Accredited verification by Jaystarbliss Studios
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedModuleForCert(null)}
-                className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Certificate Preview Card */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-gray-200 dark:border-white/5 mb-6 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-red-600 uppercase">{selectedModuleForCert.stageName}</span>
-                <span className="text-gray-500 font-mono">Credential ID: JDS-CERT-{Math.floor(1000 + Math.random() * 9000)}</span>
-              </div>
-              <div>
-                <h4 className="font-extrabold text-sm text-gray-900 dark:text-white">
-                  {selectedModuleForCert.title}
-                </h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Track: {selectedModuleForCert.trackName}
-                </p>
-              </div>
-              <div className="pt-2 border-t border-gray-200/60 dark:border-white/5 flex items-center justify-between text-xs text-gray-500">
-                <span>Instructor: {selectedModuleForCert.instructor}</span>
-                <span className="font-bold text-green-600 dark:text-green-400">{selectedModuleForCert.score}</span>
-              </div>
-            </div>
-
-            {/* Student Name Confirmation */}
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 mb-1.5">
-                  Student Name (Appears on Certificate)
-                </label>
-                <input
-                  type="text"
-                  value={certStudentName}
-                  onChange={(e) => setCertStudentName(e.target.value)}
-                  placeholder="Enter full name"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                  Ensure the name is spelled accurately as it will be engraved onto the official document.
-                </p>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedModuleForCert(null)}
-                className="flex-1 py-3 px-4 rounded-xl border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-gray-300 font-bold text-xs hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={generatingCert || !certStudentName.trim()}
-                onClick={() => handleDownloadCertificate(selectedModuleForCert, certStudentName)}
-                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-md shadow-red-600/20"
-              >
-                {generatingCert ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Generating PDF...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download size={16} />
-                    <span>Download Official Certificate</span>
-                  </>
                 )}
-              </button>
-            </div>
+              </section>
+            </aside>
           </div>
-        </div>
+
+          {selectedModuleForCert && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="certificate-modal-title">
+              <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-brand-red">Certificate Preview</p>
+                    <h2 id="certificate-modal-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{selectedModuleForCert.title}</h2>
+                    <p className="mt-1 text-xs text-slate-500">{selectedModuleForCert.stageName} · {selectedModuleForCert.trackName}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModuleForCert(null)}
+                    className="min-h-11 min-w-11 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red dark:hover:bg-slate-800 dark:hover:text-white"
+                    aria-label="Close certificate preview"
+                  >
+                    <X size={18} className="mx-auto" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="font-bold text-brand-red">{selectedModuleForCert.stageName}</span>
+                    <span className="font-mono text-slate-500">
+                      {stableCredentialId(student.username || student.accessCode || student.id || 'student', selectedModuleForCert.id)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{selectedModuleForCert.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">Instructor: {selectedModuleForCert.instructor || 'Academic Directorate'}</p>
+                  <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-300">Verified completion: {formatDate(selectedModuleForCert.completionDate)}</p>
+                </div>
+
+                <div className="mt-5">
+                  <label htmlFor="certificate-student-name" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Student Name
+                  </label>
+                  <input
+                    id="certificate-student-name"
+                    type="text"
+                    value={certStudentName}
+                    onChange={(event) => setCertStudentName(event.target.value)}
+                    className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    autoComplete="name"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">Use the exact spelling you want printed on the PDF certificate.</p>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModuleForCert(null)}
+                    className="min-h-11 flex-1 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-red dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={generatingCert || !certStudentName.trim()}
+                    onClick={() => handleDownloadCertificate(selectedModuleForCert, certStudentName)}
+                    className="min-h-11 flex-1 rounded-xl bg-brand-red px-4 text-xs font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                  >
+                    {generatingCert ? 'Generating PDF…' : 'Download Certificate'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
-
-      {/* Student Achievement & Mastery Badges Section */}
-      <AchievementBadgeGrid 
-        studentName={student?.fullName}
-        title="My Achievement & Mastery Badges"
-        subtitle="Earn verifiable badges and XP as you complete 5-stage milestones and projects."
-      />
-
-      {/* Main Content Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left 2 Columns: Live Links & Resources */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          {/* Personal Class & Live Stream Links */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-brand-red/10 text-brand-red flex items-center justify-center">
-                  <Video size={18} />
-                </div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Live Classroom & Sessions</h2>
-              </div>
-              <span className="text-xs text-gray-500">Assigned by Mentor</span>
-            </div>
-
-            {personalLinks.length === 0 ? (
-              <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-slate-800">
-                <Video size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No scheduled personal live links at this moment.</p>
-                <p className="text-xs text-gray-500 mt-1">Your tutor will post Zoom, Google Meet, or scratch room links here prior to class.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {personalLinks.map((link) => (
-                  <div key={link.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950/50 hover:border-brand-red/40 transition-colors flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-brand-red/10 text-brand-red uppercase">
-                          {link.platform || 'Class Link'}
-                        </span>
-                        {link.meetingTime && (
-                          <span className="text-xs text-gray-500 flex items-center gap-1">
-                            <Clock size={12} /> {link.meetingTime}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-1">{link.title}</h3>
-                      {link.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{link.description}</p>
-                      )}
-                    </div>
-                    <a 
-                      href={link.url} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="mt-3 inline-flex items-center justify-center gap-2 w-full px-3 py-2 bg-brand-red text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors"
-                    >
-                      Join Class Room <ExternalLink size={13} />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Personal & General Resources */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center">
-                  <FileText size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Learning Materials & Handouts</h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Curated resources, handouts, and class-specific coursework</p>
-                </div>
-              </div>
-              <Link 
-                to="/portal/student/resources" 
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:text-red-700 dark:hover:text-red-400 transition-colors"
-              >
-                <span>Browse Full Resource Library</span>
-                <ArrowRight size={13} />
-              </Link>
-            </div>
-
-            {/* Filter Chips */}
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100 dark:border-slate-800 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setResourceFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                  resourceFilter === 'ALL'
-                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                All Resources ({personalResources.length + classResources.length + generalResources.length})
-              </button>
-              {student?.class && (
-                <button
-                  type="button"
-                  onClick={() => setResourceFilter('CLASS')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                    resourceFilter === 'CLASS'
-                      ? 'bg-brand-red text-white'
-                      : 'bg-red-50 dark:bg-red-950/30 text-brand-red border border-red-200 dark:border-red-900/30 hover:bg-red-100'
-                  }`}
-                >
-                  Class Materials: {student.class} ({classResources.length})
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setResourceFilter('GENERAL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors whitespace-nowrap ${
-                  resourceFilter === 'GENERAL'
-                    ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900'
-                    : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                General Library ({generalResources.length})
-              </button>
-            </div>
-
-            {(() => {
-              let displayList: ResourceItem[] = [];
-              if (resourceFilter === 'ALL') {
-                displayList = [...personalResources, ...classResources, ...generalResources];
-              } else if (resourceFilter === 'CLASS') {
-                displayList = classResources;
-              } else {
-                displayList = generalResources;
-              }
-
-              if (displayList.length === 0) {
-                return (
-                  <div className="p-8 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-slate-800">
-                    <FileText size={32} className="mx-auto text-gray-400 mb-2 opacity-50" />
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {resourceFilter === 'CLASS' 
-                        ? `No specific resources uploaded yet for ${student?.class || 'your class'}.`
-                        : 'Learning materials are being uploaded by instructors.'}
-                    </p>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-3">
-                  {displayList.map((res) => (
-                    <div key={res.id} className="p-4 rounded-xl border border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-950 hover:shadow-xs transition-shadow flex items-center justify-between gap-4">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="p-2 rounded-lg bg-brand-red/10 text-brand-red shrink-0 mt-0.5">
-                          <FileText size={16} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {res.isClassSpecific && (
-                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-red/10 text-brand-red border border-brand-red/20">
-                                Class: {res.targetClass || res.class || student?.class}
-                              </span>
-                            )}
-                            {res.type && (
-                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300">
-                                {res.type}
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{res.title}</h3>
-                          {res.description && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{res.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      {res.url && (
-                        <a 
-                          href={res.url} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 dark:bg-slate-800 hover:bg-brand-red hover:text-white dark:hover:bg-brand-red text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
-                        >
-                          <Download size={13} /> Access
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Active Assessments & Quizzes */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-green-50 dark:bg-green-950/40 text-green-600 flex items-center justify-center">
-                  <Trophy size={18} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Active Assessments & Quizzes</h2>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Class exams and evaluation tests forwarded from administrator</p>
-                </div>
-              </div>
-            </div>
-
-            {exams.length === 0 ? (
-              <div className="p-6 text-center bg-gray-50 dark:bg-slate-950 rounded-xl border border-dashed border-gray-200 dark:border-slate-800">
-                <p className="text-xs text-gray-500">No active examinations pending submission for your class.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {exams.map(exam => (
-                  <div key={exam.id} className="p-4 rounded-xl border border-gray-200/80 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
-                          {exam.subject || 'CBT Assessment'}
-                        </span>
-                        {exam.targetClass && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-brand-red/10 text-brand-red">
-                            {exam.targetClass}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-gray-900 dark:text-white text-sm mt-1">{exam.title}</h3>
-                      {exam.duration && <p className="text-xs text-gray-500 mt-1">Duration: {exam.duration}</p>}
-                      {exam.passcodeProtected && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 font-mono mt-1 flex items-center gap-1">
-                          <Lock size={12} /> Requires Exam Passcode
-                        </p>
-                      )}
-                    </div>
-                    {(exam.link || exam.url) && (
-                      <a 
-                        href={exam.link || exam.url} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 dark:bg-slate-800 hover:bg-brand-red dark:hover:bg-brand-red text-white text-xs font-bold rounded-lg transition-colors"
-                      >
-                        Start Test <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Sidebar: Profile card & Announcements */}
-        <div className="space-y-8">
-
-          {/* Student Identity Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
-            <h2 className="text-base font-bold text-gray-900 dark:text-white mb-4">Cadet Profile</h2>
-            
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-slate-800">
-                <span className="text-gray-500 dark:text-gray-400">Username:</span>
-                <span className="font-bold text-gray-900 dark:text-white font-mono">{student?.username || '—'}</span>
-              </div>
-              {student?.class && (
-                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-slate-800">
-                  <span className="text-gray-500 dark:text-gray-400">Assigned Class:</span>
-                  <span className="font-bold text-brand-red">{student.class}</span>
-                </div>
-              )}
-              {student?.schoolName && (
-                <div className="flex justify-between py-2 border-b border-gray-100 dark:border-slate-800">
-                  <span className="text-gray-500 dark:text-gray-400">School Partner:</span>
-                  <span className="font-bold text-gray-900 dark:text-white text-right truncate max-w-[150px]">{student.schoolName}</span>
-                </div>
-              )}
-              {(student?.accessCode || student?.passcode) && (
-                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-slate-800">
-                  <span className="text-gray-500 dark:text-gray-400">Access Passcode:</span>
-                  <span className="font-mono font-bold text-brand-red bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded border border-red-200 dark:border-red-900/40">
-                    {student.accessCode || student.passcode}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-slate-800">
-                <span className="text-gray-500 dark:text-gray-400">Status:</span>
-                <span className="font-bold text-green-600 dark:text-green-400">Active Learner</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-100 dark:border-slate-800">
-                <span className="text-gray-500 dark:text-gray-400">Primary Track:</span>
-                <span className="font-bold text-gray-900 dark:text-white text-right">{student?.plan || 'Dynamic Coding'}</span>
-              </div>
-              {student?.notes && (
-                <div className="py-2">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Mentor Remarks:</span>
-                  <p className="text-xs bg-amber-50 dark:bg-amber-950/30 p-2.5 rounded-lg text-amber-800 dark:text-amber-200 border border-amber-200/50 dark:border-amber-800/50">
-                    {student.notes}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Institute Announcements */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-6 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <Bell size={18} className="text-brand-red" />
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">Announcements</h2>
-            </div>
-
-            {notifications.length === 0 ? (
-              <p className="text-xs text-gray-500">No new announcements today.</p>
-            ) : (
-              <div className="space-y-3">
-                {notifications.map(n => {
-                  const isRead = auth.currentUser?.uid && n.readBy?.includes(auth.currentUser.uid);
-                  return (
-                    <div 
-                      key={n.id} 
-                      onClick={() => markNotificationRead(n.id)}
-                      className={`p-3 rounded-xl border text-xs cursor-pointer transition-colors ${
-                        isRead 
-                          ? 'border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-950/50 text-gray-500' 
-                          : 'border-brand-red/30 bg-brand-red/5 dark:bg-brand-red/10 text-gray-900 dark:text-white'
-                      }`}
-                    >
-                      <div className="font-bold mb-1 flex items-center justify-between">
-                        <span>{n.title}</span>
-                        {!isRead && <span className="w-2 h-2 rounded-full bg-brand-red"></span>}
-                      </div>
-                      <p className="text-gray-600 dark:text-gray-300 line-clamp-3">{n.message}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-      </div>
     </div>
   );
 };
+
+const ProfileRow: React.FC<{
+  label: string;
+  value: string;
+  mono?: boolean;
+  highlight?: boolean;
+  highlightSuccess?: boolean;
+}> = ({ label, value, mono = false, highlight = false, highlightSuccess = false }) => (
+  <div className="flex items-start justify-between gap-4 border-b border-slate-100 py-2.5 dark:border-slate-800">
+    <span className="text-xs text-slate-500">{label}</span>
+    <span
+      className={`max-w-[58%] text-right text-xs font-bold ${
+        mono ? 'font-mono' : ''
+      } ${
+        highlight
+          ? 'rounded-md bg-brand-red/10 px-2 py-1 text-brand-red'
+          : highlightSuccess
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : 'text-slate-800 dark:text-slate-200'
+      }`}
+    >
+      {value}
+    </span>
+  </div>
+);
+
+const BookOpenIcon = () => (
+  <svg className="mx-auto text-slate-300 dark:text-slate-700" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 4.8A2.8 2.8 0 0 1 4.8 2H12v18H4.8A2.8 2.8 0 0 0 2 22V4.8Z" />
+    <path d="M22 4.8A2.8 2.8 0 0 0 19.2 2H12v18h7.2a2.8 2.8 0 0 1 2.8 2V4.8Z" />
+  </svg>
+);
 
 export default StudentDashboard;
