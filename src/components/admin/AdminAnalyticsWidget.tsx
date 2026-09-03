@@ -182,11 +182,10 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
 
   return (
     <div className="pro-surface rounded-3xl overflow-hidden transition-colors">
-      {/* Header with Title, Controls & Timeframe Selector */}
       <div className="p-6 md:p-8 border-b border-gray-100 dark:border-white/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1">
-            <span className="p-2 rounded-xl bg-brand-red/10 text-brand-red">
+            <span className="p-2 rounded-xl bg-brand-red/10 text-brand-red" aria-hidden="true">
               <BarChart3 size={20} />
             </span>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
@@ -194,18 +193,19 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             </h2>
           </div>
           <p className="text-xs text-gray-500 dark:text-slate-400">
-            Real-time visual monitoring of student enrollments, login frequency by portal, and curriculum engagement.
+            Dashboard snapshot of student enrolment activity, portal login records, resource inventory, and assessment performance.
           </p>
         </div>
 
         <div className="flex items-center flex-wrap gap-2">
-          {/* Timeframe Filter */}
-          <div className="flex items-center bg-gray-100 dark:bg-slate-800/80 p-1 rounded-xl border border-gray-200/50 dark:border-white/5">
+          <div className="flex items-center bg-gray-100 dark:bg-slate-800/80 p-1 rounded-xl border border-gray-200/50 dark:border-white/5" role="group" aria-label="Analytics time range">
             {(['7d', '30d', '90d', '1y'] as const).map(range => (
               <button
                 key={range}
+                type="button"
                 onClick={() => setTimeRange(range)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                aria-pressed={timeRange === range}
+                className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   timeRange === range
                     ? 'bg-white dark:bg-brand-red text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
@@ -216,28 +216,27 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
             ))}
           </div>
 
-          {/* Refresh Action */}
           {onRefresh && (
             <button
+              type="button"
               onClick={onRefresh}
               disabled={isLoading}
-              className="p-2 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800/80 transition-colors disabled:opacity-50"
+              className="min-h-11 min-w-11 p-2 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800/80 transition-colors disabled:opacity-50"
               title="Refresh Firestore Metrics"
+              aria-label={isLoading ? 'Refreshing Firestore metrics' : 'Refresh Firestore metrics'}
+              aria-busy={isLoading}
             >
-              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
 
-      {/* KPI Cards Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20">
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Student Records</span>
-            <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <span className="text-xs">Current</span>
-            </span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">Current</span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
             {totalCadets} <span className="text-xs font-medium text-gray-400">Cadets</span>
@@ -250,9 +249,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Recorded Login Activity</span>
-            <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <span className="text-xs">From logs</span>
-            </span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">From logs</span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
             {totalLogins} <span className="text-xs font-medium text-gray-400">Recorded sessions</span>
@@ -265,9 +262,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Published Resource Inventory</span>
-            <span className="flex items-center text-blue-600 dark:text-blue-400 font-bold">
-              <span className="text-xs">Current</span>
-            </span>
+            <span className="text-blue-600 dark:text-blue-400 font-bold">Current</span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
             {totalResCount} <span className="text-xs font-medium text-gray-400">Resources</span>
@@ -280,8 +275,8 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">CBT Exam Results</span>
-            <span className="flex items-center text-emerald-600 dark:text-emerald-400 font-bold">
-              <CheckCircle2 size={13} className="mr-0.5" /> {overallPassRate === null ? "No scored data" : `${overallPassRate}%`}
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+              <CheckCircle2 size={13} className="mr-0.5 inline" aria-hidden="true" /> {overallPassRate === null ? 'No scored data' : `${overallPassRate}%`}
             </span>
           </div>
           <div className="text-2xl font-black text-gray-900 dark:text-white">
@@ -293,8 +288,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Admin analytics views">
         {[
           { key: 'growth', label: 'Student Growth Trend', icon: Users },
           { key: 'logins', label: 'Portal Login Frequency', icon: Activity },
@@ -302,133 +296,85 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           { key: 'cbt', label: 'CBT Assessment Performance', icon: Award },
         ].map(tab => {
           const Icon = tab.icon;
+          const selected = activeTab === tab.key;
           return (
             <button
               key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={selected}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
-                activeTab === tab.key
+              className={`min-h-11 pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
+                selected
                   ? 'border-brand-red text-brand-red'
                   : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
-              <Icon size={16} />
+              <Icon size={16} aria-hidden="true" />
               <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Main Charts Canvas */}
       <div className="p-6 md:p-8">
-        {/* ========================================================================= */}
-        {/* TAB 1: STUDENT GROWTH TREND */}
-        {/* ========================================================================= */}
         {activeTab === 'growth' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Student Registration Trend
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  New student records grouped by the selected period. No synthetic values are generated.
-                </p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Student Registration Trend</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">New student records grouped by the selected period. No synthetic values are generated.</p>
               </div>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-brand-red">
-                  <span className="w-3 h-3 rounded-full bg-brand-red inline-block" /> Total Cadets
-                </span>
-                <span className="flex items-center gap-1.5 text-blue-500">
-                  <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> School-linked registrations
-                </span>
+              <div className="flex items-center gap-4 text-xs font-bold flex-wrap" aria-label="Growth chart legend">
+                <span className="flex items-center gap-1.5 text-brand-red"><span className="w-3 h-3 rounded-full bg-brand-red inline-block" aria-hidden="true" /> Total Cadets</span>
+                <span className="flex items-center gap-1.5 text-blue-500"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" aria-hidden="true" /> School-linked registrations</span>
               </div>
             </div>
 
-            <div className="h-[340px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={studentGrowthData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="totalGrowthGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={BRAND_PALETTE.red} stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor={BRAND_PALETTE.red} stopOpacity={0.0}/>
-                    </linearGradient>
-                    <linearGradient id="schoolCohortGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={BRAND_PALETTE.blue} stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor={BRAND_PALETTE.blue} stopOpacity={0.0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <RechartsTooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#0f172a', 
-                      borderRadius: '16px', 
-                      border: 'none', 
-                      color: '#fff',
-                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)'
-                    }} 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="total" 
-                    name="Cumulative registrations"
-                    stroke={BRAND_PALETTE.red} 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#totalGrowthGrad)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="schoolCohort" 
-                    name="School-linked registrations"
-                    stroke={BRAND_PALETTE.blue} 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#schoolCohortGrad)" 
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="newSignups" 
-                    name="New registrations"
-                    stroke={BRAND_PALETTE.emerald} 
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: BRAND_PALETTE.emerald }} 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            {studentGrowthData.length === 0 ? (
+              <div className="h-[340px] flex items-center justify-center text-center text-sm text-gray-500 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl px-6">
+                No dated student registration records are available for the selected period.
+              </div>
+            ) : (
+              <div className="h-[340px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={studentGrowthData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="totalGrowthGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={BRAND_PALETTE.red} stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor={BRAND_PALETTE.red} stopOpacity={0.0}/>
+                      </linearGradient>
+                      <linearGradient id="schoolCohortGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={BRAND_PALETTE.blue} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={BRAND_PALETTE.blue} stopOpacity={0.0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', border: 'none', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)' }} />
+                    <Area type="monotone" dataKey="total" name="Cumulative registrations" stroke={BRAND_PALETTE.red} strokeWidth={3} fillOpacity={1} fill="url(#totalGrowthGrad)" />
+                    <Area type="monotone" dataKey="schoolCohort" name="School-linked registrations" stroke={BRAND_PALETTE.blue} strokeWidth={2} fillOpacity={1} fill="url(#schoolCohortGrad)" />
+                    <Line type="monotone" dataKey="newSignups" name="New registrations" stroke={BRAND_PALETTE.emerald} strokeWidth={2} dot={{ r: 4, fill: BRAND_PALETTE.emerald }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2: PORTAL LOGIN FREQUENCY */}
-        {/* ========================================================================= */}
         {activeTab === 'logins' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Recorded Portal Login Activity by User Role
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Only login events recorded in the activity log are included.
-                </p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Recorded Portal Login Activity by User Role</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Only login events recorded in the activity log are included.</p>
               </div>
-              <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
-                <span className="flex items-center gap-1 text-brand-red">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-brand-red inline-block" /> Students
-                </span>
-                <span className="flex items-center gap-1 text-blue-500">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" /> Faculty
-                </span>
-                <span className="flex items-center gap-1 text-emerald-500">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> Parents
-                </span>
-                <span className="flex items-center gap-1 text-amber-500">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> Schools
-                </span>
+              <div className="flex items-center gap-3 text-xs font-bold flex-wrap" aria-label="Login chart legend">
+                <span className="flex items-center gap-1 text-brand-red"><span className="w-2.5 h-2.5 rounded-sm bg-brand-red inline-block" aria-hidden="true" /> Students</span>
+                <span className="flex items-center gap-1 text-blue-500"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block" aria-hidden="true" /> Faculty</span>
+                <span className="flex items-center gap-1 text-emerald-500"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" aria-hidden="true" /> Parents</span>
+                <span className="flex items-center gap-1 text-amber-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" aria-hidden="true" /> Schools</span>
               </div>
             </div>
 
@@ -437,19 +383,11 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
                 <BarChart data={loginFrequencyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <RechartsTooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#0f172a', 
-                      borderRadius: '16px', 
-                      border: 'none', 
-                      color: '#fff',
-                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)'
-                    }} 
-                  />
-                  <Bar dataKey="student" name="Students" stackId="a" fill={BRAND_PALETTE.red} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="staff" name="Faculty/Tutors" stackId="a" fill={BRAND_PALETTE.blue} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="parent" name="Parents" stackId="a" fill={BRAND_PALETTE.emerald} radius={[0, 0, 0, 0]} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', border: 'none', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.3)' }} />
+                  <Bar dataKey="student" name="Students" stackId="a" fill={BRAND_PALETTE.red} />
+                  <Bar dataKey="staff" name="Faculty/Tutors" stackId="a" fill={BRAND_PALETTE.blue} />
+                  <Bar dataKey="parent" name="Parents" stackId="a" fill={BRAND_PALETTE.emerald} />
                   <Bar dataKey="school" name="School Admins" stackId="a" fill={BRAND_PALETTE.amber} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -457,88 +395,60 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 3: RESOURCE ENGAGEMENT */}
-        {/* ========================================================================= */}
         {activeTab === 'resources' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-4">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Published Resources by Subject / Track
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Inventory derived from the resource records currently available to the administrator.
-                </p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Published Resources by Subject / Track</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Inventory derived from persisted resource records currently available to the administrator.</p>
               </div>
 
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={resourceEngagementData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
-                    <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} stroke="#94a3b8" width={120} />
-                    <RechartsTooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#0f172a', 
-                        borderRadius: '16px', 
-                        border: 'none', 
-                        color: '#fff'
-                      }} 
-                    />
-                    <Bar dataKey="views" name="Resources" fill={BRAND_PALETTE.slate} radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="downloads" name="Downloads" fill={BRAND_PALETTE.red} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {resourceEngagementData.length === 0 ? (
+                <div className="h-[300px] flex items-center justify-center text-center text-sm text-gray-500 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl px-6">
+                  No published resource records are available to classify yet.
+                </div>
+              ) : (
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={resourceEngagementData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                      <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} stroke="#94a3b8" width={120} />
+                      <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', border: 'none', color: '#fff' }} />
+                      <Bar dataKey="resources" name="Published resources" fill={BRAND_PALETTE.slate} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
 
-            {/* Category Doughnut */}
             <div className="space-y-4 flex flex-col justify-between">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Subject Domain Share
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Distribution of published resources by their persisted subject or category.
-                </p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">Subject Domain Share</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Distribution of published resources by persisted subject or category.</p>
               </div>
 
-              <div className="h-[240px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryDistributionData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {categoryDistributionData.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#0f172a', 
-                        borderRadius: '12px', 
-                        border: 'none', 
-                        color: '#fff' 
-                      }} 
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+              {categoryDistributionData.length === 0 ? (
+                <div className="h-[240px] flex items-center justify-center text-sm text-gray-500 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl px-6 text-center">No categorized resources available.</div>
+              ) : (
+                <div className="h-[240px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={categoryDistributionData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={4} dataKey="value">
+                        {categoryDistributionData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: 'none', color: '#fff' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 text-[11px]" aria-label="Resource subject legend">
                 {categoryDistributionData.map((item, idx) => (
-                  <div key={item.name} className="flex items-center gap-1.5">
-                    <span 
-                      className="w-2.5 h-2.5 rounded-full shrink-0" 
-                      style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} 
-                    />
+                  <div key={item.name} className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }} aria-hidden="true" />
                     <span className="truncate text-gray-600 dark:text-slate-300">{item.name}</span>
                   </div>
                 ))}
@@ -547,53 +457,39 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 4: CBT PERFORMANCE */}
-        {/* ========================================================================= */}
         {activeTab === 'cbt' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  CBT Assessment Completion &amp; Average Grade by Cohort
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  Participation rate, pass ratio, and scoring averages across Primary and Secondary tiers.
-                </p>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">CBT Assessment Completion &amp; Average Grade by Cohort</h3>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Participation rate, pass ratio, and scoring averages across Primary and Secondary tiers.</p>
               </div>
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <span className="flex items-center gap-1 text-slate-800 dark:text-slate-200">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-slate-800 dark:bg-slate-200 inline-block" /> Registered
-                </span>
-                <span className="flex items-center gap-1 text-emerald-500">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> Passed
-                </span>
-                <span className="flex items-center gap-1 text-amber-500">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> Avg Score %
-                </span>
+              <div className="flex items-center gap-4 text-xs font-bold flex-wrap" aria-label="CBT chart legend">
+                <span className="flex items-center gap-1 text-slate-800 dark:text-slate-200"><span className="w-2.5 h-2.5 rounded-sm bg-slate-800 dark:bg-slate-200 inline-block" aria-hidden="true" /> Registered</span>
+                <span className="flex items-center gap-1 text-emerald-500"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" aria-hidden="true" /> Passed</span>
+                <span className="flex items-center gap-1 text-amber-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" aria-hidden="true" /> Avg Score %</span>
               </div>
             </div>
 
-            <div className="h-[340px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={cbtAssessmentData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
-                  <XAxis dataKey="grade" tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
-                  <RechartsTooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#0f172a', 
-                      borderRadius: '16px', 
-                      border: 'none', 
-                      color: '#fff'
-                    }} 
-                  />
-                  <Bar dataKey="registered" name="Registered" fill={BRAND_PALETTE.slate} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="taken" name="Completed" fill={BRAND_PALETTE.blue} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="passed" name="Passed" fill={BRAND_PALETTE.emerald} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {cbtAssessmentData.length === 0 ? (
+              <div className="h-[340px] flex items-center justify-center text-center text-sm text-gray-500 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl px-6">
+                No persisted cohort-level assessment result data is available yet.
+              </div>
+            ) : (
+              <div className="h-[340px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cbtAssessmentData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                    <XAxis dataKey="grade" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                    <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', border: 'none', color: '#fff' }} />
+                    <Bar dataKey="registered" name="Registered" fill={BRAND_PALETTE.slate} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="taken" name="Completed" fill={BRAND_PALETTE.blue} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="passed" name="Passed" fill={BRAND_PALETTE.emerald} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         )}
       </div>
