@@ -7,38 +7,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isActiveUserRecord() {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
+    }
+
     function isSuperAdmin() {
-      return isAuth() && (
-        request.auth.token.email == 'johnrufai242@gmail.com' ||
-        (request.auth.token.email != null && request.auth.token.email.matches('(?i)^johnrufai242\\.com$')) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'super_admin'] &&
-         !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']))
-      );
+      return isAuth() && isActiveUserRecord() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'super_admin'];
     }
 
     function isAnyAdmin() {
-      return isAuth() && (
-        request.auth.token.email == 'johnrufai242@gmail.com' ||
-        (request.auth.token.email != null && request.auth.token.email.matches('(?i)^johnrufai242\\.com$')) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
-           'SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin', 
-           'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 
-           'MARKETING_ADMIN', 'SUPPORT_ADMIN'
-         ] &&
-         !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']))
-      );
+      return isAuth() && isActiveUserRecord() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in [
+          'SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin', 
+          'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 
+          'MARKETING_ADMIN', 'SUPPORT_ADMIN'
+        ];
     }
 
     function isStaffOrTutor() {
-      return isAuth() && (
+      return isAuth() && isActiveUserRecord() && (
         isAnyAdmin() ||
-        (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF', 'staff', 'TUTOR', 'tutor', 'instructor', 'INSTRUCTOR'] &&
-          !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED'])
-        )
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF', 'staff', 'TUTOR', 'tutor', 'instructor', 'INSTRUCTOR']
       );
     }
 
@@ -63,9 +55,8 @@ service cloud.firestore {
     }
 
     function isSchoolUser() {
-      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SCHOOL', 'school'] &&
-        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
+      return isActiveUserRecord() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SCHOOL', 'school'];
     }
 
     function userSchoolId() {
@@ -79,9 +70,8 @@ service cloud.firestore {
     }
 
     function isInUserSchool(schoolId) {
-      return isAuth() && schoolId != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId &&
-        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
+      return isActiveUserRecord() && schoolId != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId;
     }
 
     function isOwnStudent(data) {
@@ -255,9 +245,7 @@ service cloud.firestore {
     }
 
     match /staffSchoolAccess/{docId} {
-      // Staff may read their own assignment document or the shared dispatch code.
-      // Only administrators can create/update assignment records and the shared code.
-      allow read: if isAnyAdmin() || (isStaffOrTutor() && (docId == request.auth.uid || docId == 'accessCode'));
+      allow read: if isAnyAdmin() || (isStaffOrTutor() && (docId == 'accessCode' || docId == request.auth.uid));
       allow write: if isAnyAdmin();
     }
 
@@ -293,14 +281,12 @@ service cloud.firestore {
     match /enrollment_requests/{reqId} {
       allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
       allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
-      // Enrollment state is authoritative and must only be changed by admissions/admin workflows.
       allow update, delete: if isAnyAdmin();
     }
 
     match /student_requests/{requestId} {
       allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
       allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
-      // Student request state is authoritative and must only be changed by admin workflows.
       allow update, delete: if isAnyAdmin();
     }
 
@@ -311,7 +297,6 @@ service cloud.firestore {
 
     match /tutors/{tutorId} {
       allow read: if true;
-      // A tutor may update only their own profile; administrative edits remain centralized.
       allow write: if isAnyAdmin() || (isAuth() && request.auth.uid == tutorId);
     }
 
@@ -363,8 +348,6 @@ service cloud.firestore {
       allow write: if isAnyAdmin();
     }
 
-    // The global settings collection may contain privileged integration values.
-    // Only the public banner document is intentionally readable without auth.
     match /settings/banner {
       allow read: if true;
       allow write: if isAnyAdmin();
@@ -374,7 +357,6 @@ service cloud.firestore {
       allow read, write: if isAnyAdmin();
     }
 
-    // Public presentation/configuration values used by the website UI only.
     match /publicSettings/{document=**} {
       allow read: if true;
       allow write: if isAnyAdmin();
@@ -420,8 +402,6 @@ service cloud.firestore {
       allow write: if isAnyAdmin();
     }
 
-    // School records contain portal credentials (access codes). They must not be
-    // publicly readable. Public-facing school information belongs in CMS collections.
     match /schools/{schoolId} {
       allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(schoolId));
       allow write: if isAnyAdmin();
