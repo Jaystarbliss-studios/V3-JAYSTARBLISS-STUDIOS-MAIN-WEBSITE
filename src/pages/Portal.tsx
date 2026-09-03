@@ -299,6 +299,8 @@ const Portal: React.FC = () => {
       name: sdata?.fullName || existingData.name || effectiveUsername,
       role: 'student',
       studentDocId: sdoc ? sdoc.id : firebaseUid,
+      schoolId: sdata?.schoolId || existingData.schoolId || '',
+      schoolName: sdata?.schoolName || existingData.schoolName || '',
       updatedAt: serverTimestamp()
     }, { merge: true });
 
