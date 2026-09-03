@@ -30,19 +30,19 @@ export const handler: Handler = async (event) => {
     const metadataRole = String(tx.metadata?.role || "").toLowerCase();
     const metadataPlanId = String(tx.metadata?.planId || "");
     const enrollmentRequestId = String(tx.metadata?.enrollmentRequestId || "").trim();
-    const expectedAmounts: Record<string, { amount: number; role: "student" | "school" }> = {
-      plan_weekend: { amount: 45000, role: "student" },
-      plan_mentorship: { amount: 120000, role: "student" },
-      plan_robotics: { amount: 85000, role: "student" },
-      school_standard: { amount: 350000, role: "school" },
-      school_cbt: { amount: 600000, role: "school" }
+    const expectedAmounts: Record<string, { amount: number; roles: Array<"student" | "parent" | "school"> }> = {
+      plan_weekend: { amount: 45000, roles: ["student", "parent"] },
+      plan_mentorship: { amount: 120000, roles: ["student", "parent"] },
+      plan_robotics: { amount: 85000, roles: ["student", "parent"] },
+      school_standard: { amount: 350000, roles: ["school"] },
+      school_cbt: { amount: 600000, roles: ["school"] }
     };
     const expected = expectedAmounts[metadataPlanId];
 
     if (metadataUserId !== decoded.uid) {
       return { statusCode: 403, body: JSON.stringify({ error: "Payment ownership could not be verified." }) };
     }
-    if (!expected || metadataRole !== expected.role || String(tx.currency || "").toUpperCase() !== "NGN" || Number(tx.amount) !== expected.amount * 100) {
+    if (!expected || !expected.roles.includes(metadataRole as "student" | "parent" | "school") || String(tx.currency || "").toUpperCase() !== "NGN" || Number(tx.amount) !== expected.amount * 100) {
       console.error("Paystack transaction integrity check failed:", {
         reference,
         planId: metadataPlanId,
