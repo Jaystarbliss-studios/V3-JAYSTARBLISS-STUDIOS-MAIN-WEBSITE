@@ -317,7 +317,7 @@ service cloud.firestore {
       allow create, update, delete: if isAnyAdmin() || isSchoolOwner(schoolId);
     }
     match /schoolPrograms/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
-    match /inquiries/{inquiryId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
+    match /inquiries/{inquiryId} { allow create, update, delete: if isAnyAdmin(); allow read: if isAnyAdmin(); }
 
     match /{document=**} {
       allow read, write: if false;
