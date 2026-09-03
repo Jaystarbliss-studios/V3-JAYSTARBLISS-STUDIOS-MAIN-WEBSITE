@@ -8,7 +8,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { 
   UserCheck, Key, Plus, Trash2, 
   ExternalLink, Mail, BookOpen, 
-  Copy, Briefcase
+  Copy, Briefcase, ShieldBan, ShieldCheck
 } from 'lucide-react';
 
 const AdminStaff: React.FC = () => {
@@ -117,6 +117,20 @@ const AdminStaff: React.FC = () => {
       fetchStaffData();
     } catch (err: any) {
       toast.error('Error removing staff: ' + err.message);
+    }
+  };
+
+  // Change staff account access state. ProtectedRoute enforces these states at sign-in/route access.
+  const handleAccountStatus = async (id: string, name: string, nextStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED') => {
+    const action = nextStatus === 'ACTIVE' ? 'restore' : nextStatus === 'SUSPENDED' ? 'suspend' : 'ban';
+    if (!window.confirm(`Are you sure you want to ${action} "${name}"?`)) return;
+    try {
+      await setDoc(doc(db, 'users', id), { accountStatus: nextStatus, updatedAt: serverTimestamp() }, { merge: true });
+      setStaffList(prev => prev.map(member => member.id === id ? { ...member, accountStatus: nextStatus } : member));
+      toast.success(`${name} is now ${nextStatus.toLowerCase()}.`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Failed to update account status: ' + err.message);
     }
   };
 
@@ -358,6 +372,21 @@ const AdminStaff: React.FC = () => {
                           📞 {staff.phone}
                         </div>
                       )}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg border ${
+                        String(staff.accountStatus || 'ACTIVE').toUpperCase() === 'BANNED'
+                          ? 'bg-red-100 text-red-700 border-red-200'
+                          : String(staff.accountStatus || 'ACTIVE').toUpperCase() === 'SUSPENDED'
+                            ? 'bg-amber-100 text-amber-700 border-amber-200'
+                            : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                      }`}>{String(staff.accountStatus || 'ACTIVE')}</span>
+                      <div className="flex gap-1.5 ml-auto">
+                        {String(staff.accountStatus || 'ACTIVE').toUpperCase() !== 'SUSPENDED' && <button onClick={() => handleAccountStatus(staff.id, staff.name || staff.email, 'SUSPENDED')} className="px-2 py-1 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 text-[10px] font-bold"><ShieldBan size={12} className="inline mr-1" />Suspend</button>}
+                        {String(staff.accountStatus || 'ACTIVE').toUpperCase() !== 'BANNED' && <button onClick={() => handleAccountStatus(staff.id, staff.name || staff.email, 'BANNED')} className="px-2 py-1 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-[10px] font-bold"><ShieldBan size={12} className="inline mr-1" />Ban</button>}
+                        {String(staff.accountStatus || 'ACTIVE').toUpperCase() !== 'ACTIVE' && <button onClick={() => handleAccountStatus(staff.id, staff.name || staff.email, 'ACTIVE')} className="px-2 py-1 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-[10px] font-bold"><ShieldCheck size={12} className="inline mr-1" />Restore</button>}
+                      </div>
                     </div>
 
                     <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-gray-400">
