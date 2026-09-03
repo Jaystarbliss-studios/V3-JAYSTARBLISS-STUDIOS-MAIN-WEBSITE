@@ -1,6 +1,6 @@
 name: Apply Admin Integrity Patch
 
-# This workflow is intentionally temporary and self-removing after a successful patch.
+# Temporary migration runner; removed automatically after a successful patch.
 
 on:
   push:
