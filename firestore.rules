@@ -37,6 +37,36 @@ service cloud.firestore {
       );
     }
 
+    function isSchoolUser() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SCHOOL', 'school'];
+    }
+
+    function userSchoolId() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId
+        : null;
+    }
+
+    function isSameSchool(schoolId) {
+      return isSchoolUser() && schoolId != null && schoolId == userSchoolId();
+    }
+
+    function isOwnStudent(data) {
+      return isAuth() && (
+        data.firebaseUid == request.auth.uid ||
+        data.userId == request.auth.uid
+      );
+    }
+
+    function isOwnParent(data) {
+      return isAuth() && (
+        data.parentId == request.auth.uid ||
+        data.userId == request.auth.uid ||
+        data.firebaseUid == request.auth.uid
+      );
+    }
+
     // ==========================================
     // USERS & PORTAL PROFILES
     // ==========================================
@@ -66,27 +96,27 @@ service cloud.firestore {
     // STUDENTS & INDIVIDUAL LEARNERS
     // ==========================================
     match /individualStudents/{studentId} {
-      allow read: if isAuth();
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isOwnStudent(resource.data) && request.resource.data.firebaseUid == request.auth.uid);
     }
 
     match /students/{studentId} {
-      allow read: if isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /studentModules/{docId} {
-      allow read: if isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /personalResources/{docId} {
-      allow read: if isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data);
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
     match /personalLinks/{docId} {
-      allow read: if isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data);
       allow write, delete: if isStaffOrTutor() || isAnyAdmin();
     }
 
@@ -109,23 +139,23 @@ service cloud.firestore {
     }
 
     match /schoolResources/{resourceId} {
-      allow read: if isAuth();
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
     }
 
     match /schoolLinks/{linkId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
     }
 
     match /schoolExams/{examId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
     }
 
     match /schoolPasscodes/{docId} {
-      allow read: if isAuth();
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId);
+      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
     }
 
     match /staffGeneralResources/{resId} {
@@ -152,8 +182,8 @@ service cloud.firestore {
     // PARENTS & PAYMENTS & ENROLLMENTS
     // ==========================================
     match /parents/{parentId} {
-      allow read: if true;
-      allow create: if isAuth() || true;
+      allow read: if isAnyAdmin() || isStaffOrTutor() || (isAuth() && request.auth.uid == parentId);
+      allow create: if isAuth() && request.auth.uid == parentId;
       allow update: if isStaffOrTutor() || (isAuth() && request.auth.uid == parentId) || isAnyAdmin();
       allow delete: if isSuperAdmin() || isAnyAdmin();
     }
@@ -209,47 +239,47 @@ service cloud.firestore {
     // ==========================================
     match /page_sections/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /pages/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /sections/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /settings/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /programs/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /services/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /portfolio/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /kidsProjects/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /blog/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /newsCorner/{document=**} {
@@ -259,22 +289,22 @@ service cloud.firestore {
 
     match /faqs/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /testimonials/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /schools/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /schoolPrograms/{document=**} {
       allow read: if true;
-      allow write: if isAnyAdmin() || isAuth();
+      allow write: if isAnyAdmin();
     }
 
     match /inquiries/{inquiryId} {
