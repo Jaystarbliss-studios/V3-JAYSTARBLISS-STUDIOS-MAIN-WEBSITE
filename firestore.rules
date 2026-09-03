@@ -247,6 +247,7 @@ service cloud.firestore {
       allow read: if isAnyAdmin() || (isAuth() && (
         resource.data.recipientId == request.auth.uid ||
         resource.data.recipientId == 'all' ||
+        (resource.data.recipientId == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['PARENT','parent']) ||
         (resource.data.recipientId == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STUDENT','student']) ||
         (resource.data.recipientId == 'all_staff' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])
       ));
