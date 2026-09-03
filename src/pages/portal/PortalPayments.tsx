@@ -5,14 +5,26 @@ import {
   ArrowRight, FileText
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
+import jsPDF from 'jspdf';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
+interface PaymentRecord {
+  id: string;
+  amount?: number | string;
+  reference?: string;
+  plan?: string;
+  description?: string;
+  paymentMethod?: string;
+  status?: string;
+  createdAt?: { toDate?: () => Date } | Date | string | null;
+}
+
 export const PortalPayments: React.FC = () => {
   const { toast } = useToast();
   const [role, setRole] = useState('student');
-  const [payments, setPayments] = useState<any[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [renewing, setRenewing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
@@ -43,7 +55,7 @@ export const PortalPayments: React.FC = () => {
           query(collection(db, 'payments'), where('schoolId', '==', userUid))
         ];
         const snapshots = await Promise.all(ownedQueries.map(getDocs));
-        const list: any[] = [];
+        const list: PaymentRecord[] = [];
         const seen = new Set<string>();
         snapshots.forEach(snap => snap.forEach(d => {
           if (!seen.has(d.id)) {
@@ -68,6 +80,61 @@ export const PortalPayments: React.FC = () => {
 
     fetchPaymentHistory();
   }, []);
+
+  const handleDownloadReceipt = (payment: PaymentRecord) => {
+    try {
+      const pdf = new jsPDF();
+      const reference = payment.reference || payment.id;
+      const rawDate = payment.createdAt;
+      const date = rawDate instanceof Date
+        ? rawDate
+        : typeof rawDate === 'string'
+          ? new Date(rawDate)
+          : rawDate && typeof rawDate.toDate === 'function'
+            ? rawDate.toDate()
+            : new Date();
+
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('JAYSTARBLISS STUDIOS', 20, 25);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Official Payment Receipt', 20, 33);
+      pdf.line(20, 38, 190, 38);
+
+      pdf.setFontSize(10);
+      pdf.text('Transaction reference:', 20, 52);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(reference, 75, 52);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Date:', 20, 62);
+      pdf.text(date.toLocaleDateString(), 75, 62);
+      pdf.text('Description:', 20, 72);
+      pdf.text(String(payment.plan || payment.description || 'Tuition Renewal'), 75, 72);
+      pdf.text('Payment method:', 20, 82);
+      pdf.text(String(payment.paymentMethod || 'Online Paystack'), 75, 82);
+      pdf.text('Status:', 20, 92);
+      pdf.text(String(payment.status || 'Verified'), 75, 92);
+
+      pdf.line(20, 105, 190, 105);
+      pdf.setFontSize(15);
+      pdf.setFont('helvetica', 'bold');
+      const amount = typeof payment.amount === 'number'
+        ? payment.amount.toLocaleString()
+        : String(payment.amount ?? '0');
+      pdf.text(`Amount paid: ₦${amount}`, 20, 118);
+
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Keep this receipt for your academic and financial records.', 20, 135);
+      pdf.text('Jaystarbliss Studios • Learn. Build. Create. Grow.', 20, 145);
+      pdf.save(`jaystarbliss-receipt-${reference}.pdf`);
+      toast.success('Payment receipt downloaded successfully.');
+    } catch (err) {
+      console.error('Receipt generation error:', err);
+      toast.error('Unable to generate this receipt right now.');
+    }
+  };
 
   useEffect(() => {
     const reference = new URLSearchParams(window.location.search).get('reference');
@@ -321,7 +388,7 @@ export const PortalPayments: React.FC = () => {
                     <td className="py-3.5 text-right">
                       <button
                         type="button"
-                        onClick={() => alert(`Downloading official PDF statement for ${p.reference || p.id}`)}
+                        onClick={() => handleDownloadReceipt(p)}
                         className="inline-flex items-center gap-1 text-brand-red hover:underline font-bold text-xs"
                       >
                         <Download size={13} /> PDF Receipt
