@@ -108,6 +108,13 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
     : null;
   const learningHours = progressData.reduce((sum, item) => sum + item.hours, 0);
 
+  const metrics: Array<{ label: string; value: string; note: string; icon: React.ElementType }> = [
+    { label: 'Average Grade', value: averageGrade === null ? '—' : `${averageGrade}%`, note: 'From recorded assessments', icon: Award },
+    { label: 'Milestone Rate', value: completionRate === null ? '—' : `${completionRate}%`, note: `${completedModules}/${totalModules} milestones verified`, icon: CheckCircle2 },
+    { label: 'Syllabus Progress', value: completionRate === null ? '—' : `${completionRate}%`, note: 'Based on recorded modules', icon: BookOpen },
+    { label: 'Learning Time', value: learningHours ? `${learningHours} hrs` : '—', note: learningHours ? 'Recorded module hours' : 'Hours not yet tracked', icon: Clock }
+  ];
+
   const tabs = [
     { key: 'overview', label: 'Overview', icon: Layers },
     { key: 'progress', label: 'Learning Progress', icon: BookOpen },
@@ -141,21 +148,19 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          ['Average Grade', averageGrade === null ? '—' : `${averageGrade}%`, 'From recorded assessments', Award],
-          ['Milestone Rate', completionRate === null ? '—' : `${completionRate}%`, `${completedModules}/${totalModules} milestones verified`, CheckCircle2],
-          ['Syllabus Progress', completionRate === null ? '—' : `${completionRate}%`, 'Based on recorded modules', BookOpen],
-          ['Learning Time', learningHours ? `${learningHours} hrs` : '—', learningHours ? 'Recorded module hours' : 'Hours not yet tracked', Clock]
-        ].map(([label, value, note, Icon]) => (
-          <div key={String(label)} className="p-4 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-100 dark:border-white/5">
-            <div className="flex items-center justify-between text-gray-500 dark:text-slate-400 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider">{label}</span>
-              <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center"><Icon size={15} /></div>
+        {metrics.map(metric => {
+          const Icon = metric.icon;
+          return (
+            <div key={metric.label} className="p-4 rounded-xl bg-gray-50 dark:bg-slate-900/60 border border-gray-100 dark:border-white/5">
+              <div className="flex items-center justify-between text-gray-500 dark:text-slate-400 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">{metric.label}</span>
+                <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 flex items-center justify-center"><Icon size={15} /></div>
+              </div>
+              <span className="text-2xl font-black text-gray-900 dark:text-white">{metric.value}</span>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{metric.note}</p>
             </div>
-            <span className="text-2xl font-black text-gray-900 dark:text-white">{value}</span>
-            <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{note}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {activeTab === 'overview' && (
