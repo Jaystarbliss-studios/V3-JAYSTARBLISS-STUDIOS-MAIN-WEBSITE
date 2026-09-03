@@ -49,6 +49,8 @@ const getExistingUserStatus = async (uid: string) => {
   return { exists: userSnap.exists, data };
 };
 
+const isAuthDisabled = (user: { disabled?: boolean }) => user.disabled === true;
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   try {
@@ -84,6 +86,9 @@ export const handler: Handler = async (event) => {
       }
       const schoolId = String(profile.schoolId || "");
       const authUser = await adminAuth.getUser(uid);
+      if (isAuthDisabled(authUser)) {
+        return { statusCode: 401, body: JSON.stringify({ error: "This student account is disabled in authentication." }) };
+      }
       await snap.ref.set({ firebaseUid: uid, authEmail: authUser.email || null }, { merge: true });
       await adminDb.collection("users").doc(uid).set({
         email: authUser.email || null,
@@ -132,6 +137,9 @@ export const handler: Handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ error: "This school account is currently disabled." }) };
       }
       const authUser = await adminAuth.getUser(uid);
+      if (isAuthDisabled(authUser)) {
+        return { statusCode: 401, body: JSON.stringify({ error: "This school account is disabled in authentication." }) };
+      }
       await adminDb.collection("users").doc(uid).set({
         email: email || authUser.email || null,
         name: profile.name || "Partner School",
