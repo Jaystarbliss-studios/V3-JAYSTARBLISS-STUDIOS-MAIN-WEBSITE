@@ -44,9 +44,7 @@ const ParentDashboard: React.FC = () => {
         try {
           const studentQueries = [
             query(collection(db, 'individualStudents'), where('parentId', '==', userUid)),
-            query(collection(db, 'individualStudents'), where('parentId', '==', userEmail)),
-            query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)),
-            query(collection(db, 'individualStudents'), where('email', '==', userEmail))
+            ...(userEmail ? [query(collection(db, 'individualStudents'), where('parentId', '==', userEmail))] : [])
           ];
           const studentSnaps = await Promise.all(studentQueries);
           studentSnaps.forEach(isSnap => isSnap.forEach(d => {
@@ -60,9 +58,7 @@ const ParentDashboard: React.FC = () => {
         try {
           const legacyQueries = [
             query(collection(db, 'students'), where('parentId', '==', userUid)),
-            query(collection(db, 'students'), where('parentId', '==', userEmail)),
-            query(collection(db, 'students'), where('parentEmail', '==', userEmail)),
-            query(collection(db, 'students'), where('email', '==', userEmail))
+            ...(userEmail ? [query(collection(db, 'students'), where('parentId', '==', userEmail))] : [])
           ];
           const legacySnaps = await Promise.all(legacyQueries);
           legacySnaps.forEach(sSnap => sSnap.forEach(d => {
