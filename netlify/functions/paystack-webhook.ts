@@ -65,34 +65,9 @@ export const handler: Handler = async (event) => {
     }
 
     const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
-    const canonicalExisting = await canonicalPaymentRef.get();
-    const existing = canonicalExisting.exists
-      ? canonicalExisting
-      : (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
-    if (existing) {
+    const legacyExisting = (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
+    if (legacyExisting) {
       return { statusCode: 200, body: "Event already reconciled" };
-    }
-
-    let enrollmentRequest = null as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData> | null;
-    if (enrollmentRequestId) {
-      enrollmentRequest = await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).get();
-      if (!enrollmentRequest.exists) {
-        console.error("Ignored Paystack webhook: enrollment request not found.", { reference, enrollmentRequestId });
-        return { statusCode: 200, body: "Event acknowledged" };
-      }
-
-      const enrollmentData = enrollmentRequest.data() || {};
-      if (String(enrollmentData.parentId || "") !== userId) {
-        console.error("Ignored Paystack webhook: enrollment request owner mismatch.", { reference, enrollmentRequestId, userId });
-        return { statusCode: 200, body: "Event acknowledged" };
-      }
-      if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== planId) {
-        console.error("Ignored Paystack webhook: enrollment request plan mismatch.", { reference, enrollmentRequestId, planId });
-        return { statusCode: 200, body: "Event acknowledged" };
-      }
-      if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") {
-        return { statusCode: 200, body: "Event already reconciled" };
-      }
     }
 
     const paymentData = {
@@ -115,27 +90,42 @@ export const handler: Handler = async (event) => {
       paidAt: tx.paid_at ? new Date(tx.paid_at) : new Date()
     };
 
-    try {
-      await canonicalPaymentRef.create(paymentData);
-    } catch (writeError: any) {
-      if (writeError?.code === 6 || String(writeError?.message || "").toLowerCase().includes("already exists")) {
-        return { statusCode: 200, body: "Event already reconciled" };
+    const result = await adminDb.runTransaction(async (transaction) => {
+      const paymentSnapshot = await transaction.get(canonicalPaymentRef);
+      if (paymentSnapshot.exists) return "existing" as const;
+
+      if (enrollmentRequestId) {
+        const enrollmentRef = adminDb.collection("enrollment_requests").doc(enrollmentRequestId);
+        const enrollmentSnapshot = await transaction.get(enrollmentRef);
+        if (!enrollmentSnapshot.exists) throw new Error("ENROLLMENT_NOT_FOUND");
+
+        const enrollmentData = enrollmentSnapshot.data() || {};
+        if (String(enrollmentData.parentId || "") !== userId) throw new Error("ENROLLMENT_OWNER_MISMATCH");
+        if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== planId) throw new Error("ENROLLMENT_PLAN_MISMATCH");
+        if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") return "existing" as const;
+
+        transaction.create(canonicalPaymentRef, paymentData);
+        transaction.set(enrollmentRef, {
+          paymentStatus: "PAID",
+          paymentReference: reference,
+          paymentPlanId: planId,
+          paidAt: new Date(),
+          updatedAt: new Date()
+        }, { merge: true });
+        return "created" as const;
       }
-      throw writeError;
-    }
 
-    if (enrollmentRequestId && enrollmentRequest) {
-      await enrollmentRequest.ref.set({
-        paymentStatus: "PAID",
-        paymentReference: reference,
-        paymentPlanId: planId,
-        paidAt: new Date(),
-        updatedAt: new Date()
-      }, { merge: true });
-    }
+      transaction.create(canonicalPaymentRef, paymentData);
+      return "created" as const;
+    });
 
-    return { statusCode: 200, body: "Webhook reconciled" };
+    return { statusCode: 200, body: result === "existing" ? "Event already reconciled" : "Webhook reconciled" };
   } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if (code === "ENROLLMENT_NOT_FOUND" || code === "ENROLLMENT_OWNER_MISMATCH" || code === "ENROLLMENT_PLAN_MISMATCH") {
+      console.error("Paystack webhook enrollment reconciliation rejected:", error);
+      return { statusCode: 200, body: "Event acknowledged" };
+    }
     console.error("Paystack webhook processing error:", error);
     return { statusCode: 500, body: "Webhook processing failed" };
   }
