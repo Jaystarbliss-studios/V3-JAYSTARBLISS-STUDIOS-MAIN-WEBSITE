@@ -128,12 +128,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
-          three: ['three', '@react-three/fiber', '@react-three/drei'],
-          charts: ['recharts'],
-          editor: ['react-quill', 'react-quill-new', 'react-markdown'],
-          pdf: ['jspdf']
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase/')) return 'firebase'
+          if (id.includes('node_modules/three/') || id.includes('node_modules/@react-three/')) return 'three'
+          if (id.includes('node_modules/recharts/')) return 'charts'
+          if (
+            id.includes('node_modules/react-quill/') ||
+            id.includes('node_modules/react-quill-new/') ||
+            id.includes('node_modules/react-markdown/')
+          ) return 'editor'
+          if (id.includes('node_modules/jspdf/')) return 'pdf'
+          return undefined
         }
       }
     }
