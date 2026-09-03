@@ -36,7 +36,10 @@ export const handler: Handler = async (event) => {
     const callerSnap = await adminDb.collection("users").doc(decoded.uid).get();
     const caller = callerSnap.exists ? callerSnap.data() || {} : {};
     const callerRole = String(caller.role || "").toLowerCase();
-    if (!ADMIN_ROLES.has(callerRole)) return json(403, { error: "Administrator permissions are required." });
+    const callerStatus = String(caller.accountStatus || "ACTIVE").toLowerCase();
+    if (!ADMIN_ROLES.has(callerRole) || ["disabled", "suspended", "banned"].includes(callerStatus)) {
+      return json(403, { error: "Administrator permissions are required." });
+    }
 
     const body = JSON.parse(event.body || "{}");
     const userId = String(body.userId || "").trim();
@@ -49,6 +52,7 @@ export const handler: Handler = async (event) => {
     const targetSnap = await adminDb.collection("users").doc(userId).get();
     const target = targetSnap.exists ? targetSnap.data() || {} : {};
     const targetRole = String(target.role || "").toLowerCase();
+    const targetStatus = String(target.accountStatus || "ACTIVE").toUpperCase();
 
     if ((role === "super_admin" || targetRole === "super_admin") && callerRole !== "super_admin") {
       return json(403, { error: "Only a Super Admin can create or modify Super Admin access." });
@@ -69,8 +73,19 @@ export const handler: Handler = async (event) => {
     } else if (role === "school") {
       await adminDb.collection("schools").doc(userId).set({ updatedAt: now }, { merge: true });
     } else if (role.includes("admin")) {
-      await adminDb.collection("admins").doc(userId).set({ uid: userId, email: targetAuth.email || null, name: target.name || targetAuth.displayName || "", role, status: "ACTIVE", updatedAt: now }, { merge: true });
+      await adminDb.collection("admins").doc(userId).set({ uid: userId, email: targetAuth.email || null, name: target.name || targetAuth.displayName || "", role, status: targetStatus, updatedAt: now }, { merge: true });
     }
+
+    await adminDb.collection("activityLogs").add({
+      action: "USER_ROLE_CHANGED",
+      actorId: decoded.uid,
+      actorRole: callerRole,
+      targetUserId: userId,
+      targetEmail: targetAuth.email || null,
+      previousRole: targetRole,
+      nextRole: role,
+      createdAt: now,
+    });
 
     return json(200, { success: true, userId, role, email: targetAuth.email || null });
   } catch (error: any) {
