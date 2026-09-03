@@ -216,26 +216,10 @@ const StudentDashboard: React.FC = () => {
           }
         }
 
-        // Fallback mock profile if standalone demo
         if (!sData) {
-          sData = {
-            id: currentUser?.uid || 'temp-id',
-            fullName: sessionStorage.getItem('userName') || currentUser?.displayName || 'Active Cadet',
-            username: studentUsername || 'cadet',
-            email: currentUser?.email || 'cadet@jdh.institute',
-            class: cachedClass || 'JSS 1',
-            schoolId: cachedSchoolId || undefined,
-            schoolName: cachedSchoolName || undefined,
-            plan: 'School STEM & Coding Track',
-            subjects: ['Web Development', 'Robotics & AI', 'Creative Design'],
-            schedule: 'Mon / Wed / Fri (4:00 PM - 6:00 PM)',
-            status: 'ACTIVE'
-          };
-        } else {
-          if (!sData.class && cachedClass) {
-            sData.class = cachedClass;
-          }
+          throw new Error('Student profile could not be loaded. Please sign in again or contact Jaystarbliss support.');
         }
+
         setStudent(sData);
         setCertStudentName(sData.fullName || 'Active Cadet');
 
@@ -244,7 +228,7 @@ const StudentDashboard: React.FC = () => {
         // 2. Fetch Personal Resources
         if (sId || currentUser?.uid) {
           try {
-            const prSnap = await getDocs(collection(db, 'personalResources'));
+            const prSnap = await getDocs(query(collection(db, 'personalResources'), where('studentId', '==', sId)));
             const pRes: ResourceItem[] = [];
             prSnap.forEach(d => {
               const data = d.data();
@@ -259,7 +243,7 @@ const StudentDashboard: React.FC = () => {
 
           // 3. Fetch Personal Links
           try {
-            const plSnap = await getDocs(collection(db, 'personalLinks'));
+            const plSnap = await getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', sId)));
             const pLinks: LinkItem[] = [];
             plSnap.forEach(d => {
               const data = d.data();
