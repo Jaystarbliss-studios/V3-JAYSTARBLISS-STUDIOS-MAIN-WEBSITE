@@ -355,7 +355,8 @@ const StudentDashboard: React.FC = () => {
                   completionDate: d.completionDate || '',
                   score: d.score || (d.completed ? '100% Mastery' : 'In Progress'),
                   competencies: d.competencies || ['Computational Thinking', 'Project Architecture'],
-                  instructor: d.instructor || 'Jaystarbliss Instructor'
+                  instructor: d.instructor || 'Jaystarbliss Instructor',
+                  credentialId: d.credentialId || d.certificateId || ''
                 });
               }
             });
@@ -426,40 +427,42 @@ const StudentDashboard: React.FC = () => {
   };
 
   const courseProgressList = useMemo(() => {
-    return [
-      { label: 'Web Development', percentage: 75 },
-      { label: 'Data Science', percentage: 60 },
-      { label: 'UX Design', percentage: 90 },
-      { label: 'Robotics & AI', percentage: 85 },
-    ];
-  }, []);
+    const groups = new Map<string, { label: string; completed: number; total: number }>();
+    modules.forEach(module => {
+      const label = module.trackName || module.stageName || 'Current Program';
+      const current = groups.get(label) || { label, completed: 0, total: 0 };
+      current.total += 1;
+      if (module.completed) current.completed += 1;
+      groups.set(label, current);
+    });
+    return Array.from(groups.values()).map(group => ({
+      label: group.label,
+      percentage: group.total ? Math.round((group.completed / group.total) * 100) : 0
+    }));
+  }, [modules]);
 
-  const upcomingAssignments = useMemo(() => {
-    if (exams.length > 0) {
-      return exams.slice(0, 3).map((e, idx) => ({
-        id: e.id,
-        title: e.title,
-        track: e.subject || 'STEM Track',
-        deadline: e.dueDate || `Due in ${idx + 2} days`,
-        link: e.link || e.url
-      }));
-    }
-    return [
-      { id: '1', title: 'React Project Build', track: 'Frontend Engineering', deadline: 'Due Oct 25', link: '#' },
-      { id: '2', title: 'Database Schema Quiz', track: 'Backend & SQL', deadline: 'Due Nov 02', link: '#' },
-      { id: '3', title: 'Wireframe Design Deck', track: 'UI/UX Interactive', deadline: 'Due Nov 08', link: '#' },
-    ];
-  }, [exams]);
+  const upcomingAssignments = useMemo(() => exams.slice(0, 3).map(e => ({
+    id: e.id,
+    title: e.title,
+    track: e.subject || 'Assessment',
+    deadline: e.dueDate || e.date || 'Not scheduled',
+    link: e.link || e.url
+  })), [exams]);
 
-  const recentActivities = useMemo(() => {
-    return [
-      { id: 'a1', action: 'Submitted Assignment', detail: 'React Project Showcase', time: '2 hours ago', icon: CheckSquare, color: 'text-red-500 bg-red-500/10' },
-      { id: 'a2', action: 'Completed Milestone Module', detail: 'State & Lifecycle Hooks', time: 'Yesterday', icon: Award, color: 'text-emerald-500 bg-emerald-500/10' },
-      { id: 'a3', action: 'Joined Live Classroom', detail: 'Advanced Python AI Track', time: '3 days ago', icon: Video, color: 'text-blue-500 bg-blue-500/10' },
-    ];
-  }, []);
+  const recentActivities = useMemo(() => modules
+    .filter(module => module.completed && module.completionDate)
+    .sort((a, b) => String(b.completionDate).localeCompare(String(a.completionDate)))
+    .slice(0, 4)
+    .map(module => ({
+      id: module.id,
+      action: 'Completed Milestone Module',
+      detail: module.title,
+      time: module.completionDate,
+      icon: Award,
+      color: 'text-emerald-500 bg-emerald-500/10'
+    })), [modules]);
 
-  const completedModulesCount = modules.filter(m => m.completed).length;
+  const completedModulesCount = modules.filter(m => m.completed).length;  const completedModulesCount = modules.filter(m => m.completed).length;
 
   if (loading) {
     return (
@@ -608,7 +611,7 @@ const StudentDashboard: React.FC = () => {
             <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="font-bold text-gray-800 dark:text-gray-200">Next Deliverable</span>
-                <span className="text-red-600 dark:text-red-400 font-bold">2 Days</span>
+                <span className="text-red-600 dark:text-red-400 font-bold">{upcomingAssignments[0]?.deadline || 'Not scheduled'}</span>
               </div>
               <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">Full-Stack React Demo Showcase</p>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Assigned by Lead Technical Instructor</p>
@@ -619,7 +622,7 @@ const StudentDashboard: React.FC = () => {
                 <span className="font-bold text-gray-800 dark:text-gray-200">Certificate Readiness</span>
                 <span className="text-emerald-600 font-bold font-mono">80%</span>
               </div>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length || 6} Milestones Verified</p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{completedModulesCount} of {modules.length} Milestones Verified</p>
               <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">PDF auto-issuance enabled upon completion</p>
             </div>
           </div>
@@ -1135,7 +1138,7 @@ const StudentDashboard: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-gray-200 dark:border-white/5 mb-6 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-red-600 uppercase">{selectedModuleForCert.stageName}</span>
-                <span className="text-gray-500 font-mono">Credential ID: JDS-CERT-{Math.floor(1000 + Math.random() * 9000)}</span>
+                <span className="text-gray-500 font-mono">Credential ID: {selectedModuleForCert.credentialId || 'Pending issuance'}</span>
               </div>
               <div>
                 <h4 className="font-extrabold text-sm text-gray-900 dark:text-white">
