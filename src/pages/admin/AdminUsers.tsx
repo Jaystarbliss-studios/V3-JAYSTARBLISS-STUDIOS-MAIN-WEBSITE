@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { Shield, User, Download, Plus, X, KeyRound } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
