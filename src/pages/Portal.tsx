@@ -48,16 +48,18 @@ function deriveSchoolAuthPassword(code: string): string {
   return `jdh_sch_${code}_2024`;
 }
 
-const recordPortalLogin = async (role: string) => {
+const recordPortalLogin = async (_role: string) => {
   const user = auth.currentUser;
   if (!user) return;
   try {
-    await addDoc(collection(db, 'activityLogs'), {
-      actorUid: user.uid,
-      type: 'login',
-      userType: role.toUpperCase(),
-      role: role.toUpperCase(),
-      timestamp: serverTimestamp()
+    const token = await user.getIdToken();
+    await fetch('/.netlify/functions/log-activity', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ type: 'login' })
     });
   } catch (error) {
     // Telemetry must never prevent a successful login.
