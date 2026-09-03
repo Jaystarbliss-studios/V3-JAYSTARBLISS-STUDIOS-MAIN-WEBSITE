@@ -2,7 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
 const normalizeUsername = (value: string) => value.toLowerCase().replace(/^@/, "").replace(/\s+/g, "");
-const isBlocked = (data: Record<string, any>) => ["SUSPENDED", "BANNED"].includes(String(data.accountStatus || data.status || "ACTIVE").toUpperCase());
+const isBlocked = (data: Record<string, any>) => ["SUSPENDED", "BANNED", "DISABLED"].includes(String(data.accountStatus || data.status || "ACTIVE").toUpperCase());
 
 async function findStudent(identifier: string, db: FirebaseFirestore.Firestore) {
   const raw = identifier.trim();
@@ -43,6 +43,12 @@ async function getOrCreateUid(email: string | undefined, displayName: string, fa
   return (await adminAuth.createUser({ email: email || syntheticEmail, displayName })).uid;
 }
 
+const getExistingUserStatus = async (uid: string) => {
+  const userSnap = await adminDb.collection("users").doc(uid).get();
+  const data = userSnap.exists ? userSnap.data() || {} : {};
+  return { exists: userSnap.exists, data };
+};
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   try {
@@ -72,6 +78,10 @@ export const handler: Handler = async (event) => {
         `student-${snap.id}`,
         typeof profile.firebaseUid === "string" ? profile.firebaseUid : undefined
       );
+      const existingUser = await getExistingUserStatus(uid);
+      if (existingUser.exists && isBlocked(existingUser.data)) {
+        return { statusCode: 401, body: JSON.stringify({ error: "This student account is currently disabled." }) };
+      }
       const schoolId = String(profile.schoolId || "");
       const authUser = await adminAuth.getUser(uid);
       await snap.ref.set({ firebaseUid: uid, authEmail: authUser.email || null }, { merge: true });
@@ -117,6 +127,10 @@ export const handler: Handler = async (event) => {
         `school-${schoolSnap.id}`,
         String(profile.adminUid || profile.userId || "") || undefined
       );
+      const existingUser = await getExistingUserStatus(uid);
+      if (existingUser.exists && isBlocked(existingUser.data)) {
+        return { statusCode: 401, body: JSON.stringify({ error: "This school account is currently disabled." }) };
+      }
       const authUser = await adminAuth.getUser(uid);
       await adminDb.collection("users").doc(uid).set({
         email: email || authUser.email || null,
