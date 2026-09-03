@@ -13,8 +13,7 @@ import {
   browserPopupRedirectResolver
 } from 'firebase/auth';
 import { 
-  doc, getDoc, setDoc, updateDoc, collection, 
-  query, where, getDocs, serverTimestamp, deleteDoc 
+  doc, getDoc, setDoc, serverTimestamp, deleteDoc 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
