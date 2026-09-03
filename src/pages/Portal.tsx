@@ -32,22 +32,6 @@ const STAFF_REG_CODE_FALLBACK = 'JAYSTAR2024';
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-function studentAuthEmail(username: string): string {
-  return username.toLowerCase().replace(/[^a-z0-9]/g, '') + '@jdh-student.local';
-}
-
-function deriveStudentAuthPassword(code: string): string {
-  // Firebase Auth requires passwords >= 6 characters.
-  // Deterministically expand short student PINs/codes to maintain valid auth sessions.
-  if (code.length >= 6) return code;
-  return `jdh_std_${code}_2024`;
-}
-
-function deriveSchoolAuthPassword(code: string): string {
-  if (code.length >= 6) return code;
-  return `jdh_sch_${code}_2024`;
-}
-
 const recordPortalLogin = async (_role: string) => {
   const user = auth.currentUser;
   if (!user) return;
