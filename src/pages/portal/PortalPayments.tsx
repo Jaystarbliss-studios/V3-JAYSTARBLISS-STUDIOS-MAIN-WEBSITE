@@ -5,7 +5,7 @@ import {
   ArrowRight, FileText
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
@@ -31,23 +31,26 @@ export const PortalPayments: React.FC = () => {
         const userUid = user?.uid;
         const userEmail = user?.email?.toLowerCase();
 
-        const snap = await getDocs(collection(db, 'payments'));
-        const list: any[] = [];
-        snap.forEach(d => {
-          const data = d.data();
-          if (
-            data.userId === userUid || 
-            data.parentId === userUid || 
-            data.schoolId === userUid ||
-            data.email?.toLowerCase() === userEmail ||
-            data.parentEmail?.toLowerCase() === userEmail
-          ) {
-            list.push({ id: d.id, ...data });
-          }
+        if (!userUid) {
+          setPayments([]);
+          return;
+        }
+
+        const [userPayments, parentPayments] = await Promise.all([
+          getDocs(query(collection(db, 'payments'), where('userId', '==', userUid))),
+          getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid)))
+        ]);
+
+        const paymentMap = new Map<string, any>();
+        [...userPayments.docs, ...parentPayments.docs].forEach(d => {
+          paymentMap.set(d.id, { id: d.id, ...d.data() });
         });
 
-        // If no past transactions in DB, show initial active tier
-        setPayments(list);
+        setPayments(Array.from(paymentMap.values()).sort((a, b) => {
+          const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        }));
       } catch (err) {
         console.warn('Payments load error:', err);
       } finally {
@@ -117,36 +120,79 @@ export const PortalPayments: React.FC = () => {
 
     try {
       const user = auth.currentUser;
-      const amount = selectedPlan.includes('350') ? 350000 : selectedPlan.includes('600') ? 600000 : selectedPlan.includes('120') ? 120000 : selectedPlan.includes('85') ? 85000 : 45000;
+      if (!user?.email) throw new Error('You must be signed in with an email address to make a payment.');
 
-      const paymentRecord = {
-        userId: user?.uid || 'user',
-        email: user?.email || '',
-        plan: selectedPlan,
-        amount: amount,
-        paymentMethod: paymentMethod,
-        status: 'PAID',
-        reference: `JDH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        role: role,
-        description: `Tuition & Fee Renewal: ${selectedPlan}`,
-        createdAt: serverTimestamp(),
-        dateString: new Date().toLocaleDateString()
-      };
+      const token = await user.getIdToken();
+      const initResponse = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          plan: selectedPlan,
+          role
+        })
+      });
 
-      const docRef = await addDoc(collection(db, 'payments'), paymentRecord);
-      setPayments(prev => [{ id: docRef.id, ...paymentRecord }, ...prev]);
-      setRenewalSuccess(true);
-      toast.success('Payment receipt generated successfully! Your membership status is active.');
+      const initData = await initResponse.json();
+      if (!initResponse.ok || !initData.accessCode) {
+        throw new Error(initData.error || 'Unable to start secure Paystack checkout.');
+      }
 
-      setTimeout(() => {
-        setShowCheckoutModal(false);
-        setRenewalSuccess(false);
-      }, 2000);
+      const PaystackPop = (window as any).PaystackPop;
+      if (!PaystackPop) {
+        throw new Error('Paystack checkout is unavailable. Please refresh and try again.');
+      }
 
-    } catch (err) {
-      console.error('Error processing renewal:', err);
-      toast.error('Failed to log payment transaction.');
-    } finally {
+      const popup = new PaystackPop();
+      popup.resumeTransaction(initData.accessCode, {
+        onSuccess: async (transaction: { reference: string }) => {
+          try {
+            const verifyToken = await auth.currentUser?.getIdToken(true);
+            if (!verifyToken) throw new Error('Your session expired. Please sign in again.');
+
+            const verifyResponse = await fetch('/api/paystack/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${verifyToken}`
+              },
+              body: JSON.stringify({ reference: transaction.reference })
+            });
+            const verifyData = await verifyResponse.json();
+
+            if (!verifyResponse.ok || !verifyData.verified) {
+              throw new Error(verifyData.error || 'Payment could not be verified.');
+            }
+
+            setRenewalSuccess(true);
+            toast.success('Payment verified successfully. Your receipt is now available.');
+            const refreshed = await getDocs(query(collection(db, 'payments'), where('userId', '==', user.uid)));
+            setPayments(refreshed.docs.map(d => ({ id: d.id, ...d.data() })));
+            setTimeout(() => {
+              setShowCheckoutModal(false);
+              setRenewalSuccess(false);
+            }, 2500);
+          } catch (verifyError: any) {
+            console.error('Payment verification error:', verifyError);
+            toast.error(verifyError.message || 'Payment verification failed.');
+          } finally {
+            setRenewing(false);
+          }
+        },
+        onCancel: () => {
+          setRenewing(false);
+          toast.info('Payment checkout was cancelled.');
+        },
+        onError: (error: any) => {
+          setRenewing(false);
+          toast.error(error?.message || 'Paystack checkout failed.');
+        }
+      });
+    } catch (err: any) {
+      console.error('Error processing payment:', err);
+      toast.error(err.message || 'Unable to start payment.');
       setRenewing(false);
     }
   };
