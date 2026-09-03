@@ -649,7 +649,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     toast.success('Roster CSV downloaded successfully!');
   };
 
-  const schoolDisplayName = schoolData?.name || 'Partner Academy';
+  const schoolDisplayName = schoolData?.name || 'School Portal';
 
   if (loading) {
     return (
@@ -693,12 +693,10 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Syllabus Progression
                 </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  78%
-                </h3>
+                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">—</h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                  <span>18 of 23 Modules Completed</span>
+                  <span>No module completion telemetry recorded</span>
                 </p>
               </div>
 
@@ -714,7 +712,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   />
                   <path
                     className="text-emerald-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="78, 100"
+                    strokeDasharray="0, 100"
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -722,7 +720,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   />
                 </svg>
-                <span className="absolute text-xs font-black text-gray-900 dark:text-white">78%</span>
+                <span className="absolute text-xs font-black text-gray-900 dark:text-white">—</span>
               </div>
             </div>
 
@@ -737,7 +735,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1.5 font-medium">
                   <Users size={13} className="text-blue-500 shrink-0" />
-                  <span>4 Grade Cohorts Active</span>
+                  <span>{new Set(students.map(s => s.class || s.grade).filter(Boolean)).size} Grade Cohorts Recorded</span>
                 </p>
               </div>
 
@@ -770,9 +768,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   CBT & Passcode Readiness
                 </span>
-                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-                  95%
-                </h3>
+                <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100) : 0}%</h3>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5 font-medium">
                   <Key size={13} className="shrink-0" />
                   <span>{passcodes.filter(p => p.isActive).length} Passcode Keys Authorized</span>
@@ -790,7 +786,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   />
                   <path
                     className="text-amber-500 transition-all duration-1000 ease-out"
-                    strokeDasharray="95, 100"
+                    strokeDasharray={`${passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100 : 0)}, 100`}
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -1116,7 +1112,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono font-bold text-brand-red bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded border border-red-200 dark:border-red-900/40">
-                              {st.accessCode || st.passcode || 'SCH-KEY-101'}
+                              {st.accessCode || st.passcode || '—'}
                             </span>
                             <button
                               onClick={() => copyToClipboard(st.accessCode || st.passcode || '', 'Passcode')}
@@ -1135,11 +1131,11 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                             <div className="w-12 bg-gray-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
                               <div 
                                 className="bg-emerald-500 h-full rounded-full" 
-                                style={{ width: `${st.attendanceRate || 90}%` }}
+                                style={{ width: `${st.attendanceRate ?? 0}%` }}
                               ></div>
                             </div>
                             <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                              {st.attendanceRate || 90}%
+                              {st.attendanceRate != null ? `${st.attendanceRate}%` : '—'}
                             </span>
                           </div>
                         </td>
