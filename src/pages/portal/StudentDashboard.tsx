@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   Clock, Trophy, Video, ExternalLink, 
   FileText, Download, Bell, Award, CheckCircle2,
-  X, ArrowRight, Lock, Code2, Activity, CheckSquare
+  X, ArrowRight, Lock, Code2, Activity
 } from 'lucide-react';
 import { 
   collection, query, where, getDocs, doc, getDoc, 
@@ -290,7 +290,7 @@ const StudentDashboard: React.FC = () => {
             const schResSnap = sData?.schoolId
               ? await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', sData.schoolId)))
               : { docs: [] } as any;
-            schResSnap.docs.forEach(d => {
+            schResSnap.docs.forEach((d: any) => {
               const item = { id: d.id, ...d.data() } as ResourceItem;
               const itemClass = (item.targetClass || item.class || '').trim();
               if (itemClass && assignedClass && (itemClass.toLowerCase() === assignedClass.toLowerCase() || itemClass.toLowerCase().includes(assignedClass.toLowerCase()))) {
@@ -326,7 +326,7 @@ const StudentDashboard: React.FC = () => {
             const schExSnap = sData?.schoolId
               ? await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', sData.schoolId)))
               : { docs: [] } as any;
-            schExSnap.docs.forEach(d => {
+            schExSnap.docs.forEach((d: any) => {
               const exData = { id: d.id, ...d.data() } as ExamItem;
               const exClass = (exData.targetClass || exData.class || '').trim();
               if (!exClass || !assignedClass || exClass.toLowerCase().includes(assignedClass.toLowerCase()) || assignedClass.toLowerCase().includes(exClass.toLowerCase())) {
