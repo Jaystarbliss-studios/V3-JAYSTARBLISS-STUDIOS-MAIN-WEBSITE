@@ -109,7 +109,7 @@ const AdminApprovals: React.FC = () => {
       const username = makeUniqueUsername(studentName, req.parentEmail || '', req.id);
       const studentRecordId = `enr_${req.id}`;
       const subjects = Array.isArray(req.subjects)
-        ? req.subjects.filter((subject: unknown): subject is string => typeof subject === 'string' && subject.trim())
+        ? req.subjects.filter((subject: unknown): subject is string => typeof subject === 'string' && Boolean(subject.trim()))
         : String(req.subjects || '').split(',').map((subject: string) => subject.trim()).filter(Boolean);
       const parentId = req.parentId || null;
       const parentEmail = req.parentEmail || '';
@@ -263,21 +263,25 @@ const AdminApprovals: React.FC = () => {
                 <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white">{req.name}</div><div className="text-xs text-gray-500">{req.email}</div>{req.phone && <div className="text-xs text-gray-500">Phone: {req.phone}</div>}{req.parentPhone && <div className="text-xs text-gray-500">Parent: {req.parentPhone}</div>}</td>
                 <td className="px-6 py-4"><div className="text-xs font-bold text-brand-red mb-1">Class: {req.class || 'N/A'}</div><div className="text-xs text-gray-700 dark:text-gray-300">{Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects}</div>{req.notes && <div className="text-xs text-gray-400 mt-1 italic">&quot;{req.notes}&quot;</div>}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveStudent(req)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50">Approve & Issue Code</button><button type="button" onClick={() => rejectRequest('student_requests', req.id)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold disabled:opacity-50">Reject</button></td>
+                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveStudent(req)} disabled={loadingId === req.id} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50">Approve &amp; Issue Code</button><button type="button" onClick={() => rejectRequest('student_requests', req.id)} disabled={loadingId === req.id} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold disabled:opacity-50">Reject</button></td>
               </tr>
             ))}
 
             {activeTab === 'enrollments' && enrollmentReqs.map(req => (
               <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30">
-                <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white">{req.studentName || 'Student enrollment'}</div><div className="text-xs text-gray-500">Parent: {req.parentEmail || 'Not supplied'}</div><div className="text-xs text-gray-500">Age / Grade: {req.studentAge || 'Not supplied'}</div></td>
-                <td className="px-6 py-4"><div className="text-xs font-bold text-gray-900 dark:text-white">Plan: {req.plan || 'Not specified'}</div><div className="text-xs text-gray-500 mt-1">Subjects: {Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects || 'Not specified'}</div></td>
+                <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white">{req.studentName}</div><div className="text-xs text-gray-500">{req.parentEmail || req.email || 'Parent account'}</div></td>
+                <td className="px-6 py-4"><div className="text-xs font-bold text-gray-900 dark:text-white">Plan: {req.plan || '—'}</div><div className="text-xs text-gray-500">Age / Grade: {req.studentAge || '—'}</div><div className="text-xs text-gray-500">Subjects: {Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects || '—'}</div></td>
                 <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveEnrollment(req)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 inline-flex items-center gap-1"><CheckCircle2 size={13} /> Approve & Issue Code</button><button type="button" onClick={() => rejectRequest('enrollment_requests', req.id)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold disabled:opacity-50 inline-flex items-center gap-1"><XCircle size={13} /> Reject</button></td>
+                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveEnrollment(req)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"><CheckCircle2 size={13} /> Approve &amp; Issue Access</button><button type="button" onClick={() => rejectRequest('enrollment_requests', req.id)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1"><XCircle size={13} /> Reject</button></td>
               </tr>
             ))}
 
             {((activeTab === 'students' && studentReqs.length === 0) || (activeTab === 'tutors' && tutorReqs.length === 0) || (activeTab === 'enrollments' && enrollmentReqs.length === 0)) && (
-              <tr><td colSpan={activeTab === 'tutors' ? 5 : 4} className="px-6 py-16 text-center text-sm text-gray-500 dark:text-gray-400"><div className="flex flex-col items-center justify-center"><CheckCircle2 size={32} className="text-green-500 mb-2" /><p className="font-bold">No pending {activeTab} applications</p><p className="text-xs text-gray-400 mt-0.5">All incoming requests have been reviewed and processed.</p></div></td></tr>
+              <tr>
+                <td colSpan={activeTab === 'tutors' ? 5 : 4} className="px-6 py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col items-center justify-center"><CheckCircle2 size={32} className="text-green-500 mb-2" /><p className="font-bold">No pending {activeTab} applications</p><p className="text-xs text-gray-400 mt-0.5">All incoming requests have been reviewed and processed.</p></div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -288,9 +292,8 @@ const AdminApprovals: React.FC = () => {
           <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-6 space-y-5 border border-gray-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 pb-3">
               <div><h3 id="tutor-detail-title" className="font-bold text-lg text-gray-900 dark:text-white">Tutor Application: {selectedTutorDetail.name}</h3><p className="text-xs text-gray-500">Full credentials and availability breakdown</p></div>
-              <button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 min-w-11 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white" aria-label="Close tutor details">✕</button>
+              <button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 min-w-11 p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800" aria-label="Close tutor profile">✕</button>
             </div>
-
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Email:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.email}</p></div>
               <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Phone:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.phone || 'N/A'}</p></div>
@@ -299,12 +302,10 @@ const AdminApprovals: React.FC = () => {
               <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Availability:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.daysPerWeek || 'N/A'}</p></div>
               <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Expected Rate:</span><p className="font-bold text-green-600 dark:text-green-400">{selectedTutorDetail.expectedSalary || 'N/A'}</p></div>
             </div>
-
-            <div><span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Instructional Tracks & Subjects:</span><div className="flex flex-wrap gap-1.5">{Array.isArray(selectedTutorDetail.subjects) && selectedTutorDetail.subjects.map((s: string, i: number) => <span key={i} className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-bold rounded-lg">{s}</span>)}</div></div>
+            <div><span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Instructional Tracks &amp; Subjects:</span><div className="flex flex-wrap gap-1.5">{Array.isArray(selectedTutorDetail.subjects) && selectedTutorDetail.subjects.map((s: string, i: number) => <span key={i} className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-bold rounded-lg">{s}</span>)}</div></div>
             {selectedTutorDetail.bio && <div><span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">Bio / Teaching Philosophy:</span><p className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{selectedTutorDetail.bio}</p></div>}
-            {selectedTutorDetail.cvUrl && <div><a href={selectedTutorDetail.cvUrl} target="_blank" rel="noopener noreferrer" className="min-h-11 w-full py-2.5 px-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-100"><ExternalLink size={14} /> Open Resume / Portfolio Document</a></div>}
-
-            <div className="pt-4 border-t border-gray-200 dark:border-slate-800 flex justify-end gap-3"><button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-600 dark:text-gray-300">Close</button><button type="button" onClick={() => approveTutor(selectedTutorDetail)} disabled={loadingId === selectedTutorDetail.id} className="min-h-11 px-5 py-2 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700">Approve Tutor</button></div>
+            {selectedTutorDetail.cvUrl && <a href={selectedTutorDetail.cvUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 px-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-100"><ExternalLink size={14} /> Open Resume / Portfolio Document</a>}
+            <div className="pt-4 border-t border-gray-200 dark:border-slate-800 flex justify-end gap-3"><button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-600 dark:text-gray-300">Close</button><button type="button" onClick={() => approveTutor(selectedTutorDetail)} disabled={loadingId === selectedTutorDetail.id} className="min-h-11 px-5 py-2 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 disabled:opacity-50">Approve Tutor</button></div>
           </div>
         </div>
       )}
