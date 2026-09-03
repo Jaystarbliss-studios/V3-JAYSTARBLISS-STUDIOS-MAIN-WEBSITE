@@ -66,7 +66,13 @@ service cloud.firestore {
         isSelf(userId) &&
         request.resource.data.get('role', 'USER') in ['USER', 'user', 'PARENT', 'parent', 'STUDENT', 'student']
       );
-      allow update: if isAnyAdmin() || (
+      allow update: if isSuperAdmin() || (
+        isAnyAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'phone', 'avatar', 'updatedAt', 'emailVerified', 'accountStatus',
+          'forcePasswordReset', 'notificationPreferences', 'preferences'
+        ])
+      ) || (
         isSelf(userId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'phone', 'avatar', 'updatedAt', 'emailVerified',
