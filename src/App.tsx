@@ -142,7 +142,7 @@ function AnimatedRoutes() {
           <Route path="partnership" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="school" /></Suspense>} />
           <Route path="calendar" element={<Suspense fallback={<LazyFallback />}><PortalCalendar /></Suspense>} />
-          <Route path="payments" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />
+          <Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
 

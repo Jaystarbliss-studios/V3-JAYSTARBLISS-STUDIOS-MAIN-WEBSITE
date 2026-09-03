@@ -1,5 +1,14 @@
 import { jsPDF } from 'jspdf';
 
+const makeStableCredentialId = (studentId: string | undefined, studentName: string, moduleTitle: string) => {
+  let hash = 0;
+  const source = `${studentId || studentName}:${moduleTitle}`;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return `JDS-${hash.toString(36).toUpperCase().padStart(8, '0').slice(-8)}`;
+};
+
 export interface ModuleCertificateData {
   studentName: string;
   studentId?: string;
@@ -36,7 +45,7 @@ export function generateModuleCertificatePdf(data: ModuleCertificateData): void 
     month: 'long',
     day: 'numeric'
   });
-  const credentialId = data.credentialId || `JDS-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+  const credentialId = data.credentialId || makeStableCredentialId(data.studentId, studentName, moduleTitle);
   const instructorName = data.instructorName || 'Academic Directorate & Lead Mentors';
 
   // -------------------------------------------------------------

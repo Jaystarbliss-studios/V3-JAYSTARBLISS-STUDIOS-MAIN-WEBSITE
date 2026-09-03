@@ -198,7 +198,7 @@ export const PortalPayments: React.FC = () => {
       const response = await fetch('/.netlify/functions/paystack-initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ planId: plan.id, role })
+        body: JSON.stringify({ planId: plan.id, role, paymentMethod })
       });
       const data = await response.json();
       if (!response.ok || !data.authorizationUrl) {
