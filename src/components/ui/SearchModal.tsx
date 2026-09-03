@@ -7,7 +7,6 @@ import {
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useNavigate } from 'react-router-dom';
-import { CURATED_RESOURCE_LIBRARY, type ResourceDocument } from '../../pages/portal/ResourceLibrary';
 
 export type SearchCategory = 'ALL' | 'PROGRAMS' | 'RESOURCES' | 'BLOG' | 'SERVICES' | 'PORTFOLIO' | 'PAGES';
 
@@ -172,19 +171,6 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   // Determine OS for shortcut badge text
   const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
-  // Convert curated resource library into SearchItem format
-  const curatedResourceItems: SearchItem[] = useMemo(() => {
-    return CURATED_RESOURCE_LIBRARY.map((res: ResourceDocument) => ({
-      id: `curated-res-${res.id}`,
-      type: 'RESOURCE',
-      title: res.title,
-      description: `${res.subject} • ${res.classLevel} — ${res.description}`,
-      url: `/portal/student/resources?doc=${res.id}`,
-      badge: res.docType,
-      categoryName: 'Resource Library'
-    }));
-  }, []);
-
   // Fetch published database documents
   const fetchDbDocuments = useCallback(async () => {
     if (hasLoadedDb) return;
@@ -306,7 +292,6 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const allSearchableItems = useMemo(() => {
     return [
       ...STATIC_NAV_PAGES,
-      ...curatedResourceItems,
       ...dbItems
     ];
   }, [curatedResourceItems, dbItems]);
