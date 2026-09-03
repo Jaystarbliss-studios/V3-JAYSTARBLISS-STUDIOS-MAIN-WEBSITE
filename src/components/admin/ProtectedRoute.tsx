@@ -25,37 +25,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
   const rolesKey = allowedRoles ? allowedRoles.slice().sort().join(',') : '';
 
-  // Pre-validate from persistent cache to eliminate screen flashing and reload dropouts
-  const getCachedRole = () => {
-    return (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || '').toUpperCase();
-  };
-
-  const getCachedUserId = () => {
-    return sessionStorage.getItem('userId') || localStorage.getItem('jaystar_cached_user_id') || sessionStorage.getItem('studentDocId') || sessionStorage.getItem('schoolId') || '';
-  };
-
-  const isRoleMatching = (roleToCheck: string, key: string, path: string): boolean => {
-    if (!roleToCheck) return false;
-    const normalized = roleToCheck.toUpperCase();
-    if (normalized.includes('ADMIN') || normalized === 'SUPER_ADMIN') return true;
-
-    if (!key) {
-      if (path.startsWith('/admin')) {
-        return normalized.includes('ADMIN');
-      }
-      return true;
-    }
-
-    const roleList = key.split(',').filter(Boolean).map(r => r.toUpperCase());
-    return roleList.some(allowed => {
-      if (allowed === normalized) return true;
-      if (allowed === 'STUDENT' && (normalized === 'INDIVIDUALSTUDENT' || normalized === 'STUDENT')) return true;
-      if (allowed === 'STAFF' && (normalized === 'TUTOR' || normalized === 'STAFF')) return true;
-      if (allowed === 'TUTOR' && (normalized === 'STAFF' || normalized === 'TUTOR')) return true;
-      return false;
-    });
-  };
-
   useEffect(() => {
     let isMounted = true;
 
@@ -72,18 +41,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       if (!isMounted) return;
 
       if (!currentUser) {
-        // Check if there is an active session cache (e.g. Student with Access Code or Partner School)
-        const currentCachedRole = getCachedRole();
-        const currentCachedUid = getCachedUserId();
-        
-        if (currentCachedRole && currentCachedUid && isRoleMatching(currentCachedRole, rolesKey, location.pathname)) {
-          if (isMounted) {
-            setIsAuthorized(true);
-            setLoading(false);
-          }
-          return;
-        }
-
         if (isMounted) {
           setIsAuthorized(false);
           setLoading(false);
