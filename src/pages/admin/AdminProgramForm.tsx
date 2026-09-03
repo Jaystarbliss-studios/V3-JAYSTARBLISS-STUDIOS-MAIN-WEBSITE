@@ -28,6 +28,7 @@ const AdminProgramForm: React.FC = () => {
     pricing: '',
     deliveryFormat: 'ONLINE',
     targetAudience: '',
+    curriculum: [] as string[],
   });
 
   useEffect(() => {
@@ -231,20 +232,19 @@ const AdminProgramForm: React.FC = () => {
             </div>
           </div>
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Curriculum (One item per line)</label>
-            {/* <textarea 
-              name="curriculum" 
-              rows={4}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Curriculum Topics (One item per line)</label>
+            <textarea
+              name="curriculum"
+              rows={6}
               value={Array.isArray((formData as any).curriculum) ? (formData as any).curriculum.join('\n') : (formData as any).curriculum || ''}
-              onChange={(e) => {
-                setFormData(prev => ({
-                  ...prev,
-                  curriculum: e.target.value.split('\n').filter(line => line.trim() !== '')
-                }));
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white"
-              placeholder="Module 1: Introduction&#10;Module 2: Advanced Topics"
-            ></textarea> */}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                curriculum: e.target.value.split('\n').map(line => line.trim()).filter(Boolean)
+              }))}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red focus:border-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white"
+              placeholder="Module 1: Introduction to Programming\nModule 2: Variables & Data Types\nModule 3: Practical Project"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">These topics are displayed in the learner course portal. Leave empty only when the program has no published syllabus yet.</p>
           </div>
 
           <div className="flex items-center gap-8 py-4 border-t border-gray-100">
