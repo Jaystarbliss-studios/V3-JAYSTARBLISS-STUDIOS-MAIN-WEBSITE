@@ -26,24 +26,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
   const rolesKey = allowedRoles ? allowedRoles.slice().sort().join(',') : '';
 
-  const isRoleMatching = (roleToCheck: string, key: string, path: string): boolean => {
-    if (!roleToCheck) return false;
+  const isRoleMatching = (roleToCheck: string, key: string): boolean => {
+    if (!roleToCheck || !key) return false;
     const normalized = roleToCheck.toUpperCase();
-    if (normalized.includes('ADMIN') || normalized === 'SUPER_ADMIN') return true;
-
-    if (!key) {
-      if (path.startsWith('/admin')) {
-        return normalized.includes('ADMIN');
-      }
-      return true;
-    }
-
     const roleList = key.split(',').filter(Boolean).map(r => r.toUpperCase());
     return roleList.some(allowed => {
       if (allowed === normalized) return true;
-      if (allowed === 'STUDENT' && (normalized === 'INDIVIDUALSTUDENT' || normalized === 'STUDENT')) return true;
-      if (allowed === 'STAFF' && (normalized === 'TUTOR' || normalized === 'STAFF')) return true;
-      if (allowed === 'TUTOR' && (normalized === 'STAFF' || normalized === 'TUTOR')) return true;
+      if (allowed === 'STUDENT' && normalized === 'INDIVIDUALSTUDENT') return true;
+      if (allowed === 'STAFF' && normalized === 'TUTOR') return true;
+      if (allowed === 'TUTOR' && normalized === 'STAFF') return true;
       return false;
     });
   };
@@ -63,20 +54,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       }
 
       try {
-        // 1. Check Super Admin by email
-        if (currentUser.email === 'johnrufai242@gmail.com') {
-          sessionStorage.setItem('userRole', 'super_admin');
-          sessionStorage.setItem('userId', currentUser.uid);
-          localStorage.setItem('jaystar_cached_user_role', 'super_admin');
-          localStorage.setItem('jaystar_cached_user_id', currentUser.uid);
-          if (isMounted) {
-            setIsAuthorized(true);
-            setLoading(false);
-          }
-          return;
-        }
-
         let userRole = '';
+        let isAdminAccount = currentUser.email === 'johnrufai242@gmail.com';
         let userName = currentUser.displayName || '';
         let forceReset = false;
 
@@ -97,7 +76,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             if (uData.forcePasswordReset === true) forceReset = true;
           }
         } catch (e) {
-          console.warn('User doc check error (fallback to cached role if present):', e);
+          console.warn('User doc check failed:', e);
         }
 
         // 3. Fallback: check individualStudents collection
@@ -172,9 +151,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // Default to cached role if Firestore is still syncing
-        if (!userRole) {
-          userRole = (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || 'USER').toUpperCase();
+        // Never use session/local storage as an authorization source.
+        if (!userRole && location.pathname.startsWith('/admin')) {
+          try {
+            const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
+            if (adminDoc.exists()) {
+              userRole = String(adminDoc.data().role || 'ADMIN');
+              isAdminAccount = true;
+            }
+          } catch (e) {
+            console.warn('Admin registry check error:', e);
+          }
         }
 
         const normalizedRole = userRole.toUpperCase();
@@ -192,7 +179,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           setMustResetPassword(true);
         }
 
-        const isAllowed = isRoleMatching(normalizedRole, rolesKey, location.pathname);
+        const isAllowed = location.pathname.startsWith('/admin')
+          ? isAdminAccount
+          : isRoleMatching(normalizedRole, rolesKey);
         if (isMounted) {
           setIsAuthorized(isAllowed);
         }
