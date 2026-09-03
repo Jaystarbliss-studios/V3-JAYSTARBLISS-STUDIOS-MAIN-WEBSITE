@@ -53,6 +53,24 @@ export const handler: Handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: "Payment details could not be verified." }) };
     }
 
+    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
+    if (!existing.empty) {
+      const existingPayment = existing.docs[0].data();
+      if (
+        String(existingPayment.userId || "") !== decoded.uid ||
+        String(existingPayment.planId || "") !== metadataPlanId ||
+        String(existingPayment.enrollmentRequestId || "") !== enrollmentRequestId
+      ) {
+        return { statusCode: 409, body: JSON.stringify({ error: "This payment reference is already associated with a different payment." }) };
+      }
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified: true, reference, enrollmentRequestId: enrollmentRequestId || null, alreadyRecorded: true })
+      };
+    }
+
     let enrollmentRequest: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData> | null = null;
     if (enrollmentRequestId) {
       if (metadataRole !== "parent") {
@@ -76,7 +94,6 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
     const paymentData = {
       userId: decoded.uid,
       parentId: metadataRole === "parent" ? decoded.uid : null,
@@ -97,9 +114,7 @@ export const handler: Handler = async (event) => {
       paidAt: tx.paid_at || null
     };
 
-    if (existing.empty) {
-      await adminDb.collection("payments").add(paymentData);
-    }
+    await adminDb.collection("payments").add(paymentData);
 
     if (enrollmentRequestId && enrollmentRequest) {
       await enrollmentRequest.ref.set({
