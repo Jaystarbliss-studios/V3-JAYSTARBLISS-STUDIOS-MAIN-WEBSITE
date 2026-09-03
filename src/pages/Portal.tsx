@@ -278,15 +278,22 @@ const Portal: React.FC = () => {
           }
         }
 
-        // Auto-create user document
-        const initialRole = detectedRole ? detectedRole.toLowerCase() : activeTab;
-        await setDoc(doc(db, 'users', user.uid), {
-          email: user.email?.toLowerCase(),
-          name: detectedName,
-          role: initialRole,
-          createdAt: serverTimestamp()
-        });
-        detectedRole = initialRole.toUpperCase();
+        // Only self-provision a parent profile. Staff/tutor accounts must be
+        // provisioned through the administrative onboarding flow.
+        if (!detectedRole && activeTab === 'parent') {
+          const initialRole = 'parent';
+          await setDoc(doc(db, 'users', user.uid), {
+            email: user.email?.toLowerCase(),
+            name: detectedName,
+            role: initialRole,
+            createdAt: serverTimestamp()
+          });
+          detectedRole = 'PARENT';
+        }
+
+        if (!detectedRole) {
+          throw new Error('This account has not been provisioned for the selected portal. Please contact Jaystarbliss Studios administration.');
+        }
       }
 
       // Check admin
