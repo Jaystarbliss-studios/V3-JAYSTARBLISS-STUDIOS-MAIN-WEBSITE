@@ -63,6 +63,8 @@ Public CMS collections remain readable by the public, while mutations require an
 Firestore security rules are not filters. Client queries must include the same ownership/scoping constraints required by the rules.
 
 The portal dashboards were updated accordingly:
+- Student and school access-code authentication is handled by trusted Netlify Functions that mint Firebase custom tokens after server-side credential validation.
+- Staff registration code validation is handled server-side; no registration secret is shipped in the browser.
 
 - Parent dashboard queries children/payments/enrollments by parent ownership.
 - Student dashboard queries personal resources/modules/notifications by student identity.
@@ -94,18 +96,18 @@ Deploy the rules from a trusted local environment after reviewing the rule chang
 
 Paystack initialization and verification are performed server-side. Paystack requires secret-key API calls to stay on the backend, and transaction verification checks status, currency, reference and amount before a payment is marked VERIFIED.
 
-The Vercel API layer uses Firebase Admin for trusted writes; the Admin SDK is intended for controlled server/serverless environments and must not be exposed to the browser. citeturn4search0
+Netlify Functions use Firebase Admin for trusted server-side operations. Service-account private keys remain server-only and are never bundled into the browser.
 
 ## Remaining production verification
 
-The GitHub integration available to this coding session cannot directly inspect the live Firebase project's data, deployed rules, indexes, Authentication users, or Vercel environment variables.
+The GitHub integration available to this coding session cannot directly inspect the live Firebase project's data, deployed rules, indexes, Authentication users, or Netlify environment variables.
 
 Before production launch, verify:
 
 1. The rules in `firestore.rules` are deployed to the named database above.
 2. Required Firestore composite indexes exist for the scoped queries.
 3. Admin users who should have elevated roles have corresponding `admins/{uid}` documents.
-4. Vercel/hosting environment variables and Firebase configuration match the production project.
+4. Netlify environment variables and Firebase configuration match the production project.
 5. Storage write policy is reviewed against the actual upload paths used by the application.
 6. End-to-end tests are run against a staging Firebase project or emulator before changing production data.
 
