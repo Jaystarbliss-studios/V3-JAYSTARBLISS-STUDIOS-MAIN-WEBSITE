@@ -174,7 +174,9 @@ service cloud.firestore {
 
     match /schoolPasscodes/{docId} {
       allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
+      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /staffGeneralResources/{resId} {
@@ -224,7 +226,7 @@ service cloud.firestore {
     }
 
     match /student_requests/{requestId} {
-      allow create: if true;
+      allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
       allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
     }
 
@@ -333,8 +335,10 @@ service cloud.firestore {
       allow write: if isAnyAdmin();
     }
 
+    // School records contain portal credentials (access codes). They must not be
+    // publicly readable. Public-facing school information belongs in CMS collections.
     match /schools/{document=**} {
-      allow read: if true;
+      allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(document));
       allow write: if isAnyAdmin();
     }
 
