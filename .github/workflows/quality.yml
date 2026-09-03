@@ -26,26 +26,3 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-
-  implement_remaining:
-    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, 'IMPLEMENT_REMAINING') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Apply completion implementation
-        run: python3 scripts/complete_remaining.py
-      - name: Commit application implementation
-        shell: bash
-        run: |
-          rm -f scripts/complete_remaining.py IMPLEMENT_REMAINING.trigger
-          git config user.name "Jaystarbliss Studios"
-          git config user.email "82984404+Jaystarbliss-studios@users.noreply.github.com"
-          git add src/pages/Portal.tsx src/pages/admin/AdminStaff.tsx src/pages/admin/AdminPages.tsx src/pages/admin/AdminPageForm.tsx src/components/Hero.tsx src/components/home/LearningMethod.tsx src/pages/admin/AdminInquiries.tsx firestore.rules README.md scripts/complete_remaining.py IMPLEMENT_REMAINING.trigger
-          git diff --cached --quiet && { echo 'No application changes produced'; exit 0; }
-          git commit -m "feat: complete remaining platform implementation"
-          git push origin HEAD:main
