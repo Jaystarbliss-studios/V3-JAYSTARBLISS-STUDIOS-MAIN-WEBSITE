@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword, 
   GoogleAuthProvider, 
   signInWithPopup,
+  signInWithCustomToken,
   browserPopupRedirectResolver
 } from 'firebase/auth';
 import { 
@@ -69,6 +70,18 @@ const Portal: React.FC = () => {
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPw, setStaffPw] = useState('');
 
+  const tryPortalAccessFunction = async (role: 'student' | 'school', identifierValue: string, codeValue: string) => {
+    const response = await fetch('/.netlify/functions/portal-access-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, identifier: identifierValue, code: codeValue })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.customToken) throw new Error(data.error || 'Invalid portal credentials.');
+    const cred = await signInWithCustomToken(auth, data.customToken);
+    return { data, user: cred.user };
+  };
+
   const handleStudentLogin = async () => {
     const rawInput = identifier.trim();
     const code = password.trim();
@@ -78,6 +91,29 @@ const Portal: React.FC = () => {
     }
 
     const isRealEmail = rawInput.includes('@') && !rawInput.endsWith('.local');
+
+    // Verify username/access-code credentials on the server so private student records
+    // are never exposed through public client-side lookups.
+    try {
+      const result = await tryPortalAccessFunction('student', rawInput, code);
+      const studentName = result.data.name || rawInput;
+      sessionStorage.setItem('userRole', 'student');
+      sessionStorage.setItem('userId', result.user.uid);
+      sessionStorage.setItem('studentDocId', result.data.studentDocId || '');
+      sessionStorage.setItem('userName', studentName);
+      sessionStorage.setItem('studentUsername', result.data.username || '');
+      sessionStorage.setItem('studentClass', result.data.class || '');
+      sessionStorage.setItem('schoolId', result.data.schoolId || '');
+      sessionStorage.setItem('schoolName', result.data.schoolName || '');
+      localStorage.setItem('jaystar_cached_user_role', 'student');
+      localStorage.setItem('jaystar_cached_user_id', result.user.uid);
+      localStorage.setItem('jaystar_cached_user_name', studentName);
+      toast.success(`Welcome Cadet ${String(studentName).split(' ')[0]}! Logged in successfully.`);
+      navigate('/portal/student');
+      return;
+    } catch (portalAccessErr) {
+      console.warn('Server-side student portal lookup notice:', portalAccessErr);
+    }
 
     // 1. If it's a real email, try direct Firebase Auth first
     if (isRealEmail) {
@@ -366,25 +402,20 @@ const Portal: React.FC = () => {
       }
     }
 
-    // 2. Query schools collection by accessCode, email, or schoolId
-    const schoolSnap = await getDocs(collection(db, 'schools'));
+    // 2. Verify school access server-side. The schools collection contains
+    // portal credentials and is intentionally not publicly readable.
     let matchedSchool: any = null;
-    schoolSnap.forEach(d => {
-      const s = d.data();
-      const sCode = (s.accessCode || '').trim().toUpperCase();
-      const inputCode = code.trim().toUpperCase();
-      const inputId = rawInput.trim().toLowerCase();
-
-      if (
-        sCode === inputCode || 
-        sCode === rawInput.trim().toUpperCase() ||
-        s.email?.toLowerCase() === inputId ||
-        d.id.toLowerCase() === inputId ||
-        (s.name && s.name.toLowerCase() === inputId)
-      ) {
-        matchedSchool = { id: d.id, ...s };
-      }
-    });
+    try {
+      const result = await tryPortalAccessFunction('school', rawInput, code);
+      matchedSchool = {
+        id: result.data.schoolDocId || result.data.schoolId,
+        name: result.data.name || 'Partner School',
+        email: result.user.email || undefined,
+        firebaseUid: result.user.uid
+      };
+    } catch (portalAccessErr) {
+      console.warn('Server-side school portal lookup notice:', portalAccessErr);
+    }
 
     if (!matchedSchool) {
       // 3. Check if this is a School Cadet logging in with their Username / Access Code and Passcode
