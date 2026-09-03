@@ -285,8 +285,6 @@ service cloud.firestore {
     // NOTIFICATIONS & MESSAGES & LOGS
     // ==========================================
     match /notifications/{notificationId} {
-      // Notifications are private unless explicitly addressed to this account/role,
-      // while administrators retain full visibility for operational history.
       allow read: if isAnyAdmin() || (isAuth() && (
         resource.data.recipientId == request.auth.uid ||
         resource.data.recipientId == 'all' ||
@@ -331,7 +329,13 @@ service cloud.firestore {
       allow write: if isAnyAdmin();
     }
 
+    // Global settings can contain privileged integration values. Keep them admin-only.
     match /settings/{document=**} {
+      allow read, write: if isAnyAdmin();
+    }
+
+    // Public presentation/configuration values used by the website UI only.
+    match /publicSettings/{document=**} {
       allow read: if true;
       allow write: if isAnyAdmin();
     }
