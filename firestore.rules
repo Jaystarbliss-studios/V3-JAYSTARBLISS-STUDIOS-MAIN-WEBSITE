@@ -132,15 +132,16 @@ service cloud.firestore {
     // STUDENTS & INDIVIDUAL LEARNERS
     // ==========================================
     match /individualStudents/{studentId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId);
-      allow create: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(request.resource.data.schoolId);
-      allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
-      allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow create: if isAnyAdmin() || (isSameSchool(request.resource.data.schoolId)) || (isStaffOrTutor() && request.resource.data.get('firebaseUid', '') == request.auth.uid);
+      allow update: if isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId)) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId) && request.resource.data.schoolId == resource.data.schoolId);
+      allow delete: if isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /students/{studentId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId);
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin();
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow create, update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow delete: if isAnyAdmin();
     }
 
     match /studentModules/{docId} {
