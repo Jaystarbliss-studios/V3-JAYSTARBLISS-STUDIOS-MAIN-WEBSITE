@@ -311,7 +311,7 @@ service cloud.firestore {
 
     match /newsCorner/{document=**} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAnyAdmin();
     }
 
     match /faqs/{document=**} {
@@ -336,7 +336,7 @@ service cloud.firestore {
 
     match /inquiries/{inquiryId} {
       allow create: if true;
-      allow read, update, delete: if isAnyAdmin() || isAuth();
+      allow read, update, delete: if isAnyAdmin();
     }
 
     // Default deny
