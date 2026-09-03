@@ -41,13 +41,9 @@ service cloud.firestore {
     // USERS & PORTAL PROFILES
     // ==========================================
     match /users/{userId} {
-      allow read: if true;
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
       allow create: if isAuth() && (request.auth.uid == userId || isAnyAdmin());
-      allow update: if isAuth() && (
-        isSuperAdmin() || 
-        isAnyAdmin() ||
-        request.auth.uid == userId
-      );
+      allow update: if isAuth() && (isSuperAdmin() || isAnyAdmin() || request.auth.uid == userId);
       allow delete: if isSuperAdmin();
     }
 
@@ -66,13 +62,17 @@ service cloud.firestore {
     // STUDENTS & INDIVIDUAL LEARNERS
     // ==========================================
     match /individualStudents/{studentId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isStaffOrTutor() || (isAuth() && (resource.data.firebaseUid == request.auth.uid || resource.data.parentId == request.auth.uid || resource.data.parentId == request.auth.token.email));
+      allow create: if isStaffOrTutor();
+      allow update: if isStaffOrTutor() || (isAuth() && resource.data.firebaseUid == request.auth.uid);
+      allow delete: if isAnyAdmin();
     }
 
     match /students/{studentId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isStaffOrTutor() || (isAuth() && (resource.data.firebaseUid == request.auth.uid || resource.data.parentId == request.auth.uid || resource.data.parentId == request.auth.token.email));
+      allow create: if isStaffOrTutor();
+      allow update: if isStaffOrTutor() || (isAuth() && resource.data.firebaseUid == request.auth.uid);
+      allow delete: if isAnyAdmin();
     }
 
     match /studentModules/{docId} {
@@ -81,13 +81,15 @@ service cloud.firestore {
     }
 
     match /personalResources/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isStaffOrTutor() || (isAuth() && (resource.data.userId == request.auth.uid || resource.data.studentId == request.auth.uid));
+      allow create, update: if isStaffOrTutor();
+      allow delete: if isAnyAdmin();
     }
 
     match /personalLinks/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isStaffOrTutor() || (isAuth() && (resource.data.userId == request.auth.uid || resource.data.studentId == request.auth.uid));
+      allow create, update: if isStaffOrTutor();
+      allow delete: if isAnyAdmin();
     }
 
     // ==========================================
@@ -109,23 +111,23 @@ service cloud.firestore {
     }
 
     match /schoolResources/{resourceId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
+      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
     }
 
     match /schoolLinks/{linkId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
+      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
     }
 
     match /schoolExams/{examId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
+      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
     }
 
     match /schoolPasscodes/{docId} {
-      allow read: if true;
-      allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
+      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
     }
 
     match /staffGeneralResources/{resId} {
@@ -144,39 +146,39 @@ service cloud.firestore {
     }
 
     match /pendingStaff/{docId} {
-      allow read: if true;
-      allow write, delete: if isAnyAdmin() || isStaffOrTutor();
+      allow create: if true;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.uid == request.auth.uid);
     }
 
     // ==========================================
     // PARENTS & PAYMENTS & ENROLLMENTS
     // ==========================================
     match /parents/{parentId} {
-      allow read: if true;
-      allow create: if isAuth() || true;
-      allow update: if isStaffOrTutor() || (isAuth() && request.auth.uid == parentId) || isAnyAdmin();
-      allow delete: if isSuperAdmin() || isAnyAdmin();
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == parentId);
+      allow create: if isAuth() && request.auth.uid == parentId;
+      allow update: if isAnyAdmin() || (isAuth() && request.auth.uid == parentId);
+      allow delete: if isSuperAdmin();
     }
 
     match /payments/{paymentId} {
-      allow read: if true;
-      allow create: if isAuth() || true;
+      allow read: if isAnyAdmin() || (isAuth() && (resource.data.parentId == request.auth.uid || resource.data.userId == request.auth.uid));
+      allow create: if isAuth() && (request.resource.data.parentId == request.auth.uid || request.resource.data.userId == request.auth.uid);
       allow update, delete: if isAnyAdmin();
     }
 
     match /enrollment_requests/{reqId} {
-      allow create: if true;
-      allow read, update, delete: if true;
+      allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
     }
 
     match /student_requests/{requestId} {
-      allow create: if true;
-      allow read, update, delete: if true;
+      allow create: if isAuth() && request.resource.data.parentId == request.auth.uid;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid);
     }
 
     match /tutor_applications/{appId} {
       allow create: if true;
-      allow read, update, delete: if true;
+      allow read, update, delete: if isAnyAdmin() || (isAuth() && resource.data.email == request.auth.token.email);
     }
 
     match /tutors/{tutorId} {
@@ -188,15 +190,16 @@ service cloud.firestore {
     // NOTIFICATIONS & MESSAGES & LOGS
     // ==========================================
     match /notifications/{notificationId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
+      allow read: if isAnyAdmin() || (isAuth() && (resource.data.recipientId == request.auth.uid || resource.data.recipientId == request.auth.token.email || resource.data.recipientId == 'all' || (resource.data.recipientId == 'all_students' && request.auth.token.role in ['STUDENT','student']) || (resource.data.recipientId == 'all_staff' && request.auth.token.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])));
+      allow create: if isAnyAdmin();
+      allow update: if isAnyAdmin() || (isAuth() && resource.data.recipientId == request.auth.uid);
       allow delete: if isAnyAdmin();
     }
 
     match /activityLogs/{logId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAnyAdmin();
+      allow create: if isAuth();
+      allow update, delete: if isAnyAdmin();
     }
 
     match /contact_messages/{msgId} {
