@@ -274,7 +274,9 @@ const StudentDashboard: React.FC = () => {
 
           // From schoolResources collection
           try {
-            const schResSnap = await getDocs(collection(db, 'schoolResources'));
+            const schResSnap = sData?.schoolId
+              ? await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', sData.schoolId)))
+              : { docs: [] };
             schResSnap.docs.forEach(d => {
               const item = { id: d.id, ...d.data() } as ResourceItem;
               const itemClass = (item.targetClass || item.class || '').trim();
