@@ -33,7 +33,6 @@ import ScrollToTop from "./components/ScrollToTop";
 import GlassRippleListener from "./components/ui/GlassRippleListener";
 import MarqueeBanner from "./components/ui/MarqueeBanner";
 
-// Lazy-loaded Portal & Admin components for performance & fast startup
 const MagicParticles = lazy(() => import("./pages/MagicParticles"));
 const PortalLayout = lazy(() => import("./components/portal/PortalLayout"));
 const ParentDashboard = lazy(() => import("./pages/portal/ParentDashboard"));
@@ -42,6 +41,7 @@ const StudentDashboard = lazy(() => import("./pages/portal/StudentDashboard"));
 const SchoolDashboard = lazy(() => import("./pages/portal/SchoolDashboard"));
 const ResourceLibrary = lazy(() => import("./pages/portal/ResourceLibrary"));
 const PortalCourses = lazy(() => import("./pages/portal/PortalCourses"));
+const PortalLiveClasses = lazy(() => import("./pages/portal/PortalLiveClasses"));
 const PortalCalendar = lazy(() => import("./pages/portal/PortalCalendar"));
 const PortalPayments = lazy(() => import("./pages/portal/PortalPayments"));
 const PortalSettings = lazy(() => import("./pages/portal/PortalSettings"));
@@ -80,11 +80,10 @@ const LazyFallback = () => (
 
 function AnimatedRoutes() {
   const location = useLocation();
-  
+
   return (
     <AnimatePresence mode="wait" initial={false}>
       <Routes location={location} key={location.pathname}>
-        {/* Public Routes */}
         <Route path="/" element={<PageTransition><Home /></PageTransition>} />
         <Route path="/about" element={<PageTransition><About /></PageTransition>} />
         <Route path="/programs" element={<PageTransition><Programs /></PageTransition>} />
@@ -105,11 +104,9 @@ function AnimatedRoutes() {
         <Route path="/tutor-application" element={<PageTransition><TutorApplication /></PageTransition>} />
         <Route path="/faq" element={<PageTransition><FAQ /></PageTransition>} />
 
-        {/* Portal Routes */}
         <Route path="/portal" element={<PageTransition><Portal /></PageTransition>} />
         <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
-        
-        {/* Student Portal */}
+
         <Route path="/portal/student" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute allowedRoles={['STUDENT']} redirectPath="/portal"><PortalLayout /></ProtectedRoute></Suspense>}>
           <Route index element={<Suspense fallback={<LazyFallback />}><StudentDashboard /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="student" /></Suspense>} />
@@ -118,17 +115,15 @@ function AnimatedRoutes() {
           <Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
-        
-        {/* Staff / Tutor Portal */}
+
         <Route path="/portal/staff" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute allowedRoles={['TUTOR', 'STAFF']} redirectPath="/portal"><PortalLayout /></ProtectedRoute></Suspense>}>
           <Route index element={<Suspense fallback={<LazyFallback />}><StaffDashboard /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="staff" /></Suspense>} />
-          <Route path="classes" element={<Suspense fallback={<LazyFallback />}><PortalCourses /></Suspense>} />
+          <Route path="classes" element={<Suspense fallback={<LazyFallback />}><PortalLiveClasses /></Suspense>} />
           <Route path="calendar" element={<Suspense fallback={<LazyFallback />}><PortalCalendar /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
-        
-        {/* Parent Portal */}
+
         <Route path="/portal/parent" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute allowedRoles={['PARENT']} redirectPath="/portal"><PortalLayout /></ProtectedRoute></Suspense>}>
           <Route index element={<Suspense fallback={<LazyFallback />}><ParentDashboard /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="parent" /></Suspense>} />
@@ -136,8 +131,7 @@ function AnimatedRoutes() {
           <Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
-        
-        {/* School Admin Portal */}
+
         <Route path="/portal/school" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute allowedRoles={['SCHOOL']} redirectPath="/portal"><PortalLayout /></ProtectedRoute></Suspense>}>
           <Route index element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="overview" /></Suspense>} />
           <Route path="roster" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="roster" /></Suspense>} />
@@ -148,14 +142,12 @@ function AnimatedRoutes() {
           <Route path="partnership" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />
           <Route path="resources" element={<Suspense fallback={<LazyFallback />}><ResourceLibrary role="school" /></Suspense>} />
           <Route path="calendar" element={<Suspense fallback={<LazyFallback />}><PortalCalendar /></Suspense>} />
-          <Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />
+          <Route path="payments" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<LazyFallback />}><PortalSettings /></Suspense>} />
         </Route>
 
-        {/* Admin Login Redirect */}
         <Route path="/admin/login" element={<Navigate to="/portal" replace />} />
 
-        {/* Protected Admin Routes */}
         <Route path="/admin" element={<Suspense fallback={<LazyFallback />}><ProtectedRoute><AdminLayout /></ProtectedRoute></Suspense>}>
           <Route index element={<Suspense fallback={<LazyFallback />}><AdminDashboard /></Suspense>} />
           <Route path="programs" element={<Suspense fallback={<LazyFallback />}><AdminPrograms /></Suspense>} />
@@ -216,4 +208,3 @@ function App() {
 }
 
 export default App;
-
