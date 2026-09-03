@@ -5,7 +5,7 @@ import {
   ArrowRight, FileText
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
@@ -31,19 +31,31 @@ export const PortalPayments: React.FC = () => {
         const userUid = user?.uid;
         const userEmail = user?.email?.toLowerCase();
 
-        const snap = await getDocs(collection(db, 'payments'));
+        if (!userUid) {
+          setPayments([]);
+          return;
+        }
+
+        // Query only records belonging to the authenticated account. Do not
+        // download the entire payments collection into the browser.
+        const ownedQueries = [
+          query(collection(db, 'payments'), where('userId', '==', userUid)),
+          query(collection(db, 'payments'), where('parentId', '==', userUid)),
+          query(collection(db, 'payments'), where('schoolId', '==', userUid))
+        ];
+        const snapshots = await Promise.all(ownedQueries.map(getDocs));
         const list: any[] = [];
-        snap.forEach(d => {
-          const data = d.data();
-          if (
-            data.userId === userUid || 
-            data.parentId === userUid || 
-            data.schoolId === userUid ||
-            data.email?.toLowerCase() === userEmail ||
-            data.parentEmail?.toLowerCase() === userEmail
-          ) {
-            list.push({ id: d.id, ...data });
+        const seen = new Set<string>();
+        snapshots.forEach(snap => snap.forEach(d => {
+          if (!seen.has(d.id)) {
+            seen.add(d.id);
+            list.push({ id: d.id, ...d.data() });
           }
+        }));
+        list.sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() ?? 0;
+          const bTime = b.createdAt?.toMillis?.() ?? 0;
+          return bTime - aTime;
         });
 
         // If no past transactions in DB, show initial active tier
