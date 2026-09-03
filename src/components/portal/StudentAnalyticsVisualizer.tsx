@@ -119,7 +119,10 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
       latestGrade,
       gradeDelta,
       totalLearningHours,
-      overallSyllabusProgress
+      overallSyllabusProgress,
+      hasGradeData: gradeTrendsData.length > 0,
+      hasAssignmentData: assignmentStatusPie.length > 0,
+      hasLearningData: learningProgressData.length > 0
     };
   }, [assignmentStatusPie, gradeTrendsData, learningProgressData]);
 
@@ -230,13 +233,13 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
           </div>
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-              {stats.avgGrade}%
+              {stats.hasGradeData ? `${stats.avgGrade}%` : '—'}
             </span>
             <span className="inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-              <TrendingUp size={12} /> +{stats.gradeDelta}%
+              <TrendingUp size={12} /> {stats.hasGradeData ? `${stats.gradeDelta >= 0 ? '+' : ''}${stats.gradeDelta}%` : 'No change yet'}
             </span>
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">Honors Band (Grade A)</p>
+          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{stats.hasGradeData ? (stats.avgGrade >= 70 ? 'Current performance band' : 'Performance data recorded') : 'No assessments recorded yet'}</p>
         </div>
 
         {/* Metric 2: Assignment Completion Rate */}
@@ -249,13 +252,13 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
           </div>
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-              {stats.completionRate}%
+              {stats.hasAssignmentData ? `${stats.completionRate}%` : '—'}
             </span>
             <span className="text-[11px] font-bold text-gray-500 dark:text-slate-400">
-              {stats.completedAssignments}/{stats.totalAssignments} Tasks
+              {stats.hasAssignmentData ? `${stats.completedAssignments}/${stats.totalAssignments} Tasks` : 'No tasks recorded'}
             </span>
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">2 Pending Milestone Tasks</p>
+          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{stats.hasAssignmentData ? `${Math.max(stats.totalAssignments - stats.completedAssignments, 0)} Pending Tasks` : 'No assignment data yet'}</p>
         </div>
 
         {/* Metric 3: Syllabus Progression */}
@@ -271,7 +274,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
               {stats.overallSyllabusProgress}%
             </span>
             <span className="text-[11px] font-bold text-sky-600 dark:text-sky-400">
-              On Pace
+              {stats.hasLearningData ? 'Tracking' : 'Awaiting data'}
             </span>
           </div>
           <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{completedModulesCount} of {totalModulesCount} Modules Mastered</p>
@@ -290,10 +293,10 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
               {stats.totalLearningHours} <span className="text-sm font-semibold">hrs</span>
             </span>
             <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
-              Target: 80h
+              Recorded learning time
             </span>
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">4.5 hrs / week average</p>
+          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-1">{stats.hasLearningData && learningProgressData.length ? `${(stats.totalLearningHours / learningProgressData.length).toFixed(1)} hrs / track average` : 'No learning-time data yet'}</p>
         </div>
 
       </div>
@@ -489,7 +492,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
                   <p className="text-xs text-gray-500 dark:text-slate-400">Comparative progress score vs hands-on lab hours</p>
                 </div>
                 <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300">
-                  5 Active Disciplines
+                  {enrolledSubjects.length} Active Disciplines
                 </span>
               </div>
 
@@ -537,7 +540,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
               </div>
 
               <p className="text-[11px] text-center text-gray-500 dark:text-slate-400 mt-2">
-                Strongest domain: <strong className="text-gray-900 dark:text-white">UI & Frontend Architecture (94%)</strong>
+                Strongest domain: <strong className="text-gray-900 dark:text-white">{competencyRadarData.length ? competencyRadarData.reduce((best, item) => item.score > best.score ? item : best, competencyRadarData[0]).skill : 'Not enough competency data'}</strong>
               </p>
             </div>
 
@@ -562,7 +565,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
-                    94.8% Consistency Rate
+                    {stats.hasAssignmentData ? `${stats.completionRate}% Completion Rate` : 'No assignment history'}
                   </span>
                 </div>
               </div>
@@ -595,21 +598,21 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
                   {stats.completionRate}%
                 </span>
                 <p className="text-xs font-bold text-gray-800 dark:text-gray-200 mt-1">Excellent Punctuality Band</p>
-                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">31 of 33 Total Assignments Handed In</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">{stats.hasAssignmentData ? `${stats.completedAssignments} of ${stats.totalAssignments} Total Assignments Recorded` : 'No assignment records available'}</p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
                   <span className="text-gray-600 dark:text-slate-300">On-Time Submissions</span>
-                  <span className="font-bold text-emerald-600 font-mono">84.8%</span>
+                  <span className="font-bold text-emerald-600 font-mono">{stats.hasAssignmentData ? `${Math.round((assignmentStatusPie.find(p => p.name.includes('On-Time'))?.value || 0) / Math.max(stats.totalAssignments, 1) * 100)}%` : '—'}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
                   <span className="text-gray-600 dark:text-slate-300">Tutor Re-submissions</span>
-                  <span className="font-bold text-amber-600 font-mono">9.1%</span>
+                  <span className="font-bold text-amber-600 font-mono">{stats.hasAssignmentData ? `${Math.round((assignmentStatusPie.find(p => p.name.includes('Late'))?.value || 0) / Math.max(stats.totalAssignments, 1) * 100)}%` : '—'}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60 dark:bg-slate-950/40 border border-gray-100 dark:border-white/5">
                   <span className="text-gray-600 dark:text-slate-300">Unsubmitted Overdue</span>
-                  <span className="font-bold text-red-600 font-mono">0.0%</span>
+                  <span className="font-bold text-red-600 font-mono">{stats.hasAssignmentData ? `${Math.round(Math.max(stats.totalAssignments - stats.completedAssignments, 0) / Math.max(stats.totalAssignments, 1) * 100)}%` : '—'}</span>
                 </div>
               </div>
             </div>
