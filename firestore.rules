@@ -207,7 +207,7 @@ service cloud.firestore {
     // NOTIFICATIONS & MESSAGES & LOGS
     // ==========================================
     match /notifications/{notificationId} {
-      allow read: if isAnyAdmin() || (isAuth() && (resource.data.recipientId == request.auth.uid || resource.data.recipientId == request.auth.token.email || resource.data.recipientId == 'all' || (resource.data.recipientId == 'all_students' && request.auth.token.role in ['STUDENT','student']) || (resource.data.recipientId == 'all_staff' && request.auth.token.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])));
+      allow read: if isAnyAdmin() || (isAuth() && (resource.data.recipientId == request.auth.uid || resource.data.recipientId == request.auth.token.email || resource.data.recipientId == 'all' || (resource.data.recipientId == 'all_students' && userRole() in ['STUDENT','student']) || (resource.data.recipientId == 'all_staff' && userRole() in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])));
       allow create: if isAnyAdmin();
       allow update: if isAnyAdmin() || (isAuth() && resource.data.recipientId == request.auth.uid);
       allow delete: if isAnyAdmin();
