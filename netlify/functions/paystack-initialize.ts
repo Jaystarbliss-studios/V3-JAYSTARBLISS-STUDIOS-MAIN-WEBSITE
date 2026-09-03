@@ -47,7 +47,7 @@ export const handler: Handler = async (event) => {
     const userSnap = await db.collection("users").doc(decoded.uid).get();
     const userData = userSnap.exists ? userSnap.data() || {} : {};
     const accountStatus = String(userData.accountStatus || userData.status || "ACTIVE").toUpperCase();
-    const storedRole = String(userData.role || decoded.token?.role || "").toLowerCase();
+    const storedRole = String(userData.role || (decoded as any).role || "").toLowerCase();
     const normalizedRole = storedRole.includes("school") ? "school"
       : storedRole.includes("parent") ? "parent"
       : storedRole.includes("student") ? "student"
