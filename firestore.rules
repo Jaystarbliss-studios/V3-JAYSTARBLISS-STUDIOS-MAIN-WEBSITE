@@ -90,13 +90,13 @@ service cloud.firestore {
     match /invites/{email} {
       allow read, delete: if isAnyAdmin();
       allow create: if isSuperAdmin() ||
-        (isAnyAdmin() && request.resource.data.get('role', 'USER') not in [
+        (isAnyAdmin() && !(request.resource.data.get('role', 'USER') in [
           'SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin',
           'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN',
           'MARKETING_ADMIN', 'SUPPORT_ADMIN'
         ]);
       allow update: if isSuperAdmin() ||
-        (isAnyAdmin() && request.resource.data.get('role', 'USER') not in [
+        (isAnyAdmin() && !(request.resource.data.get('role', 'USER') in [
           'SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin',
           'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN',
           'MARKETING_ADMIN', 'SUPPORT_ADMIN'
