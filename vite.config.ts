@@ -125,6 +125,19 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          three: ['three', '@react-three/fiber', '@react-three/drei'],
+          charts: ['recharts'],
+          editor: ['react-quill', 'react-quill-new', 'react-markdown'],
+          pdf: ['jspdf']
+        }
+      }
+    }
+  },
   server: {
     port: 3000,
     host: '0.0.0.0'
