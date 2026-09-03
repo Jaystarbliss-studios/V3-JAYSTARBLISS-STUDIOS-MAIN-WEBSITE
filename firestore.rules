@@ -52,6 +52,11 @@ service cloud.firestore {
       return isSchoolUser() && schoolId != null && schoolId == userSchoolId();
     }
 
+    function isInUserSchool(schoolId) {
+      return isAuth() && schoolId != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId;
+    }
+
     function isOwnStudent(data) {
       return isAuth() && (
         data.firebaseUid == request.auth.uid ||
@@ -139,21 +144,21 @@ service cloud.firestore {
     }
 
     match /schoolResources/{resourceId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
       allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
       allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
       allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /schoolLinks/{linkId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
       allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
       allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
       allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
 
     match /schoolExams/{examId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
+      allow read: if isAnyAdmin() || isStaffOrTutor() || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId) || isOwnStudent(resource.data) || isOwnParent(resource.data);
       allow create: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(request.resource.data.schoolId) && request.resource.data.schoolId == userSchoolId());
       allow update: if isStaffOrTutor() || isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
       allow delete: if isStaffOrTutor() || isAnyAdmin() || isSameSchool(resource.data.schoolId);
