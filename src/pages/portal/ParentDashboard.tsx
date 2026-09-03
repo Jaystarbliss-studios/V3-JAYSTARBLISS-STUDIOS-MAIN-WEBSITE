@@ -46,7 +46,7 @@ const ParentDashboard: React.FC = () => {
             query(collection(db, 'individualStudents'), where('parentId', '==', userUid)),
             ...(userEmail ? [query(collection(db, 'individualStudents'), where('parentId', '==', userEmail))] : [])
           ];
-          const studentSnaps = await Promise.all(studentQueries);
+          const studentSnaps = await Promise.all(studentQueries.map(q => getDocs(q)));
           studentSnaps.forEach(isSnap => isSnap.docs.forEach(d => {
             allStudentsMap.set(d.id, { id: d.id, ...d.data() });
           }));
@@ -60,7 +60,7 @@ const ParentDashboard: React.FC = () => {
             query(collection(db, 'students'), where('parentId', '==', userUid)),
             ...(userEmail ? [query(collection(db, 'students'), where('parentId', '==', userEmail))] : [])
           ];
-          const legacySnaps = await Promise.all(legacyQueries);
+          const legacySnaps = await Promise.all(legacyQueries.map(q => getDocs(q)));
           legacySnaps.forEach(sSnap => sSnap.docs.forEach(d => {
             if (!allStudentsMap.has(d.id)) allStudentsMap.set(d.id, { id: d.id, ...d.data() });
           }));
