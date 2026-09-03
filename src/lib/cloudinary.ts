@@ -4,47 +4,52 @@ import { db } from './firebase';
 export interface CloudinaryConfig {
   cloudName: string;
   uploadPreset: string;
-  apiKey?: string;
 }
 
-// Default fallback configuration or stored in localStorage/Firestore
 const DEFAULT_CONFIG: CloudinaryConfig = {
   cloudName: 'jaystarbliss',
-  uploadPreset: 'jaystarbliss_cms',
-  apiKey: ''
+  uploadPreset: 'jaystarbliss_cms'
 };
 
+/**
+ * Return only the Cloudinary values that are safe for a browser client.
+ * Uploads use an unsigned preset, so API keys/secrets are never needed here.
+ *
+ * The publicSettings collection is intentionally public-readable and is the
+ * only Firestore location consulted by the client for Cloudinary configuration.
+ */
 export const getCloudinaryConfig = async (): Promise<CloudinaryConfig> => {
+  const envCloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME?.trim();
+  const envUploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET?.trim();
+
+  if (envCloudName && envUploadPreset) {
+    return {
+      cloudName: envCloudName,
+      uploadPreset: envUploadPreset
+    };
+  }
+
   try {
-    const docRef = doc(db, 'settings', 'cloudinary');
-    const snap = await getDoc(docRef);
+    const configRef = doc(db, 'publicSettings', 'cloudinary');
+    const snap = await getDoc(configRef);
     if (snap.exists()) {
-      const data = snap.data() as CloudinaryConfig;
-      if (data.cloudName) {
-        return data;
+      const data = snap.data();
+      const cloudName = typeof data.cloudName === 'string' ? data.cloudName.trim() : '';
+      const uploadPreset = typeof data.uploadPreset === 'string' ? data.uploadPreset.trim() : '';
+
+      if (cloudName && uploadPreset) {
+        return { cloudName, uploadPreset };
       }
     }
   } catch (err) {
-    console.warn('Using local or default Cloudinary config', err);
-  }
-
-  const localName = localStorage.getItem('cloudinary_cloud_name');
-  const localPreset = localStorage.getItem('cloudinary_upload_preset');
-  const localApiKey = localStorage.getItem('cloudinary_api_key');
-
-  if (localName) {
-    return {
-      cloudName: localName,
-      uploadPreset: localPreset || 'unsigned_preset',
-      apiKey: localApiKey || ''
-    };
+    console.warn('Using fallback Cloudinary configuration', err);
   }
 
   return DEFAULT_CONFIG;
 };
 
 /**
- * Upload an image file directly to Cloudinary using unsigned upload preset
+ * Upload an image file directly to Cloudinary using an unsigned upload preset.
  */
 export const uploadImageToCloudinary = async (
   file: File,
@@ -52,11 +57,11 @@ export const uploadImageToCloudinary = async (
   customCloudName?: string
 ): Promise<{ url: string; publicId: string; secureUrl: string }> => {
   const config = await getCloudinaryConfig();
-  const cloudName = customCloudName || config.cloudName;
-  const uploadPreset = customPreset || config.uploadPreset;
+  const cloudName = customCloudName?.trim() || config.cloudName;
+  const uploadPreset = customPreset?.trim() || config.uploadPreset;
 
   if (!cloudName || !uploadPreset) {
-    throw new Error('Cloudinary Cloud Name or Upload Preset is not configured in Admin Settings.');
+    throw new Error('Cloudinary Cloud Name or Upload Preset is not configured.');
   }
 
   const formData = new FormData();
@@ -65,10 +70,10 @@ export const uploadImageToCloudinary = async (
   formData.append('folder', 'jaystarbliss_studios');
 
   const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`,
     {
       method: 'POST',
-      body: formData,
+      body: formData
     }
   );
 
@@ -86,7 +91,7 @@ export const uploadImageToCloudinary = async (
 };
 
 /**
- * Helper to generate an optimized Cloudinary delivery URL
+ * Helper to generate an optimized Cloudinary delivery URL.
  */
 export const getOptimizedCloudinaryUrl = (
   url: string,
