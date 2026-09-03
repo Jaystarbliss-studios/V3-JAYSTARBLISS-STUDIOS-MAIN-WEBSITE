@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc,
+  collection, getDocs, getDoc, query, where, doc, setDoc, addDoc, updateDoc, deleteDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
@@ -265,22 +265,21 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         let schoolDoc: any = null;
 
         if (schoolDocId) {
-          const sSnap = await getDocs(collection(db, 'schools'));
-          sSnap.forEach(d => {
-            if (d.id === schoolDocId || d.data().schoolId === schoolDocId || d.data().code === schoolDocId) {
-              schoolDoc = { id: d.id, ...d.data() };
-            }
-          });
+          const sSnap = await getDoc(doc(db, 'schools', schoolDocId));
+          if (sSnap.exists()) schoolDoc = { id: sSnap.id, ...sSnap.data() };
         }
 
         if (!schoolDoc && user) {
-          const sSnap = await getDocs(collection(db, 'schools'));
-          sSnap.forEach(d => {
-            const data = d.data();
-            if (data.email === user.email || data.adminUid === user.uid || data.userId === user.uid) {
-              schoolDoc = { id: d.id, ...data };
+          try {
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            const linkedSchoolId = userSnap.exists() ? userSnap.data().schoolId : '';
+            if (linkedSchoolId) {
+              const sSnap = await getDoc(doc(db, 'schools', linkedSchoolId));
+              if (sSnap.exists()) schoolDoc = { id: sSnap.id, ...sSnap.data() };
             }
-          });
+          } catch (e) {
+            console.warn('Linked school lookup error:', e);
+          }
         }
 
         if (!schoolDoc) {
@@ -328,7 +327,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 2. Fetch Exams & Quizzes from Firestore (matching schoolExams & exams)
         try {
-          const exSnap1 = await getDocs(collection(db, 'schoolExams'));
+          const exSnap1 = await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', currentSchoolId)));
           const liveSchoolExams = exSnap1.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolExam))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -346,7 +345,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 3. Fetch Curriculum & School Resources from Firestore (matching schoolResources)
         try {
-          const resSnap = await getDocs(collection(db, 'schoolResources'));
+          const resSnap = await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', currentSchoolId)));
           const liveRes = resSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolResource))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -357,7 +356,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 4. Fetch School Links from Firestore (matching schoolLinks)
         try {
-          const linkSnap = await getDocs(collection(db, 'schoolLinks'));
+          const linkSnap = await getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', currentSchoolId)));
           const liveLinks = linkSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolLink))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -368,7 +367,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 5. Fetch Passcodes from firestore if existing
         try {
-          const pcSnap = await getDocs(collection(db, 'schoolPasscodes'));
+          const pcSnap = await getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', currentSchoolId)));
           if (!pcSnap.empty) {
             const list = pcSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as ClassPasscodeConfig))
