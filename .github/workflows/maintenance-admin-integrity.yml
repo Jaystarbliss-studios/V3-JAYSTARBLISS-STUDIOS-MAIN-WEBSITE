@@ -32,6 +32,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -f .github/admin-integrity-patch.py .github/workflows/maintenance-admin-integrity.yml
-          git add src/pages/admin/AdminStudents.tsx src/pages/admin/AdminStaff.tsx package-lock.json .github/admin-integrity-patch.py .github/workflows/maintenance-admin-integrity.yml
+          git add src/pages/admin/AdminStudents.tsx src/pages/admin/AdminStaff.tsx firestore.rules package-lock.json .github/admin-integrity-patch.py .github/workflows/maintenance-admin-integrity.yml
           git commit -m 'fix: harden admin account integrity [admin-integrity]'
           git push origin main
