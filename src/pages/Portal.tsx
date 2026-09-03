@@ -383,11 +383,16 @@ const Portal: React.FC = () => {
           await deleteDoc(inviteDocRef);
         }
 
-        // Auto-create for first-time Google sign-in
+        // Google sign-in may self-provision only a student or parent account.
+        // Staff and school accounts must be explicitly invited/provisioned.
+        if (!inviteSnap.exists() && !['student', 'parent'].includes(activeTab)) {
+          throw new Error('This portal requires an approved invitation or provisioned account. Please contact Jaystarbliss Studios administration.');
+        }
+
         const newRecord = {
           email: user.email,
           name: user.displayName || '',
-          role: activeTab === 'parent' ? 'parent' : userRole.toLowerCase(),
+          role: activeTab === 'parent' ? 'parent' : 'student',
           createdAt: serverTimestamp()
         };
 
