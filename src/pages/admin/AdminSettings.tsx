@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { 
   Loader2, Save, AlertCircle, CheckCircle2, 
@@ -25,8 +25,7 @@ const AdminSettings: React.FC = () => {
     instagram: '',
     cloudinaryCloudName: 'jaystarbliss',
     cloudinaryUploadPreset: 'jaystarbliss_cms',
-    cloudinaryApiKey: '',
-    cloudinaryApiSecret: ''
+    cloudinaryApiKey: ''
   });
 
   // Banner State
@@ -69,8 +68,7 @@ const AdminSettings: React.FC = () => {
             ...prev,
             cloudinaryCloudName: cData.cloudName || prev.cloudinaryCloudName,
             cloudinaryUploadPreset: cData.uploadPreset || prev.cloudinaryUploadPreset,
-            cloudinaryApiKey: cData.apiKey || prev.cloudinaryApiKey,
-            cloudinaryApiSecret: cData.apiSecret || prev.cloudinaryApiSecret
+            cloudinaryApiKey: cData.apiKey || prev.cloudinaryApiKey
           }));
         }
       } catch (error) {
@@ -114,6 +112,7 @@ const AdminSettings: React.FC = () => {
       
       await setDoc(settingsRef, {
         ...settings,
+        cloudinaryApiSecret: deleteField(),
         updatedAt: serverTimestamp(),
         updatedBy: user?.uid || 'unknown'
       }, { merge: true });
@@ -132,7 +131,7 @@ const AdminSettings: React.FC = () => {
         cloudName: settings.cloudinaryCloudName || 'jaystarbliss',
         uploadPreset: settings.cloudinaryUploadPreset || 'jaystarbliss_cms',
         apiKey: settings.cloudinaryApiKey || '',
-        apiSecret: settings.cloudinaryApiSecret || '',
+        apiSecret: deleteField(),
         updatedAt: serverTimestamp()
       }, { merge: true });
 
@@ -436,21 +435,7 @@ const AdminSettings: React.FC = () => {
                 placeholder="e.g. 123456789012345"
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cloudinary API Secret (Optional)</label>
-              <input
-                type="password"
-                name="cloudinaryApiSecret"
-                value={settings.cloudinaryApiSecret}
-                onChange={handleChange}
-                placeholder="••••••••••••••••"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
-              />
-            </div>
-          </div>
-        </section>
+            </div>\n        </div>\n        </section>
 
         {/* Social Links */}
         <section>
