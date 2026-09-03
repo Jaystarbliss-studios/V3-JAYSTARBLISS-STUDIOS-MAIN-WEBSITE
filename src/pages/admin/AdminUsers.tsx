@@ -49,12 +49,20 @@ const AdminUsers: React.FC = () => {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { role: newRole.toLowerCase(), updatedAt: new Date().toISOString() });
-      setUsers((prev) => prev.map((user) => user.id === userId ? { ...user, role: newRole.toLowerCase() } : user));
-      toast.success(`Role updated to ${newRole}.`);
+      if (!auth.currentUser) throw new Error('Your admin session has expired. Please sign in again.');
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/.netlify/functions/admin-role-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, role: newRole })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Role change was rejected.');
+      setUsers((prev) => prev.map((user) => user.id === userId ? { ...user, role: String(payload.role || newRole).toLowerCase() } : user));
+      toast.success(`Role updated to ${String(payload.role || newRole).toUpperCase()}.`);
     } catch (error) {
       console.error('Error updating role:', error);
-      toast.error('Role change was rejected.');
+      toast.error(error instanceof Error ? error.message : 'Role change was rejected.');
     }
   };
 

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import jsPDF from 'jspdf';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
@@ -30,10 +30,15 @@ export const PortalPayments: React.FC = () => {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card');
   const [renewalSuccess, setRenewalSuccess] = useState(false);
+  const [enrollmentRequestId, setEnrollmentRequestId] = useState('');
+  const [enrollmentContext, setEnrollmentContext] = useState<{ studentName: string; planId: string } | null>(null);
 
   useEffect(() => {
     const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();
     setRole(userRole);
+
+    const requestId = new URLSearchParams(window.location.search).get('enrollmentRequestId') || '';
+    setEnrollmentRequestId(requestId);
 
     const fetchPaymentHistory = async () => {
       setLoading(true);
@@ -176,6 +181,22 @@ export const PortalPayments: React.FC = () => {
 
   const plans = isSchool ? schoolPlans : studentPlans;
 
+  useEffect(() => {
+    if (!enrollmentRequestId || role !== 'parent') return;
+    const user = auth.currentUser;
+    if (!user) return;
+    getDoc(doc(db, 'enrollment_requests', enrollmentRequestId)).then((snap) => {
+      if (!snap.exists()) return;
+      const request = snap.data();
+      if (request.parentId !== user.uid) return;
+      const planName = String(request.plan || '').toLowerCase();
+      const planId = planName.includes('intensive') ? 'plan_mentorship' : planName.includes('robotics') || planName.includes('ai') ? 'plan_robotics' : 'plan_weekend';
+      const matched = plans.find((plan: any) => plan.id === planId);
+      if (matched) setSelectedPlan(matched.name);
+      setEnrollmentContext({ studentName: String(request.studentName || 'Child'), planId });
+    }).catch(() => undefined);
+  }, [enrollmentRequestId, role, plans]);
+
   const handleInitiateRenewal = (planName: string) => {
     setSelectedPlan(planName);
     setShowCheckoutModal(true);
@@ -198,7 +219,7 @@ export const PortalPayments: React.FC = () => {
       const response = await fetch('/.netlify/functions/paystack-initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ planId: plan.id, role, paymentMethod })
+        body: JSON.stringify({ planId: plan.id, role, paymentMethod, ...(enrollmentRequestId ? { enrollmentRequestId } : {}) })
       });
       const data = await response.json();
       if (!response.ok || !data.authorizationUrl) {

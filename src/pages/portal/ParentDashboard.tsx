@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import {
   collection,
@@ -42,6 +43,7 @@ interface ProgressRecord {
 }
 
 const ParentDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [children, setChildren] = useState<ChildRecord[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
@@ -437,7 +439,18 @@ const ParentDashboard: React.FC = () => {
                     <p className="text-sm font-bold text-slate-900 dark:text-white">{request.studentName || 'Child enrollment'}</p>
                     <p className="mt-1 text-xs text-slate-500">{request.plan || 'Learning plan'} · {request.studentAge || 'Age/grade not supplied'}</p>
                   </div>
-                  <span className={`self-start rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${tone}`}>{status}</span>
+                  <div className="flex items-center gap-2 self-start">
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${tone}`}>{status}</span>
+                    {status !== 'rejected' && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/portal/parent/payments?enrollmentRequestId=${encodeURIComponent(request.id)}`)}
+                        className="min-h-11 rounded-xl border border-brand-red px-3 py-1.5 text-[10px] font-bold text-brand-red hover:bg-brand-red hover:text-white"
+                      >
+                        Pay for this child
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })

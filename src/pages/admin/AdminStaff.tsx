@@ -77,38 +77,6 @@ const AdminStaff: React.FC = () => {
     fetchStaffData();
   }, [fetchStaffData]);
 
-  // Create Staff Invitation
-  const handleInviteStaff = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inviteName.trim() || !inviteEmail.trim()) {
-      toast.error('Please enter staff name and email address.');
-      return;
-    }
-    setInviting(true);
-    try {
-      await addDoc(collection(db, 'pendingStaff'), {
-        name: inviteName.trim(),
-        email: inviteEmail.trim().toLowerCase(),
-        invitedAt: serverTimestamp(),
-        registrationCode: 'JAYSTAR2024'
-      });
-
-      await setDoc(doc(db, 'staffRegistration', 'code'), {
-        code: 'JAYSTAR2024',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      toast.success(`Staff Invitation created for ${inviteName}! Registration Passcode: JAYSTAR2024`);
-      setInviteName('');
-      setInviteEmail('');
-      fetchStaffData();
-    } catch (err: any) {
-      toast.error('Error creating invitation: ' + err.message);
-    } finally {
-      setInviting(false);
-    }
-  };
-
   const updateStaffAccountStatus = async (id: string, name: string, nextStatus: 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'DISABLED') => {
     const action = nextStatus === 'ACTIVE' ? 'restore' : nextStatus === 'SUSPENDED' ? 'suspend' : nextStatus === 'BANNED' ? 'ban' : 'disable';
     if (!window.confirm(`Are you sure you want to ${action} "${name}"?`)) return;
@@ -260,76 +228,12 @@ const AdminStaff: React.FC = () => {
       {/* ══ TAB 1: MANAGE STAFF & INVITATIONS ══ */}
       {activeTab === 'manage' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Invite Form */}
-          <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-6">
-            <div>
-              <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2 mb-1">
-                <Plus size={18} className="text-brand-red" />
-                Invite Staff Member
-              </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Grant instructor and facilitator permissions. Staff register with the secure passcode below.
-              </p>
-            </div>
-
-            <form onSubmit={handleInviteStaff} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="e.g. Dr. Samuel Adeniyi"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="staff@jaystarbliss.ng"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={inviting}
-                className="w-full py-3 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {inviting ? 'Creating...' : 'Create Staff Invitation'}
-              </button>
-            </form>
-
-            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs space-y-2 text-blue-900 dark:text-blue-300">
-              <div className="font-bold flex items-center justify-between">
-                <span>Staff Registration Passcode:</span>
-                <button
-                  onClick={() => copyToClipboard('JAYSTAR2024')}
-                  className="p-1 text-blue-600 hover:text-blue-800 dark:hover:text-white"
-                  title="Copy"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
-              <div className="font-mono font-black text-base text-blue-600 dark:text-blue-400">
-                JAYSTAR2024
-              </div>
-              <div className="text-[11px] text-gray-500 dark:text-gray-400 pt-1 border-t border-blue-500/20">
-                Registration Portal URL: <span className="font-mono text-gray-700 dark:text-gray-300">{window.location.origin}/register</span>
-              </div>
-            </div>
+          {/* Staff onboarding is centralized in Users & Roles Management. */}
+          <div className="lg:col-span-1 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-lg font-black text-gray-900 dark:text-white">Staff Onboarding</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">Staff and tutors are now provisioned through the secure Users &amp; Roles workflow. This removes the retired shared registration passcode and ensures each account receives its own Firebase credentials and audit trail.</p>
+            <a href="/admin/users" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-brand-red px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700">Open Users &amp; Roles</a>
           </div>
-
           {/* Staff Members List */}
           <div className="lg:col-span-2 space-y-4">
             <h2 className="text-lg font-black text-gray-900 dark:text-white">
