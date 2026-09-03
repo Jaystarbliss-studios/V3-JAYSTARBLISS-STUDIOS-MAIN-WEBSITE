@@ -469,45 +469,39 @@ const Portal: React.FC = () => {
     setLoading(true);
 
     try {
-      if (staffPw.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
+      if (staffPw.length < 6) throw new Error('Password must be at least 6 characters.');
+      if (!staffName.trim() || !staffEmail.trim() || !staffRegCode.trim()) {
+        throw new Error('Please complete all staff registration fields.');
       }
 
-      // Check registration code
-      let validCode = STAFF_REG_CODE_FALLBACK;
-      try {
-        const codeSnap = await getDoc(doc(db, 'staffRegistration', 'code'));
-        if (codeSnap.exists() && codeSnap.data().code) {
-          validCode = codeSnap.data().code;
-        }
-      } catch (e) {
-        console.warn('Could not read staffRegistration code doc, using default fallback:', e);
+      const response = await fetch('/.netlify/functions/staff-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: staffName.trim(),
+          email: staffEmail.trim(),
+          password: staffPw,
+          registrationCode: staffRegCode.trim()
+        })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.customToken) {
+        throw new Error(data.error || 'Staff registration failed.');
       }
 
-      if (staffRegCode.trim() !== validCode) {
-        throw new Error('Invalid staff registration code. Please contact your Institute Admin.');
-      }
-
-      const cred = await createUserWithEmailAndPassword(auth, staffEmail.trim(), staffPw);
-      
-      const staffDocData = {
-        email: staffEmail.trim().toLowerCase(),
-        name: staffName.trim(),
-        role: 'staff',
-        createdAt: serverTimestamp()
-      };
-
-      await setDoc(doc(db, 'users', cred.user.uid), staffDocData);
-      await setDoc(doc(db, 'tutors', cred.user.uid), staffDocData);
-
-      setSuccess('Staff account created successfully! You can now log in.');
-      setShowStaffReg(false);
-      setIdentifier(staffEmail.trim());
-      setPassword(staffPw);
+      const cred = await signInWithCustomToken(auth, data.customToken);
+      sessionStorage.setItem('userRole', 'staff');
+      sessionStorage.setItem('userId', cred.user.uid);
+      sessionStorage.setItem('userEmail', cred.user.email || staffEmail.trim().toLowerCase());
+      sessionStorage.setItem('userName', staffName.trim());
+      localStorage.setItem('jaystar_cached_user_role', 'staff');
+      localStorage.setItem('jaystar_cached_user_id', cred.user.uid);
+      localStorage.setItem('jaystar_cached_user_name', staffName.trim());
+      await recordPortalLogin('STAFF');
+      navigate('/portal/staff');
     } catch (err: any) {
-      let msg = err.message || 'Staff registration failed.';
-      if (err.code === 'auth/email-already-in-use') msg = 'This email is already registered. Please log in instead.';
-      setError(msg);
+      console.error('Staff registration error:', err);
+      setError(err.message || 'Staff registration failed.');
     } finally {
       setLoading(false);
     }
