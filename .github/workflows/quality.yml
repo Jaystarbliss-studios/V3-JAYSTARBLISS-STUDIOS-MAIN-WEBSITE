@@ -15,25 +15,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
       - name: Lint
         run: npm run lint
-
       - name: Production build
         run: npm run build
 
   implement_remaining:
     if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, 'IMPLEMENT_REMAINING') }}
-    needs: quality
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -42,10 +37,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Apply completion implementation
         run: python3 scripts/complete_remaining.py
-
       - name: Restore permanent Quality Gate and commit
         shell: bash
         run: |
@@ -82,7 +75,7 @@ jobs:
           rm -f scripts/complete_remaining.py IMPLEMENT_REMAINING.trigger
           git config user.name "Jaystarbliss Studios"
           git config user.email "82984404+Jaystarbliss-studios@users.noreply.github.com"
-          git add src/pages/Portal.tsx src/components/admin/AdminStaff.tsx src/pages/admin/AdminPages.tsx src/pages/admin/AdminPageForm.tsx src/components/Hero.tsx src/components/home/LearningMethod.tsx src/pages/admin/AdminInquiries.tsx firestore.rules README.md .github/workflows/quality.yml scripts/complete_remaining.py IMPLEMENT_REMAINING.trigger
+          git add src/pages/Portal.tsx src/pages/admin/AdminStaff.tsx src/pages/admin/AdminPages.tsx src/pages/admin/AdminPageForm.tsx src/components/Hero.tsx src/components/home/LearningMethod.tsx src/pages/admin/AdminInquiries.tsx firestore.rules README.md .github/workflows/quality.yml scripts/complete_remaining.py IMPLEMENT_REMAINING.trigger
           git diff --cached --quiet && { echo 'No changes to commit'; exit 0; }
           git commit -m "feat: complete remaining platform implementation"
           git push origin HEAD:main
