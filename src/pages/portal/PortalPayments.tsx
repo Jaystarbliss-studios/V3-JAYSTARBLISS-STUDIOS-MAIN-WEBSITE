@@ -29,7 +29,6 @@ export const PortalPayments: React.FC = () => {
       try {
         const user = auth.currentUser;
         const userUid = user?.uid;
-        const userEmail = user?.email?.toLowerCase();
 
         if (!userUid) {
           setPayments([]);
