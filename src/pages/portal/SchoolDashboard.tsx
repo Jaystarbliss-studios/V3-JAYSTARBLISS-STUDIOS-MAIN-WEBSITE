@@ -572,7 +572,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         isActive: editingPasscode.isActive !== false,
         validUntil: editingPasscode.validUntil || 'End of Term',
         invigilatorName: editingPasscode.invigilatorName || 'Staff Invigilator',
-        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || 20
+        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || students.length,
+        schoolId: schoolData?.id || schoolData?.schoolId
       };
 
       setPasscodes(prev => {
@@ -904,7 +905,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-                      Operational (100%)
+                      Not monitored
                     </span>
                   </div>
 
@@ -913,7 +914,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Assigned STEM Instructors
                     </span>
                     <span className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[150px]">
-                      Engr. John Rufai & Team
+                      {schoolData?.coordinator || 'Not assigned'}
                     </span>
                   </div>
 
@@ -922,7 +923,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       Next Scheduled Lab Session
                     </span>
                     <span className="text-xs font-bold text-brand-red">
-                      {schoolData?.labDays || 'Tuesday @ 2:00 PM'}
+                      {schoolData?.labDays || 'No session scheduled'}
                     </span>
                   </div>
 
