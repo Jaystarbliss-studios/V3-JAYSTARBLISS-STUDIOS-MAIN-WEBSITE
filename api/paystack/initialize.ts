@@ -47,6 +47,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createdAt: FieldValue.serverTimestamp()
     });
 
+    const publicAppUrl = process.env.PUBLIC_APP_URL || req.headers.origin || '';
+    const callbackUrl = publicAppUrl ? `${publicAppUrl.replace(/\/$/, '')}/portal/${String(role || 'student').toLowerCase()}/payments?payment=complete` : undefined;
+
     const paystackResponse = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -58,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amount: String(amountSubunit),
         currency: 'NGN',
         reference,
+        ...(callbackUrl ? { callback_url: callbackUrl } : {}),
         metadata: {
           userId: decoded.uid,
           plan,
