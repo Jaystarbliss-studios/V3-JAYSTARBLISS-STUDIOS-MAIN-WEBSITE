@@ -28,15 +28,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   useEffect(() => {
     let isMounted = true;
 
-    // Check cached session immediately
-    const cachedRole = getCachedRole();
-    const cachedUid = getCachedUserId();
-    if (cachedRole && cachedUid && isRoleMatching(cachedRole, rolesKey, location.pathname)) {
-      if (isMounted) {
-        setIsAuthorized(true);
-      }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!isMounted) return;
 
