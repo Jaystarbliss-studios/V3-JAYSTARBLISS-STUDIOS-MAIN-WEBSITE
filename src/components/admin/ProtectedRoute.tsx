@@ -25,6 +25,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
   const rolesKey = allowedRoles ? allowedRoles.slice().sort().join(',') : '';
 
+  const isRoleMatching = (role: string, key: string, pathname: string) => {
+    const roles = key ? key.split(',').filter(Boolean).map(r => r.toUpperCase()) : [];
+    if (roles.length > 0) return roles.includes(role.toUpperCase());
+
+    // Routes without an explicit role list are authenticated-user routes.
+    // Admin routes still require an administrator role.
+    if (pathname.startsWith('/admin')) {
+      return ['SUPER_ADMIN', 'ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN'].includes(role.toUpperCase());
+    }
+    return true;
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -67,7 +79,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             if (uData.forcePasswordReset === true) forceReset = true;
           }
         } catch (e) {
-          console.warn('User doc check error (fallback to cached role if present):', e);
+          console.warn('User doc check error:', e);
         }
 
         // 3. Fallback: check individualStudents collection
@@ -135,9 +147,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // Default to cached role if Firestore is still syncing
+        // Never authorize from a client-side cached role. If the authoritative
+        // identity records are unavailable, fail closed instead.
         if (!userRole) {
-          userRole = (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || 'USER').toUpperCase();
+          throw new Error('Authenticated user has no authoritative portal role');
         }
 
         const normalizedRole = userRole.toUpperCase();
