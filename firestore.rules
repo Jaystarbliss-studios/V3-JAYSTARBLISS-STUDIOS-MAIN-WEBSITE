@@ -102,7 +102,9 @@ service cloud.firestore {
     // ==========================================
     match /users/{userId} {
       allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
-      allow create: if isSuperAdmin() || (isAuth() && request.auth.uid == userId && request.resource.data.role in ['STUDENT','student','PARENT','parent','SCHOOL','school','STAFF','staff','TUTOR','tutor']);
+      // Public self-registration is limited to parent/student identities.
+      // Staff, tutor, school, and all administrative identities must be provisioned by trusted workflows.
+      allow create: if isSuperAdmin() || (isAuth() && request.auth.uid == userId && request.resource.data.role in ['STUDENT','student','PARENT','parent']);
       allow update: if isAuth() && (
         isSuperAdmin() || 
         (isAnyAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','email','phone','photoURL','accountStatus','forcePasswordReset','updatedAt'])) ||
