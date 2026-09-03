@@ -64,8 +64,12 @@ export const handler: Handler = async (event) => {
       return { statusCode: 200, body: "Event acknowledged" };
     }
 
-    const existing = await adminDb.collection("payments").where("reference", "==", reference).limit(1).get();
-    if (!existing.empty) {
+    const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
+    const canonicalExisting = await canonicalPaymentRef.get();
+    const existing = canonicalExisting.exists
+      ? canonicalExisting
+      : (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
+    if (existing) {
       return { statusCode: 200, body: "Event already reconciled" };
     }
 
@@ -91,7 +95,7 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    await adminDb.collection("payments").add({
+    const paymentData = {
       userId,
       parentId: role === "parent" ? userId : null,
       schoolId: role === "school" ? userId : null,
@@ -109,7 +113,16 @@ export const handler: Handler = async (event) => {
       description: `Tuition & Fee Renewal: ${metadata.planName || expectedPlan.name}`,
       createdAt: new Date(),
       paidAt: tx.paid_at ? new Date(tx.paid_at) : new Date()
-    });
+    };
+
+    try {
+      await canonicalPaymentRef.create(paymentData);
+    } catch (writeError: any) {
+      if (writeError?.code === 6 || String(writeError?.message || "").toLowerCase().includes("already exists")) {
+        return { statusCode: 200, body: "Event already reconciled" };
+      }
+      throw writeError;
+    }
 
     if (enrollmentRequestId && enrollmentRequest) {
       await enrollmentRequest.ref.set({
