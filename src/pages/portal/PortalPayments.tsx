@@ -5,7 +5,7 @@ import {
   ArrowRight, FileText
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import { collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
@@ -124,41 +124,28 @@ export const PortalPayments: React.FC = () => {
 
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    const user = auth.currentUser;
+    if (!user || !selectedPlan) {
+      toast.error('Please sign in before starting payment.');
+      return;
+    }
+
     setRenewing(true);
-    setRenewalSuccess(false);
-
     try {
-      const user = auth.currentUser;
-      const amount = selectedPlan.includes('350') ? 350000 : selectedPlan.includes('600') ? 600000 : selectedPlan.includes('120') ? 120000 : selectedPlan.includes('85') ? 85000 : 45000;
-
-      const paymentRecord = {
-        userId: user?.uid || 'user',
-        email: user?.email || '',
-        plan: selectedPlan,
-        amount: amount,
-        paymentMethod: paymentMethod,
-        status: 'PAID',
-        reference: `JDH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        role: role,
-        description: `Tuition & Fee Renewal: ${selectedPlan}`,
-        createdAt: serverTimestamp(),
-        dateString: new Date().toLocaleDateString()
-      };
-
-      const docRef = await addDoc(collection(db, 'payments'), paymentRecord);
-      setPayments(prev => [{ id: docRef.id, ...paymentRecord }, ...prev]);
-      setRenewalSuccess(true);
-      toast.success('Payment receipt generated successfully! Your membership status is active.');
-
-      setTimeout(() => {
-        setShowCheckoutModal(false);
-        setRenewalSuccess(false);
-      }, 2000);
-
+      const idToken = await user.getIdToken();
+      const response = await fetch('/.netlify/functions/paystack-initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ planId: plans.find(p => p.name === selectedPlan)?.id })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.authorizationUrl) {
+        throw new Error(data.error || 'Unable to initialize payment.');
+      }
+      window.location.assign(data.authorizationUrl);
     } catch (err) {
-      console.error('Error processing renewal:', err);
-      toast.error('Failed to log payment transaction.');
-    } finally {
+      console.error('Error initializing payment:', err);
+      toast.error(err instanceof Error ? err.message : 'Unable to start payment.');
       setRenewing(false);
     }
   };
