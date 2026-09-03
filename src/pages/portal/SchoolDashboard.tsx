@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc,
+  collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc, query, where,
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
@@ -284,17 +284,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         }
 
         if (!schoolDoc) {
-          const matchedName = schoolDocId ? (KNOWN_SCHOOL_NAMES[schoolDocId.toLowerCase()] || schoolDocId) : null;
-          schoolDoc = {
-            id: schoolDocId || 'peniel',
-            name: matchedName || sessionStorage.getItem('userName') || 'Partner Academy',
-            schoolCode: schoolDocId || 'SCH-JAYSTAR',
-            plan: 'School Innovation & STEM Lab Partnership',
-            status: 'ACTIVE',
-            address: 'Lagos, Nigeria',
-            coordinator: 'Academic Directorate',
-            labDays: 'Tuesdays & Thursdays (2:00 PM – 4:00 PM)'
-          };
+          throw new Error('School profile could not be resolved for this account.');
         }
         setSchoolData(schoolDoc);
 
@@ -328,7 +318,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 2. Fetch Exams & Quizzes from Firestore (matching schoolExams & exams)
         try {
-          const exSnap1 = await getDocs(collection(db, 'schoolExams'));
+          const exSnap1 = await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', currentSchoolId)));
           const liveSchoolExams = exSnap1.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolExam))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -346,7 +336,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 3. Fetch Curriculum & School Resources from Firestore (matching schoolResources)
         try {
-          const resSnap = await getDocs(collection(db, 'schoolResources'));
+          const resSnap = await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', currentSchoolId)));
           const liveRes = resSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolResource))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -357,7 +347,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 4. Fetch School Links from Firestore (matching schoolLinks)
         try {
-          const linkSnap = await getDocs(collection(db, 'schoolLinks'));
+          const linkSnap = await getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', currentSchoolId)));
           const liveLinks = linkSnap.docs
             .map(d => ({ id: d.id, ...d.data() } as SchoolLink))
             .filter(d => !d.schoolId || d.schoolId === currentSchoolId);
@@ -368,7 +358,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
         // 5. Fetch Passcodes from firestore if existing
         try {
-          const pcSnap = await getDocs(collection(db, 'schoolPasscodes'));
+          const pcSnap = await getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', currentSchoolId)));
           if (!pcSnap.empty) {
             const list = pcSnap.docs
               .map(d => ({ id: d.id, ...d.data() } as ClassPasscodeConfig))
@@ -596,7 +586,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         isActive: editingPasscode.isActive !== false,
         validUntil: editingPasscode.validUntil || 'End of Term',
         invigilatorName: editingPasscode.invigilatorName || 'Staff Invigilator',
-        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || 20
+        allocatedCadetsCount: editingPasscode.allocatedCadetsCount || 20,
+        schoolId: schoolData?.id || schoolData?.schoolId || sessionStorage.getItem('schoolId') || ''
       };
 
       setPasscodes(prev => {
