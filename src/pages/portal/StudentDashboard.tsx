@@ -34,6 +34,7 @@ interface StudentInfo {
   schedule?: string;
   status?: string;
   notes?: string;
+  studyCadence?: string;
 }
 
 interface ProgramModule {
@@ -47,6 +48,7 @@ interface ProgramModule {
   score?: string;
   competencies: string[];
   instructor: string;
+  credentialId?: string;
 }
 
 interface ResourceItem {
