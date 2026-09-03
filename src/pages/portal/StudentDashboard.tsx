@@ -555,9 +555,11 @@ const StudentDashboard: React.FC = () => {
       <StudentAnalyticsVisualizer 
         studentName={student?.fullName || 'Active Cadet'}
         studentClass={student?.class || 'JSS 1 / STEM Track'}
-        enrolledSubjects={student?.subjects || ['Web Development', 'Robotics & AI', 'Creative Design']}
+        enrolledSubjects={student?.subjects || []}
         completedModulesCount={completedModulesCount}
-        totalModulesCount={modules.length || 6}
+        totalModulesCount={modules.length}
+        modules={modules}
+        exams={exams}
       />
 
       {/* Middle Grid: Recent Activity & Milestone Progress */}
