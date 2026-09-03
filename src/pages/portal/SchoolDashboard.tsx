@@ -299,8 +299,8 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               accessCode: data.accessCode || data.passcode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               passcode: data.passcode || data.accessCode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
               username: data.username || (data.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.'),
-              attendanceRate: data.attendanceRate || (Math.floor(Math.random() * 15) + 85),
-              avgScore: data.avgScore || (Math.floor(Math.random() * 20) + 78)
+              attendanceRate: typeof data.attendanceRate === 'number' ? data.attendanceRate : undefined,
+              avgScore: typeof data.avgScore === 'number' ? data.avgScore : undefined
             });
           }
         });
