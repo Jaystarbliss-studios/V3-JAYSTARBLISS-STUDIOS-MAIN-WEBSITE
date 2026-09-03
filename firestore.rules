@@ -37,6 +37,19 @@ service cloud.firestore {
       );
     }
 
+    function isSchoolOwner(schoolId) {
+      return isAuth() && (
+        schoolId == request.auth.uid ||
+        (
+          exists(/databases/$(database)/documents/schools/$(schoolId)) &&
+          (
+            get(/databases/$(database)/documents/schools/$(schoolId)).data.adminUid == request.auth.uid ||
+            get(/databases/$(database)/documents/schools/$(schoolId)).data.userId == request.auth.uid
+          )
+        )
+      );
+    }
+
     // ==========================================
     // USERS & PORTAL PROFILES
     // ==========================================
@@ -110,24 +123,24 @@ service cloud.firestore {
       allow write, delete: if isStaffOrTutor() || isAnyAdmin() || isAuth();
     }
 
-    match /schoolResources/{resourceId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
-      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
+    match /schoolResources/{docId} {
+      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create, update, delete: if isAdmin() || isStaffOrTutor();
     }
 
-    match /schoolLinks/{linkId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
-      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
+    match /schoolLinks/{docId} {
+      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create, update, delete: if isAdmin() || isStaffOrTutor();
     }
 
-    match /schoolExams/{examId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
-      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
+    match /schoolExams/{docId} {
+      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create, update, delete: if isAdmin() || isStaffOrTutor();
     }
 
     match /schoolPasscodes/{docId} {
-      allow read: if isAnyAdmin() || isStaffOrTutor() || isAuth();
-      allow create, update, delete: if isAnyAdmin() || isStaffOrTutor();
+      allow read: if isAdmin() || isStaffOrTutor() || (isAuth() && isSchoolOwner(resource.data.schoolId));
+      allow create, update, delete: if isAdmin() || isStaffOrTutor();
     }
 
     match /staffGeneralResources/{resId} {
