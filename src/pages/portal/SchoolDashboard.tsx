@@ -287,18 +287,17 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         isSnap.forEach(d => {
           const data = d.data();
           if (
-            data.schoolId === schoolDoc?.id || 
-            data.schoolCode === schoolDoc?.schoolCode || 
-            data.schoolName === schoolDoc?.name ||
-            !data.parentId
+            data.schoolId === currentSchoolId ||
+            data.schoolCode === schoolDoc?.schoolCode ||
+            data.schoolName === schoolDoc?.name
           ) {
             sList.push({ 
               id: d.id, 
               ...data,
-              class: data.class || data.grade || 'JSS 1',
-              accessCode: data.accessCode || data.passcode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
-              passcode: data.passcode || data.accessCode || `SCH-${(data.class || 'JSS1').replace(/\s+/g, '')}-101`,
-              username: data.username || (data.fullName || 'cadet').toLowerCase().replace(/[^a-z0-9]/g, '.'),
+              class: data.class || data.grade,
+              accessCode: data.accessCode || data.passcode,
+              passcode: data.passcode || data.accessCode,
+              username: data.username,
 
             });
           }
