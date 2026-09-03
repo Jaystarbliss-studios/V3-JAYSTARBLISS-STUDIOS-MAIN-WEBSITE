@@ -1,0 +1,72 @@
+name: Apply Portal Integration Fixes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/maintenance-ui-integrations.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[portal-maintenance]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply integration fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          payments = Path('src/pages/portal/PortalPayments.tsx')
+          text = payments.read_text()
+          old = "body: JSON.stringify({ planId: plan.id, role })"
+          new = "body: JSON.stringify({ planId: plan.id, role, paymentMethod })"
+          if old not in text:
+              raise SystemExit('PortalPayments target not found')
+          text = text.replace(old, new, 1)
+          payments.write_text(text)
+
+          app = Path('src/App.tsx')
+          text = app.read_text()
+          old = '<Route path="payments" element={<Suspense fallback={<LazyFallback />}><SchoolDashboard initialTab="partnership" /></Suspense>} />'
+          new = '<Route path="payments" element={<Suspense fallback={<LazyFallback />}><PortalPayments /></Suspense>} />'
+          if old not in text:
+              raise SystemExit('App school payments route target not found')
+          text = text.replace(old, new, 1)
+          app.write_text(text)
+
+          cert = Path('src/lib/certificatePdfGenerator.ts')
+          text = cert.read_text()
+          anchor = "export interface ModuleCertificateData {\n"
+          helper = """const makeStableCredentialId = (studentId: string | undefined, studentName: string, moduleTitle: string) => {\n  let hash = 0;\n  const source = `${studentId || studentName}:${moduleTitle}`;\n  for (let index = 0; index < source.length; index += 1) {\n    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;\n  }\n  return `JDS-${hash.toString(36).toUpperCase().padStart(8, '0').slice(-8)}`;\n};\n\n"""
+          if helper.strip() not in text:
+              text = text.replace(anchor, helper + anchor, 1)
+          old = "const credentialId = data.credentialId || `JDS-${Math.random().toString(36).substring(2, 7).toUpperCase()}-${Date.now().toString().slice(-4)}`;"
+          new = "const credentialId = data.credentialId || makeStableCredentialId(data.studentId, studentName, moduleTitle);"
+          if old not in text:
+              raise SystemExit('Certificate credential target not found')
+          text = text.replace(old, new, 1)
+          cert.write_text(text)
+          PY
+
+      - name: Commit and clean up
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/maintenance-ui-integrations.yml
+          git add src/pages/portal/PortalPayments.tsx src/App.tsx src/lib/certificatePdfGenerator.ts .github/workflows/maintenance-ui-integrations.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: complete portal payment and certificate integrations [portal-maintenance]'
+          git push origin main
