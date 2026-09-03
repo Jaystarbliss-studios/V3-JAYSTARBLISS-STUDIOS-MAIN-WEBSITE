@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, doc, setDoc, addDoc, updateDoc, deleteDoc, query, where,
+  collection, getDocs, getDoc, doc, setDoc, addDoc, updateDoc, deleteDoc, query, where,
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
@@ -265,22 +265,32 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         let schoolDoc: any = null;
 
         if (schoolDocId) {
-          const sSnap = await getDocs(collection(db, 'schools'));
-          sSnap.forEach(d => {
-            if (d.id === schoolDocId || d.data().schoolId === schoolDocId || d.data().code === schoolDocId) {
-              schoolDoc = { id: d.id, ...d.data() };
+          const directSnap = await getDoc(doc(db, 'schools', schoolDocId));
+          if (directSnap.exists()) {
+            schoolDoc = { id: directSnap.id, ...directSnap.data() };
+          } else {
+            const byCode = await getDocs(query(collection(db, 'schools'), where('schoolId', '==', schoolDocId)));
+            if (!byCode.empty) {
+              schoolDoc = { id: byCode.docs[0].id, ...byCode.docs[0].data() };
+            } else {
+              const byShortCode = await getDocs(query(collection(db, 'schools'), where('code', '==', schoolDocId)));
+              if (!byShortCode.empty) {
+                schoolDoc = { id: byShortCode.docs[0].id, ...byShortCode.docs[0].data() };
+              }
             }
-          });
+          }
         }
 
         if (!schoolDoc && user) {
-          const sSnap = await getDocs(collection(db, 'schools'));
-          sSnap.forEach(d => {
-            const data = d.data();
-            if (data.email === user.email || data.adminUid === user.uid || data.userId === user.uid) {
-              schoolDoc = { id: d.id, ...data };
+          const byAdmin = await getDocs(query(collection(db, 'schools'), where('adminUid', '==', user.uid)));
+          if (!byAdmin.empty) {
+            schoolDoc = { id: byAdmin.docs[0].id, ...byAdmin.docs[0].data() };
+          } else {
+            const byUser = await getDocs(query(collection(db, 'schools'), where('userId', '==', user.uid)));
+            if (!byUser.empty) {
+              schoolDoc = { id: byUser.docs[0].id, ...byUser.docs[0].data() };
             }
-          });
+          }
         }
 
         if (!schoolDoc) {
