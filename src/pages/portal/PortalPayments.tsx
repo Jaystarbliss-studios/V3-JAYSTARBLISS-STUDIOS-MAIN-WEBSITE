@@ -122,7 +122,7 @@ export const PortalPayments: React.FC = () => {
       const amount = typeof payment.amount === 'number'
         ? payment.amount.toLocaleString()
         : String(payment.amount ?? '0');
-      pdf.text(`Amount paid: ₦${amount}`, 20, 118);
+      pdf.text(`Amount paid: NGN ${amount}`, 20, 118);
 
       pdf.setFontSize(9);
       pdf.setFont('helvetica', 'normal');
