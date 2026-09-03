@@ -92,7 +92,7 @@ Deploy the rules from a trusted local environment after reviewing the rule chang
 
 ## Payments
 
-Paystack initialization and verification are performed server-side. Paystack requires secret-key API calls to stay on the backend, and transaction verification checks status, currency, reference and amount before a payment is marked VERIFIED. citeturn3search6turn3search8
+Paystack initialization and verification are performed server-side. Paystack requires secret-key API calls to stay on the backend, and transaction verification checks status, currency, reference and amount before a payment is marked VERIFIED.
 
 The Vercel API layer uses Firebase Admin for trusted writes; the Admin SDK is intended for controlled server/serverless environments and must not be exposed to the browser. citeturn4search0
 
