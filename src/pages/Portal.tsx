@@ -511,6 +511,23 @@ const Portal: React.FC = () => {
       throw new Error('Invalid school credentials, cadet username, or access passcode. Please verify your credentials or contact your school administrator.');
     }
 
+    // The server-side function already created/signs in the Firebase session with a custom token.
+    // Do not attempt a second email/password sign-in for this credential-based path.
+    if (matchedSchool.firebaseUid) {
+      const matchedSchoolName = matchedSchool.name || 'Partner School';
+      sessionStorage.setItem('userRole', 'school');
+      sessionStorage.setItem('userId', matchedSchool.firebaseUid);
+      sessionStorage.setItem('schoolId', matchedSchool.id);
+      sessionStorage.setItem('userName', matchedSchoolName);
+      localStorage.setItem('jaystar_cached_user_role', 'school');
+      localStorage.setItem('jaystar_cached_user_id', matchedSchool.firebaseUid);
+      localStorage.setItem('jaystar_cached_user_name', matchedSchoolName);
+      toast.success(`Welcome ${matchedSchoolName}! Logged in successfully.`);
+      navigate('/portal/school');
+      return;
+    }
+
+    // Legacy email/password school accounts remain supported.
     // Sign in or create auth session for school
     const schoolAuthEmail = matchedSchool.email || `school-${matchedSchool.id.toLowerCase().replace(/[^a-z0-9]/g, '')}@jdh-school.local`;
     const schoolAuthPassword = deriveSchoolAuthPassword(code);
