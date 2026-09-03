@@ -294,7 +294,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
       ...STATIC_NAV_PAGES,
       ...dbItems
     ];
-  }, [curatedResourceItems, dbItems]);
+  }, [dbItems]);
 
   // Filter items based on active search term and category
   const filteredResults = useMemo(() => {
