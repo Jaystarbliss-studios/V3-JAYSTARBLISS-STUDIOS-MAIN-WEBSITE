@@ -15,6 +15,24 @@ const AdminUsers: React.FC = () => {
   const [forcePasswordReset, setForcePasswordReset] = useState(true);
   const [inviting, setInviting] = useState(false);
 
+  const handleAccountStatusChange = async (userId: string, nextStatus: string, currentUser: any) => {
+    if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'super_admin' || currentUser?.email === 'johnrufai242@gmail.com') {
+      toast.error('The primary super administrator cannot be suspended or banned.');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        accountStatus: nextStatus,
+        updatedAt: new Date().toISOString()
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, accountStatus: nextStatus } : u));
+      toast.success(`Account status changed to ${nextStatus}.`);
+    } catch (error) {
+      console.error('Error changing account status:', error);
+      toast.error('Failed to change account status.');
+    }
+  };
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -269,15 +287,15 @@ const AdminUsers: React.FC = () => {
             <tr>
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User Profile</th>
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Type</th>
-              <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Security State</th>
+              <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Security State</th>\n              <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Account Access</th>
               <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Portal Role</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-slate-800 text-sm">
             {loading ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">Loading user records...</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">Loading user records...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">No user records found.</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">No user records found.</td></tr>
             ) : (
               users.map(user => (
                 <tr key={user.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30">
@@ -310,6 +328,17 @@ const AdminUsers: React.FC = () => {
                       <KeyRound size={13} />
                       <span>{user.forcePasswordReset ? 'Reset Required' : 'Password Active'}</span>
                     </button>
+                  </td>
+                  <td className="px-6 py-4">
+                    <select
+                      value={user.accountStatus || 'ACTIVE'}
+                      onChange={(e) => handleAccountStatusChange(user.id, e.target.value, user)}
+                      className="text-xs font-semibold border border-gray-200 dark:border-slate-700 rounded-xl p-2 bg-white dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-red"
+                    >
+                      <option value="ACTIVE">Active</option>
+                      <option value="SUSPENDED">Suspended</option>
+                      <option value="BANNED">Banned</option>
+                    </select>
                   </td>
                   <td className="px-6 py-4">
                     <select
