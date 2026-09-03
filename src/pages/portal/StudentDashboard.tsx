@@ -244,30 +244,32 @@ const StudentDashboard: React.FC = () => {
         // 2. Fetch Personal Resources
         if (sId || currentUser?.uid) {
           try {
-            const prSnap = await getDocs(collection(db, 'personalResources'));
-            const pRes: ResourceItem[] = [];
-            prSnap.forEach(d => {
-              const data = d.data();
-              if (data.studentId === sId || data.studentId === currentUser?.uid || data.userId === currentUser?.uid) {
-                pRes.push({ id: d.id, ...data } as ResourceItem);
-              }
-            });
-            setPersonalResources(pRes);
+            const resourceQueries = [
+              query(collection(db, 'personalResources'), where('studentId', '==', sId)),
+              ...(currentUser?.uid ? [query(collection(db, 'personalResources'), where('userId', '==', currentUser.uid))] : [])
+            ];
+            const pResMap = new Map<string, ResourceItem>();
+            for (const rq of resourceQueries) {
+              const snap = await getDocs(rq);
+              snap.forEach(d => pResMap.set(d.id, { id: d.id, ...d.data() } as ResourceItem));
+            }
+            setPersonalResources(Array.from(pResMap.values()));
           } catch (e) {
             console.warn('Personal resources query error:', e);
           }
 
           // 3. Fetch Personal Links
           try {
-            const plSnap = await getDocs(collection(db, 'personalLinks'));
-            const pLinks: LinkItem[] = [];
-            plSnap.forEach(d => {
-              const data = d.data();
-              if (data.studentId === sId || data.studentId === currentUser?.uid || data.userId === currentUser?.uid) {
-                pLinks.push({ id: d.id, ...data } as LinkItem);
-              }
-            });
-            setPersonalLinks(pLinks);
+            const linkQueries = [
+              query(collection(db, 'personalLinks'), where('studentId', '==', sId)),
+              ...(currentUser?.uid ? [query(collection(db, 'personalLinks'), where('userId', '==', currentUser.uid))] : [])
+            ];
+            const pLinksMap = new Map<string, LinkItem>();
+            for (const lq of linkQueries) {
+              const snap = await getDocs(lq);
+              snap.forEach(d => pLinksMap.set(d.id, { id: d.id, ...d.data() } as LinkItem));
+            }
+            setPersonalLinks(Array.from(pLinksMap.values()));
           } catch (e) {
             console.warn('Personal links query error:', e);
           }
@@ -292,7 +294,9 @@ const StudentDashboard: React.FC = () => {
 
           // From schoolResources collection
           try {
-            const schResSnap = await getDocs(collection(db, 'schoolResources'));
+            const schResSnap = sData?.schoolId
+              ? await getDocs(query(collection(db, 'schoolResources'), where('schoolId', '==', sData.schoolId)))
+              : { docs: [] } as any;
             schResSnap.docs.forEach(d => {
               const item = { id: d.id, ...d.data() } as ResourceItem;
               const itemClass = (item.targetClass || item.class || '').trim();
@@ -326,7 +330,9 @@ const StudentDashboard: React.FC = () => {
           });
 
           try {
-            const schExSnap = await getDocs(collection(db, 'schoolExams'));
+            const schExSnap = sData?.schoolId
+              ? await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', sData.schoolId)))
+              : { docs: [] } as any;
             schExSnap.docs.forEach(d => {
               const exData = { id: d.id, ...d.data() } as ExamItem;
               const exClass = (exData.targetClass || exData.class || '').trim();
@@ -355,7 +361,18 @@ const StudentDashboard: React.FC = () => {
 
         // 7. Fetch Student Enrolled Modules
         try {
-          const mSnap = await getDocs(collection(db, 'studentModules')).catch(() => ({ docs: [] }));
+          const moduleQueries = [
+            query(collection(db, 'studentModules'), where('studentId', '==', sId)),
+            ...(currentUser?.uid ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUser.uid))] : [])
+          ];
+          const moduleMap = new Map<string, any>();
+          for (const mq of moduleQueries) {
+            try {
+              const snap = await getDocs(mq);
+              snap.forEach(d => moduleMap.set(d.id, d));
+            } catch {}
+          }
+          const mSnap = { docs: Array.from(moduleMap.values()) };
           if (mSnap.docs.length > 0) {
             const userModules: ProgramModule[] = [];
             mSnap.docs.forEach(docSnap => {
