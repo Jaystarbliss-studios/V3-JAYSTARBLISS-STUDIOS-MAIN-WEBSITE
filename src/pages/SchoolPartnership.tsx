@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
 import { 
@@ -133,21 +131,32 @@ const SchoolPartnership: React.FC = () => {
     setError(null);
     
     try {
-      await addDoc(collection(db, 'inquiries'), {
-        ...formData,
-        deliveryTier: selectedTier,
-        type: 'SCHOOL_PARTNERSHIP_PROPOSAL',
-        status: 'PENDING',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      const response = await fetch('/.netlify/functions/submit-inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          schoolName: formData.schoolName,
+          role: formData.role,
+          email: formData.email,
+          phone: formData.phone,
+          addressCity: formData.addressCity,
+          estimatedStudents: formData.estimatedStudents,
+          preferredDays: formData.preferredDays,
+          programsOfInterest: formData.programsOfInterest,
+          message: formData.message,
+          deliveryTier: selectedTier,
+          type: 'SCHOOL_PARTNERSHIP_PROPOSAL'
+        })
       });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to submit proposal.');
       setSuccess(true);
       toast.success('School partnership proposal submitted successfully! Our directorate will reach out within 24 hours.');
     } catch (err) {
       console.error('Error submitting form:', err);
-      // Still show success in prototype/demo if offline
-      setSuccess(true);
-      toast.success('School partnership proposal submitted successfully! Our directorate will reach out within 24 hours.');
+      setError(err instanceof Error ? err.message : 'Unable to submit proposal. Please try again.');
+      toast.error('We could not submit your proposal. Please try again.');
     } finally {
       setLoading(false);
     }
