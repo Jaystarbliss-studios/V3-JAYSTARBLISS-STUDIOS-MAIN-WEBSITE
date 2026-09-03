@@ -787,7 +787,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   />
                   <path
                     className="text-amber-500 transition-all duration-1000 ease-out"
-                    strokeDasharray={`${passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100 : 0)}, 100`}
+                    strokeDasharray={(passcodes.length ? Math.round((passcodes.filter(p => p.isActive).length / passcodes.length) * 100 : 0) + ', 100')}
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
