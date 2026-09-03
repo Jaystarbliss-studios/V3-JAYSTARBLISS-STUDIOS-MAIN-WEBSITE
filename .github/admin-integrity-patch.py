@@ -135,3 +135,25 @@ s = s.replace(
   };
 ''', 1)
 staff.write_text(s)
+
+rules = Path('firestore.rules')
+text = rules.read_text()
+old_rules = '''    // Global settings can contain privileged integration values. Keep them admin-only.
+    match /settings/{document=**} {
+      allow read, write: if isAnyAdmin();
+    }
+'''
+new_rules = '''    // The global settings collection may contain privileged integration values.
+    // Only the public banner document is intentionally readable without auth.
+    match /settings/banner {
+      allow read: if true;
+      allow write: if isAnyAdmin();
+    }
+
+    match /settings/{document=**} {
+      allow read, write: if isAnyAdmin();
+    }
+'''
+if old_rules not in text:
+    raise SystemExit('Firestore settings rule target not found')
+rules.write_text(text.replace(old_rules, new_rules, 1))
