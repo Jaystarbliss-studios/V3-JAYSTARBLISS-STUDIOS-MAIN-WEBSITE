@@ -310,7 +310,7 @@ const StudentDashboard: React.FC = () => {
           });
 
           try {
-            const schExSnap = await getDocs(collection(db, 'schoolExams'));
+            const schExSnap = await getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', sData?.schoolId || '')));
             schExSnap.docs.forEach(d => {
               const exData = { id: d.id, ...d.data() } as ExamItem;
               const exClass = (exData.targetClass || exData.class || '').trim();
@@ -331,7 +331,7 @@ const StudentDashboard: React.FC = () => {
 
         // 6. Fetch Announcements / Notifications
         try {
-          const nSnap = await getDocs(query(collection(db, 'notifications'), limit(5)));
+          const nSnap = await getDocs(query(collection(db, 'notifications'), where('recipientId', 'in', [currentUser?.uid || '', currentUser?.email || '', 'all', 'all_students']), limit(10)));
           setNotifications(nSnap.docs.map(d => ({ id: d.id, ...d.data() } as NotificationItem)));
         } catch (e) {
           console.warn('Notifications fetch error:', e);
@@ -339,7 +339,7 @@ const StudentDashboard: React.FC = () => {
 
         // 7. Fetch Student Enrolled Modules
         try {
-          const mSnap = await getDocs(collection(db, 'studentModules')).catch(() => ({ docs: [] }));
+          const mSnap = await getDocs(query(collection(db, 'studentModules'), where('studentId', '==', sId))).catch(() => ({ docs: [] }));
           if (mSnap.docs.length > 0) {
             const userModules: ProgramModule[] = [];
             mSnap.docs.forEach(docSnap => {
