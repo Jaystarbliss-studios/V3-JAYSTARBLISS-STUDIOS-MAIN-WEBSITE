@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../lib/firebase';
 import { 
-  collection, getDocs, addDoc, serverTimestamp 
+  collection, getDocs, addDoc, serverTimestamp, query, where 
 } from 'firebase/firestore';
 import { 
   GraduationCap, PlusCircle, CreditCard, 
@@ -42,38 +42,32 @@ const ParentDashboard: React.FC = () => {
 
         // Query individualStudents
         try {
-          const isSnap = await getDocs(collection(db, 'individualStudents'));
-          isSnap.forEach(d => {
-            const data = d.data();
-            if (
-              data.parentId === userUid || 
-              data.parentId === userEmail ||
-              data.parentEmail?.toLowerCase() === userEmail ||
-              data.email?.toLowerCase() === userEmail
-            ) {
-              allStudentsMap.set(d.id, { id: d.id, ...data });
-            }
-          });
+          const studentQueries = [
+            query(collection(db, 'individualStudents'), where('parentId', '==', userUid)),
+            query(collection(db, 'individualStudents'), where('parentId', '==', userEmail)),
+            query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)),
+            query(collection(db, 'individualStudents'), where('email', '==', userEmail))
+          ];
+          const studentSnaps = await Promise.all(studentQueries);
+          studentSnaps.forEach(isSnap => isSnap.forEach(d => {
+            allStudentsMap.set(d.id, { id: d.id, ...d.data() });
+          }));
         } catch (e) {
           console.warn('individualStudents query error:', e);
         }
 
         // Query legacy students
         try {
-          const sSnap = await getDocs(collection(db, 'students'));
-          sSnap.forEach(d => {
-            const data = d.data();
-            if (
-              data.parentId === userUid || 
-              data.parentId === userEmail ||
-              data.parentEmail?.toLowerCase() === userEmail ||
-              data.email?.toLowerCase() === userEmail
-            ) {
-              if (!allStudentsMap.has(d.id)) {
-                allStudentsMap.set(d.id, { id: d.id, ...data });
-              }
-            }
-          });
+          const legacyQueries = [
+            query(collection(db, 'students'), where('parentId', '==', userUid)),
+            query(collection(db, 'students'), where('parentId', '==', userEmail)),
+            query(collection(db, 'students'), where('parentEmail', '==', userEmail)),
+            query(collection(db, 'students'), where('email', '==', userEmail))
+          ];
+          const legacySnaps = await Promise.all(legacyQueries);
+          legacySnaps.forEach(sSnap => sSnap.forEach(d => {
+            if (!allStudentsMap.has(d.id)) allStudentsMap.set(d.id, { id: d.id, ...d.data() });
+          }));
         } catch (e) {
           console.warn('students query error:', e);
         }
@@ -82,14 +76,8 @@ const ParentDashboard: React.FC = () => {
 
         // 2. Fetch Payments
         try {
-          const pSnap = await getDocs(collection(db, 'payments'));
-          const pList: any[] = [];
-          pSnap.forEach(d => {
-            const data = d.data();
-            if (data.parentId === userUid || data.parentId === userEmail || data.parentEmail === userEmail) {
-              pList.push({ id: d.id, ...data });
-            }
-          });
+          const pSnap = await getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid)));
+          const pList: any[] = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           setPayments(pList);
         } catch (e) {
           console.warn('Payments fetch error:', e);
@@ -97,14 +85,8 @@ const ParentDashboard: React.FC = () => {
 
         // 3. Fetch Pending Enrollment Requests
         try {
-          const eSnap = await getDocs(collection(db, 'enrollment_requests'));
-          const eList: any[] = [];
-          eSnap.forEach(d => {
-            const data = d.data();
-            if (data.parentId === userUid || data.parentId === userEmail || data.email === userEmail) {
-              eList.push({ id: d.id, ...data });
-            }
-          });
+          const eSnap = await getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid)));
+          const eList: any[] = eSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           setEnrollments(eList);
         } catch (e) {
           console.warn('Enrollment requests fetch error:', e);
@@ -112,7 +94,7 @@ const ParentDashboard: React.FC = () => {
 
         // 4. Fetch Announcements / Notifications
         try {
-          const nSnap = await getDocs(collection(db, 'notifications'));
+          const nSnap = await getDocs(query(collection(db, 'notifications'), where('recipientId', 'in', [userUid, userEmail, 'all'])));
           setNotifications(nSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (e) {
           console.warn('Notifications fetch error:', e);
