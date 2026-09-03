@@ -125,18 +125,24 @@ const AdminStudents: React.FC = () => {
     }
   };
 
-  // Update Access Code
+  // Update Access Code across current and legacy student records.
   const handleUpdateCode = async (studentId: string) => {
-    if (!tempCode.trim()) {
+    const nextCode = tempCode.trim().toUpperCase();
+    if (!nextCode) {
       toast.error('Access code cannot be blank.');
       return;
     }
     try {
-      await setDoc(doc(db, 'individualStudents', studentId), {
-        accessCode: tempCode.trim().toUpperCase()
-      }, { merge: true });
-
-      toast.success(`Access code updated to ${tempCode.trim().toUpperCase()}!`);
+      const student = students.find((item) => item.id === studentId);
+      const writes: Promise<unknown>[] = [
+        setDoc(doc(db, 'individualStudents', studentId), { accessCode: nextCode }, { merge: true }),
+      ];
+      if (student?.username) {
+        const legacySnap = await getDocs(query(collection(db, 'students'), where('username', '==', student.username)));
+        legacySnap.forEach((studentDoc) => writes.push(setDoc(studentDoc.ref, { accessCode: nextCode }, { merge: true })));
+      }
+      await Promise.all(writes);
+      toast.success(`Access code updated to ${nextCode} across linked student records.`);
       setEditingCodeId(null);
       setTempCode('');
       fetchData();
@@ -145,24 +151,27 @@ const AdminStudents: React.FC = () => {
     }
   };
 
-  // Delete Student
+  // Delete Student and clean up current and legacy student records.
   const handleDeleteStudent = async (studentId: string, studentName: string) => {
     if (!window.confirm(`Are you sure you want to delete student "${studentName}" and all their assigned resources?`)) return;
     try {
-      await deleteDoc(doc(db, 'individualStudents', studentId));
+      const student = students.find((item) => item.id === studentId);
+      const legacyRefs = student?.username
+        ? (await getDocs(query(collection(db, 'students'), where('username', '==', student.username)))).docs.map((studentDoc) => studentDoc.ref)
+        : [];
 
-      // Also clean up personal resources and links
+      await deleteDoc(doc(db, 'individualStudents', studentId));
+      await Promise.all(legacyRefs.map((studentRef) => deleteDoc(studentRef)));
+
       const [rSnap, lSnap] = await Promise.all([
         getDocs(query(collection(db, 'personalResources'), where('studentId', '==', studentId))),
         getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))
       ]);
-
       const deletions: Promise<void>[] = [];
       rSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
       lSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
       await Promise.all(deletions);
-
-      toast.success(`Student "${studentName}" and personal files deleted.`);
+      toast.success(`Student "${studentName}" and linked student records deleted.`);
       fetchData();
     } catch (err: any) {
       toast.error('Error deleting student: ' + err.message);

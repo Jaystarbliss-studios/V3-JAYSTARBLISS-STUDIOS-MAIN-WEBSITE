@@ -108,15 +108,19 @@ const AdminStaff: React.FC = () => {
     }
   };
 
-  // Delete Staff Member
+  // Disable Staff Member without deleting the authoritative user record.
   const handleDeleteStaff = async (id: string, name: string) => {
-    if (!window.confirm(`Revoke staff privileges and remove "${name}"?`)) return;
+    if (!window.confirm(`Disable staff access for "${name}"? This preserves the account record for audit history.`)) return;
     try {
-      await deleteDoc(doc(db, 'users', id));
-      toast.success(`Staff member "${name}" removed.`);
-      fetchStaffData();
+      await setDoc(doc(db, 'users', id), {
+        accountStatus: 'DISABLED',
+        disabledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      setStaffList((prev) => prev.map((member) => member.id === id ? { ...member, accountStatus: 'DISABLED' } : member));
+      toast.success(`Staff member "${name}" has been disabled.`);
     } catch (err: any) {
-      toast.error('Error removing staff: ' + err.message);
+      toast.error('Error disabling staff: ' + err.message);
     }
   };
 
