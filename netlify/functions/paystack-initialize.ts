@@ -1,5 +1,5 @@
 import type { Handler } from "@netlify/functions";
-import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
+import { adminAuth } from "../../api/_lib/firebase-admin";
 
 const plans: Record<string, { name: string; amount: number; role: "student" | "school" }> = {
   plan_weekend: { name: "Weekend STEM & Coding Track", amount: 45000, role: "student" },
@@ -14,15 +14,30 @@ const getToken = (event: any) => {
   return header.startsWith("Bearer ") ? header.slice(7) : "";
 };
 
+const getCallbackPath = (role: string, planRole: "student" | "school") => {
+  if (planRole === "school") return "/portal/school/payments";
+  if (role === "parent") return "/portal/parent/payments";
+  return "/portal/student/payments";
+};
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
+
   try {
     const token = getToken(event);
     if (!token) return { statusCode: 401, body: JSON.stringify({ error: "Authentication required." }) };
+
     const decoded = await adminAuth.verifyIdToken(token);
     const body = JSON.parse(event.body || "{}");
-    const plan = plans[String(body.planId || "")];
+    const planId = String(body.planId || "");
+    const plan = plans[planId];
     if (!plan) return { statusCode: 400, body: JSON.stringify({ error: "Invalid payment plan." }) };
+
+    const requestedRole = String(body.role || "student").toLowerCase();
+    const allowedRoles = plan.role === "school" ? ["school"] : ["student", "parent"];
+    if (!allowedRoles.includes(requestedRole)) {
+      return { statusCode: 400, body: JSON.stringify({ error: "Payment plan is not available for this portal role." }) };
+    }
 
     const callback = process.env.PUBLIC_APP_URL;
     if (!callback) return { statusCode: 500, body: JSON.stringify({ error: "Payment callback is not configured." }) };
@@ -37,12 +52,13 @@ export const handler: Handler = async (event) => {
         email: decoded.email,
         amount: plan.amount * 100,
         currency: "NGN",
-        callback_url: `${callback.replace(/\/$/, "")}/portal/payments`,
+        callback_url: `${callback.replace(/\/$/, "")}${getCallbackPath(requestedRole, plan.role)}`,
         channels: ["card", "bank_transfer"],
         metadata: {
           userId: decoded.uid,
-          role: plan.role,
-          planId: Object.keys(plans).find(key => plans[key] === plan),
+          role: requestedRole,
+          planRole: plan.role,
+          planId,
           planName: plan.name
         }
       })
