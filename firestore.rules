@@ -64,7 +64,7 @@ service cloud.firestore {
       allow read: if isAnyAdmin() || isSelf(userId);
       allow create: if isAnyAdmin() || (
         isSelf(userId) &&
-        request.resource.data.get('role', 'USER').toUpperCase() in ['USER', 'PARENT', 'STUDENT']
+        request.resource.data.get('role', 'USER') in ['USER', 'user', 'PARENT', 'parent', 'STUDENT', 'student']
       );
       allow update: if isAnyAdmin() || (
         isSelf(userId) &&
