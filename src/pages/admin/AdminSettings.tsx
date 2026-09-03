@@ -435,7 +435,9 @@ const AdminSettings: React.FC = () => {
                 placeholder="e.g. 123456789012345"
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
               />
-            </div>\n        </div>\n        </section>
+            </div>
+        </div>
+        </section>
 
         {/* Social Links */}
         <section>
