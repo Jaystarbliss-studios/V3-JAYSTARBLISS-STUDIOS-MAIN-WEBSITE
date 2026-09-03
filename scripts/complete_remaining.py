@@ -18,7 +18,7 @@ replace_once(
 )
 
 # Staff admin: remove dead invite state and structural emoji.
-staff = Path('src/components/admin/AdminStaff.tsx')
+staff = Path('src/pages/admin/AdminStaff.tsx')
 staff_text = staff.read_text()
 for line in [
     "  const [inviteName, setInviteName] = useState('');\n",
@@ -64,8 +64,8 @@ section_field = r'''const SectionField: React.FC<{
     return <div className="col-span-1"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><select value={value ?? ''} onChange={event => onChange(event.target.value)} className={`${base} min-h-11 px-4 py-3`}><option value="">Select {field.label.toLowerCase()}</option>{(field.options || []).map(option => <option key={option} value={option}>{option}</option>)}</select></div>;
   }
   if (field.type === 'list') {
-    const listValue = Array.isArray(value) ? value.join('\n') : String(value ?? '');
-    return <div className="col-span-1 md:col-span-2"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><textarea rows={6} value={listValue} onChange={event => onChange(event.target.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean))} placeholder={field.placeholder || 'Enter one item per line'} className={`${base} px-4 py-3 leading-6`} /><p className="mt-1 text-[11px] text-slate-400">One item per line.</p></div>;
+    const listValue = Array.isArray(value) ? value.join('\\n') : String(value ?? '');
+    return <div className="col-span-1 md:col-span-2"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><textarea rows={6} value={listValue} onChange={event => onChange(event.target.value.split(/\\r?\\n/).map(item => item.trim()).filter(Boolean))} placeholder={field.placeholder || 'Enter one item per line'} className={`${base} px-4 py-3 leading-6`} /><p className="mt-1 text-[11px] text-slate-400">One item per line.</p></div>;
   }
   if (field.type === 'url') {
     return <div className="col-span-1"><label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{field.label}</label><input type="url" value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder={field.placeholder || 'https://'} className={`${base} min-h-11 px-4 py-3`} /></div>;
@@ -144,7 +144,7 @@ learning_component = r'''const LearningMethod: React.FC = () => {
 '''
 learning.write_text(learning_text[:start] + learning_component + learning_text[end:])
 
-# Admin inquiry pipeline: replace any legacy table implementation with the new workflow.
+# Admin inquiry pipeline with filtering, search, lifecycle tracking, assignment, notes and CSV export.
 Path('src/pages/admin/AdminInquiries.tsx').write_text(r'''import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { Download, X, Search, Mail, Phone, CalendarDays, UserRound, Filter, Save, ArrowUpRight } from 'lucide-react';
@@ -200,5 +200,4 @@ if old_rules not in rules_text:
     raise SystemExit('Inquiry rule block not found')
 rules.write_text(rules_text.replace(old_rules, new_rules, 1))
 
-# Current platform documentation.
 Path('README.md').write_text('''# Jaystarbliss Studios | Dynamic Hub\n\nThe Jaystarbliss Studios web platform combines the public studio website, education services, role-based portals, school operations, CMS, payments and administrative controls.\n\n## Current platform\n- Public Hub: Home, Programs, Services, Portfolio, Resources, FAQ, Blog, contact and project requests.\n- Portals: Student, Parent, Staff/Tutor and School workspaces with role-aware navigation.\n- School operations: school-scoped learners, resources, links, exams, passcodes and staff-school assignments.\n- Learning operations: resources, calendars, live classes, curriculum and learner progress.\n- Payments: authenticated Paystack initialization plus server-side verification, webhook reconciliation and enrollment-linked payment context.\n- Admin CMS: editable pages/sections, Programs, Services, Portfolio, Kids Zone, News/Blog, Resources, Users & Roles, Approvals, Staff operations and settings.\n- Lead CRM: searchable inquiry pipeline, stage management, ownership, follow-ups, notes and activity logging.\n- Security: Firebase Auth state checks, trusted privileged provisioning, account lifecycle enforcement and school-level access isolation.\n\n## Stack\nReact 19 · TypeScript · Vite · Tailwind CSS · React Router · Firebase Auth/Firestore · Netlify Functions · Paystack · Cloudinary · Motion · Recharts · Lucide React.\n\n## Roles\n`USER`, `STUDENT`, `PARENT`, `STAFF`/`TUTOR`, `SCHOOL`, `CONTENT_ADMIN`, `EDUCATION_ADMIN`, `SERVICES_ADMIN`, `SUPER_ADMIN`.\n\nPrivileged roles are provisioned through trusted server-side workflows. A selected portal tab is never an authorization source.\n\n## Development\n`npm ci` → `npm run dev` → `npm run lint` → `npm run build`\n\nThe GitHub Quality Gate runs lint and production builds for pushes and pull requests targeting `main`.\n\n## Operational docs\nSee `SECURITY_MODEL.md` and `docs/PAYSTACK-OPERATIONS.md` for authorization, trusted workflows and payment operations.\n''')
