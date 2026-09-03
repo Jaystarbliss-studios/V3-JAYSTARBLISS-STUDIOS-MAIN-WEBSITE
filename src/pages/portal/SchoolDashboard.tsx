@@ -6,8 +6,8 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
-  Users, Calendar, GraduationCap, BookOpen, ExternalLink,
-  Download, CheckCircle2, Clock, Award, 
+  Users, Calendar, BookOpen, ExternalLink,
+  Download, Clock, Award, 
   Key, Lock, Unlock, Copy, 
   Plus, Search, RefreshCw, 
   ChevronRight, Laptop, CheckSquare, Square,
@@ -91,15 +91,6 @@ export interface SchoolLink {
   schoolId?: string;
   timestamp?: any;
 }
-
-const KNOWN_SCHOOL_NAMES: Record<string, string> = {
-  peniel: 'Peniel Lily Montessori School',
-  southgold: 'South Gold Montessori School',
-  sapphire: 'Sapphire Explorer Montessori School',
-  easystars: 'Easy Stars Early Years Academy',
-  christycaleb: 'Christy Caleb International School',
-  royalbreed: 'Royal Breed Academy'
-};
 
 function getEmbeddableUrl(url: string): string {
   if (!url) return '';
