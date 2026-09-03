@@ -13,7 +13,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
-  children, 
+  children,
   allowedRoles,
   redirectPath = '/portal' 
 }) => {
@@ -23,15 +23,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   const location = useLocation();
 
-  // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
   const rolesKey = allowedRoles ? allowedRoles.slice().sort().join(',') : '';
 
   const isRoleMatching = (role: string, key: string, pathname: string) => {
     const roles = key ? key.split(',').filter(Boolean).map(r => r.toUpperCase()) : [];
     if (roles.length > 0) return roles.includes(role.toUpperCase());
 
-    // Routes without an explicit role list are authenticated-user routes.
-    // Admin routes still require an administrator role.
     if (pathname.startsWith('/admin')) {
       return ['SUPER_ADMIN', 'ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN'].includes(role.toUpperCase());
     }
@@ -45,32 +42,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       if (!isMounted) return;
 
       if (!currentUser) {
-        if (isMounted) {
-          setIsAuthorized(false);
-          setLoading(false);
-        }
+        setIsAuthorized(false);
+        setBlockedMessage(null);
+        setLoading(false);
         return;
       }
 
       try {
-        // 1. Check Super Admin by email
-        if (currentUser.email === 'johnrufai242@gmail.com') {
-          sessionStorage.setItem('userRole', 'super_admin');
-          sessionStorage.setItem('userId', currentUser.uid);
-          localStorage.setItem('jaystar_cached_user_role', 'super_admin');
-          localStorage.setItem('jaystar_cached_user_id', currentUser.uid);
+        // Firebase Authentication can independently disable an account. Check this
+        // before any privileged-role shortcut so disabled admins cannot bypass the block.
+        if (currentUser.disabled) {
           if (isMounted) {
-            setIsAuthorized(true);
-            setLoading(false);
+            setBlockedMessage('Your authentication account is disabled. Please contact Jaystarbliss Studios support.');
+            setIsAuthorized(false);
           }
+          await signOut(auth);
           return;
         }
 
+        // 1. Check the authoritative Firestore user profile first, including status.
         let userRole = '';
         let userName = currentUser.displayName || '';
         let forceReset = false;
 
-        // 2. Check users collection
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
@@ -93,7 +87,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           console.warn('User doc check error:', e);
         }
 
-        // 3. Fallback: check individualStudents collection
+        // 2. A super admin identity is still checked after account-state enforcement.
+        if (!userRole && currentUser.email === 'johnrufai242@gmail.com') {
+          userRole = 'SUPER_ADMIN';
+        }
+
+        // 3. Check individualStudents collection.
         if (!userRole) {
           try {
             const studentQuery = query(
@@ -103,6 +102,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             const studentSnap = await getDocs(studentQuery);
             if (!studentSnap.empty) {
               const sData = studentSnap.docs[0].data();
+              const accountStatus = String(sData.accountStatus || sData.status || 'active').toLowerCase();
+              if (['banned', 'suspended', 'disabled'].includes(accountStatus)) {
+                if (isMounted) {
+                  setBlockedMessage(`Your student account is currently ${accountStatus}. Please contact Jaystarbliss Studios support.`);
+                  setIsAuthorized(false);
+                }
+                await signOut(auth);
+                return;
+              }
               userRole = 'STUDENT';
               sessionStorage.setItem('studentDocId', studentSnap.docs[0].id);
               if (sData.fullName) userName = sData.fullName;
@@ -113,12 +121,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // 4. Fallback: check parents collection
+        // 4. Check parents collection.
         if (!userRole) {
           try {
             const parentDoc = await getDoc(doc(db, 'parents', currentUser.uid));
             if (parentDoc.exists()) {
               const pData = parentDoc.data();
+              const accountStatus = String(pData.accountStatus || pData.status || 'active').toLowerCase();
+              if (['banned', 'suspended', 'disabled'].includes(accountStatus)) {
+                if (isMounted) {
+                  setBlockedMessage(`Your parent account is currently ${accountStatus}. Please contact Jaystarbliss Studios support.`);
+                  setIsAuthorized(false);
+                }
+                await signOut(auth);
+                return;
+              }
               userRole = 'PARENT';
               if (pData.name) userName = pData.name;
               if (pData.forcePasswordReset === true) forceReset = true;
@@ -128,12 +145,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // 5. Fallback: check schools collection
+        // 5. Check schools collection.
         if (!userRole) {
           try {
             const schoolDoc = await getDoc(doc(db, 'schools', currentUser.uid));
             if (schoolDoc.exists()) {
               const scData = schoolDoc.data();
+              const accountStatus = String(scData.accountStatus || scData.status || 'active').toLowerCase();
+              if (['banned', 'suspended', 'disabled'].includes(accountStatus)) {
+                if (isMounted) {
+                  setBlockedMessage(`Your school account is currently ${accountStatus}. Please contact Jaystarbliss Studios support.`);
+                  setIsAuthorized(false);
+                }
+                await signOut(auth);
+                return;
+              }
               userRole = 'SCHOOL';
               if (scData.name) userName = scData.name;
               if (scData.forcePasswordReset === true) forceReset = true;
@@ -143,12 +169,21 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // 6. Fallback: check tutors collection
+        // 6. Check tutors collection.
         if (!userRole) {
           try {
             const tutorDoc = await getDoc(doc(db, 'tutors', currentUser.uid));
             if (tutorDoc.exists()) {
               const tData = tutorDoc.data();
+              const accountStatus = String(tData.accountStatus || tData.status || 'active').toLowerCase();
+              if (['banned', 'suspended', 'disabled'].includes(accountStatus)) {
+                if (isMounted) {
+                  setBlockedMessage(`Your staff account is currently ${accountStatus}. Please contact Jaystarbliss Studios support.`);
+                  setIsAuthorized(false);
+                }
+                await signOut(auth);
+                return;
+              }
               userRole = 'TUTOR';
               if (tData.name) userName = tData.name;
               if (tData.forcePasswordReset === true) forceReset = true;
@@ -158,8 +193,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           }
         }
 
-        // Never authorize from a client-side cached role. If the authoritative
-        // identity records are unavailable, fail closed instead.
         if (!userRole) {
           throw new Error('Authenticated user has no authoritative portal role');
         }
@@ -174,19 +207,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           localStorage.setItem('jaystar_cached_user_name', userName);
         }
 
-        // Check if forced password reset is triggered
         if (forceReset && isMounted) {
           setMustResetPassword(true);
         }
 
         const isAllowed = isRoleMatching(normalizedRole, rolesKey, location.pathname);
-        if (isMounted) {
-          setIsAuthorized(isAllowed);
-        }
+        if (isMounted) setIsAuthorized(isAllowed);
       } catch (error) {
         console.error("Error verifying user role in ProtectedRoute:", error);
-        // Fail closed. A stale client-side role cache must never grant access
-        // when the authoritative Firestore role cannot be verified.
         if (isMounted) setIsAuthorized(false);
       } finally {
         if (isMounted) setLoading(false);
