@@ -469,7 +469,9 @@ const StudentDashboard: React.FC = () => {
     });
     return Array.from(byTrack.entries()).map(([label, value]) => ({
       label,
-      percentage: value.total ? Math.round((value.completed / value.total) * 100) : 0
+      percentage: value.total ? Math.round((value.completed / value.total) * 100) : 0,
+      modulesDone: value.completed,
+      modulesTotal: value.total
     }));
   }, [modules]);
 
@@ -590,6 +592,12 @@ const StudentDashboard: React.FC = () => {
         enrolledSubjects={student?.subjects || []}
         completedModulesCount={completedModulesCount}
         totalModulesCount={modules.length}
+        learningTracks={courseProgressList.map(track => ({
+          subject: track.label,
+          progress: track.percentage,
+          modulesDone: track.modulesDone,
+          modulesTotal: track.modulesTotal
+        }))}
       />
 
       {/* Middle Grid: Recent Activity & Milestone Progress */}
