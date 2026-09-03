@@ -60,31 +60,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   useEffect(() => {
     let isMounted = true;
 
-    // Check cached session immediately
-    const cachedRole = getCachedRole();
-    const cachedUid = getCachedUserId();
-    if (cachedRole && cachedUid && isRoleMatching(cachedRole, rolesKey, location.pathname)) {
-      if (isMounted) {
-        setIsAuthorized(true);
-      }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!isMounted) return;
 
       if (!currentUser) {
-        // Check if there is an active session cache (e.g. Student with Access Code or Partner School)
-        const currentCachedRole = getCachedRole();
-        const currentCachedUid = getCachedUserId();
-        
-        if (currentCachedRole && currentCachedUid && isRoleMatching(currentCachedRole, rolesKey, location.pathname)) {
-          if (isMounted) {
-            setIsAuthorized(true);
-            setLoading(false);
-          }
-          return;
-        }
-
         if (isMounted) {
           setIsAuthorized(false);
           setLoading(false);
