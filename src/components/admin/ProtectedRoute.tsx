@@ -49,18 +49,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       }
 
       try {
-        // Firebase Authentication can independently disable an account. Check this
-        // before any privileged-role shortcut so disabled admins cannot bypass the block.
-        if (currentUser.disabled) {
-          if (isMounted) {
-            setBlockedMessage('Your authentication account is disabled. Please contact Jaystarbliss Studios support.');
-            setIsAuthorized(false);
-          }
-          await signOut(auth);
-          return;
-        }
-
         // 1. Check the authoritative Firestore user profile first, including status.
+        // Firebase's client-side User type does not expose Admin SDK's `disabled` field;
+        // authoritative account disabling is enforced through the users/profile records
+        // and the server-side portal access endpoint.
         let userRole = '';
         let userName = currentUser.displayName || '';
         let forceReset = false;
