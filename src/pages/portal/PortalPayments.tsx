@@ -70,6 +70,33 @@ export const PortalPayments: React.FC = () => {
     fetchPaymentHistory();
   }, []);
 
+  useEffect(() => {
+    const reference = new URLSearchParams(window.location.search).get('reference');
+    const verifyReturnedPayment = async () => {
+      const user = auth.currentUser;
+      if (!reference || !user) return;
+      try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/.netlify/functions/paystack-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ reference })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.verified) throw new Error(data.error || 'Payment verification failed.');
+        setRenewalSuccess(true);
+        toast.success('Payment verified successfully. Your receipt is now recorded.');
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        setTimeout(() => setRenewalSuccess(false), 3000);
+      } catch (err) {
+        console.error('Returned payment verification error:', err);
+        toast.error(err instanceof Error ? err.message : 'We could not verify this payment yet.');
+      }
+    };
+    verifyReturnedPayment();
+  }, [toast]);
+
   const isSchool = role.includes('school');
 
   const studentPlans = [
