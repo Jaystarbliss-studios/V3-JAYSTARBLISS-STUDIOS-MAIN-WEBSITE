@@ -210,7 +210,8 @@ const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
               <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">{metric.note}</div>
             </div>
           );
-        })/div>
+        })}
+      </div>
 
       <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {tabs.map(tab => {
