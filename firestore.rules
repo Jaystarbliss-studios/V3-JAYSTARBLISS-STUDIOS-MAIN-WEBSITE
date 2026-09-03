@@ -317,7 +317,7 @@ service cloud.firestore {
       return signedIn() && (
         request.auth.token.email == 'johnrufai242@gmail.com' ||
         request.auth.token.admin == true ||
-        userRole() in ['SUPER_ADMIN', 'super_admin']
+        request.auth.token.superAdmin == true
       );
     }
 
