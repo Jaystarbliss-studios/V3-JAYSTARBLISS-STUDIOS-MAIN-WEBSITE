@@ -26,15 +26,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Create stable primitive key for allowedRoles array to prevent infinite re-renders on route transitions
   const rolesKey = allowedRoles ? allowedRoles.slice().sort().join(',') : '';
 
-  // Pre-validate from persistent cache to eliminate screen flashing and reload dropouts
-  const getCachedRole = () => {
-    return (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || '').toUpperCase();
-  };
-
-  const getCachedUserId = () => {
-    return sessionStorage.getItem('userId') || localStorage.getItem('jaystar_cached_user_id') || sessionStorage.getItem('studentDocId') || sessionStorage.getItem('schoolId') || '';
-  };
-
   const isRoleMatching = (roleToCheck: string, key: string, path: string): boolean => {
     if (!roleToCheck) return false;
     const normalized = roleToCheck.toUpperCase();
@@ -207,13 +198,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         }
       } catch (error) {
         console.error("Error verifying user role in ProtectedRoute:", error);
-        // Resilient fallback to cached role on network error
-        const fallbackRole = getCachedRole();
-        if (fallbackRole && isRoleMatching(fallbackRole, rolesKey, location.pathname)) {
-          if (isMounted) setIsAuthorized(true);
-        } else {
-          if (isMounted) setIsAuthorized(false);
-        }
+        if (isMounted) setIsAuthorized(false);
       } finally {
         if (isMounted) setLoading(false);
       }
