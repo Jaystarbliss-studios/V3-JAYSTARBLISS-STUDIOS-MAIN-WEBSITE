@@ -328,7 +328,7 @@ const PortalLayout: React.FC = () => {
         
         {/* Unverified Email Warning Banner */}
         {!isEmailVerified && userEmail && !isStudentAccessCodeOnly && (
-          <div className="bg-amber-500 text-slate-950 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold shadow-xs shrink-0">
+          <div className="bg-amber-500 text-slate-950 px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 text-xs font-bold shadow-xs shrink-0">
             <div className="flex items-center gap-2">
               <AlertCircle size={16} className="shrink-0 text-slate-950" />
               <span>
@@ -339,7 +339,7 @@ const PortalLayout: React.FC = () => {
               type="button"
               onClick={handleResendEmail}
               disabled={resendingVerification}
-              className="underline hover:text-white cursor-pointer transition-colors self-start sm:self-auto font-black"
+              className="underline hover:text-white cursor-pointer transition-colors self-start md:self-auto font-black whitespace-nowrap shrink-0"
             >
               {resendingVerification ? 'Sending...' : 'Resend Verification Email'}
             </button>
