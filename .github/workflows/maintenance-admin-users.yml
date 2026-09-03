@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   migrate:
-    if: contains(github.event.head_commit.message, 'migrate admin user onboarding') == false
+    if: contains(github.event.head_commit.message, 'chore: migrate admin user onboarding to trusted server') == false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
