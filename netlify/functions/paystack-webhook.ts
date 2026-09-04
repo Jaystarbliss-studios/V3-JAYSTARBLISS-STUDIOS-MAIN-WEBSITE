@@ -1,132 +1,83 @@
 import type { Handler } from "@netlify/functions";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { adminDb } from "../../api/_lib/firebase-admin";
-
-const plans: Record<string, { name: string; amount: number; roles: string[] }> = {
-  plan_weekend: { name: "Weekend STEM & Coding Track", amount: 45000, roles: ["student", "parent"] },
-  plan_mentorship: { name: "1-on-1 Intensive Mentorship", amount: 120000, roles: ["student", "parent"] },
-  plan_robotics: { name: "Smart Robotics & IoT Hardware Lab", amount: 85000, roles: ["student", "parent"] },
-  school_standard: { name: "Institutional STEM Lab Partner", amount: 350000, roles: ["school"] },
-  school_cbt: { name: "CBT Exam Portal & Lab Suite", amount: 600000, roles: ["school"] }
-};
+import { reconcileSuccessfulCharge } from "../../api/_lib/payment-reconciliation";
+import { createPortalNotification } from "../../api/_lib/email";
 
 const getHeader = (event: any, name: string) => event.headers?.[name] || event.headers?.[name.toLowerCase()] || event.headers?.[name.toUpperCase()] || "";
-
-const isValidSignature = (rawBody: string, signature: string, secret: string) => {
+const json = (statusCode: number, body: string) => ({ statusCode, body });
+const validSignature = (raw: string, signature: string, secret: string) => {
   if (!signature || !secret) return false;
-  const expected = createHmac("sha512", secret).update(rawBody, "utf8").digest("hex");
-  const expectedBuffer = Buffer.from(expected, "utf8");
-  const receivedBuffer = Buffer.from(signature, "utf8");
-  return expectedBuffer.length === receivedBuffer.length && timingSafeEqual(expectedBuffer, receivedBuffer);
+  const expected = createHmac("sha512", secret).update(raw, "utf8").digest("hex");
+  const a = Buffer.from(expected, "utf8");
+  const b = Buffer.from(signature, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
 };
 
 export const handler: Handler = async (event) => {
-  if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
-
+  if (event.httpMethod !== "POST") return json(405, "Method Not Allowed");
   const secret = process.env.PAYSTACK_SECRET_KEY || "";
   const rawBody = event.isBase64Encoded ? Buffer.from(event.body || "", "base64").toString("utf8") : (event.body || "");
-  const signature = getHeader(event, "x-paystack-signature");
-
-  if (!secret || !isValidSignature(rawBody, signature, secret)) {
-    console.warn("Rejected Paystack webhook with invalid signature.");
-    return { statusCode: 401, body: "Invalid signature" };
-  }
+  if (!validSignature(rawBody, getHeader(event, "x-paystack-signature"), secret)) return json(401, "Invalid signature");
 
   try {
     const payload = JSON.parse(rawBody || "{}");
-    if (payload.event !== "charge.success") {
-      return { statusCode: 200, body: "Event acknowledged" };
+    if (payload.event === "charge.success") {
+      try {
+        await reconcileSuccessfulCharge(payload.data || {});
+        return json(200, "Charge reconciled");
+      } catch (error) {
+        console.error("Paystack charge reconciliation failed:", error);
+        return json(200, "Event acknowledged");
+      }
     }
 
-    const tx = payload.data || {};
-    const reference = String(tx.reference || "").trim();
-    const metadata = tx.metadata || {};
-    const userId = String(metadata.userId || "").trim();
-    const role = String(metadata.role || "").toLowerCase().trim();
-    const planId = String(metadata.planId || "").trim();
-    const enrollmentRequestId = String(metadata.enrollmentRequestId || "").trim();
-    const expectedPlan = plans[planId];
-
-    if (!reference || !userId || !expectedPlan || !expectedPlan.roles.includes(role) || String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || Number(tx.amount) !== expectedPlan.amount * 100) {
-      console.error("Ignored Paystack webhook: transaction integrity check failed.", {
-        reference,
-        userId,
-        role,
-        planId,
-        currency: tx.currency,
-        amount: tx.amount
-      });
-      return { statusCode: 200, body: "Event acknowledged" };
-    }
-
-    if (enrollmentRequestId && role !== "parent") {
-      console.error("Ignored Paystack webhook: enrollment linkage requires parent role.", { reference, enrollmentRequestId, role });
-      return { statusCode: 200, body: "Event acknowledged" };
-    }
-
-    const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
-    const legacyExisting = (await adminDb.collection("payments").where("reference", "==", reference).limit(1).get()).docs[0] || null;
-    if (legacyExisting) {
-      return { statusCode: 200, body: "Event already reconciled" };
-    }
-
-    const paymentData = {
-      userId,
-      parentId: role === "parent" ? userId : null,
-      schoolId: role === "school" ? userId : null,
-      email: String(tx.customer?.email || ""),
-      plan: String(metadata.planName || expectedPlan.name),
-      planId,
-      amount: Number(tx.amount),
-      currency: String(tx.currency || "NGN"),
-      paymentMethod: String(tx.channel || "paystack"),
-      status: "PAID",
-      reference,
-      role,
-      enrollmentRequestId: enrollmentRequestId || null,
-      enrollmentStudentName: metadata.enrollmentStudentName ? String(metadata.enrollmentStudentName) : null,
-      description: `Tuition & Fee Renewal: ${metadata.planName || expectedPlan.name}`,
-      createdAt: new Date(),
-      paidAt: tx.paid_at ? new Date(tx.paid_at) : new Date()
-    };
-
-    const result = await adminDb.runTransaction(async (transaction) => {
-      const paymentSnapshot = await transaction.get(canonicalPaymentRef);
-      if (paymentSnapshot.exists) return "existing" as const;
-
-      if (enrollmentRequestId) {
-        const enrollmentRef = adminDb.collection("enrollment_requests").doc(enrollmentRequestId);
-        const enrollmentSnapshot = await transaction.get(enrollmentRef);
-        if (!enrollmentSnapshot.exists) throw new Error("ENROLLMENT_NOT_FOUND");
-
-        const enrollmentData = enrollmentSnapshot.data() || {};
-        if (String(enrollmentData.parentId || "") !== userId) throw new Error("ENROLLMENT_OWNER_MISMATCH");
-        if (String(enrollmentData.planId || "") && String(enrollmentData.planId) !== planId) throw new Error("ENROLLMENT_PLAN_MISMATCH");
-        if (String(enrollmentData.paymentStatus || "").toUpperCase() === "PAID") return "existing" as const;
-
-        transaction.create(canonicalPaymentRef, paymentData);
-        transaction.set(enrollmentRef, {
-          paymentStatus: "PAID",
-          paymentReference: reference,
-          paymentPlanId: planId,
-          paidAt: new Date(),
+    if (["transfer.success", "transfer.failed", "transfer.reversed"].includes(String(payload.event || ""))) {
+      const transfer = payload.data || {};
+      const reference = String(transfer.reference || "").trim();
+      if (!reference) return json(200, "Event acknowledged");
+      const withdrawalQuery = await adminDb.collection("walletWithdrawals").where("transferReference", "==", reference).limit(1).get();
+      if (withdrawalQuery.empty) return json(200, "Event acknowledged");
+      const withdrawalDoc = withdrawalQuery.docs[0];
+      const withdrawal = withdrawalDoc.data() || {};
+      const staffId = String(withdrawal.staffId || "");
+      const amount = Number(withdrawal.amount || 0);
+      const walletRef = adminDb.collection("staffWallets").doc(staffId);
+      const success = payload.event === "transfer.success";
+      await adminDb.runTransaction(async transaction => {
+        const walletSnap = await transaction.get(walletRef);
+        const wallet = walletSnap.exists ? walletSnap.data() || {} : {};
+        if (String(withdrawal.status || "").toUpperCase() !== "PROCESSING") return;
+        transaction.set(walletRef, {
+          availableBalance: success ? Number(wallet.availableBalance || 0) : Number(wallet.availableBalance || 0) + amount,
+          reservedBalance: Math.max(0, Number(wallet.reservedBalance || 0) - amount),
           updatedAt: new Date()
         }, { merge: true });
-        return "created" as const;
+        transaction.update(withdrawalDoc.ref, {
+          status: success ? "PAID" : "FAILED",
+          providerStatus: String(transfer.status || payload.event),
+          providerTransferId: transfer.id || null,
+          completedAt: new Date(),
+          failureReason: success ? null : String(transfer.failure_reason || transfer.gateway_response || payload.event),
+          updatedAt: new Date()
+        });
+      });
+      if (staffId) {
+        await createPortalNotification({
+          recipientId: staffId,
+          email: undefined,
+          title: success ? "Wallet withdrawal paid" : "Wallet withdrawal failed",
+          message: success ? `Your ₦${amount.toLocaleString()} staff wallet withdrawal has been paid to your verified bank account.` : `Your ₦${amount.toLocaleString()} staff wallet withdrawal could not be completed. The funds were returned to your available wallet balance.`,
+          type: success ? "WALLET_WITHDRAWAL_PAID" : "WALLET_WITHDRAWAL_FAILED",
+          data: { withdrawalId: withdrawalDoc.id, reference, amount }
+        });
       }
-
-      transaction.create(canonicalPaymentRef, paymentData);
-      return "created" as const;
-    });
-
-    return { statusCode: 200, body: result === "existing" ? "Event already reconciled" : "Webhook reconciled" };
-  } catch (error) {
-    const code = error instanceof Error ? error.message : "";
-    if (code === "ENROLLMENT_NOT_FOUND" || code === "ENROLLMENT_OWNER_MISMATCH" || code === "ENROLLMENT_PLAN_MISMATCH") {
-      console.error("Paystack webhook enrollment reconciliation rejected:", error);
-      return { statusCode: 200, body: "Event acknowledged" };
+      return json(200, "Transfer event reconciled");
     }
+
+    return json(200, "Event acknowledged");
+  } catch (error) {
     console.error("Paystack webhook processing error:", error);
-    return { statusCode: 500, body: "Webhook processing failed" };
+    return json(500, "Webhook processing failed");
   }
 };
