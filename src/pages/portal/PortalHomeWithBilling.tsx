@@ -1,5 +1,6 @@
 import React from 'react';
-import BillingCenter, { BillingCenterRole } from './BillingCenter';
+import BillingCenter from './BillingCenter';
+import type { BillingCenterRole } from './BillingCenter';
 import ParentDashboard from './ParentDashboard';
 import StaffDashboard from './StaffDashboard';
 import StudentDashboard from './StudentDashboard';
