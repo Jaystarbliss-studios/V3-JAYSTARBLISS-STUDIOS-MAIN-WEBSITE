@@ -15,12 +15,30 @@ interface CourseModule {
   completedLessons: number;
   duration: string;
   badgeUnlocked: boolean;
+  activeLessonUrl?: string;
+  activeLessonTitle?: string;
 }
 
 const normalizeTopics = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim());
   if (typeof value === 'string') return value.split(/\n|,/).map(v => v.trim()).filter(Boolean);
   return [];
+};
+
+const normalizeActiveLesson = (data: Record<string, any>) => {
+  const lesson = data.activeLesson;
+  const url = String(
+    data.activeLessonUrl ||
+    data.lessonUrl ||
+    (lesson && typeof lesson === 'object' ? lesson.url : '') ||
+    ''
+  ).trim();
+  const title = String(
+    data.activeLessonTitle ||
+    (lesson && typeof lesson === 'object' ? lesson.title : '') ||
+    'Active lesson'
+  ).trim();
+  return url ? { activeLessonUrl: url, activeLessonTitle: title || 'Active lesson' } : {};
 };
 
 const toModule = (id: string, data: Record<string, any>, index: number): CourseModule => {
@@ -35,7 +53,8 @@ const toModule = (id: string, data: Record<string, any>, index: number): CourseM
     lessonsCount: Number.isFinite(lessons) ? lessons : 0,
     completedLessons: 0,
     duration: data.duration || data.durationLabel || 'Self-paced',
-    badgeUnlocked: false
+    badgeUnlocked: false,
+    ...normalizeActiveLesson(data),
   };
 };
 
@@ -53,7 +72,6 @@ export const PortalCourses: React.FC = () => {
         const user = auth.currentUser;
         const programMap = new Map<string, CourseModule>();
 
-        // Published programs are the authoritative curriculum catalogue.
         try {
           const snap = await getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED')));
           snap.docs.forEach((d, index) => { programMap.set(d.id, toModule(d.id, d.data(), index)); });
@@ -61,7 +79,6 @@ export const PortalCourses: React.FC = () => {
           console.warn('Published programs query failed:', e);
         }
 
-        // If a program has persisted learner progress, merge it without inventing completion.
         if (user) {
           const progressSources = ['courseProgress', 'studentProgress'];
           for (const source of progressSources) {
@@ -76,7 +93,8 @@ export const PortalCourses: React.FC = () => {
                 programMap.set(courseId, {
                   ...current,
                   completedLessons: Math.max(0, Math.min(current.lessonsCount || completed, Number.isFinite(completed) ? completed : 0)),
-                  badgeUnlocked: Boolean(p.badgeUnlocked || p.completed === true || (current.lessonsCount > 0 && completed >= current.lessonsCount))
+                  badgeUnlocked: Boolean(p.badgeUnlocked || p.completed === true || (current.lessonsCount > 0 && completed >= current.lessonsCount)),
+                  ...normalizeActiveLesson(p),
                 });
               });
             } catch (e) {
@@ -124,7 +142,7 @@ export const PortalCourses: React.FC = () => {
             <h2 className="text-xs font-black uppercase tracking-wider text-gray-400 px-1">Published Programs</h2>
             {modules.map(mod => {
               const progress = mod.lessonsCount > 0 ? Math.round((mod.completedLessons / mod.lessonsCount) * 100) : 0;
-              return <button key={mod.id} onClick={() => setSelectedId(mod.id)} className={`w-full text-left p-4 rounded-2xl border transition-all ${selectedId === mod.id ? 'border-brand-red bg-white dark:bg-slate-900 shadow-md ring-1 ring-brand-red/20' : 'border-gray-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900'}`}>
+              return <button key={mod.id} type="button" onClick={() => setSelectedId(mod.id)} className={`w-full text-left p-4 rounded-2xl border transition-all ${selectedId === mod.id ? 'border-brand-red bg-white dark:bg-slate-900 shadow-md ring-1 ring-brand-red/20' : 'border-gray-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 hover:bg-white dark:hover:bg-slate-900'}`}>
                 <div className="flex items-center justify-between mb-1.5 gap-2"><span className="text-[11px] font-extrabold uppercase text-brand-red truncate">{mod.stageName}</span>{mod.badgeUnlocked && <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full"><Award size={10} /> Certified</span>}</div>
                 <h3 className="font-bold text-sm text-gray-900 dark:text-white mb-2 line-clamp-1">{mod.title}</h3>
                 <div className="space-y-1"><div className="flex items-center justify-between text-[11px] text-gray-500"><span>{mod.lessonsCount ? `${mod.completedLessons} of ${mod.lessonsCount} lessons` : 'Lesson count not configured'}</span><span className="font-bold">{progress}%</span></div><div className="w-full bg-gray-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"><div className={`h-full transition-all ${progress === 100 ? 'bg-green-500' : 'bg-brand-red'}`} style={{ width: `${progress}%` }} /></div></div>
@@ -144,7 +162,11 @@ export const PortalCourses: React.FC = () => {
             </div>
             <div className="pt-6 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2 text-xs text-gray-500"><BookOpen size={16} className="text-brand-red" /><span>{selectedModule.lessonsCount ? `${selectedModule.completedLessons}/${selectedModule.lessonsCount} lessons recorded` : 'Lesson progress will appear when lessons are configured.'}</span></div>
-              <button type="button" onClick={() => setMessage('Lesson delivery is connected to the published course record; an active lesson will appear here once one is assigned.')} className="px-5 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2"><PlayCircle size={15} /> Resume Active Lesson</button>
+              {selectedModule.activeLessonUrl ? (
+                <a href={selectedModule.activeLessonUrl} target="_blank" rel="noreferrer" className="px-5 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2"><PlayCircle size={15} /> {selectedModule.activeLessonTitle || 'Open Active Lesson'} <ExternalLink size={12} /></a>
+              ) : (
+                <div className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-dashed border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-400 dark:border-slate-700 dark:text-slate-500"><PlayCircle size={15} /> No active lesson assigned</div>
+              )}
             </div>
           </div>}
         </div>
