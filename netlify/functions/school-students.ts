@@ -20,14 +20,11 @@ const serialise = (data: Record<string, any>) => ({
   email: data.email || null,
   class: data.class || data.grade || '',
   track: data.track || '',
-  parentId: data.parentId || null,
   tutorId: data.tutorId || data.assignedTutorId || data.instructorId || null,
   staffId: data.staffId || data.assignedStaffId || null,
   portalAccessEnabled: data.portalAccessEnabled !== false,
   accountStatus: data.accountStatus || data.status || 'ACTIVE',
   source: data.source || 'existing',
-  firebaseUid: data.firebaseUid || data.userId || null,
-  schoolId: data.schoolId || '',
 });
 
 export const handler: Handler = async (event) => {
