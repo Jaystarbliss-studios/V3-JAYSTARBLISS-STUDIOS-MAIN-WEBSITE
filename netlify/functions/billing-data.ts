@@ -20,7 +20,8 @@ const docs = async (collectionName: string, field: string, value: string, limitC
   return snap.docs.map(doc => ({ id: doc.id, ...plain(doc.data()) }));
 };
 const safeStudent = (record: any) => {
-  const { accessCode, passcode, accessCodeHash, credentialIssuedAt, credentialIssuedBy, ...safe } = record || {};
+  const safe = { ...(record || {}) };
+  ["accessCode", "passcode", "accessCodeHash", "credentialIssuedAt", "credentialIssuedBy"].forEach(key => delete safe[key]);
   return safe;
 };
 const staffAssignmentFields = ["tutorId", "staffId", "assignedTutorId", "assignedStaffId", "instructorId"];
@@ -30,7 +31,7 @@ const assignedStudentRecords = async (uid: string) => {
     for (const collectionName of ["individualStudents", "students"]) {
       try {
         const records = await docs(collectionName, field, uid, 100);
-        records.forEach(record => studentMap.set(record.id, safeStudent(record)));
+        records.forEach(record => studentMap.set(`${collectionName}:${record.id}`, safeStudent(record)));
       } catch (error) {
         console.warn(`Assigned ${collectionName}/${field} lookup failed:`, error);
       }
@@ -75,9 +76,16 @@ const billingSummary = (payments: any[]) => {
     const date = paymentDate(p);
     return date && date >= monthStart ? sum + numericAmount(p) : sum;
   }, 0);
-  const latest = successful.map(payment => ({ payment, date: paymentDate(payment) })).filter(item => item.date).sort((a, b) => b.date!.getTime() - a.date!.getTime())[0];
+  const latest = successful
+    .map(payment => ({ payment, date: paymentDate(payment) }))
+    .filter(item => item.date)
+    .sort((a, b) => b.date!.getTime() - a.date!.getTime())[0];
   const lastPaidAt = latest?.date || null;
-  const nextPaymentDue = lastPaidAt ? new Date(lastPaidAt.getTime() + 28 * 24 * 60 * 60 * 1000) : null;
+  const cycleDays = latest?.payment ? Math.max(1, Number(latest.payment.durationWeeks || 4)) * 7 : 28;
+  const explicitPaidThrough = latest?.payment?.paidThrough ? new Date(latest.payment.paidThrough) : null;
+  const nextPaymentDue = explicitPaidThrough && !Number.isNaN(explicitPaidThrough.getTime())
+    ? explicitPaidThrough
+    : lastPaidAt ? new Date(lastPaidAt.getTime() + cycleDays * 24 * 60 * 60 * 1000) : null;
   const transactionFees = successful.reduce((sum, p) => {
     const fee = Number(p.transactionFee ?? p.gatewayFee ?? p.paystackFee ?? 0);
     return sum + (Number.isFinite(fee) && fee >= 0 ? fee : 0);
@@ -89,7 +97,8 @@ const billingSummary = (payments: any[]) => {
     paymentCount: successful.length,
     lastPaidAt: lastPaidAt?.toISOString() || null,
     nextPaymentDue: nextPaymentDue?.toISOString() || null,
-    paymentCycleDays: 28,
+    paymentCycleDays: cycleDays,
+    paymentCycleWeeks: Math.round(cycleDays / 7),
     overdue: Boolean(nextPaymentDue && nextPaymentDue.getTime() < now.getTime())
   };
 };
