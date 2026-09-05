@@ -18,6 +18,7 @@ const normalizeCode = (value: string) => value.trim().toUpperCase();
 const hashAccessCode = (value: string) => createHash('sha256').update(normalizeCode(value)).digest('hex');
 const makeCode = () => `JBS-${randomBytes(5).toString('hex').toUpperCase()}`;
 const makePassword = () => randomBytes(12).toString('base64url');
+const blocked = (value: unknown) => ['SUSPENDED', 'BANNED', 'DISABLED'].includes(String(value || 'ACTIVE').toUpperCase());
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') return json(405, { error: 'Method Not Allowed' });
@@ -32,7 +33,7 @@ export const handler: Handler = async (event) => {
 
     const caller = callerSnap.data() || {};
     const role = String(caller.role || '').trim().toUpperCase();
-    if (role !== 'SCHOOL' || caller.status === 'SUSPENDED' || caller.accountStatus === 'SUSPENDED' || caller.accountStatus === 'BANNED') {
+    if (role !== 'SCHOOL' || blocked(caller.accountStatus || caller.status)) {
       return json(403, { error: 'Only an active school account can onboard students.' });
     }
 
@@ -42,7 +43,7 @@ export const handler: Handler = async (event) => {
     const schoolSnap = await adminDb.collection('schools').doc(schoolId).get();
     if (!schoolSnap.exists) return json(404, { error: 'School record not found.' });
     const school = schoolSnap.data() || {};
-    if (['SUSPENDED', 'BANNED', 'DISABLED'].includes(String(school.accountStatus || school.status || 'ACTIVE').toUpperCase())) {
+    if (blocked(school.accountStatus || school.status)) {
       return json(403, { error: 'This school account is currently disabled.' });
     }
 
@@ -62,10 +63,18 @@ export const handler: Handler = async (event) => {
       return json(400, { error: 'Enter a valid student email or leave it blank.' });
     }
 
+    if (parentId) {
+      const parentSnap = await adminDb.collection('users').doc(parentId).get();
+      if (!parentSnap.exists || String(parentSnap.data()?.role || '').toLowerCase() !== 'parent' || blocked(parentSnap.data()?.accountStatus || parentSnap.data()?.status)) {
+        return json(400, { error: 'The supplied parent account is not a valid active parent profile.' });
+      }
+    }
+
     const duplicate = await adminDb.collection('individualStudents').where('username', '==', username).limit(1).get();
     if (!duplicate.empty) return json(409, { error: 'That student username is already in use.' });
 
     const accessCode = normalizeCode(requestedCode || makeCode());
+    if (accessCode.length < 8 || accessCode.length > 40) return json(400, { error: 'Student access code must be between 8 and 40 characters.' });
     const accessCodeHash = hashAccessCode(accessCode);
     const codeDuplicate = await adminDb.collection('individualStudents').where('accessCodeHash', '==', accessCodeHash).limit(1).get();
     if (!codeDuplicate.empty) return json(409, { error: 'That student access code is already in use.' });
@@ -106,13 +115,14 @@ export const handler: Handler = async (event) => {
       studentDocId: studentRef.id,
       schoolId,
       schoolName: school.name || school.schoolName || '',
+      parentId: parentId || null,
       portalAccessEnabled: true,
       accountStatus: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
     }, { merge: true });
 
-    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className } });
+    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className, parentId: parentId || null } });
 
     return json(201, {
       student: { id: studentRef.id, fullName, username, class: className, schoolId, portal: '/portal/student' },
