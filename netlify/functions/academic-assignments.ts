@@ -41,13 +41,12 @@ const assignedTo = (student: Record<string, any>, uid: string) => [
 
 const parentOwns = (student: Record<string, any>, uid: string) => [student.parentId, student.parentUserId].some(value => String(value || '') === uid);
 const schoolOwns = (student: Record<string, any>, schoolId: string) => String(student.schoolId || '') === schoolId;
-
 const safeText = (value: unknown, max = 4000) => String(value || '').trim().slice(0, max);
 
 const notify = async (recipientId: string, title: string, message: string, data: Record<string, unknown> = {}) => {
   if (!recipientId) return;
   await adminDb.collection('notifications').add({
-    userId: recipientId,
+    recipientId,
     title,
     message,
     type: 'ACADEMIC_ASSIGNMENT',
@@ -98,6 +97,9 @@ const listAssignments = async (uid: string, role: string, queryParams: URLSearch
     individual2.forEach(d => studentIds.push(d.id));
     students2.forEach(d => studentIds.push(d.id));
   } else if (role === 'STUDENT') {
+    const profile = await userRecord(uid);
+    const preferredId = String(profile.studentDocId || '');
+    if (preferredId) studentIds.push(preferredId);
     const [individual, students] = await Promise.all([
       adminDb.collection('individualStudents').where('firebaseUid', '==', uid).limit(10).get(),
       adminDb.collection('students').where('firebaseUid', '==', uid).limit(10).get(),
@@ -151,7 +153,9 @@ export const handler: Handler = async (event) => {
     if (method === 'GET') {
       const action = event.queryStringParameters?.action || 'list';
       if (action !== 'list') return json(400, { error: 'Unsupported assignment action.' });
-      const assignments = await listAssignments(decoded.uid, role, new URLSearchParams(event.rawQuery || ''));
+      const params = new URLSearchParams();
+      Object.entries(event.queryStringParameters || {}).forEach(([key, value]) => { if (value != null) params.set(key, value); });
+      const assignments = await listAssignments(decoded.uid, role, params);
       return json(200, { assignments });
     }
 
