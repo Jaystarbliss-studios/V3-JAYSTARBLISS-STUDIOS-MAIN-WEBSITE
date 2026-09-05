@@ -5,9 +5,10 @@ const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCod
 const token = (event: any) => { const h = event.headers?.authorization || event.headers?.Authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
 const roleOf = (v: unknown) => String(v || '').trim().toUpperCase();
 const text = (v: unknown, max = 1000) => String(v || '').trim().slice(0, max);
+const blocked = (v: unknown) => ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(v || 'ACTIVE').toUpperCase());
 const findStudent = async (id: string) => { for (const name of ['individualStudents', 'students']) { const snap = await adminDb.collection(name).doc(id).get(); if (snap.exists) return { id: snap.id, ...snap.data() } as Record<string, any>; } return null; };
 const assigned = (s: Record<string, any>, uid: string) => [s.tutorId, s.staffId, s.assignedTutorId, s.assignedStaffId, s.instructorId].some(v => String(v || '') === uid);
-const user = async (uid: string) => { const snap = await adminDb.collection('users').doc(uid).get(); if (!snap.exists) throw new Error('PROFILE_NOT_FOUND'); return snap.data() || {}; };
+const user = async (uid: string) => { const snap = await adminDb.collection('users').doc(uid).get(); if (!snap.exists) throw new Error('PROFILE_NOT_FOUND'); const data = snap.data() || {}; if (blocked(data.accountStatus || data.status)) throw new Error('ACCOUNT_INACTIVE'); return data; };
 
 export const handler: Handler = async event => {
   try {
@@ -37,5 +38,5 @@ export const handler: Handler = async event => {
     const payload = { studentId, studentName: student.fullName || student.studentName || student.name || 'Student', tutorId: decoded.uid, schoolId: student.schoolId || null, date: dateValue, dateKey: dateValue.toISOString().slice(0, 10), status, notes: text(body.notes, 1000), updatedAt: new Date() };
     if (existing.empty) { const ref = adminDb.collection('attendance').doc(); await ref.set({ ...payload, createdAt: new Date() }); return json(201, { record: { id: ref.id, ...payload } }); }
     const ref = existing.docs[0].ref; await ref.update(payload); return json(200, { record: { id: ref.id, ...payload } });
-  } catch (error) { const code = error instanceof Error ? error.message : ''; if (code === 'PROFILE_NOT_FOUND') return json(403, { error: 'Your portal profile could not be verified.' }); console.error('Academic attendance error:', error); return json(500, { error: 'Unable to complete the attendance request.' }); }
+  } catch (error) { const code = error instanceof Error ? error.message : ''; if (code === 'PROFILE_NOT_FOUND') return json(403, { error: 'Your portal profile could not be verified.' }); if (code === 'ACCOUNT_INACTIVE') return json(403, { error: 'Your account is not active.' }); console.error('Academic attendance error:', error); return json(500, { error: 'Unable to complete the attendance request.' }); }
 };
