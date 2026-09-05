@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { School, GraduationCap, Users, ShieldCheck, Mail, Lock, Eye, EyeOff, ArrowLeft, Sun, Moon } from 'lucide-react';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
@@ -85,7 +85,21 @@ const SecurePortalLogin: React.FC = () => {
         toast.success('Signed in successfully.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Login failed. Please check your credentials and try again.');
+      const code = String(err?.code || '');
+      setError(code === 'auth/invalid-credential' ? 'The email or password is incorrect. If you no longer know the password, use “Forgot password?” below to reset it.' : err?.message || 'Login failed. Please check your credentials and try again.');
+    } finally { setLoading(false); }
+  };
+
+  const handlePasswordReset = async () => {
+    const email = identifier.trim().toLowerCase();
+    if (!email) { setError('Enter your email address first, then select “Forgot password?”.'); return; }
+    setError(''); setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success('If an account exists for that email, a password reset link has been sent.');
+      setError('Check your email for the password reset link.');
+    } catch (err: any) {
+      setError(err?.message || 'Unable to start password recovery. Please try again.');
     } finally { setLoading(false); }
   };
 
@@ -94,19 +108,50 @@ const SecurePortalLogin: React.FC = () => {
     try {
       if (activeTab !== 'parent' && activeTab !== 'staff') throw new Error('Google sign-in is available for parent and staff accounts only.');
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
-      const user = result.user;
-      const snap = await getDoc(doc(db, 'users', user.uid));
+      const googleUser = result.user;
+      const snap = await getDoc(doc(db, 'users', googleUser.uid));
+      const existing = snap.exists() ? snap.data() || {} : {};
+      const existingRole = String(existing.role || '').toUpperCase();
+
+      // Existing administrator profiles are authoritative. If the Google identity
+      // is separate from the provisioned admin UID, the server verifies the Google
+      // ID token + verified email and mints a custom token for that existing UID.
+      if (activeTab === 'staff' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(existingRole)) {
+        const idToken = await googleUser.getIdToken(true);
+        const response = await fetch('/.netlify/functions/admin-google-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken }),
+        });
+        const adminData = await response.json().catch(() => ({}));
+        if (response.ok && adminData.customToken) {
+          const credential = await signInWithCustomToken(auth, adminData.customToken);
+          const adminSnap = await getDoc(doc(db, 'users', credential.user.uid));
+          const adminProfile = adminSnap.exists() ? adminSnap.data() || {} : {};
+          const adminRole = String(adminProfile.role || adminData.role || '').toUpperCase();
+          if (!adminRole.includes('ADMIN')) { await signOut(auth).catch(() => undefined); throw new Error('Administrator profile verification failed.'); }
+          storeSession('super_admin', credential.user.uid, adminProfile.name || adminData.name || credential.user.displayName || 'Admin', { userEmail: credential.user.email || adminData.email || '' });
+          navigate('/admin');
+          return;
+        }
+      }
+
       let data = snap.exists() ? snap.data() || {} : null;
       if (!data) {
         if (activeTab !== 'parent') { await signOut(auth).catch(() => undefined); throw new Error('Staff accounts are created by administrators. Please contact an administrator.'); }
-        data = { email: user.email || '', name: user.displayName || '', role: 'parent', createdAt: serverTimestamp() };
-        await setDoc(doc(db, 'users', user.uid), data);
+        data = { email: googleUser.email || '', name: googleUser.displayName || '', role: 'parent', createdAt: serverTimestamp() };
+        await setDoc(doc(db, 'users', googleUser.uid), data);
       }
       if (blocked(data)) { await signOut(auth).catch(() => undefined); throw new Error('This account is currently disabled. Please contact an administrator.'); }
       const role = String(data.role || '').toUpperCase();
+      if (role.includes('ADMIN')) {
+        storeSession('super_admin', googleUser.uid, data.name || googleUser.displayName || 'Admin', { userEmail: googleUser.email || '' });
+        navigate('/admin');
+        return;
+      }
       if (role !== 'PARENT' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) { await signOut(auth).catch(() => undefined); throw new Error('This Google account is not enabled for this portal.'); }
       const sessionRole = role === 'PARENT' ? 'parent' : 'staff';
-      storeSession(sessionRole, user.uid, data.name || user.displayName || 'Portal User', { userEmail: user.email || '', schoolId: data.schoolId || '' });
+      storeSession(sessionRole, googleUser.uid, data.name || googleUser.displayName || 'Portal User', { userEmail: googleUser.email || '', schoolId: data.schoolId || '' });
       navigate(`/portal/${sessionRole}`);
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed.');
@@ -124,10 +169,10 @@ const SecurePortalLogin: React.FC = () => {
     <div className="card">
       <div className="deco-panel relative"><CyberTerrainCanvas theme={theme} /><Link to="/" className="deco-brand flex items-center gap-3 select-none group" aria-label="Home"><JaystarblissIcon className="w-9 h-9 rounded-xl group-hover:scale-105 transition-transform shrink-0" /><span className="font-black text-base tracking-wider uppercase whitespace-nowrap">JAYSTARBLISS STUDIOS</span></Link><div className="deco-center-stage"><div className="stage-glow-reflection" /><ThreeOctagonLogo size={185} className="relative z-10" /></div><div className="deco-bottom"><div className="deco-tagline">Learn. <br/><span>Grow.</span> <br/>Thrive.</div></div></div>
       <div className="form-panel"><div className="role-tabs">{tabs.map(tab => <button key={tab.id} type="button" className={`role-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => { setActiveTab(tab.id); setIdentifier(''); setPassword(''); setError(''); }}>{tab.icon}<span>{tab.label}</span></button>)}</div>
-        <div className="form-body"><div className="pane"><div className="form-title capitalize">{activeTab} <em>Portal Login</em></div><div className="form-sub">{activeTab === 'student' ? 'Use the Student Username / Email and Access Code issued by your tutor or school.' : activeTab === 'school' ? 'Use your School Email / Terminal ID and institutional access code.' : activeTab === 'parent' ? 'Sign in to monitor your children’s classes and progress.' : 'Sign in to your tutor and instructor workspace.'}</div>
+        <div className="form-body"><div className="pane"><div className="form-title capitalize">{activeTab} <em>Portal Login</em></div><div className="form-sub">{activeTab === 'student' ? 'Use the Student Username / Email and Access Code issued by your tutor or school.' : activeTab === 'school' ? 'Use your School Email / Terminal ID and institutional access code.' : activeTab === 'parent' ? 'Sign in to monitor your children’s classes and progress.' : 'Sign in to your tutor, instructor, or administrator workspace.'}</div>
           {error && <div className="msg msg-error show" role="alert">{error}</div>}
-          <form onSubmit={handleLogin} autoComplete="on"><div className="field"><label>{activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Email or Terminal ID' : activeTab === 'parent' ? 'Parent Email Address' : 'Staff / Tutor Email'}</label><div className="input-wrap"><span className="input-icon"><Mail size={15}/></span><input type={activeTab === 'parent' || activeTab === 'staff' ? 'email' : 'text'} required value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={activeTab === 'student' ? 'e.g. john or john@example.com' : activeTab === 'school' ? 'school@institution.edu' : activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'} /></div></div>
-          <div className="field"><label>{activeTab === 'student' || activeTab === 'school' ? 'Access Code' : 'Password'}</label><div className="input-wrap"><span className="input-icon"><Lock size={15}/></span><input type={showPassword ? 'text' : 'password'} className="has-eye" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pw-eye" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></div>
+          <form onSubmit={handleLogin} autoComplete="on"><div className="field"><label>{activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Email or Terminal ID' : activeTab === 'parent' ? 'Parent Email Address' : 'Staff / Admin Email'}</label><div className="input-wrap"><span className="input-icon"><Mail size={15}/></span><input type={activeTab === 'parent' || activeTab === 'staff' ? 'email' : 'text'} required value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={activeTab === 'student' ? 'e.g. john or john@example.com' : activeTab === 'school' ? 'school@institution.edu' : activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'} /></div></div>
+          <div className="field"><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'0.75rem'}}><label style={{margin:0}}>{activeTab === 'student' || activeTab === 'school' ? 'Access Code' : 'Password'}</label>{(activeTab === 'parent' || activeTab === 'staff') && <button type="button" onClick={handlePasswordReset} disabled={loading} className="text-xs" style={{color:'var(--text-dim)',background:'none',border:0,padding:0,cursor:loading?'not-allowed':'pointer'}}>Forgot password?</button>}</div><div className="input-wrap"><span className="input-icon"><Lock size={15}/></span><input type={showPassword ? 'text' : 'password'} className="has-eye" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pw-eye" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></div>
           <div className="field" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'-0.5rem'}}><label htmlFor="rememberMe" style={{display:'flex',alignItems:'center',gap:'0.5rem',margin:0,fontSize:'0.85rem',fontWeight:'normal',textTransform:'none',letterSpacing:'normal'}}><input id="rememberMe" type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{width:'auto'}}/>Remember me</label>{(activeTab === 'staff' || activeTab === 'school') && <span className="text-xs" style={{color:'var(--text-dim)'}}>{activeTab === 'staff' ? 'Managed by administrators' : 'Institutional access'}</span>}</div>
           <CyberLiquidButton type="submit" loading={loading}>{activeTab === 'student' ? 'LAUNCH STUDENT HUB →' : 'INITIALIZE ACCESS →'}</CyberLiquidButton></form>
           {(activeTab === 'parent' || activeTab === 'staff') && <><div className="auth-divider">or</div><button type="button" className="google-btn" onClick={handleGoogle} disabled={loading}><span aria-hidden="true" style={{fontWeight:900,fontSize:18}}>G</span><span className="btn-text">Continue with Google</span></button></>}
