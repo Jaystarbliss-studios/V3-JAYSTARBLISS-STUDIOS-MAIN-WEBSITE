@@ -43,11 +43,16 @@ const SchoolStudentOnboarding: React.FC = () => {
     const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${credentials?.username}-student-access.txt`; a.click(); URL.revokeObjectURL(url);
   };
 
+  const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] || character);
+
   const printCredentials = () => {
     if (!credentials) return;
     const win = window.open('', '_blank', 'noopener,noreferrer');
     if (!win) return toast.error('Allow pop-ups to print the credential card.');
-    win.document.write(`<html><head><title>Student Access</title><style>body{font-family:Arial,sans-serif;padding:48px;color:#1e293b}.card{max-width:560px;border:2px solid #b91c1c;border-radius:20px;padding:32px}.label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}.value{font-size:22px;font-weight:800;margin:6px 0 20px}h1{font-size:26px;margin-top:0}</style></head><body><div class="card"><div class="label">Jaystarbliss Studios</div><h1>Student Portal Access</h1><div class="label">Username</div><div class="value">${credentials.username}</div><div class="label">Access Code</div><div class="value">${credentials.accessCode}</div><div class="label">Portal</div><div class="value">${window.location.origin}${credentials.portal}</div></div><script>window.onload=()=>window.print()</script></body></html>`);
+    const safeUsername = escapeHtml(credentials.username);
+    const safeAccessCode = escapeHtml(credentials.accessCode);
+    const safePortal = escapeHtml(`${window.location.origin}${credentials.portal}`);
+    win.document.write(`<html><head><title>Student Access</title><style>body{font-family:Arial,sans-serif;padding:48px;color:#1e293b}.card{max-width:560px;border:2px solid #b91c1c;border-radius:20px;padding:32px}.label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.08em}.value{font-size:22px;font-weight:800;margin:6px 0 20px}h1{font-size:26px;margin-top:0}</style></head><body><div class="card"><div class="label">Jaystarbliss Studios</div><h1>Student Portal Access</h1><div class="label">Username</div><div class="value">${safeUsername}</div><div class="label">Access Code</div><div class="value">${safeAccessCode}</div><div class="label">Portal</div><div class="value">${safePortal}</div></div><script>window.onload=()=>window.print()</script></body></html>`);
     win.document.close();
   };
 
