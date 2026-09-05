@@ -12,6 +12,7 @@ import CyberTerrainCanvas from '../components/portal/CyberTerrainCanvas';
 import CyberLiquidButton from '../components/portal/CyberLiquidButton';
 import ThreeOctagonLogo from '../components/portal/ThreeOctagonLogo';
 import './Portal.css';
+import './SecurePortalTheme.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
 const googleProvider = new GoogleAuthProvider();
