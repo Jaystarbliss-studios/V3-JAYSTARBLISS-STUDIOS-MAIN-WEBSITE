@@ -8,18 +8,7 @@ import { staggerItem } from '../ui/animationVariants';
 import { motion } from 'motion/react';
 import { usePageSection } from '../../lib/cms';
 import { GlassGridSkeleton } from '../ui/GlassCardSkeleton';
-import {
-  Laptop,
-  Palette,
-  Music,
-  Brain,
-  GraduationCap,
-  Gamepad2,
-  Baby,
-  Users,
-  ArrowRight,
-  Compass
-} from 'lucide-react';
+import { ArrowRight, Compass } from 'lucide-react';
 
 const FeaturedPrograms: React.FC = () => {
   const [programs, setPrograms] = useState<any[]>([]);
