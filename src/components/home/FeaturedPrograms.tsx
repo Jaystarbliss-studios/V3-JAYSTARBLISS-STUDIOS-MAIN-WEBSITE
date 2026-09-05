@@ -8,29 +8,18 @@ import { staggerItem } from '../ui/animationVariants';
 import { motion } from 'motion/react';
 import { usePageSection } from '../../lib/cms';
 import { GlassGridSkeleton } from '../ui/GlassCardSkeleton';
-import { 
-  Laptop, 
-  Palette, 
-  Music, 
-  Brain, 
-  GraduationCap, 
-  Gamepad2, 
-  Baby, 
+import {
+  Laptop,
+  Palette,
+  Music,
+  Brain,
+  GraduationCap,
+  Gamepad2,
+  Baby,
   Users,
   ArrowRight,
   Compass
 } from 'lucide-react';
-
-const ECOSYSTEM_TEASERS = [
-  { name: 'Tech & Coding', icon: Laptop, path: '/programs' },
-  { name: 'Digital Literacy', icon: Brain, path: '/programs' },
-  { name: 'Creative Design', icon: Palette, path: '/programs' },
-  { name: 'Music & Instruments', icon: Music, path: '/programs' },
-  { name: 'Academic Clinic', icon: GraduationCap, path: '/programs' },
-  { name: 'Chess & Strategy', icon: Gamepad2, path: '/programs' },
-  { name: 'Young Creators', icon: Baby, path: '/programs' },
-  { name: 'Private Mentorship', icon: Users, path: '/tutors' }
-];
 
 const FeaturedPrograms: React.FC = () => {
   const [programs, setPrograms] = useState<any[]>([]);
@@ -38,7 +27,6 @@ const FeaturedPrograms: React.FC = () => {
 
   const { data: sectionInfo } = usePageSection('home', 'programs_preview', {
     title: 'THE JAYSTARBLISS LEARNING ECOSYSTEM',
-    subtitle: "A progressive multi-disciplinary framework designed around practical creation, project portfolios, and tailored learning pathways.",
     ctaText: 'EXPLORE ALL 8 ACADEMIES',
     ctaLink: '/programs'
   });
@@ -69,35 +57,11 @@ const FeaturedPrograms: React.FC = () => {
   return (
     <section className="py-24 bg-white dark:bg-slate-900 dark:border-slate-800 border-t border-gray-100">
       <div className="container mx-auto px-4 md:px-8 max-w-7xl">
-        
         {/* Header */}
         <Reveal className="text-center max-w-4xl mx-auto mb-12">
-          <span className="text-xs font-black uppercase tracking-widest text-brand-red mb-2 block">
-            Progressive Multi-Disciplinary Programs
-          </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-extrabold text-brand-slate dark:text-white mb-3 tracking-tight">
-            {sectionInfo.title}
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-extrabold text-brand-slate dark:text-white mb-8 tracking-tight">
+            {sectionInfo.title || 'THE JAYSTARBLISS LEARNING ECOSYSTEM'}
           </h2>
-          <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 font-medium mb-8 max-w-2xl mx-auto leading-relaxed">
-            {sectionInfo.subtitle}
-          </p>
-
-          {/* 8 Schools Quick Pills */}
-          <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-4xl mx-auto">
-            {ECOSYSTEM_TEASERS.map((school) => {
-              const Icon = school.icon;
-              return (
-                <Link
-                  key={school.name}
-                  to={school.path}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-brand-red/10 hover:text-brand-red dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-2 transition-all shadow-2xs"
-                >
-                  <Icon size={14} className="text-brand-red" />
-                  <span>{school.name}</span>
-                </Link>
-              );
-            })}
-          </div>
 
           <div className="flex flex-wrap justify-center gap-3">
             <Link
