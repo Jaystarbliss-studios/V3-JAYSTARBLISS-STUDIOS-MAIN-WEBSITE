@@ -1,666 +1,144 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  collection, getDocs, addDoc, deleteDoc, doc, setDoc, 
-  query, where, orderBy, serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { collection, deleteDoc, doc, getDocs, query, where, orderBy, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
-import { 
-  Users, UserPlus, Send, Trash2, Search, 
-  ExternalLink, Mail, Key
-} from 'lucide-react';
+import { Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, Trash2, Send, RefreshCw, ShieldCheck, X } from 'lucide-react';
+
+interface Student { id: string; fullName?: string; username?: string; email?: string; class?: string; grade?: string; track?: string; subjects?: string[] | string; schoolId?: string; schoolName?: string; parentId?: string; accountStatus?: string; status?: string; }
+interface Dispatch { id: string; collectionName: string; kind: 'resource' | 'link'; studentId?: string; title?: string; description?: string; url?: string; fileUrl?: string; timestamp?: any; }
+interface Credentials { username: string; accessCode: string; portal: string; fullName: string; }
+
+const ADMIN_ROLES = ['admin', 'super_admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'];
 
 const AdminStudents: React.FC = () => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'manage' | 'sendResource'>('manage');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [credentials, setCredentials] = useState<Credentials | null>(null);
+  const [form, setForm] = useState({ fullName: '', username: '', email: '', className: '', track: '', subjects: 'Coding, Mathematics', schoolId: '', parentId: '' });
+  const [resourceForm, setResourceForm] = useState({ studentId: '', type: 'resource' as 'resource' | 'link', title: '', url: '', description: '' });
+  const [sending, setSending] = useState(false);
 
-  // Student list
-  const [students, setStudents] = useState<any[]>([]);
-  
-  // Add Student Form
-  const [newStudent, setNewStudent] = useState({
-    fullName: '',
-    username: '',
-    email: '',
-    accessCode: '',
-    subjects: 'Coding, Mathematics'
-  });
-  const [addingStudent, setAddingStudent] = useState(false);
+  const token = useCallback(async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Your administrator session has expired.');
+    const idToken = await user.getIdToken();
+    return idToken;
+  }, []);
 
-  // Edit Code State
-  const [editingCodeId, setEditingCodeId] = useState<string | null>(null);
-  const [tempCode, setTempCode] = useState('');
-
-  // Send Personal Resource Form
-  const [personalForm, setPersonalForm] = useState({
-    targetStudentId: '',
-    type: 'resource',
-    title: '',
-    url: '',
-    description: ''
-  });
-  const [sendingPersonal, setSendingPersonal] = useState(false);
-  const [personalDispatches, setPersonalDispatches] = useState<any[]>([]);
-
-  // Fetch all students & dispatches
-  const fetchData = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch individualStudents
-      const snap = await getDocs(query(collection(db, 'individualStudents'), orderBy('registeredAt', 'desc'))).catch(() => getDocs(collection(db, 'individualStudents')));
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setStudents(list);
-
-      // Fetch Personal Resources & Links
-      const [rSnap, lSnap] = await Promise.all([
-        getDocs(query(collection(db, 'personalResources'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'personalResources'))),
-        getDocs(query(collection(db, 'personalLinks'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'personalLinks')))
+      const [studentSnap, resourceSnap, linkSnap] = await Promise.all([
+        getDocs(query(collection(db, 'individualStudents'), orderBy('createdAt', 'desc'), limit(500))).catch(() => getDocs(query(collection(db, 'individualStudents'), limit(500)))),
+        getDocs(query(collection(db, 'personalResources'), orderBy('timestamp', 'desc'), limit(200))).catch(() => getDocs(query(collection(db, 'personalResources'), limit(200)))),
+        getDocs(query(collection(db, 'personalLinks'), orderBy('timestamp', 'desc'), limit(200))).catch(() => getDocs(query(collection(db, 'personalLinks'), limit(200)))),
       ]);
-
-      const merged: any[] = [];
-      rSnap.forEach(d => merged.push({ id: d.id, collectionName: 'personalResources', kind: 'resource', ...d.data() }));
-      lSnap.forEach(d => merged.push({ id: d.id, collectionName: 'personalLinks', kind: 'link', ...d.data() }));
-      merged.sort((a, b) => (b.timestamp?.toDate ? b.timestamp.toDate() : 0) - (a.timestamp?.toDate ? a.timestamp.toDate() : 0));
-      setPersonalDispatches(merged);
-
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Failed to load students data.');
-    } finally {
-      setLoading(false);
-    }
+      setStudents(studentSnap.docs.map(item => ({ id: item.id, ...item.data() } as Student)));
+      const merged: Dispatch[] = [];
+      resourceSnap.docs.forEach(item => merged.push({ id: item.id, collectionName: 'personalResources', kind: 'resource', ...item.data() } as Dispatch));
+      linkSnap.docs.forEach(item => merged.push({ id: item.id, collectionName: 'personalLinks', kind: 'link', ...item.data() } as Dispatch));
+      setDispatches(merged);
+    } catch (error) {
+      console.error('Admin student operations load failed:', error);
+      toast.error('Unable to load student operations.');
+    } finally { setLoading(false); }
   }, [toast]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { load(); }, [load]);
 
-  // Generate unique access code
-  const generateRandomCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const arr = new Uint8Array(6);
-    crypto.getRandomValues(arr);
-    const code = Array.from(arr, b => chars[b % chars.length]).join('');
-    setNewStudent(prev => ({ ...prev, accessCode: code }));
-  };
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return students;
+    return students.filter(student => [student.fullName, student.username, student.email, student.class, student.grade, student.schoolName].some(value => String(value || '').toLowerCase().includes(term)));
+  }, [students, search]);
 
-  // Add new student
-  const handleAddStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStudent.fullName.trim() || !newStudent.username.trim() || !newStudent.accessCode.trim()) {
-      toast.error('Please fill in student name, username, and access code.');
-      return;
-    }
-    setAddingStudent(true);
+  const issueCredentials = async (studentId: string) => {
+    setSaving(true);
     try {
-      const cleanUsername = newStudent.username.trim().toLowerCase().replace(/\s+/g, '');
-      const existing = await getDocs(query(collection(db, 'individualStudents'), where('username', '==', cleanUsername)));
-      if (!existing.empty) {
-        toast.error(`Username @${cleanUsername} is already taken. Please choose another.`);
-        setAddingStudent(false);
-        return;
-      }
-
-      const subjectsArr = newStudent.subjects.split(',').map(s => s.trim()).filter(Boolean);
-
-      await addDoc(collection(db, 'individualStudents'), {
-        fullName: newStudent.fullName.trim(),
-        username: cleanUsername,
-        email: newStudent.email.trim().toLowerCase(),
-        accessCode: newStudent.accessCode.trim().toUpperCase(),
-        subjects: subjectsArr,
-        status: 'ACTIVE',
-        registeredAt: serverTimestamp()
-      });
-
-      toast.success(`Student ${newStudent.fullName} created! Access Code: ${newStudent.accessCode.toUpperCase()}`);
-      setNewStudent({ fullName: '', username: '', email: '', accessCode: '', subjects: 'Coding, Mathematics' });
-      fetchData();
-    } catch (err: any) {
-      toast.error('Error creating student: ' + err.message);
-    } finally {
-      setAddingStudent(false);
-    }
+      const response = await fetch('/api/student-credential-issue', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` }, body: JSON.stringify({ studentId }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to issue credentials.');
+      setCredentials({ username: result.credentials.username, accessCode: result.credentials.accessCode, portal: result.credentials.portal, fullName: result.student.fullName });
+      toast.success('New student portal credentials issued.');
+      await load();
+    } catch (error: any) { toast.error(error?.message || 'Unable to issue credentials.'); } finally { setSaving(false); }
   };
 
-  // Update Access Code across current and legacy student records.
-  const handleUpdateCode = async (studentId: string) => {
-    const nextCode = tempCode.trim().toUpperCase();
-    if (!nextCode) {
-      toast.error('Access code cannot be blank.');
-      return;
-    }
+  const createStudent = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
     try {
-      const student = students.find((item) => item.id === studentId);
-      const writes: Promise<unknown>[] = [
-        setDoc(doc(db, 'individualStudents', studentId), { accessCode: nextCode }, { merge: true }),
-      ];
-      if (student?.username) {
-        const legacySnap = await getDocs(query(collection(db, 'students'), where('username', '==', student.username)));
-        legacySnap.forEach((studentDoc) => writes.push(setDoc(studentDoc.ref, { accessCode: nextCode }, { merge: true })));
-      }
-      await Promise.all(writes);
-      toast.success(`Access code updated to ${nextCode} across linked student records.`);
-      setEditingCodeId(null);
-      setTempCode('');
-      fetchData();
-    } catch (err: any) {
-      toast.error('Failed to update code: ' + err.message);
-    }
+      const subjects = form.subjects.split(',').map(item => item.trim()).filter(Boolean);
+      const response = await fetch('/api/admin-student-onboard', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` }, body: JSON.stringify({ fullName: form.fullName, username: form.username, email: form.email, class: form.className, track: form.track, subjects, schoolId: form.schoolId, parentId: form.parentId }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to create student.');
+      setCredentials({ username: result.credentials.username, accessCode: result.credentials.accessCode, portal: result.credentials.portal, fullName: result.student.fullName });
+      setShowCreate(false);
+      setForm({ fullName: '', username: '', email: '', className: '', track: '', subjects: 'Coding, Mathematics', schoolId: '', parentId: '' });
+      toast.success('Student created successfully.');
+      await load();
+    } catch (error: any) { toast.error(error?.message || 'Unable to create student.'); } finally { setSaving(false); }
   };
 
-  // Delete Student and clean up current and legacy student records.
-  const handleDeleteStudent = async (studentId: string, studentName: string) => {
-    if (!window.confirm(`Are you sure you want to delete student "${studentName}" and all their assigned resources?`)) return;
+  const deleteStudent = async (student: Student) => {
+    if (!window.confirm(`Delete ${student.fullName || student.username || 'this student'}? This removes the student record and linked personal learning dispatches.`)) return;
+    setSaving(true);
     try {
-      const student = students.find((item) => item.id === studentId);
-      const legacyRefs = student?.username
-        ? (await getDocs(query(collection(db, 'students'), where('username', '==', student.username)))).docs.map((studentDoc) => studentDoc.ref)
-        : [];
-
-      await deleteDoc(doc(db, 'individualStudents', studentId));
-      await Promise.all(legacyRefs.map((studentRef) => deleteDoc(studentRef)));
-
-      const [rSnap, lSnap] = await Promise.all([
-        getDocs(query(collection(db, 'personalResources'), where('studentId', '==', studentId))),
-        getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))
-      ]);
-      const deletions: Promise<void>[] = [];
-      rSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
-      lSnap.forEach(d => deletions.push(deleteDoc(d.ref)));
-      await Promise.all(deletions);
-      toast.success(`Student "${studentName}" and linked student records deleted.`);
-      fetchData();
-    } catch (err: any) {
-      toast.error('Error deleting student: ' + err.message);
-    }
+      await deleteDoc(doc(db, 'individualStudents', student.id));
+      const linked = dispatches.filter(item => item.studentId === student.id);
+      await Promise.all(linked.map(item => deleteDoc(doc(db, item.collectionName, item.id))));
+      toast.success('Student record removed.');
+      await load();
+    } catch (error: any) { toast.error(error?.message || 'Unable to delete student.'); } finally { setSaving(false); }
   };
 
-  // Send Personal Resource / Link
-  const handleSendPersonal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!personalForm.targetStudentId || !personalForm.title.trim() || !personalForm.url.trim()) {
-      toast.error('Please choose a student, enter a title, and provide the link URL.');
-      return;
-    }
-    setSendingPersonal(true);
-    const collectionName = personalForm.type === 'link' ? 'personalLinks' : 'personalResources';
-    const urlKey = personalForm.type === 'link' ? 'url' : 'fileUrl';
-
+  const sendResource = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!resourceForm.studentId || !resourceForm.title.trim() || !resourceForm.url.trim()) { toast.error('Choose a student and provide a title and URL.'); return; }
+    setSending(true);
     try {
-      await addDoc(collection(db, collectionName), {
-        studentId: personalForm.targetStudentId,
-        title: personalForm.title.trim(),
-        [urlKey]: personalForm.url.trim(),
-        description: personalForm.description.trim(),
-        timestamp: serverTimestamp()
-      });
-
-      const studentObj = students.find(s => s.id === personalForm.targetStudentId);
-      toast.success(`Transmitted ${personalForm.type} directly to ${studentObj?.fullName || 'student'}!`);
-      setPersonalForm({ targetStudentId: '', type: 'resource', title: '', url: '', description: '' });
-      fetchData();
-    } catch (err: any) {
-      toast.error('Error sending resource: ' + err.message);
-    } finally {
-      setSendingPersonal(false);
-    }
+      const collectionName = resourceForm.type === 'link' ? 'personalLinks' : 'personalResources';
+      const payload = resourceForm.type === 'link'
+        ? { studentId: resourceForm.studentId, title: resourceForm.title.trim(), url: resourceForm.url.trim(), description: resourceForm.description.trim(), timestamp: serverTimestamp() }
+        : { studentId: resourceForm.studentId, title: resourceForm.title.trim(), fileUrl: resourceForm.url.trim(), description: resourceForm.description.trim(), timestamp: serverTimestamp() };
+      await addDoc(collection(db, collectionName), payload);
+      setResourceForm({ studentId: '', type: 'resource', title: '', url: '', description: '' });
+      toast.success('Learning resource sent to the student.');
+      await load();
+    } catch (error: any) { toast.error(error?.message || 'Unable to send resource.'); } finally { setSending(false); }
   };
 
-  // Delete Personal Resource
-  const handleDeletePersonalResource = async (id: string, collectionName: string, title: string) => {
-    if (!window.confirm(`Delete personal dispatch "${title}"?`)) return;
-    try {
-      await deleteDoc(doc(db, collectionName, id));
-      toast.success(`Deleted "${title}".`);
-      fetchData();
-    } catch (err: any) {
-      toast.error('Error: ' + err.message);
-    }
-  };
+  const copy = async (value: string, label: string) => { await navigator.clipboard.writeText(value); toast.success(`${label} copied.`); };
 
-  const getStudentName = (id: string) => {
-    const s = students.find(item => item.id === id);
-    return s ? (s.fullName || s.username) : 'Unknown Scholar';
-  };
-
-  const filteredStudents = students.filter(s => 
-    s.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.username?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    s.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-brand-slate dark:text-white flex items-center gap-3">
-            <Users className="text-brand-red w-8 h-8" />
-            Scholars &amp; Student Operations
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Provision individual student portal credentials, rotate access keys, and transmit customized learning tracks.
-          </p>
-        </div>
-
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search students..."
-            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
-          />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-slate-800 space-x-4">
-        <button
-          onClick={() => setActiveTab('manage')}
-          className={`pb-3 px-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'manage'
-              ? 'border-brand-red text-brand-red'
-              : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
-          }`}
-        >
-          <UserPlus size={17} />
-          <span>Manage Students ({students.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sendResource')}
-          className={`pb-3 px-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'sendResource'
-              ? 'border-brand-red text-brand-red'
-              : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'
-          }`}
-        >
-          <Send size={17} />
-          <span>Send Personal Resources ({personalDispatches.length})</span>
-        </button>
-      </div>
-
-      {/* ══ TAB 1: MANAGE STUDENTS ══ */}
-      {activeTab === 'manage' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Add Student Form */}
-          <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-              <UserPlus size={18} className="text-brand-red" />
-              Register New Student
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
-              Create a personalized portal account for private and enrolled scholars with custom subjects and security code.
-            </p>
-
-            <form onSubmit={handleAddStudent} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newStudent.fullName}
-                  onChange={(e) => setNewStudent({ ...newStudent, fullName: e.target.value })}
-                  placeholder="e.g. David Alabi"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Unique Username *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newStudent.username}
-                  onChange={(e) => setNewStudent({ ...newStudent, username: e.target.value.toLowerCase().replace(/\s+/g, '') })}
-                  placeholder="e.g. davidalabi"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Email (Optional)
-                </label>
-                <input
-                  type="email"
-                  value={newStudent.email}
-                  onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                  placeholder="student@example.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">
-                    Portal Access Code *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={generateRandomCode}
-                    className="text-[11px] font-bold text-brand-red hover:underline flex items-center gap-1"
-                  >
-                    <Key size={12} /> Auto-Generate
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={newStudent.accessCode}
-                  onChange={(e) => setNewStudent({ ...newStudent, accessCode: e.target.value.toUpperCase() })}
-                  placeholder="e.g. JDH9482"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Enrolled Subjects (Comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={newStudent.subjects}
-                  onChange={(e) => setNewStudent({ ...newStudent, subjects: e.target.value })}
-                  placeholder="Coding, Python, Mathematics, Robotics"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={addingStudent}
-                className="w-full py-3 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {addingStudent ? 'Provisioning...' : 'Add Student Account'}
-              </button>
-            </form>
-          </div>
-
-          {/* Student List */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">
-              Registered Students ({filteredStudents.length})
-            </h2>
-
-            {loading ? (
-              <div className="py-12 text-center text-gray-400 font-mono text-xs">Loading scholars...</div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 text-gray-400 text-sm">
-                No students found matching your search.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredStudents.map((student) => {
-                  const isEditing = editingCodeId === student.id;
-
-                  return (
-                    <div 
-                      key={student.id} 
-                      className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-gray-300 dark:hover:border-slate-700 transition-all"
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <span className="text-[11px] font-mono text-gray-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                            @{student.username}
-                          </span>
-                          <button
-                            onClick={() => handleDeleteStudent(student.id, student.fullName || student.username)}
-                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                            title="Delete Student"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-
-                        <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
-                          {student.fullName || student.username}
-                        </h3>
-
-                        {student.email && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-2">
-                            <Mail size={12} /> {student.email}
-                          </div>
-                        )}
-
-                        <div className="my-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-gray-100 dark:border-slate-700">
-                          <div className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
-                            Access Code:
-                          </div>
-                          {isEditing ? (
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={tempCode}
-                                onChange={(e) => setTempCode(e.target.value.toUpperCase())}
-                                className="px-2 py-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded font-mono font-bold text-xs flex-1 text-brand-red"
-                              />
-                              <button
-                                onClick={() => handleUpdateCode(student.id)}
-                                className="px-2.5 py-1 bg-brand-red text-white rounded text-[11px] font-bold"
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => setEditingCodeId(null)}
-                                className="px-2 py-1 bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded text-[11px]"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <span className="text-base font-black font-mono tracking-wider text-brand-red">
-                                {student.accessCode || 'NO_CODE'}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  setEditingCodeId(student.id);
-                                  setTempCode(student.accessCode || '');
-                                }}
-                                className="text-[11px] font-bold text-gray-500 hover:text-brand-slate dark:hover:text-white underline"
-                              >
-                                Change
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {student.subjects && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {(Array.isArray(student.subjects) ? student.subjects : student.subjects.split(',')).map((sub: string, i: number) => (
-                              <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                {sub.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-gray-400">
-                        <span>Enrolled Track</span>
-                        <span className="font-mono">{student.registeredAt?.toDate ? student.registeredAt.toDate().toLocaleDateString() : 'Active'}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ══ TAB 2: SEND PERSONAL RESOURCES ══ */}
-      {activeTab === 'sendResource' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Send Resource Form */}
-          <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2 mb-2">
-              <Send size={18} className="text-brand-red" />
-              Transmit Personal Resource
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-5 leading-relaxed">
-              Send personalized homework assignments, code repositories, or feedback documents directly to a specific scholar's dashboard.
-            </p>
-
-            <form onSubmit={handleSendPersonal} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Target Student *
-                </label>
-                <select
-                  required
-                  value={personalForm.targetStudentId}
-                  onChange={(e) => setPersonalForm({ ...personalForm, targetStudentId: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                >
-                  <option value="">Select Student...</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.fullName || s.username} (@{s.username})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Resource Type
-                </label>
-                <select
-                  value={personalForm.type}
-                  onChange={(e) => setPersonalForm({ ...personalForm, type: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                >
-                  <option value="resource">📄 File / Document (PDF, Drive, Dropbox)</option>
-                  <option value="link">🔗 Interactive Link / Live Workspace</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={personalForm.title}
-                  onChange={(e) => setPersonalForm({ ...personalForm, title: e.target.value })}
-                  placeholder="e.g. Python Capstone Project Task Brief"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  URL / Share Link *
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={personalForm.url}
-                  onChange={(e) => setPersonalForm({ ...personalForm, url: e.target.value })}
-                  placeholder="https://drive.google.com/..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
-                  Personal Instructions
-                </label>
-                <textarea
-                  rows={3}
-                  value={personalForm.description}
-                  onChange={(e) => setPersonalForm({ ...personalForm, description: e.target.value })}
-                  placeholder="Custom notes and milestone requirements for this student..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
-                ></textarea>
-              </div>
-
-              <button
-                type="submit"
-                disabled={sendingPersonal}
-                className="w-full py-3 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {sendingPersonal ? 'Transmitting...' : 'Dispatch to Scholar Portal'}
-              </button>
-            </form>
-          </div>
-
-          {/* Dispatches List */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">
-              Recently Dispatched Resources ({personalDispatches.length})
-            </h2>
-
-            {loading ? (
-              <div className="py-12 text-center text-gray-400 font-mono text-xs">Loading dispatches...</div>
-            ) : personalDispatches.length === 0 ? (
-              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 text-gray-400 text-sm">
-                No personal resources have been dispatched yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {personalDispatches.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-gray-300 dark:hover:border-slate-700 transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 truncate max-w-[190px]">
-                          👤 {getStudentName(item.studentId)}
-                        </span>
-                        <button
-                          onClick={() => handleDeletePersonalResource(item.id, item.collectionName, item.title)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-
-                      <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3 mb-4 leading-relaxed">
-                        {item.description || 'Personal homework material.'}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                      <a
-                        href={item.url || item.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline"
-                      >
-                        <ExternalLink size={14} /> Open Material
-                      </a>
-                      <span className="text-[11px] text-gray-400 font-mono">
-                        {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString() : 'Active'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+  return <div className="space-y-8">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div><div className="flex items-center gap-3"><Users className="h-8 w-8 text-brand-red" aria-hidden="true" /><h1 className="text-3xl font-black text-brand-slate dark:text-white">Student Operations</h1></div><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage student records, secure portal access, and personalized learning resources.</p></div>
+      <div className="flex gap-2"><button type="button" onClick={() => load()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"><RefreshCw size={15} aria-hidden="true" /> Refresh</button><button type="button" onClick={() => setShowCreate(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-red px-4 text-xs font-bold text-white hover:bg-red-700"><UserPlus size={15} aria-hidden="true" /> Add Student</button></div>
     </div>
-  );
+
+    <div className="pro-surface rounded-3xl p-5"><div className="relative"><Search className="absolute left-3.5 top-3.5 text-slate-400" size={16} aria-hidden="true" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by name, username, email, class or school…" className="form-control pl-10" aria-label="Search students" /></div></div>
+
+    <section className="pro-surface overflow-hidden rounded-3xl"><div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800"><div><h2 className="text-lg font-black text-slate-900 dark:text-white">Student Directory</h2><p className="mt-1 text-xs text-slate-500">Credential secrets are never stored or displayed here.</p></div><span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">{filtered.length} Students</span></div>
+      {loading ? <div className="p-12 text-center text-sm text-slate-500">Loading student records…</div> : filtered.length === 0 ? <div className="p-12 text-center"><Users className="mx-auto text-slate-300" size={40} aria-hidden="true" /><p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No students found</p><p className="mt-1 text-xs text-slate-500">Create a student or adjust your search.</p></div> : <div className="divide-y divide-slate-100 dark:divide-slate-800">{filtered.map(student => <div key={student.id} className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between"><div className="flex min-w-0 items-center gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-red text-sm font-black text-white">{(student.fullName || 'S').charAt(0).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-sm font-black text-slate-900 dark:text-white">{student.fullName || 'Unnamed student'}</p><p className="truncate text-xs text-slate-500">@{student.username || 'no-username'} {student.email ? `· ${student.email}` : ''}</p><p className="mt-1 text-[11px] text-slate-500">{student.class || student.grade || 'Class not set'}{student.schoolName ? ` · ${student.schoolName}` : ''}{student.track ? ` · ${student.track}` : ''}</p></div></div><div className="flex flex-wrap gap-2"><span className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-emerald-50 px-3 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"><ShieldCheck size={13} aria-hidden="true" /> {student.accountStatus || student.status || 'ACTIVE'}</span><button type="button" disabled={saving} onClick={() => issueCredentials(student.id)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-red px-3 text-[11px] font-bold text-brand-red hover:bg-brand-red hover:text-white disabled:opacity-50"><KeyRound size={14} aria-hidden="true" /> Issue Access Pack</button><button type="button" disabled={saving} onClick={() => deleteStudent(student)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-200 px-3 text-[11px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:hover:bg-red-950/20"><Trash2 size={14} aria-hidden="true" /> Delete</button></div></div>)}</div>}
+    </section>
+
+    <section className="pro-surface rounded-3xl p-6"><div className="mb-5 flex items-center gap-3"><Send size={18} className="text-brand-red" aria-hidden="true" /><div><h2 className="text-lg font-black text-slate-900 dark:text-white">Send Personal Learning Resource</h2><p className="mt-1 text-xs text-slate-500">Deliver a resource or link to one specific student.</p></div></div><form onSubmit={sendResource} className="grid grid-cols-1 gap-4 md:grid-cols-2"><select value={resourceForm.studentId} onChange={event => setResourceForm(current => ({ ...current, studentId: event.target.value }))} className="form-control" required><option value="">Select student</option>{students.map(student => <option key={student.id} value={student.id}>{student.fullName || student.username}</option>)}</select><select value={resourceForm.type} onChange={event => setResourceForm(current => ({ ...current, type: event.target.value as 'resource' | 'link' }))} className="form-control"><option value="resource">Resource</option><option value="link">Link</option></select><input value={resourceForm.title} onChange={event => setResourceForm(current => ({ ...current, title: event.target.value }))} placeholder="Resource title" className="form-control" required /><input value={resourceForm.url} onChange={event => setResourceForm(current => ({ ...current, url: event.target.value }))} placeholder="https://…" type="url" className="form-control" required /><input value={resourceForm.description} onChange={event => setResourceForm(current => ({ ...current, description: event.target.value }))} placeholder="Optional description" className="form-control md:col-span-2" /><div className="md:col-span-2"><button type="submit" disabled={sending} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-red px-5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">{sending ? 'Sending…' : 'Send Resource'} <Send size={14} aria-hidden="true" /></button></div></form></section>
+
+    {dispatches.length > 0 && <section className="pro-surface rounded-3xl p-6"><h2 className="text-lg font-black text-slate-900 dark:text-white">Recent Learning Dispatches</h2><div className="mt-4 space-y-2">{dispatches.slice(0, 8).map(item => <div key={`${item.collectionName}-${item.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 p-3 dark:border-slate-800"><div><p className="text-xs font-bold text-slate-900 dark:text-white">{item.title || 'Untitled'}</p><p className="text-[11px] text-slate-500">{students.find(student => student.id === item.studentId)?.fullName || 'Student'} · {item.kind}</p></div><span className="text-[10px] font-bold text-slate-400">Delivered</span></div>)}</div></section>}
+
+    {showCreate && <Modal title="Add Student" onClose={() => setShowCreate(false)}><form onSubmit={createStudent} className="space-y-4"><Field label="Full name"><input required value={form.fullName} onChange={event => setForm(current => ({ ...current, fullName: event.target.value }))} className="form-control" /></Field><Field label="Username"><input required value={form.username} onChange={event => setForm(current => ({ ...current, username: event.target.value }))} className="form-control" placeholder="e.g. david.johnson" /></Field><Field label="Email (optional)"><input type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} className="form-control" /></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="Class / Grade"><input value={form.className} onChange={event => setForm(current => ({ ...current, className: event.target.value }))} className="form-control" /></Field><Field label="Learning track"><input value={form.track} onChange={event => setForm(current => ({ ...current, track: event.target.value }))} className="form-control" /></Field></div><Field label="Subjects"><input value={form.subjects} onChange={event => setForm(current => ({ ...current, subjects: event.target.value }))} className="form-control" /><p className="mt-1 text-[11px] text-slate-500">Comma-separated.</p></Field><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label="School ID (optional)"><input value={form.schoolId} onChange={event => setForm(current => ({ ...current, schoolId: event.target.value }))} className="form-control" /></Field><Field label="Parent ID (optional)"><input value={form.parentId} onChange={event => setForm(current => ({ ...current, parentId: event.target.value }))} className="form-control" /></Field></div><div className="flex gap-3 pt-2"><button type="button" onClick={() => setShowCreate(false)} className="min-h-11 flex-1 rounded-xl border border-slate-300 text-xs font-bold dark:border-slate-700 dark:text-slate-300">Cancel</button><button type="submit" disabled={saving} className="min-h-11 flex-1 rounded-xl bg-brand-red text-xs font-bold text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create Student'}</button></div></form></Modal>}
+
+    {credentials && <Modal title="Student Access Pack" onClose={() => setCredentials(null)}><div className="space-y-5"><div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 text-emerald-600" size={19} aria-hidden="true" /><div><p className="text-sm font-black text-emerald-900 dark:text-emerald-200">Credentials issued for {credentials.fullName}</p><p className="mt-1 text-xs text-emerald-800 dark:text-emerald-300">This access code is shown once. Store or deliver it securely to the student.</p></div></div></div><CredentialRow label="Username" value={credentials.username} onCopy={() => copy(credentials.username, 'Username')} /><CredentialRow label="Access code" value={credentials.accessCode} onCopy={() => copy(credentials.accessCode, 'Access code')} /><CredentialRow label="Portal" value={credentials.portal} onCopy={() => copy(credentials.portal, 'Portal path')} /><button type="button" onClick={() => setCredentials(null)} className="min-h-11 w-full rounded-xl bg-brand-red text-xs font-bold text-white">Done</button></div></Modal>}
+  </div>;
 };
+
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">{label}</span>{children}</label>;
+const CredentialRow: React.FC<{ label: string; value: string; onCopy: () => void }> = ({ label, value, onCopy }) => <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950"><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p><p className="mt-1 truncate font-mono text-sm font-bold text-slate-900 dark:text-white">{value}</p></div><button type="button" onClick={onCopy} className="min-h-10 min-w-10 rounded-lg text-slate-500 hover:bg-white hover:text-brand-red dark:hover:bg-slate-800" aria-label={`Copy ${label}`}><Copy size={15} aria-hidden="true" /></button></div>;
+const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={title}><div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"><div className="mb-5 flex items-start justify-between gap-4"><h2 className="text-lg font-black text-slate-900 dark:text-white">{title}</h2><button type="button" onClick={onClose} className="min-h-10 min-w-10 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={`Close ${title}`}><X size={18} /></button></div>{children}</div></div>;
 
 export default AdminStudents;
