@@ -1,0 +1,227 @@
+/* Portal dark mode aligned with the main Jaystarbliss Studios design system. */
+.jdh-portal.dark,
+.dark .jdh-portal {
+  --bg: #0B1120;
+  --surface: #111827;
+  --surf2: #1E293B;
+  --border: rgba(148, 163, 184, 0.20);
+  --border2: rgba(148, 163, 184, 0.32);
+  --text: #F8FAFC;
+  --text-dim: #CBD5E1;
+  --muted: #94A3B8;
+  --dim: #64748B;
+  --link: #F87171;
+  --cr: #B91C1C;
+  background: linear-gradient(180deg, #0B1120 0%, #111827 52%, #1E293B 100%);
+}
+
+.jdh-portal.dark::after,
+.dark .jdh-portal::after {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+}
+
+.jdh-portal.dark::before,
+.dark .jdh-portal::before {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 82%, rgba(51, 65, 85, 0.42) 0%, rgba(30, 41, 59, 0.22) 48%, transparent 76%),
+    radial-gradient(ellipse 55% 45% at 18% 18%, rgba(71, 85, 105, 0.18) 0%, transparent 68%);
+}
+
+.jdh-portal.dark .scanlines,
+.dark .jdh-portal .scanlines {
+  background: linear-gradient(rgba(15, 23, 42, 0) 50%, rgba(15, 23, 42, 0.18) 50%);
+  opacity: 0.16;
+}
+
+.jdh-portal.dark .card,
+.dark .jdh-portal .card {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: var(--border2);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.08), 0 32px 90px rgba(2, 6, 23, 0.55), 0 0 55px rgba(30, 41, 59, 0.38);
+}
+
+.jdh-portal.dark .deco-panel,
+.dark .jdh-portal .deco-panel {
+  background: linear-gradient(180deg, #0F172A 0%, #172033 48%, #1E293B 100%);
+  border-right-color: var(--border2);
+}
+
+/* The animated canvas remains an accent, while the site palette provides the base. */
+.jdh-portal.dark .deco-panel > canvas,
+.dark .jdh-portal .deco-panel > canvas {
+  opacity: 0.40;
+  filter: saturate(0.55) brightness(1.08);
+}
+
+.jdh-portal.dark .form-panel,
+.dark .jdh-portal .form-panel {
+  background: #0F172A;
+}
+
+.jdh-portal.dark .role-tabs,
+.dark .jdh-portal .role-tabs {
+  background: #111827;
+  border-bottom-color: var(--border);
+}
+
+.jdh-portal.dark .role-tab,
+.dark .jdh-portal .role-tab {
+  color: #CBD5E1;
+}
+
+.jdh-portal.dark .role-tab:hover,
+.dark .jdh-portal .role-tab:hover {
+  color: #F8FAFC;
+  background: rgba(51, 65, 85, 0.48);
+}
+
+.jdh-portal.dark .role-tab.active,
+.dark .jdh-portal .role-tab.active {
+  color: #F8FAFC;
+  border-bottom-color: #B91C1C;
+  background: rgba(51, 65, 85, 0.55);
+}
+
+.jdh-portal.dark .role-tab.active .tab-ico,
+.dark .jdh-portal .role-tab.active .tab-ico {
+  color: #F87171;
+}
+
+.jdh-portal.dark .form-title,
+.dark .jdh-portal .form-title {
+  color: #F8FAFC;
+}
+
+.jdh-portal.dark .form-title em,
+.dark .jdh-portal .form-title em {
+  color: #F87171;
+  text-shadow: none;
+}
+
+.jdh-portal.dark .form-sub,
+.dark .jdh-portal .form-sub {
+  color: #CBD5E1;
+  opacity: 1;
+}
+
+.jdh-portal.dark .field label,
+.dark .jdh-portal .field label {
+  color: #CBD5E1;
+}
+
+.jdh-portal.dark .input-icon,
+.dark .jdh-portal .input-icon {
+  color: #94A3B8;
+}
+
+.jdh-portal.dark .field input,
+.dark .jdh-portal .field input {
+  background: #1E293B;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #F8FAFC;
+  box-shadow: inset 0 1px 3px rgba(2, 6, 23, 0.30);
+}
+
+.jdh-portal.dark .field input:focus,
+.dark .jdh-portal .field input:focus {
+  border-color: #B91C1C !important;
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.14), inset 0 1px 3px rgba(2, 6, 23, 0.24) !important;
+  background: #243247;
+}
+
+.jdh-portal.dark .field input::placeholder,
+.dark .jdh-portal .field input::placeholder {
+  color: #94A3B8;
+}
+
+.jdh-portal.dark .pw-eye,
+.dark .jdh-portal .pw-eye {
+  color: #CBD5E1;
+}
+
+.jdh-portal.dark .pw-eye:hover,
+.dark .jdh-portal .pw-eye:hover {
+  color: #F87171;
+}
+
+.jdh-portal.dark .auth-divider,
+.dark .jdh-portal .auth-divider {
+  color: #94A3B8;
+}
+
+.jdh-portal.dark .auth-divider::before,
+.jdh-portal.dark .auth-divider::after,
+.dark .jdh-portal .auth-divider::before,
+.dark .jdh-portal .auth-divider::after {
+  background: rgba(148, 163, 184, 0.20);
+}
+
+.jdh-portal.dark .toggle-link,
+.dark .jdh-portal .toggle-link {
+  color: #94A3B8;
+}
+
+.jdh-portal.dark .toggle-link a,
+.dark .jdh-portal .toggle-link a {
+  color: #F87171;
+  text-shadow: none;
+}
+
+.jdh-portal.dark .toggle-link a:hover,
+.dark .jdh-portal .toggle-link a:hover {
+  color: #FCA5A5;
+}
+
+.jdh-portal.dark .form-foot,
+.dark .jdh-portal .form-foot {
+  background: #111827;
+  border-top-color: var(--border);
+}
+
+.jdh-portal.dark .back-link,
+.dark .jdh-portal .back-link {
+  color: #CBD5E1;
+}
+
+.jdh-portal.dark .back-link:hover,
+.dark .jdh-portal .back-link:hover {
+  color: #F8FAFC;
+  background: rgba(51, 65, 85, 0.55);
+}
+
+.jdh-portal.dark .theme-btn,
+.dark .jdh-portal .theme-btn {
+  background: #1E293B;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #CBD5E1;
+}
+
+.jdh-portal.dark .theme-btn:hover,
+.dark .jdh-portal .theme-btn:hover {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #F8FAFC;
+  background: #334155;
+}
+
+.jdh-portal.dark .google-btn,
+.dark .jdh-portal .google-btn {
+  background: #1E293B;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #F8FAFC;
+}
+
+.jdh-portal.dark .google-btn:hover:not(:disabled),
+.dark .jdh-portal .google-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: rgba(148, 163, 184, 0.38);
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.28);
+}
+
+.jdh-portal.dark .deco-brand,
+.dark .jdh-portal .deco-brand,
+.jdh-portal.dark .deco-tagline,
+.dark .jdh-portal .deco-tagline {
+  color: #F8FAFC;
+}
