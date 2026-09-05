@@ -1,7 +1,10 @@
 import type { Handler } from "@netlify/functions";
+import { createHash } from "node:crypto";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
 const normalizeUsername = (value: string) => value.toLowerCase().replace(/^@/, "").replace(/\s+/g, "");
+const normalizeCode = (value: string) => value.trim().toUpperCase();
+const hashAccessCode = (value: string) => createHash("sha256").update(normalizeCode(value)).digest("hex");
 const isBlocked = (data: Record<string, any>) => ["SUSPENDED", "BANNED", "DISABLED"].includes(String(data.accountStatus || data.status || "ACTIVE").toUpperCase());
 
 async function findStudent(identifier: string, db: FirebaseFirestore.Firestore) {
@@ -14,8 +17,6 @@ async function findStudent(identifier: string, db: FirebaseFirestore.Firestore) 
     const byEmail = await db.collection("individualStudents").where("email", "==", email).limit(1).get();
     if (!byEmail.empty) return byEmail.docs[0];
   }
-  const byCode = await db.collection("individualStudents").where("accessCode", "==", raw.toUpperCase()).limit(1).get();
-  if (!byCode.empty) return byCode.docs[0];
   try { const byId = await db.collection("individualStudents").doc(raw).get(); if (byId.exists) return byId; } catch {}
   if (email.includes("@")) {
     const legacy = await db.collection("students").where("email", "==", email).limit(1).get();
@@ -61,8 +62,11 @@ export const handler: Handler = async (event) => {
       const snap = await findStudent(identifier, adminDb);
       if (!snap) return { statusCode: 401, body: JSON.stringify({ error: "Invalid student credentials." }) };
       profile = snap.data() || {};
-      const storedCode = String(profile.accessCode || profile.passcode || "").trim().toUpperCase();
-      if (!storedCode || storedCode !== code.toUpperCase() || isBlocked(profile)) return { statusCode: 401, body: JSON.stringify({ error: "Invalid student credentials." }) };
+      const suppliedCodeHash = hashAccessCode(code);
+      const storedHash = String(profile.accessCodeHash || "").trim().toLowerCase();
+      const legacyCode = String(profile.accessCode || profile.passcode || "").trim().toUpperCase();
+      const codeMatches = storedHash ? storedHash === suppliedCodeHash : !!legacyCode && legacyCode === normalizeCode(code);
+      if (!codeMatches || isBlocked(profile)) return { statusCode: 401, body: JSON.stringify({ error: "Invalid student credentials." }) };
 
       const tutorId = String(profile.tutorId || profile.staffId || profile.assignedTutorId || profile.assignedStaffId || profile.instructorId || "").trim();
       const schoolId = String(profile.schoolId || "").trim();
@@ -76,12 +80,14 @@ export const handler: Handler = async (event) => {
       const authUser = await adminAuth.getUser(uid);
       if (isAuthDisabled(authUser)) return { statusCode: 401, body: JSON.stringify({ error: "This student account is disabled in authentication." }) };
 
-      await snap.ref.set({ firebaseUid: uid, authEmail: authUser.email || null, portalAccessEnabled: true }, { merge: true });
+      const updates: Record<string, unknown> = { firebaseUid: uid, authEmail: authUser.email || null, portalAccessEnabled: true };
+      if (!storedHash && legacyCode) updates.accessCodeHash = hashAccessCode(legacyCode);
+      await snap.ref.set(updates, { merge: true });
       await adminDb.collection("users").doc(uid).set({ email: authUser.email || null, name: profile.fullName || profile.studentName || profile.username || "Student", role: "student", studentDocId: snap.id, schoolId, tutorId: tutorId || null, schoolName: profile.schoolName || "", portalAccessEnabled: true, updatedAt: new Date() }, { merge: true });
       response = { role: "student", studentDocId: snap.id, name: profile.fullName || profile.studentName || profile.username, username: profile.username || "", class: profile.class || profile.grade || "", schoolId, tutorId, schoolName: profile.schoolName || "" };
     } else {
       const raw = identifier;
-      const inputCode = code.toUpperCase();
+      const inputCode = normalizeCode(code);
       let schoolSnap: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot | null = null;
       if (raw.includes("@")) {
         const q = await adminDb.collection("schools").where("email", "==", raw.toLowerCase()).limit(1).get();
