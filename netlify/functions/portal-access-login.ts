@@ -103,7 +103,6 @@ export const handler: Handler = async (event) => {
       }
       if (!schoolSnap) { try { const d = await adminDb.collection("schools").doc(raw).get(); if (d.exists) schoolSnap = d; } catch {} }
       if (!schoolSnap) { const q = await adminDb.collection("schools").where("schoolId", "==", raw).limit(1).get(); if (!q.empty) schoolSnap = q.docs[0]; }
-      if (!schoolSnap) { const q = await adminDb.collection("schools").where("accessCode", "==", raw.toUpperCase()).limit(1).get(); if (!q.empty) schoolSnap = q.docs[0]; }
       if (!schoolSnap) return { statusCode: 401, body: JSON.stringify({ error: "Invalid school credentials." }) };
       profile = schoolSnap.data() || {};
       const storedHash = String(profile.accessCodeHash || "").trim().toLowerCase();
