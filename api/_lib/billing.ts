@@ -1,201 +1,27 @@
 import { adminDb } from "./firebase-admin";
 
 export type BillingRole = "student" | "parent" | "school" | "tutor" | "staff" | "admin" | "superadmin";
-
-export interface FeePolicy {
-  percentage: number;
-  flat: number;
-  cap: number;
-  waiveFlatBelow: number;
-  enabled: boolean;
-}
-
-export interface PaymentPlan {
-  id: string;
-  name: string;
-  role: "student" | "school";
-  baseAmount: number;
-  durationWeeks: number;
-  teachingModes: string[];
-  description: string;
-  active: boolean;
-}
-
-export interface PaymentConfig {
-  version: number;
-  parentFeePolicy: FeePolicy;
-  schoolFeePolicy: FeePolicy;
-  minimumWithdrawalAmount: number;
-  plans: Record<string, PaymentPlan>;
-}
-
-const defaultFeePolicy: FeePolicy = {
-  percentage: 1.5,
-  flat: 100,
-  cap: 2000,
-  waiveFlatBelow: 2500,
-  enabled: true
-};
-
-export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
-  version: 2,
-  parentFeePolicy: { ...defaultFeePolicy },
-  schoolFeePolicy: { ...defaultFeePolicy },
-  minimumWithdrawalAmount: 10000,
-  plans: {
-    plan_weekend: {
-      id: "plan_weekend",
-      name: "Weekend STEM & Coding Track",
-      role: "student",
-      baseAmount: 45000,
-      durationWeeks: 4,
-      teachingModes: ["Weekend group class", "Hybrid support"],
-      description: "Structured weekend STEM, coding and project-based learning.",
-      active: true
-    },
-    plan_mentorship: {
-      id: "plan_mentorship",
-      name: "1-on-1 Intensive Mentorship",
-      role: "student",
-      baseAmount: 120000,
-      durationWeeks: 4,
-      teachingModes: ["1-on-1 intensive", "Private scheduled sessions"],
-      description: "Dedicated mentor support with a personalised 4-week learning cycle.",
-      active: true
-    },
-    plan_robotics: {
-      id: "plan_robotics",
-      name: "Smart Robotics & IoT Hardware Lab",
-      role: "student",
-      baseAmount: 85000,
-      durationWeeks: 4,
-      teachingModes: ["Hands-on lab", "Hybrid robotics lab"],
-      description: "Robotics, electronics and IoT practical laboratory learning.",
-      active: true
-    },
-    school_standard: {
-      id: "school_standard",
-      name: "Institutional STEM Lab Partner",
-      role: "school",
-      baseAmount: 350000,
-      durationWeeks: 12,
-      teachingModes: ["On-site school delivery", "Hybrid school delivery"],
-      description: "Institutional STEM curriculum and tutor dispatch for partner schools.",
-      active: true
-    },
-    school_cbt: {
-      id: "school_cbt",
-      name: "CBT Exam Portal & Lab Suite",
-      role: "school",
-      baseAmount: 600000,
-      durationWeeks: 52,
-      teachingModes: ["School laboratory", "Hybrid CBT programme"],
-      description: "School-wide CBT, laboratory and teacher enablement suite.",
-      active: true
-    }
-  }
-};
-
-const mergeConfig = (raw: Record<string, any> | undefined): PaymentConfig => {
-  const value = raw || {};
-  const plans = { ...DEFAULT_PAYMENT_CONFIG.plans };
-  Object.entries(value.plans || {}).forEach(([id, plan]) => {
-    if (plan && typeof plan === "object") {
-      plans[id] = {
-        ...plans[id],
-        ...plan,
-        id,
-        teachingModes: Array.isArray(plan.teachingModes) ? plan.teachingModes.filter((item: unknown): item is string => typeof item === "string") : (plans[id]?.teachingModes || [])
-      } as PaymentPlan;
-    }
-  });
-
-  return {
-    ...DEFAULT_PAYMENT_CONFIG,
-    ...value,
-    parentFeePolicy: { ...DEFAULT_PAYMENT_CONFIG.parentFeePolicy, ...(value.parentFeePolicy || {}) },
-    schoolFeePolicy: { ...DEFAULT_PAYMENT_CONFIG.schoolFeePolicy, ...(value.schoolFeePolicy || {}) },
-    minimumWithdrawalAmount: Number(value.minimumWithdrawalAmount || DEFAULT_PAYMENT_CONFIG.minimumWithdrawalAmount),
-    plans
-  };
-};
-
-export async function getPaymentConfig(): Promise<PaymentConfig> {
-  const snap = await adminDb.collection("payment_config").doc("settings").get();
-  return mergeConfig(snap.exists ? snap.data() : undefined);
-}
-
-export function calculateCustomerCharge(baseAmount: number, policy: FeePolicy) {
-  const base = Math.max(0, Number(baseAmount) || 0);
-  if (!policy.enabled || base <= 0) return { baseAmount: base, transactionFee: 0, totalAmount: base };
-
-  const percentage = Math.max(0, Number(policy.percentage) || 0) / 100;
-  const flat = base < Number(policy.waiveFlatBelow || 0) ? 0 : Math.max(0, Number(policy.flat) || 0);
-  const cap = Number(policy.cap) > 0 ? Number(policy.cap) : Number.POSITIVE_INFINITY;
-  const rawFeeOnBase = (base * percentage) + flat;
-
-  let total: number;
-  if (rawFeeOnBase > cap) {
-    total = base + cap;
-  } else {
-    total = ((base + flat) / Math.max(0.000001, 1 - percentage)) + 0.01;
-  }
-
-  total = Math.ceil(total * 100) / 100;
-  return {
-    baseAmount: base,
-    transactionFee: Math.max(0, Number((total - base).toFixed(2))),
-    totalAmount: total
-  };
-}
-
-export function getFeePolicy(config: PaymentConfig, role: "parent" | "school") {
-  return role === "school" ? config.schoolFeePolicy : config.parentFeePolicy;
-}
-
-export function normaliseRole(value: unknown): BillingRole {
-  const role = String(value || "").toLowerCase();
-  if (role === "super_admin" || role === "superadmin") return "superadmin";
-  if (role === "administrator" || role === "admin") return "admin";
-  if (role === "tutor" || role === "instructor") return "tutor";
-  if (role === "staff") return "staff";
-  if (role === "school") return "school";
-  if (role === "parent") return "parent";
-  return "student";
-}
-
-export async function getUserRecord(uid: string) {
-  const snap = await adminDb.collection("users").doc(uid).get();
-  return snap.exists ? { uid, ...snap.data() } : { uid, role: "student" };
-}
-
-export function isPrivilegedRole(role: BillingRole) {
-  return ["admin", "superadmin"].includes(role);
-}
-
-export function isStaffRole(role: BillingRole) {
-  return ["tutor", "staff"].includes(role);
-}
-
-export function isActiveRecord(data: Record<string, any>) {
-  return !["SUSPENDED", "BANNED", "DISABLED", "INACTIVE"].includes(String(data.accountStatus || data.status || "ACTIVE").toUpperCase());
-}
-
-export async function resolveTutorFromStudent(studentId: string) {
-  for (const collectionName of ["individualStudents", "students"]) {
-    const ref = adminDb.collection(collectionName).doc(studentId);
-    const snap = await ref.get();
-    if (!snap.exists) continue;
-    const data = snap.data() || {};
-    const tutorId = String(data.tutorId || data.staffId || data.assignedTutorId || data.assignedStaffId || data.instructorId || "").trim();
-    if (!tutorId) return { studentRef: ref, student: data, tutorId: "" };
-    return { studentRef: ref, student: data, tutorId };
-  }
-  return null;
-}
-
-export function addWeeks(date: Date, weeks: number) {
-  const next = new Date(date.getTime());
-  next.setDate(next.getDate() + (Number(weeks) * 7));
-  return next;
-}
+export interface FeePolicy { percentage:number; flat:number; cap:number; waiveFlatBelow:number; enabled:boolean; }
+export interface WithdrawalFeePolicy { percentage:number; flat:number; cap:number; enabled:boolean; }
+export interface PaymentPlan { id:string; name:string; role:"student"|"school"; baseAmount:number; durationWeeks:number; teachingModes:string[]; description:string; active:boolean; }
+export interface PaymentConfig { version:number; parentFeePolicy:FeePolicy; schoolFeePolicy:FeePolicy; withdrawalFeePolicy:WithdrawalFeePolicy; minimumWithdrawalAmount:number; plans:Record<string,PaymentPlan>; }
+const defaultFeePolicy:FeePolicy={percentage:1.5,flat:100,cap:2000,waiveFlatBelow:2500,enabled:true};
+const defaultWithdrawalFeePolicy:WithdrawalFeePolicy={percentage:0,flat:0,cap:0,enabled:false};
+export const DEFAULT_PAYMENT_CONFIG:PaymentConfig={version:3,parentFeePolicy:{...defaultFeePolicy},schoolFeePolicy:{...defaultFeePolicy},withdrawalFeePolicy:{...defaultWithdrawalFeePolicy},minimumWithdrawalAmount:10000,plans:{
+plan_weekend:{id:"plan_weekend",name:"Weekend STEM & Coding Track",role:"student",baseAmount:45000,durationWeeks:4,teachingModes:["Weekend group class","Hybrid support"],description:"Structured weekend STEM, coding and project-based learning.",active:true},
+plan_mentorship:{id:"plan_mentorship",name:"1-on-1 Intensive Mentorship",role:"student",baseAmount:120000,durationWeeks:4,teachingModes:["1-on-1 intensive","Private scheduled sessions"],description:"Dedicated mentor support with a personalised 4-week learning cycle.",active:true},
+plan_robotics:{id:"plan_robotics",name:"Smart Robotics & IoT Hardware Lab",role:"student",baseAmount:85000,durationWeeks:4,teachingModes:["Hands-on lab","Hybrid robotics lab"],description:"Robotics, electronics and IoT practical laboratory learning.",active:true},
+school_standard:{id:"school_standard",name:"Institutional STEM Lab Partner",role:"school",baseAmount:350000,durationWeeks:12,teachingModes:["On-site school delivery","Hybrid school delivery"],description:"Institutional STEM curriculum and tutor dispatch for partner schools.",active:true},
+school_cbt:{id:"school_cbt",name:"CBT Exam Portal & Lab Suite",role:"school",baseAmount:600000,durationWeeks:52,teachingModes:["School laboratory","Hybrid CBT programme"],description:"School-wide CBT, laboratory and teacher enablement suite.",active:true}}};
+const mergeConfig=(raw:Record<string,any>|undefined):PaymentConfig=>{const value=raw||{};const plans={...DEFAULT_PAYMENT_CONFIG.plans};Object.entries(value.plans||{}).forEach(([id,plan])=>{if(plan&&typeof plan==="object")plans[id]={...plans[id],...plan,id,teachingModes:Array.isArray(plan.teachingModes)?plan.teachingModes.filter((item:unknown):item is string=>typeof item==="string"):(plans[id]?.teachingModes||[])} as PaymentPlan});return {...DEFAULT_PAYMENT_CONFIG,...value,parentFeePolicy:{...DEFAULT_PAYMENT_CONFIG.parentFeePolicy,...(value.parentFeePolicy||{})},schoolFeePolicy:{...DEFAULT_PAYMENT_CONFIG.schoolFeePolicy,...(value.schoolFeePolicy||{})},withdrawalFeePolicy:{...DEFAULT_PAYMENT_CONFIG.withdrawalFeePolicy,...(value.withdrawalFeePolicy||{})},minimumWithdrawalAmount:Number(value.minimumWithdrawalAmount||DEFAULT_PAYMENT_CONFIG.minimumWithdrawalAmount),plans};};
+export async function getPaymentConfig(){const snap=await adminDb.collection("payment_config").doc("settings").get();return mergeConfig(snap.exists?snap.data():undefined);}
+export function calculateCustomerCharge(baseAmount:number,policy:FeePolicy){const base=Math.max(0,Number(baseAmount)||0);if(!policy.enabled||base<=0)return{baseAmount:base,transactionFee:0,totalAmount:base};const percentage=Math.max(0,Number(policy.percentage)||0)/100;const flat=base<Number(policy.waiveFlatBelow||0)?0:Math.max(0,Number(policy.flat)||0);const cap=Number(policy.cap)>0?Number(policy.cap):Number.POSITIVE_INFINITY;const rawFeeOnBase=base*percentage+flat;let total:number;if(rawFeeOnBase>cap)total=base+cap;else total=(base+flat)/Math.max(.000001,1-percentage)+.01;total=Math.ceil(total*100)/100;return{baseAmount:base,transactionFee:Math.max(0,Number((total-base).toFixed(2))),totalAmount:total};}
+export function calculateWithdrawalFee(amount:number,policy:WithdrawalFeePolicy){const gross=Math.max(0,Number(amount)||0);if(!policy.enabled||gross<=0)return{grossAmount:gross,serviceFee:0,netAmount:gross};const pct=gross*(Math.max(0,Number(policy.percentage)||0)/100);const flat=Math.max(0,Number(policy.flat)||0);const uncapped=pct+flat;const cap=Number(policy.cap)>0?Number(policy.cap):Number.POSITIVE_INFINITY;const serviceFee=Math.min(uncapped,cap);return{grossAmount:gross,serviceFee:Number(serviceFee.toFixed(2)),netAmount:Number(Math.max(0,gross-serviceFee).toFixed(2))};}
+export function getFeePolicy(config:PaymentConfig,role:"parent"|"school"){return role==="school"?config.schoolFeePolicy:config.parentFeePolicy;}
+export function normaliseRole(value:unknown):BillingRole{const role=String(value||"").toLowerCase();if(role==="super_admin"||role==="superadmin")return"superadmin";if(role==="administrator"||role==="admin")return"admin";if(role==="tutor"||role==="instructor")return"tutor";if(role==="staff")return"staff";if(role==="school")return"school";if(role==="parent")return"parent";return"student";}
+export async function getUserRecord(uid:string){const snap=await adminDb.collection("users").doc(uid).get();return snap.exists?{uid,...snap.data()}:{uid,role:"student"};}
+export function isPrivilegedRole(role:BillingRole){return["admin","superadmin"].includes(role);}
+export function isStaffRole(role:BillingRole){return["tutor","staff"].includes(role);}
+export function isActiveRecord(data:Record<string,any>){return!["SUSPENDED","BANNED","DISABLED","INACTIVE"].includes(String(data.accountStatus||data.status||"ACTIVE").toUpperCase());}
+export async function resolveTutorFromStudent(studentId:string){for(const collectionName of["individualStudents","students"]){const ref=adminDb.collection(collectionName).doc(studentId);const snap=await ref.get();if(!snap.exists)continue;const data=snap.data()||{};const tutorId=String(data.tutorId||data.staffId||data.assignedTutorId||data.assignedStaffId||data.instructorId||"").trim();if(!tutorId)return{studentRef:ref,student:data,tutorId:""};return{studentRef:ref,student:data,tutorId};}return null;}
+export function addWeeks(date:Date,weeks:number){const next=new Date(date.getTime());next.setDate(next.getDate()+Number(weeks)*7);return next;}
