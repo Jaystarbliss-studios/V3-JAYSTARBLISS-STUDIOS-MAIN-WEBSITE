@@ -1,5 +1,5 @@
 import type { Handler } from '@netlify/functions';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({
@@ -14,6 +14,8 @@ const bearer = (event: any) => {
 };
 
 const clean = (value: unknown, max = 160) => String(value ?? '').trim().slice(0, max);
+const normalizeCode = (value: string) => value.trim().toUpperCase();
+const hashAccessCode = (value: string) => createHash('sha256').update(normalizeCode(value)).digest('hex');
 const makeCode = () => `JBS-${randomBytes(5).toString('hex').toUpperCase()}`;
 const makePassword = () => randomBytes(12).toString('base64url');
 
@@ -51,7 +53,7 @@ export const handler: Handler = async (event) => {
     const className = clean(body.class || body.grade || '', 80);
     const track = clean(body.track || '', 120);
     const parentId = clean(body.parentId || '', 160);
-    const requestedCode = clean(body.accessCode || body.passcode || '', 40).toUpperCase();
+    const requestedCode = clean(body.accessCode || body.passcode || '', 40);
 
     if (!fullName || !username || !className) {
       return json(400, { error: 'Student name, username and class are required.' });
@@ -63,17 +65,15 @@ export const handler: Handler = async (event) => {
     const duplicate = await adminDb.collection('individualStudents').where('username', '==', username).limit(1).get();
     if (!duplicate.empty) return json(409, { error: 'That student username is already in use.' });
 
-    const accessCode = requestedCode || makeCode();
-    const codeDuplicate = await adminDb.collection('individualStudents').where('accessCode', '==', accessCode).limit(1).get();
+    const accessCode = normalizeCode(requestedCode || makeCode());
+    const accessCodeHash = hashAccessCode(accessCode);
+    const codeDuplicate = await adminDb.collection('individualStudents').where('accessCodeHash', '==', accessCodeHash).limit(1).get();
     if (!codeDuplicate.empty) return json(409, { error: 'That student access code is already in use.' });
+    const legacyCodeDuplicate = await adminDb.collection('individualStudents').where('accessCode', '==', accessCode).limit(1).get();
+    if (!legacyCodeDuplicate.empty) return json(409, { error: 'That student access code is already in use.' });
 
     const syntheticEmail = `student-${randomBytes(10).toString('hex')}@jbs-portal.local`;
-    const authUser = await adminAuth.createUser({
-      email: email || syntheticEmail,
-      password: makePassword(),
-      displayName: fullName,
-      disabled: false,
-    });
+    const authUser = await adminAuth.createUser({ email: email || syntheticEmail, password: makePassword(), displayName: fullName, disabled: false });
     createdUid = authUser.uid;
 
     const studentRef = adminDb.collection('individualStudents').doc();
@@ -82,7 +82,7 @@ export const handler: Handler = async (event) => {
       fullName,
       studentName: fullName,
       username,
-      accessCode,
+      accessCodeHash,
       schoolId,
       schoolName: school.name || school.schoolName || '',
       class: className,
@@ -112,30 +112,11 @@ export const handler: Handler = async (event) => {
       updatedAt: now,
     }, { merge: true });
 
-    await adminDb.collection('activityLogs').add({
-      actorId: decoded.uid,
-      action: 'SCHOOL_STUDENT_ONBOARDED',
-      targetId: studentRef.id,
-      targetType: 'student',
-      schoolId,
-      timestamp: now,
-      metadata: { username, class: className },
-    });
+    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className } });
 
     return json(201, {
-      student: {
-        id: studentRef.id,
-        fullName,
-        username,
-        class: className,
-        schoolId,
-        portal: '/portal/student',
-      },
-      credentials: {
-        username,
-        accessCode,
-        portal: '/portal/student',
-      },
+      student: { id: studentRef.id, fullName, username, class: className, schoolId, portal: '/portal/student' },
+      credentials: { username, accessCode, portal: '/portal/student' },
     });
   } catch (error) {
     if (createdUid) {
