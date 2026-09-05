@@ -1,9 +1,9 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
-import { calculateCustomerCharge, getFeePolicy, getPaymentConfig, getUserRecord, normaliseRole } from "../../api/_lib/billing";
+import { calculateCustomerCharge, getFeePolicy, getPaymentConfig, getUserRecord, normaliseRole, isActiveRecord } from "../../api/_lib/billing";
 
 const token = (event: any) => { const header = event.headers?.authorization || event.headers?.Authorization || ""; return header.startsWith("Bearer ") ? header.slice(7) : ""; };
-const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
 const findStudent = async (studentId: string, ownerId: string, ownerType: "parent" | "school") => {
   if (!studentId) return null;
   for (const name of ["individualStudents", "students"]) {
@@ -16,7 +16,6 @@ const findStudent = async (studentId: string, ownerId: string, ownerType: "paren
   }
   throw new Error("STUDENT_NOT_FOUND");
 };
-
 const derivePlanId = (value: unknown) => { const text = String(value || "").toLowerCase(); if (text.includes("intensive") || text.includes("1-on-1") || text.includes("mentorship")) return "plan_mentorship"; if (text.includes("robotic") || text.includes("iot") || text.includes("hardware") || text.includes("ai")) return "plan_robotics"; if (text.includes("school") && text.includes("cbt")) return "school_cbt"; return "plan_weekend"; };
 
 export const handler: Handler = async (event) => {
@@ -24,7 +23,8 @@ export const handler: Handler = async (event) => {
   try {
     const authToken = token(event); if (!authToken) return json(401, { error: "Authentication required." });
     const decoded = await adminAuth.verifyIdToken(authToken);
-    const user = await getUserRecord(decoded.uid); const actualRole = normaliseRole(user.role);
+    const user = await getUserRecord(decoded.uid); if (!isActiveRecord(user) || !user.role) return json(403, { error: "An active portal profile is required before making a payment." });
+    const actualRole = normaliseRole(user.role);
     const body = JSON.parse(event.body || "{}"); const requestedRole = String(body.role || actualRole).toLowerCase();
     if (requestedRole !== actualRole) return json(403, { error: "Payment role does not match your active portal role." });
     if (!["parent", "school", "student"].includes(actualRole)) return json(403, { error: "This account is not eligible to make tuition payments." });
@@ -58,7 +58,13 @@ export const handler: Handler = async (event) => {
       const schoolId = String((user as any).schoolId || decoded.uid);
       if (studentId) student = await findStudent(studentId, schoolId, "school");
     }
-    if (actualRole === "student") studentId = studentId || String((user as any).studentDocId || "");
+    if (actualRole === "student") {
+      studentId = studentId || String((user as any).studentDocId || "");
+      if (!studentId || !String((user as any).studentDocId || "")) return json(403, { error: "Your student profile is not ready for billing." });
+      const studentLookup = await adminDb.collection("individualStudents").doc(studentId).get();
+      if (!studentLookup.exists || String(studentLookup.data()?.firebaseUid || studentLookup.data()?.userId || "") !== decoded.uid) return json(403, { error: "Your student profile could not be verified." });
+      student = { id: studentLookup.id, ...studentLookup.data() };
+    }
 
     const teachingMode = String(body.teachingMode || enrollment?.teachingMode || enrollment?.modeOfTeaching || student?.teachingMode || plan.teachingModes[0] || "Standard delivery").trim();
     const durationWeeks = actualRole === "school" ? Math.max(1, Number(body.durationWeeks || enrollment?.durationWeeks || plan.durationWeeks)) : 4;
@@ -73,16 +79,8 @@ export const handler: Handler = async (event) => {
     const callbackPath = actualRole === "school" ? "/portal/school/payments" : actualRole === "parent" ? "/portal/parent/payments" : "/portal/student/payments";
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: decoded.email,
-        amount: Math.round(charge.totalAmount * 100),
-        currency: "NGN",
-        callback_url: `${callbackRoot.replace(/\/$/, "")}${callbackPath}`,
-        channels: [paymentMethod],
-        metadata: { userId: decoded.uid, role: actualRole, planRole: plan.role, planId, planName: plan.name, baseAmount: charge.baseAmount, transactionFee: charge.transactionFee, customerTotal: charge.totalAmount, durationWeeks, teachingMode, studentId: studentId || null, studentName: student?.fullName || student?.studentName || enrollment?.studentName || null, tutorId: tutorId || null, enrollmentRequestId: enrollmentRequestId || null, schoolId: schoolId || null, paymentMethod }
-      })
+      method: "POST", headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email: decoded.email, amount: Math.round(charge.totalAmount * 100), currency: "NGN", callback_url: `${callbackRoot.replace(/\/$/, "")}${callbackPath}`, channels: [paymentMethod], metadata: { userId: decoded.uid, role: actualRole, planRole: plan.role, planId, planName: plan.name, baseAmount: charge.baseAmount, transactionFee: charge.transactionFee, customerTotal: charge.totalAmount, durationWeeks, teachingMode, studentId: studentId || null, studentName: student?.fullName || student?.studentName || enrollment?.studentName || null, tutorId: tutorId || null, enrollmentRequestId: enrollmentRequestId || null, schoolId: schoolId || null, paymentMethod } })
     });
     const data = await response.json();
     if (!response.ok || !data.status || !data.data?.authorization_url) { console.error("Paystack initialization failed:", data); return json(502, { error: "Unable to initialize payment." }); }
