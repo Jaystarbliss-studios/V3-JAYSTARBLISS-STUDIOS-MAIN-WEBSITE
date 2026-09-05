@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) });
 const token = (event: any) => { const h = event.headers?.authorization || event.headers?.Authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
 const roleOf = (v: unknown) => String(v || '').trim().toUpperCase();
+const blocked = (v: unknown) => ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(v || 'ACTIVE').toUpperCase());
 
 export const handler: Handler = async (event) => {
   try {
@@ -12,7 +13,8 @@ export const handler: Handler = async (event) => {
     const decoded = await adminAuth.verifyIdToken(raw);
     const userSnap = await adminDb.collection('users').doc(decoded.uid).get();
     if (!userSnap.exists) return json(403, { error: 'Portal profile not found.' });
-    const user = userSnap.data() || {}; const role = roleOf(user.role);
+    const user = userSnap.data() || {}; if (blocked(user.accountStatus || user.status)) return json(403, { error: 'Your account is not active.' });
+    const role = roleOf(user.role);
     const schools = new Map<string, any>();
     if (['ADMIN', 'SUPER_ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN'].includes(role)) {
       (await adminDb.collection('schools').limit(300).get()).forEach(d => schools.set(d.id, { id: d.id, ...d.data() }));
