@@ -15,7 +15,7 @@ const FeaturedPrograms: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const { data: sectionInfo } = usePageSection('home', 'programs_preview', {
-    title: 'THE JAYSTARBLISS LEARNING ECOSYSTEM',
+    title: 'THE LEARNING ECOSYSTEM',
     ctaText: 'EXPLORE ALL 8 ACADEMIES',
     ctaLink: '/programs'
   });
@@ -49,7 +49,7 @@ const FeaturedPrograms: React.FC = () => {
         {/* Header */}
         <Reveal className="text-center max-w-4xl mx-auto mb-12">
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-[42px] font-extrabold text-brand-slate dark:text-white mb-8 tracking-tight">
-            {sectionInfo.title || 'THE JAYSTARBLISS LEARNING ECOSYSTEM'}
+            {sectionInfo.title || 'THE LEARNING ECOSYSTEM'}
           </h2>
 
           <div className="flex flex-wrap justify-center gap-3">
