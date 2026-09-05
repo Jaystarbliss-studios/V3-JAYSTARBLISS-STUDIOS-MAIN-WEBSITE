@@ -5,9 +5,9 @@ import SEO from '../../components/ui/SEO';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 
 export type AssignmentCenterRole = 'student' | 'staff' | 'parent' | 'school';
-
 type Student = { id: string; fullName: string; username?: string; email?: string; plan?: string; schoolId?: string; parentId?: string; tutorId?: string; firebaseUid?: string };
 type Assignment = { id: string; title: string; instructions: string; tutorName?: string; studentName?: string; dueDate?: string | null; status: string; grade?: number | null; feedback?: string | null; submissionText?: string | null; submissionUrl?: string | null; submittedAt?: string | null; reviewedAt?: string | null; reviewStatus?: string | null; resourceUrl?: string | null; resourceTitle?: string | null; createdAt?: string | null };
+type Draft = { text: string; url: string };
 
 const api = async (path: string, options: RequestInit = {}) => {
   const user = auth.currentUser;
@@ -33,15 +33,13 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
   const [showCreate, setShowCreate] = useState(false);
   const [reviewing, setReviewing] = useState<Assignment | null>(null);
   const [submittingId, setSubmittingId] = useState('');
-  const [submissionText, setSubmissionText] = useState('');
-  const [submissionUrl, setSubmissionUrl] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [form, setForm] = useState({ title: '', instructions: '', dueDate: '', resourceTitle: '', resourceUrl: '' });
   const [reviewForm, setReviewForm] = useState({ grade: '', feedback: '', reviewStatus: 'COMPLETED' });
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const query = selectedStudentId ? `?studentId=${encodeURIComponent(selectedStudentId)}` : '';
       const [assignmentData, studentData] = await Promise.all([
         api(`/api/academic-assignments?action=list${selectedStudentId ? `&studentId=${encodeURIComponent(selectedStudentId)}` : ''}`),
         api('/api/academic-students'),
@@ -56,6 +54,7 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
   useEffect(() => { if (role === 'parent' && !selectedStudentId && students.length) setSelectedStudentId(students[0].id); }, [role, selectedStudentId, students]);
 
   const pendingReview = useMemo(() => assignments.filter(a => a.status === 'SUBMITTED').length, [assignments]);
+  const completed = useMemo(() => assignments.filter(a => a.status === 'COMPLETED').length, [assignments]);
   const activeStudent = students.find(s => s.id === selectedStudentId);
 
   const createAssignment = async (event: React.FormEvent) => {
@@ -70,11 +69,15 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not publish assignment.'); }
   };
 
+  const updateDraft = (assignmentId: string, patch: Partial<Draft>) => setDrafts(current => ({ ...current, [assignmentId]: { text: current[assignmentId]?.text || '', url: current[assignmentId]?.url || '', ...patch } }));
   const submitAssignment = async (assignmentId: string) => {
+    const draft = drafts[assignmentId] || { text: '', url: '' };
     setSubmittingId(assignmentId); setError('');
     try {
-      await api('/api/academic-assignments', { method: 'POST', body: JSON.stringify({ action: 'submit', assignmentId, submissionText, submissionUrl }) });
-      setSuccess('Your assignment has been submitted to your tutor.'); setSubmissionText(''); setSubmissionUrl(''); await load();
+      await api('/api/academic-assignments', { method: 'POST', body: JSON.stringify({ action: 'submit', assignmentId, submissionText: draft.text, submissionUrl: draft.url }) });
+      setSuccess('Your assignment has been submitted to your tutor.');
+      setDrafts(current => ({ ...current, [assignmentId]: { text: '', url: '' } }));
+      await load();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not submit assignment.'); }
     finally { setSubmittingId(''); }
   };
@@ -95,14 +98,13 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
   return <div className="dashboard-interface space-y-6">
     <SEO title={`${title} | Jaystarbliss Studios`} description={subtitle} noindex={true} />
     <DashboardGreeting name={title} role={role === 'staff' ? 'Teaching Workspace' : role === 'parent' ? 'Parent Learning View' : role === 'school' ? 'School Learning View' : 'Learner Workspace'} subtitle={subtitle} />
-
     {success && <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 size={18} />{success}<button className="ml-auto" onClick={() => setSuccess('')} aria-label="Dismiss"><X size={16} /></button></div>}
     {error && <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><AlertCircle size={18} />{error}<button className="ml-auto" onClick={() => setError('')} aria-label="Dismiss"><X size={16} /></button></div>}
 
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="pro-surface rounded-2xl p-5 flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center"><ClipboardList size={21} /></div><div><p className="text-xs text-slate-500">Total assignments</p><p className="text-2xl font-black text-slate-900 dark:text-white">{assignments.length}</p></div></div>
-      <div className="pro-surface rounded-2xl p-5 flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><Send size={20} /></div><div><p className="text-xs text-slate-500">Awaiting review</p><p className="text-2xl font-black text-slate-900 dark:text-white">{pendingReview}</p></div></div>
-      <div className="pro-surface rounded-2xl p-5 flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><GraduationCap size={20} /></div><div><p className="text-xs text-slate-500">Completed</p><p className="text-2xl font-black text-slate-900 dark:text-white">{assignments.filter(a => a.status === 'COMPLETED').length}</p></div></div>
+      <Stat icon={<ClipboardList size={21} />} label="Total assignments" value={assignments.length} />
+      <Stat icon={<Send size={20} />} label="Awaiting review" value={pendingReview} />
+      <Stat icon={<GraduationCap size={20} />} label="Completed" value={completed} />
     </div>
 
     {(role === 'staff' || role === 'parent') && <div className="pro-surface rounded-2xl p-5 flex flex-col sm:flex-row sm:items-end gap-4">
@@ -114,8 +116,8 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
     {role === 'parent' && activeStudent && <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 p-4 flex items-center gap-3"><UserRound size={18} className="text-brand-red" /><div><p className="font-bold text-sm text-slate-900 dark:text-white">{activeStudent.fullName}</p><p className="text-xs text-slate-500">{activeStudent.plan || 'Assigned learning track'}</p></div></div>}
 
     <div className="pro-surface rounded-3xl p-5 md:p-7">
-      <div className="flex items-center justify-between mb-5"><div><h2 className="text-xl font-black text-slate-900 dark:text-white">Assignment inbox</h2><p className="text-xs text-slate-500 mt-1">Each assignment follows a real publish → submit → review lifecycle.</p></div></div>
-      {loading ? <div className="py-12 text-center text-sm text-slate-500"><Loader2 className="mx-auto animate-spin mb-2" size={22} />Loading assignments…</div> : assignments.length === 0 ? <div className="py-14 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl"><ClipboardList className="mx-auto text-slate-300 mb-3" size={38} /><p className="font-bold text-slate-900 dark:text-white">No assignments yet</p><p className="text-sm text-slate-500 mt-1">{role === 'staff' ? 'Choose an assigned student and create their first assignment.' : 'When a tutor publishes work for this learner, it will appear here.'}</p></div> : <div className="space-y-4">{assignments.map(a => <AssignmentCard key={a.id} assignment={a} role={role} onSubmit={submitAssignment} submitting={submittingId === a.id} submissionText={submissionText} submissionUrl={submissionUrl} setSubmissionText={setSubmissionText} setSubmissionUrl={setSubmissionUrl} onReview={() => { setReviewing(a); setReviewForm({ grade: a.grade == null ? '' : String(a.grade), feedback: a.feedback || '', reviewStatus: a.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMISSION_REQUIRED' : 'COMPLETED' }); }} />)}</div>}
+      <div className="mb-5"><h2 className="text-xl font-black text-slate-900 dark:text-white">Assignment inbox</h2><p className="text-xs text-slate-500 mt-1">Each assignment follows a real publish → submit → review lifecycle.</p></div>
+      {loading ? <div className="py-12 text-center text-sm text-slate-500"><Loader2 className="mx-auto animate-spin mb-2" size={22} />Loading assignments…</div> : assignments.length === 0 ? <div className="py-14 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl"><ClipboardList className="mx-auto text-slate-300 mb-3" size={38} /><p className="font-bold text-slate-900 dark:text-white">No assignments yet</p><p className="text-sm text-slate-500 mt-1">{role === 'staff' ? 'Choose an assigned student and create their first assignment.' : 'When a tutor publishes work for this learner, it will appear here.'}</p></div> : <div className="space-y-4">{assignments.map(a => <AssignmentCard key={a.id} assignment={a} role={role} draft={drafts[a.id] || { text: '', url: '' }} onDraftChange={patch => updateDraft(a.id, patch)} onSubmit={submitAssignment} submitting={submittingId === a.id} onReview={() => { setReviewing(a); setReviewForm({ grade: a.grade == null ? '' : String(a.grade), feedback: a.feedback || '', reviewStatus: a.status === 'RESUBMISSION_REQUIRED' ? 'RESUBMISSION_REQUIRED' : 'COMPLETED' }); }} />)}</div>}
     </div>
 
     {showCreate && <Modal title="Create assignment" onClose={() => setShowCreate(false)}><form onSubmit={createAssignment} className="space-y-4"><p className="text-xs text-slate-500">Publishing this assignment will notify the learner and linked parent when available.</p><Field label="Title"><input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Build a Python calculator" className="input" /></Field><Field label="Instructions"><textarea required rows={6} value={form.instructions} onChange={e => setForm({ ...form, instructions: e.target.value })} placeholder="Explain exactly what the learner should do, what to submit and any requirements." className="input resize-y" /></Field><Field label="Due date"><input required type="datetime-local" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className="input" /></Field><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><Field label="Resource title (optional)"><input value={form.resourceTitle} onChange={e => setForm({ ...form, resourceTitle: e.target.value })} placeholder="Lesson guide" className="input" /></Field><Field label="Resource URL (optional)"><input type="url" value={form.resourceUrl} onChange={e => setForm({ ...form, resourceUrl: e.target.value })} placeholder="https://…" className="input" /></Field></div><div className="flex justify-end gap-3 pt-3"><button type="button" onClick={() => setShowCreate(false)} className="btn-secondary">Cancel</button><button type="submit" className="btn-primary"><Send size={16} /> Publish Assignment</button></div></form></Modal>}
@@ -123,10 +125,11 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
   </div>;
 };
 
+const Stat: React.FC<{ icon: React.ReactNode; label: string; value: number }> = ({ icon, label, value }) => <div className="pro-surface rounded-2xl p-5 flex items-center gap-4"><div className="h-11 w-11 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center">{icon}</div><div><p className="text-xs text-slate-500">{label}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{value}</p></div></div>;
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => <label className="block"><span className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1.5">{label}</span>{children}</label>;
 const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"><div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6"><div className="flex items-center justify-between mb-5"><h3 className="text-lg font-black text-slate-900 dark:text-white">{title}</h3><button onClick={onClose} type="button" className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close"><X size={18} /></button></div>{children}</div></div>;
 
-const AssignmentCard: React.FC<{ assignment: Assignment; role: AssignmentCenterRole; onSubmit: (id: string) => void; submitting: boolean; submissionText: string; submissionUrl: string; setSubmissionText: React.Dispatch<React.SetStateAction<string>>; setSubmissionUrl: React.Dispatch<React.SetStateAction<string>>; onReview: () => void }> = ({ assignment: a, role, onSubmit, submitting, submissionText, submissionUrl, setSubmissionText, setSubmissionUrl, onReview }) => {
+const AssignmentCard: React.FC<{ assignment: Assignment; role: AssignmentCenterRole; draft: Draft; onDraftChange: (patch: Partial<Draft>) => void; onSubmit: (id: string) => void; submitting: boolean; onReview: () => void }> = ({ assignment: a, role, draft, onDraftChange, onSubmit, submitting, onReview }) => {
   const canSubmit = role === 'student' && ['PUBLISHED', 'RESUBMISSION_REQUIRED'].includes(a.status);
   return <article className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-950/40 p-5">
     <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2 mb-2"><span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${statusClass(a.status)}`}>{statusLabel(a.status)}</span>{a.dueDate && <span className="text-xs text-slate-500">Due {formatDate(a.dueDate)}</span>}</div><h3 className="text-base font-black text-slate-900 dark:text-white">{a.title}</h3><p className="text-xs text-slate-500 mt-1">{role === 'staff' ? a.studentName : `Tutor: ${a.tutorName || 'Assigned tutor'}`}</p></div>{role === 'staff' && a.status === 'SUBMITTED' && <button type="button" onClick={onReview} className="min-h-10 px-4 rounded-xl bg-brand-red text-white text-xs font-bold inline-flex items-center justify-center gap-2"><MessageSquare size={15} /> Review Work</button>}{a.grade != null && <div className="text-right"><p className="text-2xl font-black text-slate-900 dark:text-white">{a.grade}<span className="text-sm text-slate-400">/100</span></p><p className="text-[11px] text-slate-500">Tutor score</p></div>}</div>
@@ -134,7 +137,7 @@ const AssignmentCard: React.FC<{ assignment: Assignment; role: AssignmentCenterR
     {a.resourceUrl && <a href={a.resourceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold text-brand-red hover:bg-slate-50 dark:hover:bg-slate-900"><FileText size={15} />{a.resourceTitle || 'Open attached resource'}<ExternalLink size={13} /></a>}
     {a.submissionText && <div className="mt-4 rounded-xl bg-slate-50 dark:bg-slate-900/80 p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">Submitted work</p><p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200 line-clamp-6">{a.submissionText}</p>{a.submissionUrl && <a href={a.submissionUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-brand-red hover:underline"><ExternalLink size={13} /> Open submission link</a>}</div>}
     {a.feedback && <div className="mt-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/20 p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 mb-2">Tutor feedback</p><p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{a.feedback}</p></div>}
-    {canSubmit && <div className="mt-5 border-t border-slate-100 dark:border-slate-800 pt-5 space-y-3"><p className="text-xs font-bold text-slate-700 dark:text-slate-300">Submit your work</p><textarea rows={5} value={submissionText} onChange={e => setSubmissionText(e.target.value)} placeholder="Paste your answer, explanation, code, or project notes here…" className="input resize-y" /><input type="url" value={submissionUrl} onChange={e => setSubmissionUrl(e.target.value)} placeholder="Optional project/file link (https://…)" className="input" /><button type="button" disabled={submitting || (!submissionText.trim() && !submissionUrl.trim())} onClick={() => onSubmit(a.id)} className="btn-primary disabled:opacity-40"><Send size={16} />{submitting ? 'Submitting…' : 'Submit Assignment'}</button></div>}
+    {canSubmit && <div className="mt-5 border-t border-slate-100 dark:border-slate-800 pt-5 space-y-3"><p className="text-xs font-bold text-slate-700 dark:text-slate-300">Submit your work</p><textarea rows={5} value={draft.text} onChange={e => onDraftChange({ text: e.target.value })} placeholder="Paste your answer, explanation, code, or project notes here…" className="input resize-y" /><input type="url" value={draft.url} onChange={e => onDraftChange({ url: e.target.value })} placeholder="Optional project/file link (https://…)" className="input" /><button type="button" disabled={submitting || (!draft.text.trim() && !draft.url.trim())} onClick={() => onSubmit(a.id)} className="btn-primary disabled:opacity-40"><Send size={16} />{submitting ? 'Submitting…' : 'Submit Assignment'}</button></div>}
   </article>;
 };
 
