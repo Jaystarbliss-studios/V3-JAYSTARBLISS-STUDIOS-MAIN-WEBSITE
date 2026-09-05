@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+import type { QuerySnapshot } from 'firebase-admin/firestore';
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) });
 const token = (event: any) => { const h = event.headers?.authorization || event.headers?.Authorization || ''; return h.startsWith('Bearer ') ? h.slice(7) : ''; };
@@ -15,7 +16,7 @@ export const handler: Handler = async (event) => {
     const user = userSnap.data() || {};
     const role = roleOf(user.role);
     const docs = new Map<string, any>();
-    const add = (snap: FirebaseFirestore.QuerySnapshot) => snap.forEach(d => docs.set(d.id, { id: d.id, ...d.data() }));
+    const add = (snap: QuerySnapshot) => snap.forEach(d => docs.set(d.id, { id: d.id, ...d.data() }));
 
     if (['TUTOR', 'STAFF', 'INSTRUCTOR'].includes(role)) {
       for (const field of ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId']) {
