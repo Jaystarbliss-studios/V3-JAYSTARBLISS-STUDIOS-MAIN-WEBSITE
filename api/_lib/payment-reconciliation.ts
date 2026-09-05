@@ -1,6 +1,6 @@
 import { adminDb } from "./firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { calculateCustomerCharge, getFeePolicy, getPaymentConfig } from "./billing";
+import { calculateCustomerCharge, getFeePolicy, getPaymentConfig, normaliseRole } from "./billing";
 import { createPortalNotification } from "./email";
 
 const asString = (value: unknown) => String(value ?? "").trim();
@@ -9,7 +9,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   const reference = asString(tx.reference);
   const metadata = tx.metadata || {};
   const userId = asString(metadata.userId);
-  const role = asString(metadata.role).toLowerCase();
+  const requestedRole = asString(metadata.role).toLowerCase();
   const planId = asString(metadata.planId);
   const enrollmentRequestId = asString(metadata.enrollmentRequestId);
   if (!reference || !userId || !planId) throw new Error("PAYMENT_METADATA_INVALID");
@@ -18,6 +18,17 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   const config = await getPaymentConfig();
   const plan = config.plans[planId];
   if (!plan || !plan.active) throw new Error("PAYMENT_PLAN_INVALID");
+
+  const userSnap = await adminDb.collection("users").doc(userId).get();
+  if (!userSnap.exists) throw new Error("PAYMENT_USER_NOT_FOUND");
+  const userRecord = userSnap.data() || {};
+  const authoritativeRole = normaliseRole(userRecord.role);
+  if (requestedRole && requestedRole !== authoritativeRole) throw new Error("PAYMENT_ROLE_MISMATCH");
+  const role = authoritativeRole;
+  if (!["parent", "school", "student"].includes(role)) throw new Error("PAYMENT_ROLE_INVALID");
+  if (role === "school" && plan.role !== "school") throw new Error("PAYMENT_PLAN_ROLE_MISMATCH");
+  if (role !== "school" && plan.role !== "student") throw new Error("PAYMENT_PLAN_ROLE_MISMATCH");
+
   const feeRole = role === "school" ? "school" : "parent";
   const charge = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
   const providerAmount = Number(tx.amount || 0) / 100;
@@ -29,7 +40,6 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
 
   const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
   const enrollmentRef = enrollmentRequestId ? adminDb.collection("enrollment_requests").doc(enrollmentRequestId) : null;
-  const userRef = adminDb.collection("users").doc(userId);
   let created = false;
   let paymentData: Record<string, any> = {};
 
@@ -37,8 +47,6 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
     const paymentSnap = await transaction.get(canonicalPaymentRef);
     if (paymentSnap.exists) return;
     const enrollmentSnap = enrollmentRef ? await transaction.get(enrollmentRef) : null;
-    const userSnap = await transaction.get(userRef);
-    const userRecord = userSnap.exists ? userSnap.data() || {} : {};
     const enrollment = enrollmentSnap?.exists ? enrollmentSnap.data() || {} : {};
 
     if (enrollmentRequestId) {
@@ -54,6 +62,17 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
     const schoolId = asString(metadata.schoolId || enrollment.schoolId || userRecord.schoolId);
     const studentName = asString(metadata.studentName || enrollment.studentName || enrollment.enrollmentStudentName);
     const paidAt = tx.paid_at ? new Date(tx.paid_at) : new Date();
+
+    if (role === "student") {
+      const ownStudentId = asString(userRecord.studentDocId);
+      if (!ownStudentId || (studentId && studentId !== ownStudentId)) throw new Error("PAYMENT_STUDENT_OWNER_MISMATCH");
+    }
+    if (role === "school" && schoolId && asString(userRecord.schoolId) !== schoolId) throw new Error("PAYMENT_SCHOOL_OWNER_MISMATCH");
+    if (role === "parent" && studentId) {
+      let studentSnap = await transaction.get(adminDb.collection("individualStudents").doc(studentId));
+      if (!studentSnap.exists) studentSnap = await transaction.get(adminDb.collection("students").doc(studentId));
+      if (!studentSnap.exists || asString(studentSnap.data()?.parentId) !== userId) throw new Error("PAYMENT_STUDENT_OWNER_MISMATCH");
+    }
 
     paymentData = {
       userId,
@@ -99,53 +118,12 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
     transaction.create(canonicalPaymentRef, paymentData);
     created = true;
 
-    if (enrollmentRef) {
-      transaction.set(enrollmentRef, {
-        paymentStatus: "PAID",
-        paymentReference: reference,
-        paymentPlanId: planId,
-        paymentPlanName: plan.name,
-        paymentBaseAmount: charge.baseAmount,
-        paymentTransactionFee: charge.transactionFee,
-        paymentTotal: charge.totalAmount,
-        durationWeeks: paymentData.durationWeeks,
-        teachingMode: paymentData.teachingMode,
-        studentId: studentId || null,
-        tutorId: tutorId || null,
-        schoolId: schoolId || null,
-        paidAt,
-        updatedAt: new Date()
-      }, { merge: true });
-    }
-
-    if (tutorId) {
-      transaction.set(adminDb.collection("staffWallets").doc(tutorId), {
-        availableBalance: FieldValue.increment(charge.baseAmount),
-        lifetimeEarned: FieldValue.increment(charge.baseAmount),
-        updatedAt: new Date()
-      }, { merge: true });
-    }
+    if (enrollmentRef) transaction.set(enrollmentRef, { paymentStatus: "PAID", paymentReference: reference, paymentPlanId: planId, paymentPlanName: plan.name, paymentBaseAmount: charge.baseAmount, paymentTransactionFee: charge.transactionFee, paymentTotal: charge.totalAmount, durationWeeks: paymentData.durationWeeks, teachingMode: paymentData.teachingMode, studentId: studentId || null, tutorId: tutorId || null, schoolId: schoolId || null, paidAt, updatedAt: new Date() }, { merge: true });
+    if (tutorId) transaction.set(adminDb.collection("staffWallets").doc(tutorId), { availableBalance: FieldValue.increment(charge.baseAmount), lifetimeEarned: FieldValue.increment(charge.baseAmount), updatedAt: new Date() }, { merge: true });
   });
 
   if (!created) return { created: false, payment: null };
-
-  await createPortalNotification({
-    recipientId: userId,
-    email: paymentData.email,
-    title: "Payment confirmed",
-    message: `${paymentData.plan} payment for ${paymentData.studentName || "your account"} was verified for ₦${paymentData.customerTotal.toLocaleString()}. Your paid-through date is ${new Date(new Date(paymentData.paidAt).getTime() + paymentData.durationWeeks * 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-NG")}.`,
-    type: "PAYMENT_CONFIRMED",
-    data: { paymentId: reference, planId, studentId: paymentData.studentId, tutorId: paymentData.tutorId }
-  });
-  if (paymentData.tutorId && paymentData.tutorEmail) {
-    await createPortalNotification({
-      recipientId: paymentData.tutorId,
-      email: paymentData.tutorEmail,
-      title: "Student payment received",
-      message: `${paymentData.studentName || "An assigned student"} has paid ${paymentData.plan}. ₦${paymentData.baseAmount.toLocaleString()} has been credited to your staff wallet.`,
-      type: "STUDENT_PAYMENT",
-      data: { paymentId: reference, studentId: paymentData.studentId, amount: paymentData.baseAmount }
-    });
-  }
+  await createPortalNotification({ recipientId: userId, email: paymentData.email, title: "Payment confirmed", message: `${paymentData.plan} payment for ${paymentData.studentName || "your account"} was verified for ₦${paymentData.customerTotal.toLocaleString()}. Your paid-through date is ${new Date(new Date(paymentData.paidAt).getTime() + paymentData.durationWeeks * 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-NG")}.`, type: "PAYMENT_CONFIRMED", data: { paymentId: reference, planId, studentId: paymentData.studentId, tutorId: paymentData.tutorId } });
+  if (paymentData.tutorId && paymentData.tutorEmail) await createPortalNotification({ recipientId: paymentData.tutorId, email: paymentData.tutorEmail, title: "Student payment received", message: `${paymentData.studentName || "An assigned student"} has paid ${paymentData.plan}. ₦${paymentData.baseAmount.toLocaleString()} has been credited to your staff wallet.`, type: "STUDENT_PAYMENT", data: { paymentId: reference, studentId: paymentData.studentId, amount: paymentData.baseAmount } });
   return { created: true, payment: paymentData };
 }
