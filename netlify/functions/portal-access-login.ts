@@ -44,6 +44,7 @@ const getExistingUserStatus = async (uid: string) => {
   return { exists: userSnap.exists, data };
 };
 const isAuthDisabled = (user: { disabled?: boolean }) => user.disabled === true;
+const normaliseRole = (value: unknown) => String(value || "").trim().toLowerCase();
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
@@ -76,6 +77,13 @@ export const handler: Handler = async (event) => {
 
       uid = await getOrCreateUid(typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined, String(profile.fullName || profile.studentName || profile.username || "Student"), `student-${snap.id}`, typeof profile.firebaseUid === "string" ? profile.firebaseUid : undefined);
       const existingUser = await getExistingUserStatus(uid);
+      if (existingUser.exists) {
+        const existingRole = normaliseRole(existingUser.data.role);
+        const existingStudentDocId = String(existingUser.data.studentDocId || "").trim();
+        if (existingRole && existingRole !== "student" || (existingStudentDocId && existingStudentDocId !== snap.id)) {
+          return { statusCode: 409, body: JSON.stringify({ error: "This student identity is already linked to another portal account." }) };
+        }
+      }
       if (existingUser.exists && isBlocked(existingUser.data)) return { statusCode: 401, body: JSON.stringify({ error: "This student account is currently disabled." }) };
       const authUser = await adminAuth.getUser(uid);
       if (isAuthDisabled(authUser)) return { statusCode: 401, body: JSON.stringify({ error: "This student account is disabled in authentication." }) };
@@ -98,20 +106,32 @@ export const handler: Handler = async (event) => {
       if (!schoolSnap) { const q = await adminDb.collection("schools").where("accessCode", "==", raw.toUpperCase()).limit(1).get(); if (!q.empty) schoolSnap = q.docs[0]; }
       if (!schoolSnap) return { statusCode: 401, body: JSON.stringify({ error: "Invalid school credentials." }) };
       profile = schoolSnap.data() || {};
-      const storedCode = String(profile.accessCode || "").trim().toUpperCase();
-      if (!storedCode || (storedCode !== inputCode && storedCode !== raw.toUpperCase()) || isBlocked(profile)) return { statusCode: 401, body: JSON.stringify({ error: "Invalid school credentials." }) };
+      const storedHash = String(profile.accessCodeHash || "").trim().toLowerCase();
+      const legacyCode = String(profile.accessCode || "").trim().toUpperCase();
+      const codeMatches = storedHash ? storedHash === hashAccessCode(inputCode) : !!legacyCode && legacyCode === inputCode;
+      if (!codeMatches || isBlocked(profile)) return { statusCode: 401, body: JSON.stringify({ error: "Invalid school credentials." }) };
       const email = typeof profile.email === "string" && profile.email.includes("@") ? profile.email.toLowerCase() : undefined;
       uid = await getOrCreateUid(email, String(profile.name || "Partner School"), `school-${schoolSnap.id}`, String(profile.adminUid || profile.userId || "") || undefined);
       const existingUser = await getExistingUserStatus(uid);
+      if (existingUser.exists) {
+        const existingRole = normaliseRole(existingUser.data.role);
+        const existingSchoolId = String(existingUser.data.schoolId || "").trim();
+        if (existingRole && existingRole !== "school" || (existingSchoolId && existingSchoolId !== schoolSnap.id)) {
+          return { statusCode: 409, body: JSON.stringify({ error: "This school identity is already linked to another portal account." }) };
+        }
+      }
       if (existingUser.exists && isBlocked(existingUser.data)) return { statusCode: 401, body: JSON.stringify({ error: "This school account is currently disabled." }) };
       const authUser = await adminAuth.getUser(uid);
       if (isAuthDisabled(authUser)) return { statusCode: 401, body: JSON.stringify({ error: "This school account is disabled in authentication." }) };
+      const schoolUpdates: Record<string, unknown> = { updatedAt: new Date() };
+      if (!storedHash && legacyCode) schoolUpdates.accessCodeHash = hashAccessCode(legacyCode);
+      if (Object.keys(schoolUpdates).length > 1) await schoolSnap.ref.set(schoolUpdates, { merge: true });
       await adminDb.collection("users").doc(uid).set({ email: email || authUser.email || null, name: profile.name || "Partner School", role: "school", schoolId: schoolSnap.id, schoolName: profile.name || "", updatedAt: new Date() }, { merge: true });
       response = { role: "school", schoolDocId: schoolSnap.id, schoolId: schoolSnap.id, name: profile.name || "Partner School" };
     }
 
     const customToken = await adminAuth.createCustomToken(uid, { role: response.role, schoolId: response.schoolId || "", tutorId: response.tutorId || "" });
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customToken, ...response }) };
+    return { statusCode: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify({ customToken, ...response }) };
   } catch (error) {
     console.error("Portal access login error:", error);
     return { statusCode: 500, body: JSON.stringify({ error: "Unable to complete portal login." }) };
