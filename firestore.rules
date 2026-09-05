@@ -2,30 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuth() { return request.auth != null; }
-    function isActiveUserRecord() {
-      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']) &&
-        !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']);
-    }
+    function isActiveUserRecord() { return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountStatus', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']) && !(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'ACTIVE') in ['DISABLED', 'SUSPENDED', 'BANNED']); }
     function isSuperAdmin() { return isAuth() && isActiveUserRecord() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'super_admin']; }
-    function isAnyAdmin() {
-      return isAuth() && isActiveUserRecord() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN','super_admin','ADMIN','admin','CONTENT_ADMIN','EDUCATION_ADMIN','SERVICES_ADMIN','MARKETING_ADMIN','SUPPORT_ADMIN'];
-    }
-    function isStaffOrTutor() {
-      return isAuth() && isActiveUserRecord() && (isAnyAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','instructor','INSTRUCTOR']);
-    }
-    function hasStaffSchoolAccess(schoolId) {
-      return isAuth() && schoolId != null && (isAnyAdmin() || (isStaffOrTutor() && exists(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)) && (get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolId', null) == schoolId || (get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolIds', []) is list && schoolId in get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolIds', [])))));
-    }
+    function isAnyAdmin() { return isAuth() && isActiveUserRecord() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN','super_admin','ADMIN','admin','CONTENT_ADMIN','EDUCATION_ADMIN','SERVICES_ADMIN','MARKETING_ADMIN','SUPPORT_ADMIN']; }
+    function isStaffOrTutor() { return isAuth() && isActiveUserRecord() && (isAnyAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','instructor','INSTRUCTOR']); }
+    function hasStaffSchoolAccess(schoolId) { return isAuth() && schoolId != null && (isAnyAdmin() || (isStaffOrTutor() && exists(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)) && (get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolId', null) == schoolId || (get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolIds', []) is list && schoolId in get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolIds', []))))); }
     function isSchoolUser() { return isActiveUserRecord() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SCHOOL','school']; }
     function userSchoolId() { return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId : null; }
     function isSameSchool(schoolId) { return isSchoolUser() && schoolId != null && schoolId == userSchoolId(); }
     function isInUserSchool(schoolId) { return isActiveUserRecord() && schoolId != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId == schoolId; }
     function isOwnStudent(data) { return isAuth() && (data.firebaseUid == request.auth.uid || data.userId == request.auth.uid); }
     function isOwnParent(data) { return isAuth() && (data.parentId == request.auth.uid || data.userId == request.auth.uid || data.firebaseUid == request.auth.uid); }
-    function isAssignedStaffToStudent(studentId) {
-      return isStaffOrTutor() && ((exists(/databases/$(database)/documents/individualStudents/$(studentId)) && (get(/databases/$(database)/documents/individualStudents/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.instructorId == request.auth.uid)) || (exists(/databases/$(database)/documents/students/$(studentId)) && (get(/databases/$(database)/documents/students/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.instructorId == request.auth.uid)));
-    }
+    function isAssignedStaffToStudent(studentId) { return isStaffOrTutor() && ((exists(/databases/$(database)/documents/individualStudents/$(studentId)) && (get(/databases/$(database)/documents/individualStudents/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.instructorId == request.auth.uid)) || (exists(/databases/$(database)/documents/students/$(studentId)) && (get(/databases/$(database)/documents/students/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.instructorId == request.auth.uid))); }
 
     match /users/{userId} {
       allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
@@ -37,7 +25,7 @@ service cloud.firestore {
     match /invites/{email} { allow read: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); allow write: if isAnyAdmin(); allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); }
 
     match /individualStudents/{studentId} {
-      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || isInUserSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
       allow create: if isAnyAdmin() || isSameSchool(request.resource.data.schoolId) || (isStaffOrTutor() && request.resource.data.get('firebaseUid', '') == request.auth.uid);
       allow update: if isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName','studentName','class','grade','track','subjects','schedule','plan','status','updatedAt'])) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId) && request.resource.data.schoolId == resource.data.schoolId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName','studentName','class','grade','track','subjects','schedule','plan','status','updatedAt']));
       allow delete: if isAnyAdmin() || isSameSchool(resource.data.schoolId);
@@ -48,25 +36,9 @@ service cloud.firestore {
       allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(studentId) && request.resource.data.schoolId == resource.data.schoolId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName','studentName','class','grade','track','subjects','schedule','plan','status','updatedAt']));
       allow delete: if isAnyAdmin();
     }
-    match /studentModules/{docId} {
-      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-      allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId));
-      allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId);
-      allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-    }
-    match /personalResources/{docId} {
-      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-      allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.staffId == request.auth.uid);
-      allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.staffId == request.auth.uid);
-      allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-    }
-    match /personalLinks/{docId} {
-      allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-      allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.tutorId == request.auth.uid);
-      allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.tutorId == request.auth.uid);
-      allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId));
-    }
-
+    match /studentModules/{docId} { allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.schoolId) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId)); allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId); allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); }
+    match /personalResources/{docId} { allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.staffId == request.auth.uid); allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.staffId == request.auth.uid); allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); }
+    match /personalLinks/{docId} { allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow create: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.tutorId == request.auth.uid); allow update: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.studentId == resource.data.studentId && request.resource.data.tutorId == request.auth.uid); allow delete: if isAnyAdmin() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); }
     match /resources/{resourceId} { allow read: if isActiveUserRecord(); allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /links/{linkId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /exams/{examId} { allow read: if isActiveUserRecord(); allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
@@ -78,18 +50,15 @@ service cloud.firestore {
     match /staffSchoolAccess/{docId} { allow read: if isAnyAdmin() || (isStaffOrTutor() && docId == request.auth.uid); allow write: if isAnyAdmin(); }
     match /staffRegistration/{docId} { allow read, write: if isAnyAdmin(); }
     match /pendingStaff/{docId} { allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == resource.data.userId); allow write, delete: if isAnyAdmin(); }
-
     match /parents/{parentId} { allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == parentId); allow create: if isAuth() && request.auth.uid == parentId; allow update: if isAnyAdmin() || (isAuth() && request.auth.uid == parentId); allow delete: if isSuperAdmin() || isAnyAdmin(); }
     match /payments/{paymentId} { allow read: if isAnyAdmin() || (isAuth() && (resource.data.userId == request.auth.uid || resource.data.parentId == request.auth.uid || isSameSchool(resource.data.schoolId))); allow create: if isAnyAdmin(); allow update, delete: if isAnyAdmin(); }
     match /enrollment_requests/{reqId} { allow create: if isAuth() && request.resource.data.parentId == request.auth.uid && request.resource.data.keys().hasOnly(['studentName','studentAge','plan','subjects','parentId','parentEmail','parentName','status','createdAt']) && request.resource.data.studentName is string && request.resource.data.studentName.size() <= 160 && request.resource.data.studentAge is string && request.resource.data.studentAge.size() <= 40 && request.resource.data.parentId is string && request.resource.data.parentId == request.auth.uid && request.resource.data.status == 'pending' && request.resource.data.subjects is list; allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid); allow update, delete: if isAnyAdmin(); }
     match /student_requests/{requestId} { allow create: if isAuth() && request.resource.data.parentId == request.auth.uid; allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid); allow update, delete: if isAnyAdmin(); }
     match /tutor_applications/{appId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
     match /tutors/{tutorId} { allow read: if true; allow write: if isAnyAdmin() || (isAuth() && request.auth.uid == tutorId); }
-
     match /notifications/{notificationId} { allow read: if isAnyAdmin() || (isAuth() && (resource.data.recipientId == request.auth.uid || resource.data.recipientId == 'all' || (resource.data.recipientId == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['PARENT','parent']) || (resource.data.recipientId == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STUDENT','student']) || (resource.data.recipientId == 'all_staff' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor']))); allow create, delete: if isAnyAdmin(); allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy); }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin(); }
     match /contact_messages/{msgId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
-
     match /page_sections/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /pages/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /sections/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
@@ -106,10 +75,7 @@ service cloud.firestore {
     match /testimonials/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /schools/{schoolId} { allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(schoolId)); allow write: if isAnyAdmin(); }
     match /schoolPrograms/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
-    match /inquiries/{inquiryId} {
-      allow create: if request.resource.data.keys().hasOnly(['name','email','phone','schoolName','type','role','programsOfInterest','message','source','createdAt']) && request.resource.data.name is string && request.resource.data.name.size() <= 120 && request.resource.data.email is string && request.resource.data.email.size() <= 254 && (!request.resource.data.keys().hasAny(['phone']) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 40)) && (!request.resource.data.keys().hasAny(['schoolName']) || (request.resource.data.schoolName is string && request.resource.data.schoolName.size() <= 160)) && (!request.resource.data.keys().hasAny(['type']) || (request.resource.data.type is string && request.resource.data.type.size() <= 80)) && (!request.resource.data.keys().hasAny(['role']) || (request.resource.data.role is string && request.resource.data.role.size() <= 80)) && (!request.resource.data.keys().hasAny(['source']) || (request.resource.data.source is string && request.resource.data.source.size() <= 80)) && request.resource.data.message is string && request.resource.data.message.size() <= 5000;
-      allow read, update, delete: if isAnyAdmin();
-    }
+    match /inquiries/{inquiryId} { allow create: if request.resource.data.keys().hasOnly(['name','email','phone','schoolName','type','role','programsOfInterest','message','source','createdAt']) && request.resource.data.name is string && request.resource.data.name.size() <= 120 && request.resource.data.email is string && request.resource.data.email.size() <= 254 && (!request.resource.data.keys().hasAny(['phone']) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 40)) && (!request.resource.data.keys().hasAny(['schoolName']) || (request.resource.data.schoolName is string && request.resource.data.schoolName.size() <= 160)) && (!request.resource.data.keys().hasAny(['type']) || (request.resource.data.type is string && request.resource.data.type.size() <= 80)) && (!request.resource.data.keys().hasAny(['role']) || (request.resource.data.role is string && request.resource.data.role.size() <= 80)) && (!request.resource.data.keys().hasAny(['source']) || (request.resource.data.source is string && request.resource.data.source.size() <= 80)) && request.resource.data.message is string && request.resource.data.message.size() <= 5000; allow read, update, delete: if isAnyAdmin(); }
     match /{document=**} { allow read, write: if false; }
   }
 }
