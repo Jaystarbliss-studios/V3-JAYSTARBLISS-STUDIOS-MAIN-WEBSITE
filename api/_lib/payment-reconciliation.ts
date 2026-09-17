@@ -30,13 +30,25 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   if (role !== "school" && plan.role !== "student") throw new Error("PAYMENT_PLAN_ROLE_MISMATCH");
 
   const feeRole = role === "school" ? "school" : "parent";
-  const charge = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
+  const chargePreview = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
   const providerAmount = Number(tx.amount || 0) / 100;
-  const expectedGross = Math.round(charge.totalAmount * 100) / 100;
-  const metadataTotal = Number(metadata.customerTotal || 0);
-  if (String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || Math.round(providerAmount * 100) !== Math.round(expectedGross * 100) || (metadataTotal && Math.round(metadataTotal * 100) !== Math.round(expectedGross * 100))) {
+  const expectedBase = Math.round(plan.baseAmount * 100);
+
+  // Paystack is configured to pass its transaction fee to the customer at checkout.
+  // The gateway transaction amount therefore represents the base tuition, while tx.fees
+  // is the actual Paystack processing fee. Never expect the pre-calculated gross total
+  // to be the gateway amount, otherwise the customer is charged the fee twice.
+  if (String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || Math.round(providerAmount * 100) !== expectedBase) {
     throw new Error("PAYMENT_AMOUNT_MISMATCH");
   }
+
+  const actualTransactionFee = Number.isFinite(Number(tx.fees)) && Number(tx.fees) >= 0
+    ? Number((Number(tx.fees) / 100).toFixed(2))
+    : chargePreview.transactionFee;
+  const customerTotal = Number((plan.baseAmount + actualTransactionFee).toFixed(2));
+
+  const metadataBase = Number(metadata.baseAmount || 0);
+  if (metadataBase && Math.round(metadataBase * 100) !== expectedBase) throw new Error("PAYMENT_METADATA_AMOUNT_MISMATCH");
 
   const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
   const enrollmentRef = enrollmentRequestId ? adminDb.collection("enrollment_requests").doc(enrollmentRequestId) : null;
@@ -87,10 +99,12 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       enrollmentStudentName: studentName || null,
       planId,
       plan: plan.name,
-      baseAmount: charge.baseAmount,
-      transactionFee: charge.transactionFee,
-      amount: Math.round(charge.totalAmount * 100),
-      customerTotal: charge.totalAmount,
+      baseAmount: plan.baseAmount,
+      transactionFee: actualTransactionFee,
+      estimatedTransactionFee: chargePreview.transactionFee,
+      amount: Math.round(customerTotal * 100),
+      providerAmount: Math.round(plan.baseAmount * 100),
+      customerTotal,
       currency: "NGN",
       durationWeeks: Number(metadata.durationWeeks || enrollment.durationWeeks || plan.durationWeeks),
       teachingMode: asString(metadata.teachingMode || enrollment.teachingMode || enrollment.modeOfTeaching || plan.teachingModes[0]),
@@ -101,6 +115,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       description: `${plan.name} • ${studentName || (role === "school" ? "School account" : "Student account")}`,
       providerTransactionId: tx.id || null,
       gatewayResponse: tx.gateway_response || null,
+      gatewayFeeVerified: Number.isFinite(Number(tx.fees)),
       paidAt,
       createdAt: new Date(),
       verifiedAt: new Date(),
@@ -118,12 +133,31 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
     transaction.create(canonicalPaymentRef, paymentData);
     created = true;
 
-    if (enrollmentRef) transaction.set(enrollmentRef, { paymentStatus: "PAID", paymentReference: reference, paymentPlanId: planId, paymentPlanName: plan.name, paymentBaseAmount: charge.baseAmount, paymentTransactionFee: charge.transactionFee, paymentTotal: charge.totalAmount, durationWeeks: paymentData.durationWeeks, teachingMode: paymentData.teachingMode, studentId: studentId || null, tutorId: tutorId || null, schoolId: schoolId || null, paidAt, updatedAt: new Date() }, { merge: true });
-    if (tutorId) transaction.set(adminDb.collection("staffWallets").doc(tutorId), { availableBalance: FieldValue.increment(charge.baseAmount), lifetimeEarned: FieldValue.increment(charge.baseAmount), updatedAt: new Date() }, { merge: true });
+    if (enrollmentRef) transaction.set(enrollmentRef, {
+      paymentStatus: "PAID",
+      paymentReference: reference,
+      paymentPlanId: planId,
+      paymentPlanName: plan.name,
+      paymentBaseAmount: plan.baseAmount,
+      paymentTransactionFee: actualTransactionFee,
+      paymentEstimatedTransactionFee: chargePreview.transactionFee,
+      paymentTotal: customerTotal,
+      paymentProviderAmount: plan.baseAmount,
+      paymentFeeVerified: Number.isFinite(Number(tx.fees)),
+      durationWeeks: paymentData.durationWeeks,
+      teachingMode: paymentData.teachingMode,
+      studentId: studentId || null,
+      tutorId: tutorId || null,
+      schoolId: schoolId || null,
+      paidAt,
+      updatedAt: new Date()
+    }, { merge: true });
+
+    if (tutorId) transaction.set(adminDb.collection("staffWallets").doc(tutorId), { availableBalance: FieldValue.increment(plan.baseAmount), lifetimeEarned: FieldValue.increment(plan.baseAmount), updatedAt: new Date() }, { merge: true });
   });
 
   if (!created) return { created: false, payment: null };
-  await createPortalNotification({ recipientId: userId, email: paymentData.email, title: "Payment confirmed", message: `${paymentData.plan} payment for ${paymentData.studentName || "your account"} was verified for ₦${paymentData.customerTotal.toLocaleString()}. Your paid-through date is ${new Date(new Date(paymentData.paidAt).getTime() + paymentData.durationWeeks * 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-NG")}.`, type: "PAYMENT_CONFIRMED", data: { paymentId: reference, planId, studentId: paymentData.studentId, tutorId: paymentData.tutorId } });
+  await createPortalNotification({ recipientId: userId, email: paymentData.email, title: "Payment confirmed", message: `${paymentData.plan} payment for ${paymentData.studentName || "your account"} was verified. Tuition: ₦${paymentData.baseAmount.toLocaleString()}, Paystack fee: ₦${paymentData.transactionFee.toLocaleString()}, customer total: ₦${paymentData.customerTotal.toLocaleString()}. Your paid-through date is ${new Date(new Date(paymentData.paidAt).getTime() + paymentData.durationWeeks * 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-NG")}.`, type: "PAYMENT_CONFIRMED", data: { paymentId: reference, planId, studentId: paymentData.studentId, tutorId: paymentData.tutorId, baseAmount: paymentData.baseAmount, transactionFee: paymentData.transactionFee, customerTotal: paymentData.customerTotal } });
   if (paymentData.tutorId && paymentData.tutorEmail) await createPortalNotification({ recipientId: paymentData.tutorId, email: paymentData.tutorEmail, title: "Student payment received", message: `${paymentData.studentName || "An assigned student"} has paid ${paymentData.plan}. ₦${paymentData.baseAmount.toLocaleString()} has been credited to your staff wallet.`, type: "STUDENT_PAYMENT", data: { paymentId: reference, studentId: paymentData.studentId, amount: paymentData.baseAmount } });
   return { created: true, payment: paymentData };
 }
