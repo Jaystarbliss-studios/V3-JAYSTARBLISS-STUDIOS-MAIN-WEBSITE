@@ -1,145 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  collection, query, orderBy, limit, onSnapshot 
-} from 'firebase/firestore';
+import React, { useEffect, useMemo, useState } from 'react';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { 
-  Activity, Search, Clock, 
-  UserCheck, Send, School, LogIn
-} from 'lucide-react';
+import { Activity, Search, Clock, UserCheck, Send, School, LogIn, ChevronDown, Database, ShieldCheck } from 'lucide-react';
 
 const AdminActivityLogs: React.FC = () => {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    setLoading(true);
-    const q = query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100));
-    const unsub = onSnapshot(q, (snap) => {
-      setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
-    });
-
-    return () => unsub();
-  }, []);
-
-  const getLogIcon = (type: string) => {
-    if (type?.includes('login')) return <LogIn size={16} className="text-emerald-500" />;
-    if (type?.includes('approval') || type?.includes('approved')) return <UserCheck size={16} className="text-blue-500" />;
-    if (type?.includes('resource')) return <Send size={16} className="text-brand-red" />;
-    if (type?.includes('school')) return <School size={16} className="text-amber-500" />;
-    return <Activity size={16} className="text-gray-400" />;
-  };
-
-  const formatLogDescription = (item: any) => {
-    if (item.type === 'login') return `${item.userType || 'User'} logged in: ${item.userEmail || ''}`;
-    if (item.type === 'logout') return `${item.userType || 'User'} logged out: ${item.userEmail || ''}`;
-    if (item.type === 'staff_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to student`;
-    if (item.type === 'staff_school_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to school`;
-    if (item.type === 'student_added') return `Staff ${item.staffEmail || 'member'} registered student: ${item.studentUsername || ''}`;
-    if (item.type === 'student_request_approved') return `Approved student application (ID: ${item.studentId || ''}) · Generated passcode: ${item.accessCode || ''}`;
-    if (item.type === 'enrollment_approved') return `Approved family enrollment for ${item.studentName || 'Student'} (ID: ${item.studentId || ''})`;
-    
-    return item.message || item.description || item.type || 'System transaction recorded.';
-  };
-
-  const filteredLogs = logs.filter(l => {
-    const matchesFilter = filterType === 'all' || l.type?.includes(filterType);
-    const desc = formatLogDescription(l).toLowerCase();
-    const matchesSearch = desc.includes(searchQuery.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-brand-slate dark:text-white flex items-center gap-3">
-            <Activity className="text-brand-red w-8 h-8" />
-            System &amp; Activity Audit Logs
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Real-time security telemetry, authentication events, curriculum dispatches, and enrollment confirmations.
-          </p>
-        </div>
-
-        {/* Search */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search activity..."
-            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
-          />
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex gap-2 flex-wrap">
-        {[
-          { key: 'all', label: 'All Activities' },
-          { key: 'login', label: 'Authentication & Logins' },
-          { key: 'approved', label: 'Approvals & Enrollments' },
-          { key: 'resource', label: 'Curriculum Dispatches' }
-        ].map(f => (
-          <button
-            key={f.key}
-            onClick={() => setFilterType(f.key)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              filterType === f.key
-                ? 'bg-brand-slate dark:bg-white text-white dark:text-brand-slate shadow-sm'
-                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Log Feed */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden">
-        {loading ? (
-          <div className="py-16 text-center text-gray-400 font-mono text-xs">Loading live telemetry stream...</div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="p-12 text-center text-gray-400 text-sm">
-            No activity records found matching current query.
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100 dark:divide-slate-800">
-            {filteredLogs.map((item) => (
-              <div key={item.id} className="p-4 sm:p-5 flex items-start gap-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 mt-0.5">
-                  {getLogIcon(item.type)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-900 dark:text-white leading-relaxed">
-                    {formatLogDescription(item)}
-                  </div>
-                  <div className="text-xs text-gray-400 font-mono mt-1 flex items-center gap-1.5">
-                    <Clock size={12} />
-                    {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleString() : 'Just now'}
-                  </div>
-                </div>
-
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-gray-500 shrink-0">
-                  {item.type || 'EVENT'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const [logs, setLogs] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [filterType, setFilterType] = useState('all'); const [searchQuery, setSearchQuery] = useState(''); const [expanded, setExpanded] = useState<string | null>(null);
+  useEffect(() => { setLoading(true); const q = query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(250)); const unsub = onSnapshot(q, snap => { setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); }, err => { console.error(err); setLoading(false); }); return () => unsub(); }, []);
+  const getLogIcon = (type: string) => { if (type?.includes('login')) return <LogIn size={16} className="text-emerald-500" />; if (type?.includes('approval') || type?.includes('approved')) return <UserCheck size={16} className="text-blue-500" />; if (type?.includes('resource')) return <Send size={16} className="text-brand-red" />; if (type?.includes('school')) return <School size={16} className="text-amber-500" />; return <Activity size={16} className="text-gray-400" />; };
+  const formatLogDescription = (item: any) => { if (item.type === 'login' || item.type === 'login_session') return `${item.userType || 'User'} logged in: ${item.userEmail || ''}`; if (item.type === 'logout') return `${item.userType || 'User'} logged out: ${item.userEmail || ''}`; if (item.type === 'staff_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to student`; if (item.type === 'staff_school_resource_sent') return `Staff ${item.staffEmail || 'member'} dispatched "${item.resourceTitle || 'Resource'}" to school`; if (item.type === 'student_added') return `Staff ${item.staffEmail || 'member'} registered student: ${item.studentUsername || ''}`; if (item.type === 'student_request_approved') return `Approved student application (ID: ${item.studentId || ''})`; if (item.type === 'enrollment_approved') return `Approved family enrollment for ${item.studentName || 'Student'} (ID: ${item.studentId || ''})`; if (item.message) return item.message; if (item.description) return item.description; if (item.action) return String(item.action).replace(/_/g, ' '); return item.type || 'System transaction recorded.'; };
+  const filteredLogs = useMemo(() => logs.filter(l => { const matchesFilter = filterType === 'all' || l.type?.includes(filterType); const haystack = `${formatLogDescription(l)} ${l.userEmail || ''} ${l.route || ''} ${l.action || ''} ${JSON.stringify(l.details || {})}`.toLowerCase(); return matchesFilter && haystack.includes(searchQuery.toLowerCase()); }), [logs, filterType, searchQuery]);
+  const timestamp = (item: any) => item.timestamp?.toDate ? item.timestamp.toDate().toLocaleString('en-NG') : item.timestamp ? new Date(item.timestamp).toLocaleString('en-NG') : 'Just now';
+  const filters = [{ key: 'all', label: 'All Activities' }, { key: 'login', label: 'Authentication' }, { key: 'page_view', label: 'Page Views' }, { key: 'ui_action', label: 'UI Actions' }, { key: 'form_submit', label: 'Form Submissions' }, { key: 'payment', label: 'Payments' }, { key: 'school', label: 'Schools' }, { key: 'inquiry', label: 'Inquiries' }];
+  return <div className="space-y-8">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><h1 className="text-3xl font-black text-brand-slate dark:text-white flex items-center gap-3"><Activity className="text-brand-red w-8 h-8" /> System &amp; Activity Audit Logs</h1><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Comprehensive portal telemetry: sessions, page views, UI actions, form submissions, payments, approvals and operational events.</p></div><div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700"><ShieldCheck size={15}/> Live audit stream</div></div>
+    <div className="relative w-full sm:w-96"><Search className="absolute left-3.5 top-3 text-gray-400" size={16}/><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search user, route, action or details…" className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"/></div>
+    <div className="flex gap-2 flex-wrap">{filters.map(f => <button key={f.key} onClick={() => setFilterType(f.key)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${filterType === f.key ? 'bg-brand-slate dark:bg-white text-white dark:text-brand-slate shadow-sm' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>{f.label}</button>)}</div>
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-xs overflow-hidden"><div className="px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between"><span className="text-xs font-bold text-gray-500">{filteredLogs.length} visible events · {logs.length} loaded</span><span className="text-[10px] uppercase tracking-wider font-black text-gray-400">Newest first</span></div>{loading ? <div className="py-16 text-center text-gray-400 font-mono text-xs">Loading live telemetry stream...</div> : filteredLogs.length === 0 ? <div className="p-12 text-center text-gray-400 text-sm">No activity records found matching current query.</div> : <div className="divide-y divide-gray-100 dark:divide-slate-800">{filteredLogs.map(item => { const isOpen = expanded === item.id; return <div key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30"><button type="button" onClick={() => setExpanded(isOpen ? null : item.id)} className="w-full text-left p-4 sm:p-5 flex items-start gap-4"><div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 mt-0.5">{getLogIcon(item.type)}</div><div className="flex-1 min-w-0"><div className="text-sm font-semibold text-gray-900 dark:text-white leading-relaxed">{formatLogDescription(item)}</div><div className="text-xs text-gray-400 font-mono mt-1 flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1.5"><Clock size={12}/>{timestamp(item)}</span>{item.userEmail && <span>· {item.userEmail}</span>}{item.route && <span>· {item.route}</span>}</div></div><div className="flex items-center gap-2 shrink-0"><span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-gray-500">{item.type || 'EVENT'}</span><ChevronDown size={16} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}/></div></button>{isOpen && <div className="mx-5 mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"><div className="grid gap-3 sm:grid-cols-2 mb-4"><div><span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Actor</span><p className="text-xs font-semibold mt-1 text-slate-700 dark:text-slate-200">{item.userEmail || item.actorId || 'System'}</p></div><div><span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Action</span><p className="text-xs font-semibold mt-1 text-slate-700 dark:text-slate-200">{item.action || item.type || '—'}</p></div><div><span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Route</span><p className="text-xs font-mono mt-1 text-slate-700 dark:text-slate-200">{item.route || '—'}</p></div><div><span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Method</span><p className="text-xs font-mono mt-1 text-slate-700 dark:text-slate-200">{item.method || '—'}</p></div></div><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2"><Database size={13}/> Complete event payload</div><pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-4 text-[11px] leading-5 text-slate-200">{JSON.stringify(item, (_key, value) => value && typeof value.toDate === 'function' ? value.toDate().toISOString() : value, 2)}</pre></div>}</div>; })}</div>}</div>
+  </div>;
 };
-
 export default AdminActivityLogs;
