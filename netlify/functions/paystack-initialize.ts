@@ -71,22 +71,66 @@ export const handler: Handler = async (event) => {
     const tutorId = String(enrollment?.tutorId || student?.tutorId || student?.staffId || student?.assignedTutorId || student?.assignedStaffId || student?.instructorId || "").trim();
     const schoolId = actualRole === "school" ? String((user as any).schoolId || decoded.uid) : String(student?.schoolId || "").trim();
     const feeRole = actualRole === "school" ? "school" : "parent";
-    const charge = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
+
+    // IMPORTANT: Paystack itself is configured to pass transaction fees to the customer.
+    // We therefore send ONLY the base amount to Paystack. The fee is previewed here for
+    // transparency, but must never be baked into the gateway amount or it will be charged twice.
+    const chargePreview = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
     const paymentMethod = String(body.paymentMethod || "card").toLowerCase();
-    if (!["card", "bank_transfer"].includes(paymentMethod)) return json(400, { error: "Unsupported payment method." });
+    const channelMap: Record<string, string> = { card: "card", bank_transfer: "bank_transfer", opay: "mobile_money" };
+    const channel = channelMap[paymentMethod];
+    if (!channel) return json(400, { error: "Unsupported payment method." });
     if (!process.env.PAYSTACK_SECRET_KEY) return json(503, { error: "Payment gateway is not configured." });
     const callbackRoot = process.env.PUBLIC_APP_URL; if (!callbackRoot) return json(500, { error: "Payment callback is not configured." });
     const callbackPath = actualRole === "school" ? "/portal/school/payments" : actualRole === "parent" ? "/portal/parent/payments" : "/portal/student/payments";
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
       method: "POST", headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ email: decoded.email, amount: Math.round(charge.totalAmount * 100), currency: "NGN", callback_url: `${callbackRoot.replace(/\/$/, "")}${callbackPath}`, channels: [paymentMethod], metadata: { userId: decoded.uid, role: actualRole, planRole: plan.role, planId, planName: plan.name, baseAmount: charge.baseAmount, transactionFee: charge.transactionFee, customerTotal: charge.totalAmount, durationWeeks, teachingMode, studentId: studentId || null, studentName: student?.fullName || student?.studentName || enrollment?.studentName || null, tutorId: tutorId || null, enrollmentRequestId: enrollmentRequestId || null, schoolId: schoolId || null, paymentMethod } })
+      body: JSON.stringify({
+        email: decoded.email,
+        amount: Math.round(plan.baseAmount * 100),
+        currency: "NGN",
+        callback_url: `${callbackRoot.replace(/\/$/, "")}${callbackPath}`,
+        channels: [channel],
+        metadata: {
+          userId: decoded.uid,
+          role: actualRole,
+          planRole: plan.role,
+          planId,
+          planName: plan.name,
+          baseAmount: plan.baseAmount,
+          estimatedTransactionFee: chargePreview.transactionFee,
+          estimatedCustomerTotal: chargePreview.totalAmount,
+          durationWeeks,
+          teachingMode,
+          studentId: studentId || null,
+          studentName: student?.fullName || student?.studentName || enrollment?.studentName || null,
+          tutorId: tutorId || null,
+          enrollmentRequestId: enrollmentRequestId || null,
+          schoolId: schoolId || null,
+          paymentMethod
+        }
+      })
     });
     const data = await response.json();
     if (!response.ok || !data.status || !data.data?.authorization_url) { console.error("Paystack initialization failed:", data); return json(502, { error: "Unable to initialize payment." }); }
 
-    if (enrollmentRequestId) await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).set({ planId, teachingMode, durationWeeks, paymentPlanName: plan.name, paymentBaseAmount: charge.baseAmount, paymentTransactionFee: charge.transactionFee, paymentTotal: charge.totalAmount, studentId: studentId || null, tutorId: tutorId || null, schoolId: schoolId || null, paymentReference: data.data.reference, paymentStatus: "PENDING", updatedAt: new Date() }, { merge: true });
-    return json(200, { authorizationUrl: data.data.authorization_url, reference: data.data.reference, planId, planName: plan.name, baseAmount: charge.baseAmount, transactionFee: charge.transactionFee, totalAmount: charge.totalAmount, durationWeeks, teachingMode, studentId: studentId || null, tutorId: tutorId || null });
+    if (enrollmentRequestId) await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).set({ planId, teachingMode, durationWeeks, paymentPlanName: plan.name, paymentBaseAmount: plan.baseAmount, paymentTransactionFee: chargePreview.transactionFee, paymentTotal: chargePreview.totalAmount, paymentFeeStatus: "PAYSTACK_CALCULATED_AT_CHECKOUT", studentId: studentId || null, tutorId: tutorId || null, schoolId: schoolId || null, paymentReference: data.data.reference, paymentStatus: "PENDING", updatedAt: new Date() }, { merge: true });
+    return json(200, {
+      authorizationUrl: data.data.authorization_url,
+      reference: data.data.reference,
+      planId,
+      planName: plan.name,
+      baseAmount: plan.baseAmount,
+      transactionFee: chargePreview.transactionFee,
+      totalAmount: chargePreview.totalAmount,
+      feeIsEstimated: true,
+      feeSource: "Paystack checkout",
+      durationWeeks,
+      teachingMode,
+      studentId: studentId || null,
+      tutorId: tutorId || null
+    });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "STUDENT_OWNER_MISMATCH") return json(403, { error: "That student is not linked to your account." });
