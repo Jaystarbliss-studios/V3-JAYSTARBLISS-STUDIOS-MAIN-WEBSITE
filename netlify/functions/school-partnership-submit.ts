@@ -14,7 +14,7 @@ export const handler: Handler = async event => {
     const now = new Date();
     const ref = await adminDb.collection('inquiries').add({ name, schoolName, role, email, phone: phone || null, addressCity: addressCity || null, estimatedStudents: estimatedStudents || null, preferredDays: preferredDays || null, programsOfInterest, message: message || null, deliveryTier, type: 'SCHOOL_PARTNERSHIP_PROPOSAL', status: 'NEW', source: 'PUBLIC_SCHOOL_PARTNERSHIP', createdAt: now, updatedAt: now });
     await adminDb.collection('activityLogs').add({ type: 'school_partnership_submitted', action: 'SCHOOL_PARTNERSHIP_SUBMITTED', inquiryId: ref.id, userEmail: email, userType: 'PUBLIC', message: `School partnership proposal received from ${schoolName}.`, timestamp: now, details: { schoolName, role, deliveryTier, estimatedStudents, programsOfInterest } });
-    await adminDb.collection('notifications').add({ recipientRole: 'ADMIN', type: 'NEW_SCHOOL_PARTNERSHIP', title: 'New school partnership proposal', message: `${schoolName} submitted a school partnership proposal for review.`, inquiryId: ref.id, read: false, priority: 'HIGH', createdAt: now });
+    await adminDb.collection('notifications').add({ recipientRole: 'ADMIN', type: 'NEW_SCHOOL_PARTNERSHIP', title: 'New school partnership proposal', message: `${schoolName} submitted a school partnership proposal for review.`, inquiryId: ref.id, read: false, priority: 'HIGH', createdAt: now, timestamp: now });
     return json(201, { success: true, inquiryId: ref.id });
   } catch (error) { console.error('School partnership submission error:', error); return json(500, { error: 'We could not submit the partnership request. Please try again.' }); }
 };
