@@ -11,6 +11,7 @@ interface PortalNotification {
 
 export async function createPortalNotification(input: PortalNotification) {
   if (!input.recipientId) return;
+  const now = new Date();
   await adminDb.collection("notifications").add({
     recipientId: input.recipientId,
     title: input.title,
@@ -18,7 +19,8 @@ export async function createPortalNotification(input: PortalNotification) {
     type: input.type || "SYSTEM",
     data: input.data || {},
     read: false,
-    createdAt: new Date()
+    createdAt: now,
+    timestamp: now
   });
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -28,21 +30,9 @@ export async function createPortalNotification(input: PortalNotification) {
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from,
-        to: [input.email],
-        subject: input.title,
-        text: input.message
-      })
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [input.email], subject: input.title, text: input.message })
     });
-    if (!response.ok) {
-      console.warn("Portal email delivery failed:", await response.text());
-    }
-  } catch (error) {
-    console.warn("Portal email delivery error:", error);
-  }
+    if (!response.ok) console.warn("Portal email delivery failed:", await response.text());
+  } catch (error) { console.warn("Portal email delivery error:", error); }
 }
