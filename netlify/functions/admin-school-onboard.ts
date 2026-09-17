@@ -19,96 +19,25 @@ export const handler: Handler = async (event) => {
     if (!adminRoles.has(String(admin.role || '').toUpperCase())) return json(403, { error: 'Only authorized education administrators can onboard schools.' });
 
     const body = JSON.parse(event.body || '{}');
-    const name = clean(body.name, 160);
-    const contactName = clean(body.contactName, 120);
-    const email = clean(body.email, 160).toLowerCase();
-    const phone = clean(body.phone, 40);
-    const address = clean(body.address, 300);
-    const state = clean(body.state, 80);
-    const notes = clean(body.notes, 1000);
-    const requestedCode = clean(body.schoolCode, 50).toUpperCase();
+    const name = clean(body.name, 160); const contactName = clean(body.contactName, 120); const email = clean(body.email, 160).toLowerCase(); const phone = clean(body.phone, 40); const address = clean(body.address, 300); const state = clean(body.state, 80); const notes = clean(body.notes, 1000); const requestedCode = clean(body.schoolCode, 50).toUpperCase();
     if (!name || !contactName || !email) return json(400, { error: 'School name, administrator name, and administrator email are required.' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'Enter a valid school administrator email.' });
-
     const existingSchool = await adminDb.collection('schools').where('name', '==', name).limit(1).get();
     if (!existingSchool.empty) return json(409, { error: 'A school with this name is already onboarded.' });
 
-    const password = temporaryPassword();
-    let authUser;
-    try {
-      authUser = await adminAuth.createUser({ email, password, displayName: contactName, emailVerified: false });
-    } catch (error: any) {
-      if (error?.code === 'auth/email-already-exists') return json(409, { error: 'That administrator email already belongs to a Firebase account.' });
-      throw error;
-    }
+    const password = temporaryPassword(); let authUser;
+    try { authUser = await adminAuth.createUser({ email, password, displayName: contactName, emailVerified: false }); }
+    catch (error: any) { if (error?.code === 'auth/email-already-exists') return json(409, { error: 'That administrator email already belongs to a Firebase account.' }); throw error; }
 
-    const schoolRef = adminDb.collection('schools').doc();
-    const code = requestedCode || schoolCode(name);
-    const now = new Date();
+    const schoolRef = adminDb.collection('schools').doc(); const code = requestedCode || schoolCode(name); const now = new Date();
     try {
       await adminDb.runTransaction(async transaction => {
-        transaction.set(schoolRef, {
-          name,
-          schoolCode: code,
-          contactName,
-          contactEmail: email,
-          phone: phone || null,
-          address: address || null,
-          state: state || null,
-          notes: notes || null,
-          status: 'PENDING',
-          onboardingStatus: 'ONBOARDED',
-          createdBy: decoded.uid,
-          createdAt: now,
-          updatedAt: now
-        });
-        transaction.set(adminDb.collection('users').doc(authUser.uid), {
-          uid: authUser.uid,
-          name: contactName,
-          fullName: contactName,
-          email,
-          role: 'SCHOOL',
-          schoolId: schoolRef.id,
-          schoolCode: code,
-          accountStatus: 'ACTIVE',
-          forcePasswordReset: true,
-          onboardingStatus: 'ONBOARDED',
-          createdBy: decoded.uid,
-          createdAt: now,
-          updatedAt: now
-        });
-        transaction.set(adminDb.collection('schoolOnboarding').doc(schoolRef.id), {
-          schoolId: schoolRef.id,
-          schoolName: name,
-          administratorId: authUser.uid,
-          administratorEmail: email,
-          status: 'PENDING_APPROVAL',
-          createdBy: decoded.uid,
-          createdAt: now,
-          updatedAt: now
-        });
-        transaction.set(adminDb.collection('activityLogs').doc(), {
-          type: 'school_onboarded',
-          action: 'SCHOOL_ONBOARDED',
-          message: `School ${name} was onboarded by an administrator.`,
-          actorId: decoded.uid,
-          userId: authUser.uid,
-          userEmail: email,
-          userType: 'SCHOOL',
-          schoolId: schoolRef.id,
-          schoolName: name,
-          timestamp: now,
-          details: { schoolCode: code, contactName, phone, address, state, status: 'PENDING' }
-        });
+        transaction.set(schoolRef, { name, schoolCode: code, contactName, contactEmail: email, phone: phone || null, address: address || null, state: state || null, notes: notes || null, status: 'ACTIVE', onboardingStatus: 'APPROVED', createdBy: decoded.uid, createdAt: now, updatedAt: now });
+        transaction.set(adminDb.collection('users').doc(authUser.uid), { uid: authUser.uid, name: contactName, fullName: contactName, email, role: 'SCHOOL', schoolId: schoolRef.id, schoolCode: code, accountStatus: 'ACTIVE', forcePasswordReset: true, onboardingStatus: 'APPROVED', createdBy: decoded.uid, createdAt: now, updatedAt: now });
+        transaction.set(adminDb.collection('schoolOnboarding').doc(schoolRef.id), { schoolId: schoolRef.id, schoolName: name, administratorId: authUser.uid, administratorEmail: email, status: 'APPROVED', approvedBy: decoded.uid, createdBy: decoded.uid, createdAt: now, updatedAt: now });
+        transaction.set(adminDb.collection('activityLogs').doc(), { type: 'school_onboarded', action: 'SCHOOL_ONBOARDED', message: `School ${name} was onboarded by an administrator.`, actorId: decoded.uid, userId: authUser.uid, userEmail: email, userType: 'SCHOOL', schoolId: schoolRef.id, schoolName: name, timestamp: now, details: { schoolCode: code, contactName, phone, address, state, status: 'ACTIVE' } });
       });
-    } catch (error) {
-      await adminAuth.deleteUser(authUser.uid).catch(() => undefined);
-      throw error;
-    }
-
-    return json(200, { success: true, school: { id: schoolRef.id, name, schoolCode: code, status: 'PENDING' }, administrator: { uid: authUser.uid, name: contactName, email }, temporaryPassword: password });
-  } catch (error) {
-    console.error('School onboarding error:', error);
-    return json(500, { error: 'Unable to onboard this school right now.' });
-  }
+    } catch (error) { await adminAuth.deleteUser(authUser.uid).catch(() => undefined); throw error; }
+    return json(200, { success: true, school: { id: schoolRef.id, name, schoolCode: code, status: 'ACTIVE' }, administrator: { uid: authUser.uid, name: contactName, email }, temporaryPassword: password });
+  } catch (error) { console.error('School onboarding error:', error); return json(500, { error: 'Unable to onboard this school right now.' }); }
 };
