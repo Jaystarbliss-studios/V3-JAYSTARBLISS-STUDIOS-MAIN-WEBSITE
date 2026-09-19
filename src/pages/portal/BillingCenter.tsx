@@ -39,7 +39,7 @@ const PaymentTable: React.FC<{ payments: PaymentRecord[]; onReceipt: (p: Payment
     <table className="min-w-[1000px] w-full text-left text-xs">
       <thead>
         <tr className="border-b border-slate-200 dark:border-slate-800">
-          {['Date', 'Plan / Purpose', 'Mode', 'Duration', 'Base Amount', 'Gateway Fee', 'Total Paid', 'Reference', ''].map(h => (
+          {['Date', 'Plan / Purpose', 'Mode', 'Duration', 'Paid Through', 'Source', 'Base Amount', 'Gateway Fee', 'Total Paid', 'Reference', ''].map(h => (
             <th key={h} className="px-3 py-3 font-black uppercase tracking-wider text-slate-500">{h}</th>
           ))}
         </tr>
@@ -54,6 +54,8 @@ const PaymentTable: React.FC<{ payments: PaymentRecord[]; onReceipt: (p: Payment
             </td>
             <td className="px-3 py-4">{payment.teachingMode || 'Standard Delivery'}</td>
             <td className="px-3 py-4">{payment.durationWeeks || 4} weeks</td>
+            <td className="px-3 py-4 whitespace-nowrap font-bold">{payment.paidThrough ? dateLabel(payment.paidThrough) : '—'}</td>
+            <td className="px-3 py-4"><span className="inline-flex px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">{payment.paymentSource || payment.escrowQuarter || "This Quarter's Escrow Account"}</span></td>
             <td className="px-3 py-4 font-mono">{formatNaira(payment.baseAmount || 0)}</td>
             <td className="px-3 py-4 font-mono">{formatNaira(payment.transactionFee || 0)}</td>
             <td className="px-3 py-4 font-mono font-black text-brand-red">
@@ -240,7 +242,9 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
       `Base fee: ${formatNaira(payment.baseAmount)}`,
       `Paystack transaction fee: ${formatNaira(payment.transactionFee)}`,
       `Customer total: ${formatNaira(payment.customerTotal || Number(payment.amount || 0) / 100)}`,
-      `Payment method: ${payment.paymentMethod || 'Paystack'}`
+      `Payment method: ${payment.paymentMethod || 'Paystack'}`,
+      `Payment source: ${payment.paymentSource || payment.escrowQuarter || "This Quarter's Escrow Account"}`,
+      `Paid through: ${payment.paidThrough ? new Date(payment.paidThrough).toLocaleDateString('en-NG', { dateStyle: 'long' }) : '—'}`
     ].forEach((line, index) => pdf.text(line, 20, 55 + index * 10)); 
     pdf.save(`jaystarbliss-receipt-${payment.reference || payment.id}.pdf`); 
   };
