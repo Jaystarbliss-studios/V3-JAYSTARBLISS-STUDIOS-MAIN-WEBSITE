@@ -3,13 +3,15 @@ import {
   collection, getDocs, addDoc, deleteDoc, doc, 
   setDoc, query, orderBy, serverTimestamp, updateDoc 
 } from 'firebase/firestore';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { 
   School, BookOpen, Plus, Trash2, ExternalLink, 
   FileText, RefreshCw, Loader2, 
   Key, Copy, CheckCircle2, 
-  X, Search, UserPlus, HelpCircle
+  X, Search, UserPlus, HelpCircle,
+  Link2, ShieldCheck, KeyRound, Sparkles
 } from 'lucide-react';
 
 interface SchoolData {
@@ -29,7 +31,32 @@ interface SchoolData {
   icon?: string;
   studentCount?: number;
   createdAt?: any;
+  adminUid?: string;
+  isLinked?: boolean;
 }
+
+export const TARGET_ADMIN_MAPPINGS = [
+  {
+    email: 'peniellilystudent@gmail.com',
+    schoolId: 'peniel',
+    schoolName: 'Peniel Lily Montessori School'
+  },
+  {
+    email: 'studentseasystars@gmail.com',
+    schoolId: 'easystars',
+    schoolName: 'Easy Stars Early Years Academy'
+  },
+  {
+    email: 'southgold@gmail.com',
+    schoolId: 'southgold',
+    schoolName: 'South Gold Montessori School'
+  },
+  {
+    email: 'sapphirestudent@gmail.com',
+    schoolId: 'sapphire',
+    schoolName: 'Sapphire Explorer Montessori School'
+  }
+];
 
 interface ExamPasscode {
   id: string;
@@ -182,15 +209,27 @@ const AdminSchools: React.FC = () => {
         });
       });
 
-      // Also enrich from users collection (where role is SCHOOL)
+      // Also enrich from users collection (where role is SCHOOL or matches known emails)
       usersSnap.docs.forEach((d: any) => {
         const u = d.data();
-        if (String(u.role || '').toUpperCase() === 'SCHOOL' && u.schoolId) {
-          const s = schoolMap.get(u.schoolId);
-          if (s) {
-            if (!s.contactEmail) s.contactEmail = u.email;
-            if (!s.contactName) s.contactName = u.name || u.fullName;
-          }
+        const userEmail = (u.email || '').trim().toLowerCase();
+        
+        // Match by schoolId
+        if (u.schoolId && schoolMap.has(u.schoolId)) {
+          const s = schoolMap.get(u.schoolId)!;
+          s.adminUid = d.id;
+          s.isLinked = true;
+          if (u.email) s.contactEmail = u.email;
+          if (u.name || u.fullName) s.contactName = u.name || u.fullName;
+        }
+
+        // Match by known target email
+        const targetMatch = TARGET_ADMIN_MAPPINGS.find(m => m.email.toLowerCase() === userEmail);
+        if (targetMatch && schoolMap.has(targetMatch.schoolId)) {
+          const s = schoolMap.get(targetMatch.schoolId)!;
+          s.adminUid = d.id;
+          s.isLinked = true;
+          s.contactEmail = targetMatch.email;
         }
       });
 
@@ -221,6 +260,185 @@ const AdminSchools: React.FC = () => {
   useEffect(() => {
     void fetchAllSchoolData();
   }, [fetchAllSchoolData]);
+
+  // Account Linking Modal & State
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [selectedSchoolForLink, setSelectedSchoolForLink] = useState<SchoolData | null>(null);
+  const [linkEmailInput, setLinkEmailInput] = useState('');
+  const [linkingLoading, setLinkingLoading] = useState(false);
+  const [syncingAllAdmins, setSyncingAllAdmins] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
+  // Open Link Modal
+  const openLinkModal = async (school: SchoolData) => {
+    setSelectedSchoolForLink(school);
+    setLinkEmailInput(school.contactEmail || '');
+    setShowLinkModal(true);
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      setAvailableUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch {
+      setAvailableUsers([]);
+    }
+  };
+
+  // Sync All 4 Pre-mapped School Administrators
+  const syncAllSchoolAdministrators = async () => {
+    setSyncingAllAdmins(true);
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      let linkedCount = 0;
+
+      for (const mapping of TARGET_ADMIN_MAPPINGS) {
+        const targetEmail = mapping.email.toLowerCase();
+        const userDoc = usersSnap.docs.find(d => {
+          const data = d.data();
+          return (data.email && data.email.trim().toLowerCase() === targetEmail) ||
+                 (d.id === mapping.schoolId);
+        });
+
+        if (userDoc) {
+          const uRef = doc(db, 'users', userDoc.id);
+          const existing = userDoc.data();
+          const updatedUser: any = {
+            ...existing,
+            email: mapping.email,
+            role: 'SCHOOL',
+            schoolId: mapping.schoolId,
+            schoolName: mapping.schoolName,
+            accountStatus: 'ACTIVE',
+            status: 'ACTIVE',
+            portalAccessEnabled: true,
+            updatedAt: new Date().toISOString()
+          };
+          if (updatedUser.studentDocId === userDoc.id) {
+            delete updatedUser.studentDocId;
+          }
+          await setDoc(uRef, updatedUser);
+
+          const sRef = doc(db, 'schools', mapping.schoolId);
+          await setDoc(sRef, {
+            name: mapping.schoolName,
+            schoolName: mapping.schoolName,
+            email: mapping.email,
+            contactEmail: mapping.email,
+            adminUid: userDoc.id,
+            userId: userDoc.id,
+            status: 'ACTIVE',
+            accountStatus: 'ACTIVE',
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+
+          linkedCount++;
+        }
+      }
+
+      await addDoc(collection(db, 'activityLogs'), {
+        action: 'SCHOOL_ADMINS_SYNCED_AND_LINKED',
+        type: 'school_admin_linked',
+        message: `Linked ${linkedCount} School Administrator accounts to their respective schools.`,
+        timestamp: serverTimestamp()
+      }).catch(() => undefined);
+
+      toast.success(`Successfully verified and linked ${linkedCount} School Administrator accounts!`);
+      await fetchAllSchoolData();
+    } catch (err: any) {
+      console.error('Error syncing school admins:', err);
+      toast.error('Failed to link school administrators: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSyncingAllAdmins(false);
+    }
+  };
+
+  // Link Single School Administrator
+  const handleLinkSingleAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSchoolForLink || !linkEmailInput.trim()) {
+      toast.error('Please enter or select a valid administrator email.');
+      return;
+    }
+    setLinkingLoading(true);
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const targetEmail = linkEmailInput.trim().toLowerCase();
+      const userDoc = usersSnap.docs.find(d => {
+        const data = d.data();
+        return data.email && data.email.trim().toLowerCase() === targetEmail;
+      });
+
+      const schoolId = selectedSchoolForLink.id;
+      const schoolName = selectedSchoolForLink.name;
+
+      if (userDoc) {
+        const uRef = doc(db, 'users', userDoc.id);
+        const existingData = userDoc.data();
+        const updatedData: any = {
+          ...existingData,
+          email: targetEmail,
+          role: 'SCHOOL',
+          schoolId: schoolId,
+          schoolName: schoolName,
+          accountStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          portalAccessEnabled: true,
+          updatedAt: new Date().toISOString()
+        };
+        if (updatedData.studentDocId === userDoc.id) {
+          delete updatedData.studentDocId;
+        }
+        await setDoc(uRef, updatedData);
+
+        const sRef = doc(db, 'schools', schoolId);
+        await setDoc(sRef, {
+          name: schoolName,
+          schoolName: schoolName,
+          email: targetEmail,
+          contactEmail: targetEmail,
+          adminUid: userDoc.id,
+          userId: userDoc.id,
+          status: 'ACTIVE',
+          accountStatus: 'ACTIVE',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        toast.success(`Successfully linked ${targetEmail} as Administrator for ${schoolName}!`);
+      } else {
+        const sRef = doc(db, 'schools', schoolId);
+        await setDoc(sRef, {
+          name: schoolName,
+          schoolName: schoolName,
+          email: targetEmail,
+          contactEmail: targetEmail,
+          status: 'ACTIVE',
+          accountStatus: 'ACTIVE',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        toast.success(`Assigned ${targetEmail} as administrator email for ${schoolName}.`);
+      }
+
+      setShowLinkModal(false);
+      await fetchAllSchoolData();
+    } catch (err: any) {
+      toast.error('Linking error: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLinkingLoading(false);
+    }
+  };
+
+  // Send Password Reset Link
+  const handleSendPasswordReset = async (email?: string, schoolName?: string) => {
+    if (!email || !email.includes('@')) {
+      toast.error('No valid administrator email address is associated with this school.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+      toast.success(`Password reset instructions sent to ${email} (${schoolName || 'School Administrator'})!`);
+    } catch (err: any) {
+      toast.error('Password reset failed: ' + (err.message || 'Please check the email format.'));
+    }
+  };
 
   // Action: Onboard New School (Start to Finish)
   const handleOnboardSchool = async (e: React.FormEvent) => {
@@ -469,6 +687,17 @@ const AdminSchools: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            onClick={syncAllSchoolAdministrators}
+            disabled={syncingAllAdmins}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 text-xs font-bold text-emerald-700 shadow-xs backdrop-blur-md hover:bg-emerald-500/20 disabled:opacity-50 dark:border-emerald-500/30 dark:text-emerald-300"
+            title="Automatically link the 4 official partner school admin accounts (Peniel Lily, Easy Stars, South Gold, Sapphire Explorer)"
+          >
+            {syncingAllAdmins ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            Sync &amp; Link School Admins
+          </button>
+
+          <button
+            type="button"
             onClick={() => fetchAllSchoolData()}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200/80 bg-white/70 px-4 text-xs font-bold text-slate-700 shadow-xs backdrop-blur-md hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800"
           >
@@ -553,6 +782,25 @@ const AdminSchools: React.FC = () => {
       {/* TAB 1: Partner School Directory */}
       {activeTab === 'directory' && (
         <div className="space-y-6">
+          {/* Information & Sync Notice */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 text-xs dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <ShieldCheck size={18} className="text-emerald-600 shrink-0" />
+              <span>
+                <strong>Administrator Account Linking:</strong> Ensure each school has a connected administrator account so school coordinators can manage their school roster, submit batch students, and monitor academic progress.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={syncAllSchoolAdministrators}
+              disabled={syncingAllAdmins}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {syncingAllAdmins ? <Loader2 size={12} className="animate-spin" /> : <Link2 size={12} />}
+              Auto-Link 4 Target Accounts
+            </button>
+          </div>
+
           {/* Search bar */}
           <div className="pro-surface rounded-2xl border border-slate-200/80 p-4 shadow-xs dark:border-slate-800 dark:bg-slate-900/80">
             <div className="relative">
@@ -589,8 +837,12 @@ const AdminSchools: React.FC = () => {
                       </div>
                     </div>
                     
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      {school.status || 'Active'}
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                      school.isLinked || school.adminUid
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                    }`}>
+                      {school.isLinked || school.adminUid ? 'Connected' : (school.status || 'Active')}
                     </span>
                   </div>
 
@@ -605,10 +857,19 @@ const AdminSchools: React.FC = () => {
 
                     <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span className="text-slate-400">Admin Email:</span>
-                      <span className="font-mono truncate max-w-[170px] text-[11px] text-slate-700 dark:text-slate-300">
-                        {school.contactEmail || 'admin@school.com'}
+                      <span className="font-mono truncate max-w-[170px] text-[11px] font-semibold text-slate-800 dark:text-slate-200" title={school.contactEmail}>
+                        {school.contactEmail || 'Unassigned'}
                       </span>
                     </div>
+
+                    {school.adminUid && (
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span className="text-slate-400">Admin UID:</span>
+                        <span className="font-mono truncate max-w-[170px] text-[10px] text-slate-500">
+                          {school.adminUid}
+                        </span>
+                      </div>
+                    )}
 
                     {school.contactName && (
                       <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
@@ -629,31 +890,55 @@ const AdminSchools: React.FC = () => {
                 </div>
 
                 {/* Card Actions */}
-                <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSchoolFilter(school.id);
-                      setActiveTab('passcodes');
-                    }}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/50 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
-                  >
-                    <Key size={13} />
-                    Exam Codes
-                  </button>
+                <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openLinkModal(school)}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/50 py-2 text-[11px] font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
+                      title="Link or change administrator account for this school"
+                    >
+                      <Link2 size={13} />
+                      {school.isLinked || school.adminUid ? 'Edit Link' : 'Link Admin'}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSchoolFilter(school.id);
-                      setResForm(prev => ({ ...prev, schoolId: school.id }));
-                      setActiveTab('resources');
-                    }}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/50 py-2 text-[11px] font-bold text-sky-800 hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300"
-                  >
-                    <BookOpen size={13} />
-                    Deploy Assets
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendPasswordReset(school.contactEmail, school.name)}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      title="Send password reset link to this administrator email"
+                    >
+                      <KeyRound size={13} />
+                      Reset Pass
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSchoolFilter(school.id);
+                        setActiveTab('passcodes');
+                      }}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50/50 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                    >
+                      <Key size={13} />
+                      Exam Codes
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSchoolFilter(school.id);
+                        setResForm(prev => ({ ...prev, schoolId: school.id }));
+                        setActiveTab('resources');
+                      }}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/50 py-2 text-[11px] font-bold text-sky-800 hover:bg-sky-100 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-300"
+                    >
+                      <BookOpen size={13} />
+                      Deploy Assets
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
@@ -1457,6 +1742,115 @@ const AdminSchools: React.FC = () => {
                 Done &amp; Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Link / Assign School Administrator Account */}
+      {showLinkModal && selectedSchoolForLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs">
+          <div className="pro-surface relative w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => setShowLinkModal(false)}
+              className="absolute right-5 top-5 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+                <Link2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  Link School Administrator
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Bind a Firebase user account to <strong>{selectedSchoolForLink.name}</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick target suggestion */}
+            {(() => {
+              const suggested = TARGET_ADMIN_MAPPINGS.find(m => m.schoolId === selectedSchoolForLink.id);
+              if (suggested) {
+                return (
+                  <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/20 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-emerald-800 dark:text-emerald-300">Recommended Target Account:</span>
+                      <p className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">{suggested.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLinkEmailInput(suggested.email)}
+                      className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700"
+                    >
+                      Use Email
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <form onSubmit={handleLinkSingleAdmin} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Select Discovered User Account (or type email below)
+                </label>
+                <select
+                  value={linkEmailInput}
+                  onChange={e => setLinkEmailInput(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">-- Choose from registered users --</option>
+                  {availableUsers
+                    .filter(u => u.email)
+                    .map(u => (
+                      <option key={u.id} value={u.email}>
+                        {u.email} {u.role ? `(${u.role})` : ''} {u.fullName ? `- ${u.fullName}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Administrator Email Address <span className="text-brand-red">*</span>
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={linkEmailInput}
+                  onChange={e => setLinkEmailInput(e.target.value)}
+                  placeholder="e.g. schooladmin@gmail.com"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  This user will be given the <code>SCHOOL</code> role with full administrative access to <strong>{selectedSchoolForLink.name}</strong>.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkModal(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={linkingLoading}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {linkingLoading ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+                  Confirm Link
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

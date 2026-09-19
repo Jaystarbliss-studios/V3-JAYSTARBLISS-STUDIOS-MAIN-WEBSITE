@@ -82,13 +82,25 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       const schoolSnap = await getDoc(doc(db, 'schools', schoolId));
       if (!schoolSnap.exists()) throw new Error('Linked school record not found.');
       setSchool({ ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id });
-      const [studentsResult, examSnap, linkSnap, passSnap] = await Promise.all([
-        jsonFetch<{ count: number }>('/.netlify/functions/school-students'),
-        getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', schoolId))),
-        getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', schoolId))),
-        getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', schoolId))),
+      let fetchedStudentCount = 0;
+      try {
+        const studentsResult = await jsonFetch<{ count: number }>('/.netlify/functions/school-students');
+        fetchedStudentCount = Number(studentsResult.count || 0);
+      } catch {
+        // Fallback to direct client-side Firestore query
+        const [studSnap, indivSnap] = await Promise.all([
+          getDocs(query(collection(db, 'students'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] }))
+        ]);
+        fetchedStudentCount = (studSnap.docs?.length || 0) + (indivSnap.docs?.length || 0);
+      }
+
+      const [examSnap, linkSnap, passSnap] = await Promise.all([
+        getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
       ]);
-      setStudentCount(Number(studentsResult.count || 0));
+      setStudentCount(fetchedStudentCount);
       setExams(examSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Exam,'id'>) })));
       setLinks(linkSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<SchoolLink,'id'>) })));
       setPasscodes(passSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Passcode,'id'>) })));
