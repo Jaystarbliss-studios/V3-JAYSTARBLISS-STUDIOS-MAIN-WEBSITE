@@ -42,15 +42,23 @@ export const handler: Handler = async (event) => {
     const schoolId = String(caller.schoolId || '').trim();
     if (!schoolId) return json(403, { error: 'This school account is not linked to a school.' });
 
-    const [individualSnap, legacySnap] = await Promise.all([
+    const [individualSnap, legacySnap, usersSnap] = await Promise.all([
       adminDb.collection('individualStudents').where('schoolId', '==', schoolId).limit(500).get(),
       adminDb.collection('students').where('schoolId', '==', schoolId).limit(500).get(),
+      adminDb.collection('users').where('schoolId', '==', schoolId).limit(500).get(),
     ]);
 
     const students = new Map<string, any>();
     individualSnap.docs.forEach(doc => students.set(doc.id, { id: doc.id, collection: 'individualStudents', ...serialise(doc.data() || {}) }));
     legacySnap.docs.forEach(doc => {
       if (!students.has(doc.id)) students.set(doc.id, { id: doc.id, collection: 'students', ...serialise(doc.data() || {}) });
+    });
+    usersSnap.docs.forEach(doc => {
+      const data = doc.data() || {};
+      const role = String(data.role || '').toUpperCase();
+      if (!['STUDENT','SCHOLAR','CADET'].includes(role) && !data.studentDocId) return;
+      const key = String(data.studentDocId || doc.id);
+      if (!students.has(key)) students.set(key, { id: key, collection: 'users', ...serialise({ ...data, fullName: data.fullName || data.name, firebaseUid: doc.id }) });
     });
 
     const result = Array.from(students.values()).sort((a, b) => String(a.fullName).localeCompare(String(b.fullName)));
