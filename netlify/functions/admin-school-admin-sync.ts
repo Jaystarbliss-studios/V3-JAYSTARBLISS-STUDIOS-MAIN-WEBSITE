@@ -134,10 +134,15 @@ export const handler: Handler = async (event) => {
           return !blockedSchool && (nameMatch || emailMatch);
         });
 
-        if (matches.length !== 1) {
+        // These four institutions pre-date the current onboarding workflow and
+        // have stable legacy document IDs used throughout the school portal.
+        // Prefer a real collection match, but fall back to the canonical legacy ID.
+        let school = matches.length === 1 ? matches[0] : null;
+
+        if (matches.length > 1) {
           results.push({
             email: target.email,
-            status: matches.length === 0 ? 'SCHOOL_NOT_FOUND' : 'AMBIGUOUS_SCHOOL_MATCH',
+            status: 'AMBIGUOUS_SCHOOL_MATCH',
             uid: authUser.uid,
             matches: matches.map((m) => ({
               schoolId: m.id,
@@ -146,11 +151,6 @@ export const handler: Handler = async (event) => {
           });
           continue;
         }
-
-        // These four institutions pre-date the current onboarding workflow and
-        // have stable legacy document IDs used throughout the school portal.
-        // Prefer a real collection match, but fall back to the canonical legacy ID.
-        let school = matches[0] || null;
         if (!school && target.legacySchoolId) {
           const legacyRef = adminDb.collection('schools').doc(target.legacySchoolId);
           const legacySnap = await legacyRef.get();
