@@ -315,7 +315,10 @@ const AdminSchools: React.FC = () => {
       return;
     }
     const target = TARGET_ADMIN_MAPPINGS.find(item => item.email.toLowerCase() === linkEmailInput.trim().toLowerCase());
-    if (!target || target.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '') !== selectedSchoolForLink.name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, target.schoolName.length)) {
+    const selectedNormalized = selectedSchoolForLink.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const targetNormalized = target?.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '') || '';
+    const schoolMatches = Boolean(target && (selectedNormalized === targetNormalized || selectedNormalized.startsWith(targetNormalized) || targetNormalized.startsWith(selectedNormalized)));
+    if (!target || !schoolMatches) {
       toast.error('For safety, this action only permits the pre-approved school administrator mapping for this school.');
       return;
     }
