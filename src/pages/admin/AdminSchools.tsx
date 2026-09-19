@@ -275,64 +275,9 @@ const AdminSchools: React.FC = () => {
         console.warn('Backend school onboard notice, proceeding with client Firestore record:', backendErr);
       }
 
-      // 2. Direct Firestore writes
-      const schoolDocRef = doc(collection(db, 'schools'), schoolSlug);
-      await setDoc(schoolDocRef, {
-        name: onboardForm.name.trim(),
-        schoolCode: generatedCode,
-        contactName: onboardForm.contactName.trim(),
-        contactEmail: onboardForm.email.trim().toLowerCase(),
-        email: onboardForm.email.trim().toLowerCase(),
-        phone: onboardForm.phone.trim() || null,
-        state: onboardForm.state.trim() || 'Lagos',
-        address: onboardForm.address.trim() || null,
-        plan: onboardForm.plan.trim() || 'STEM Partner Tier 1',
-        notes: onboardForm.notes.trim() || null,
-        status: 'ACTIVE',
-        accountStatus: 'ACTIVE',
-        createdAt: now,
-        updatedAt: now
-      });
-
-      // Create school profile entry in users collection
-      const userProfileRef = doc(collection(db, 'users'));
-      await setDoc(userProfileRef, {
-        name: onboardForm.contactName.trim(),
-        fullName: onboardForm.contactName.trim(),
-        email: onboardForm.email.trim().toLowerCase(),
-        role: 'SCHOOL',
-        schoolId: schoolSlug,
-        schoolName: onboardForm.name.trim(),
-        schoolCode: generatedCode,
-        accountStatus: 'ACTIVE',
-        forcePasswordReset: true,
-        portalAccessEnabled: true,
-        createdAt: now,
-        updatedAt: now
-      });
-
-      // Activity log
-      await addDoc(collection(db, 'activityLogs'), {
-        action: 'SCHOOL_ONBOARDED',
-        type: 'school_onboarded',
-        message: `School ${onboardForm.name} was onboarded by administrator.`,
-        schoolId: schoolSlug,
-        schoolName: onboardForm.name.trim(),
-        userEmail: onboardForm.email.trim(),
-        timestamp: now
-      }).catch(() => undefined);
-
-      setCreatedCredentials({
-        schoolName: onboardForm.name.trim(),
-        email: onboardForm.email.trim().toLowerCase(),
-        password: onboardForm.password,
-        schoolCode: generatedCode,
-        contactName: onboardForm.contactName.trim()
-      });
-
-      setShowOnboardModal(false);
-      toast.success(`School "${onboardForm.name}" onboarded successfully!`);
-      await fetchAllSchoolData();
+      // The server endpoint is authoritative. Do not create a client-only
+      // school record because that would not create a Firebase Auth account.
+      throw new Error('School onboarding service is temporarily unavailable. Please try again; no incomplete school record was created.');
 
     } catch (err: any) {
       console.error(err);
