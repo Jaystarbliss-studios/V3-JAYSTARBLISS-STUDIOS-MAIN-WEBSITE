@@ -486,3 +486,83 @@ html.dark .bg-brand-neutral {
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(148, 163, 184, 0.7);
 }
+
+
+/* =========================================================================
+   PORTAL / ADMIN TYPOGRAPHY CONSISTENCY
+   Keep ordinary interface copy on one readable neutral color. Brand colors
+   remain reserved for intentional accents, status indicators and actions.
+   ========================================================================= */
+.dashboard-interface .text-slate-400,
+.dashboard-interface .text-slate-500,
+.dashboard-interface .text-slate-600,
+.dashboard-interface .text-slate-700,
+.dashboard-interface .text-slate-800,
+.dashboard-interface .text-slate-900,
+.dashboard-interface .text-gray-400,
+.dashboard-interface .text-gray-500,
+.dashboard-interface .text-gray-600,
+.dashboard-interface .text-gray-700,
+.dashboard-interface .text-gray-800,
+.dashboard-interface .text-gray-900,
+.admin-schools-command .text-slate-400,
+.admin-schools-command .text-slate-500,
+.admin-schools-command .text-slate-600,
+.admin-schools-command .text-slate-700,
+.admin-schools-command .text-slate-800,
+.admin-schools-command .text-slate-900,
+.admin-schools-command .text-gray-400,
+.admin-schools-command .text-gray-500,
+.admin-schools-command .text-gray-600,
+.admin-schools-command .text-gray-700,
+.admin-schools-command .text-gray-800,
+.admin-schools-command .text-gray-900 {
+  color: #334155 !important;
+}
+
+html.dark .dashboard-interface .text-slate-400,
+html.dark .dashboard-interface .text-slate-500,
+html.dark .dashboard-interface .text-slate-600,
+html.dark .dashboard-interface .text-slate-700,
+html.dark .dashboard-interface .text-slate-800,
+html.dark .dashboard-interface .text-slate-900,
+html.dark .dashboard-interface .text-gray-400,
+html.dark .dashboard-interface .text-gray-500,
+html.dark .dashboard-interface .text-gray-600,
+html.dark .dashboard-interface .text-gray-700,
+html.dark .dashboard-interface .text-gray-800,
+html.dark .dashboard-interface .text-gray-900,
+html.dark .admin-schools-command .text-slate-400,
+html.dark .admin-schools-command .text-slate-500,
+html.dark .admin-schools-command .text-slate-600,
+html.dark .admin-schools-command .text-slate-700,
+html.dark .admin-schools-command .text-slate-800,
+html.dark .admin-schools-command .text-slate-900,
+html.dark .admin-schools-command .text-gray-400,
+html.dark .admin-schools-command .text-gray-500,
+html.dark .admin-schools-command .text-gray-600,
+html.dark .admin-schools-command .text-gray-700,
+html.dark .admin-schools-command .text-gray-800,
+html.dark .admin-schools-command .text-gray-900 {
+  color: #E2E8F0 !important;
+}
+
+/* Prevent the neutral copy rule from flattening intentional action text. */
+.dashboard-interface .text-white,
+.admin-schools-command .text-white,
+.dashboard-interface .text-brand-red,
+.admin-schools-command .text-brand-red,
+.dashboard-interface .text-emerald-600,
+.dashboard-interface .text-emerald-700,
+.dashboard-interface .text-amber-600,
+.dashboard-interface .text-amber-700,
+.dashboard-interface .text-red-600,
+.dashboard-interface .text-red-700,
+.admin-schools-command .text-emerald-600,
+.admin-schools-command .text-emerald-700,
+.admin-schools-command .text-amber-600,
+.admin-schools-command .text-amber-700,
+.admin-schools-command .text-red-600,
+.admin-schools-command .text-red-700 {
+  color: revert-layer !important;
+}
