@@ -64,22 +64,23 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // Resolve assigned plan if user/school has custom admin billing or if planId matches assigned plan
-    if (assignedBilling && Number(assignedBilling.baseAmount) > 0) {
-      if (!plan || !plan.active || planId === "school_custom_fee" || planId === "custom_school_billing" || planId === "assigned_plan" || planId === "custom_plan" || customAmount > 0) {
-        const cycle = String(assignedBilling.cycle || body.cycle || "monthly").toLowerCase();
-        const baseAmt = customAmount > 0 ? customAmount : Number(assignedBilling.baseAmount);
-        plan = {
-          id: planId || "assigned_plan",
-          name: String(body.planName || assignedBilling.planName || (actualRole === "school" ? "Institutional Partner Fee" : "Assigned Tuition Plan")),
-          baseAmount: baseAmt,
-          durationWeeks: cycle === "termly" ? 12 : 4,
-          teachingModes: ["Standard Delivery", "Hybrid / Physical"],
-          role: actualRole === "school" ? "school" : "student",
-          active: true
-        };
-        planId = planId || "assigned_plan";
-      }
+    // Admin-assigned billing is authoritative. The portal may arrive here with a
+    // generic/default plan ID from the payment UI, but an assigned school/user
+    // billing record must take precedence so the customer never pays against a
+    // stale or unrelated plan.
+    if (assignedBilling && Number(assignedBilling.baseAmount) > 0 && assignedBilling.status !== "DISABLED") {
+      const cycle = String(assignedBilling.cycle || body.cycle || "monthly").toLowerCase();
+      const baseAmt = customAmount > 0 && Boolean(body.allowCustomAmount) ? customAmount : Number(assignedBilling.baseAmount);
+      plan = {
+        id: String(assignedBilling.planId || planId || "assigned_plan"),
+        name: String(assignedBilling.planName || body.planName || (actualRole === "school" ? "Fees/Payments" : "Assigned Tuition Plan")),
+        baseAmount: baseAmt,
+        durationWeeks: cycle === "termly" ? 12 : 4,
+        teachingModes: ["Standard Delivery", "Hybrid / Physical"],
+        role: actualRole === "school" ? "school" : "student",
+        active: true
+      };
+      planId = plan.id;
     }
 
     if (!plan && customAmount > 0) {
