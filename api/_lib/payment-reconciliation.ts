@@ -16,7 +16,36 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   if (verifiedUserId && userId !== verifiedUserId) throw new Error("PAYMENT_OWNER_MISMATCH");
 
   const config = await getPaymentConfig();
+  const userSnapForBilling = await adminDb.collection("users").doc(userId).get();
+  const userForBilling = userSnapForBilling.exists ? userSnapForBilling.data() || {} : {};
+  let assignedBilling = userForBilling.billing || null;
+  if (requestedRole === "school") {
+    const assignedSchoolId = asString(userForBilling.schoolId);
+    if (assignedSchoolId) {
+      const assignedSchoolSnap = await adminDb.collection("schools").doc(assignedSchoolId).get();
+      if (assignedSchoolSnap.exists && assignedSchoolSnap.data()?.billing) {
+        assignedBilling = assignedSchoolSnap.data()?.billing;
+      }
+    }
+  }
+
   let plan = config.plans[planId];
+
+  // Admin-assigned billing is authoritative at reconciliation too. This protects
+  // against a generic frontend plan ID being paired with an admin-assigned fee.
+  if (assignedBilling && Number(assignedBilling.baseAmount) > 0 && String(assignedBilling.status || "ACTIVE").toUpperCase() !== "DISABLED") {
+    const cycle = asString(assignedBilling.cycle || "monthly").toLowerCase();
+    plan = {
+      id: asString(assignedBilling.planId || planId || "assigned_plan"),
+      name: asString(assignedBilling.planName || metadata.planName || (requestedRole === "school" ? "Fees/Payments" : "Assigned Tuition Plan")),
+      role: requestedRole === "school" ? "school" : "student",
+      baseAmount: Number(metadata.baseAmount || assignedBilling.baseAmount),
+      durationWeeks: cycle === "termly" ? 12 : 4,
+      teachingModes: ["Standard Delivery", "Hybrid / Physical"],
+      description: "Admin-assigned billing plan",
+      active: true
+    };
+  }
 
   // Resolve admin-assigned or custom billing plan if not found in static config or marked inactive
   if (!plan || !plan.active) {
