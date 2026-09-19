@@ -94,10 +94,17 @@ export const handler: Handler = async (event) => {
       try {
         const authUser = await adminAuth.getUserByEmail(target.email);
         const wanted = new Set(target.names.map(normalize));
+        const targetEmail = target.email.toLowerCase();
 
         const matches = schools.filter(({ data }) => {
           const names = [data.name, data.schoolName].filter(Boolean).map(normalize);
-          return names.some((name) => wanted.has(name));
+          const contactEmails = [data.contactEmail, data.email, data.administratorEmail]
+            .filter(Boolean)
+            .map((value) => String(value).trim().toLowerCase());
+          const nameMatch = names.some((name) => wanted.has(name));
+          const emailMatch = contactEmails.includes(targetEmail);
+          const active = String(data.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+          return active && (nameMatch || emailMatch);
         });
 
         if (matches.length !== 1) {
