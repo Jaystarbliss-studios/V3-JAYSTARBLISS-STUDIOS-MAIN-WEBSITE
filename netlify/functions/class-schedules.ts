@@ -40,10 +40,13 @@ export const handler: Handler = async event => {
 
       if (role === "school" && !schoolId) return json(400,{error:"Your school account is not linked to a school."});
 
-      let query = adminDb.collection("classSchedules").orderBy("date","asc");
-      if (schoolId) query = query.where("schoolId","==",schoolId) as any;
-      const snap = await query.limit(500).get();
-      const records = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      // Keep the read index-free: schedules are a small operational dataset and
+      // are sorted in memory after applying the school scope.
+      const snap = await adminDb.collection("classSchedules").limit(1000).get();
+      const records = snap.docs
+        .map(d => ({ id:d.id, ...d.data() }))
+        .filter((record:any) => !schoolId || String(record.schoolId || "") === schoolId)
+        .sort((a:any,b:any) => String(a.date || "").localeCompare(String(b.date || "")) || String(a.startTime || "").localeCompare(String(b.startTime || "")));
       return json(200,{ schedules: records, classes });
     }
 
