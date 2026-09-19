@@ -68,16 +68,30 @@ const SecurePortalLogin: React.FC = () => {
   const handleLogin = async (event?: React.FormEvent) => {
     event?.preventDefault(); setError(''); setLoading(true);
     try {
-      if (!identifier.trim() || !password.trim()) throw new Error(activeTab === 'student' ? 'Enter your Student Username / Email and Access Code.' : activeTab === 'school' ? 'Enter your School Email / Terminal ID and Access Code.' : 'Enter your email and password.');
-      if (activeTab === 'student' || activeTab === 'school') {
-        const result = await serverAccess(activeTab);
+      if (!identifier.trim() || !password.trim()) throw new Error(activeTab === 'student' ? 'Enter your Student Username / Email and Access Code.' : activeTab === 'school' ? 'Enter your school administrator email and password.' : 'Enter your email and password.');
+      if (activeTab === 'student') {
+        const result = await serverAccess('student');
         const name = result.data.name || identifier.trim();
-        const sessionRole = result.data.role === 'school' ? 'school' : 'student';
-        storeSession(sessionRole, result.user.uid, name, sessionRole === 'student' ? {
+        storeSession('student', result.user.uid, name, {
           studentDocId: result.data.studentDocId || '', studentUsername: result.data.username || '', studentClass: result.data.class || '', schoolId: result.data.schoolId || '', schoolName: result.data.schoolName || ''
-        } : { schoolId: result.data.schoolId || result.data.schoolDocId || '' });
+        });
         toast.success(`Welcome ${String(name).split(' ')[0]}! Logged in successfully.`);
-        navigate(sessionRole === 'school' ? '/portal/school' : '/portal/student');
+        navigate('/portal/student');
+      } else if (activeTab === 'school') {
+        // School administrators use their Firebase email/password account.
+        // The school code is never a login credential.
+        const email = identifier.trim().toLowerCase();
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        const snap = await getDoc(doc(db, 'users', credential.user.uid));
+        if (!snap.exists()) { await signOut(auth).catch(() => undefined); throw new Error('No active school administrator profile was found for this email.'); }
+        const data = snap.data() || {};
+        if (blocked(data)) { await signOut(auth).catch(() => undefined); throw new Error('This school account is currently disabled.'); }
+        if (String(data.role || '').toUpperCase() !== 'SCHOOL') { await signOut(auth).catch(() => undefined); throw new Error('This account is not registered as a school administrator.'); }
+        const schoolId = String(data.schoolId || '').trim();
+        if (!schoolId) { await signOut(auth).catch(() => undefined); throw new Error('This school administrator is not linked to a school.'); }
+        storeSession('school', credential.user.uid, data.name || credential.user.displayName || email.split('@')[0], { userEmail: credential.user.email || email, schoolId });
+        toast.success(`Welcome ${String(data.name || 'Administrator').split(' ')[0]}! Logged in successfully.`);
+        navigate('/portal/school');
       } else {
         await loginManagedAccount();
         toast.success('Signed in successfully.');
@@ -213,14 +227,14 @@ const SecurePortalLogin: React.FC = () => {
         <form onSubmit={handleLogin} autoComplete="on" className="space-y-3">
           <div className="field mb-2.5">
             <label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1 drop-shadow">
-              {activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Email or Terminal ID' : activeTab === 'parent' ? 'Email Address' : 'Staff / Admin Email'}
+              {activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Administrator Email' : activeTab === 'parent' ? 'Email Address' : 'Staff / Admin Email'}
             </label>
             <div className="input-wrap relative">
               <span className="input-icon">
                 <Mail size={14} />
               </span>
               <input
-                type={activeTab === 'parent' || activeTab === 'staff' ? 'email' : 'text'}
+                type={activeTab === 'parent' || activeTab === 'staff' || activeTab === 'school' ? 'email' : 'text'}
                 required
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
@@ -233,9 +247,9 @@ const SecurePortalLogin: React.FC = () => {
           <div className="field mb-2.5">
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] font-bold text-white uppercase tracking-wider block m-0 drop-shadow">
-                {activeTab === 'student' || activeTab === 'school' ? 'Access Code' : 'Password'}
+                {activeTab === 'student' ? 'Access Code' : 'Password'}
               </label>
-              {(activeTab === 'parent' || activeTab === 'staff') && (
+              {(activeTab === 'parent' || activeTab === 'staff' || activeTab === 'school') && (
                 <button
                   type="button"
                   onClick={handlePasswordReset}
