@@ -36,26 +36,10 @@ interface SchoolData {
 }
 
 export const TARGET_ADMIN_MAPPINGS = [
-  {
-    email: 'peniellilystudent@gmail.com',
-    schoolId: 'peniel',
-    schoolName: 'Peniel Lily Montessori School'
-  },
-  {
-    email: 'studentseasystars@gmail.com',
-    schoolId: 'easystars',
-    schoolName: 'Easy Stars Early Years Academy'
-  },
-  {
-    email: 'southgold@gmail.com',
-    schoolId: 'southgold',
-    schoolName: 'South Gold Montessori School'
-  },
-  {
-    email: 'sapphirestudent@gmail.com',
-    schoolId: 'sapphire',
-    schoolName: 'Sapphire Explorer Montessori School'
-  }
+  { email: 'peniellilystudent@gmail.com', schoolName: 'Peniel Lily' },
+  { email: 'studentseasystars@gmail.com', schoolName: 'Easy Stars Early Years Academy' },
+  { email: 'southgold@gmail.com', schoolName: 'South Gold Montessori' },
+  { email: 'sapphirestudent@gmail.com', schoolName: 'Sapphire Explorer Montessori School' }
 ];
 
 interface ExamPasscode {
@@ -225,11 +209,17 @@ const AdminSchools: React.FC = () => {
 
         // Match by known target email
         const targetMatch = TARGET_ADMIN_MAPPINGS.find(m => m.email.toLowerCase() === userEmail);
-        if (targetMatch && schoolMap.has(targetMatch.schoolId)) {
-          const s = schoolMap.get(targetMatch.schoolId)!;
-          s.adminUid = d.id;
-          s.isLinked = true;
-          s.contactEmail = targetMatch.email;
+        if (targetMatch) {
+          const matchingSchool = Array.from(schoolMap.values()).find(item => {
+            const actual = (item.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+            const wanted = targetMatch.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+            return actual === wanted || actual.startsWith(wanted) || wanted.startsWith(actual);
+          });
+          if (matchingSchool) {
+            matchingSchool.adminUid = d.id;
+            matchingSchool.isLinked = true;
+            matchingSchool.contactEmail = targetMatch.email;
+          }
         }
       });
 
@@ -282,145 +272,71 @@ const AdminSchools: React.FC = () => {
     }
   };
 
-  // Sync All 4 Pre-mapped School Administrators
+  // Safely link the four existing school administrator accounts through the server.
+  // The server resolves Firebase Auth UIDs and existing school document IDs; the browser never guesses either.
   const syncAllSchoolAdministrators = async () => {
     setSyncingAllAdmins(true);
     try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      let linkedCount = 0;
-
-      for (const mapping of TARGET_ADMIN_MAPPINGS) {
-        const targetEmail = mapping.email.toLowerCase();
-        const userDoc = usersSnap.docs.find(d => {
-          const data = d.data();
-          return (data.email && data.email.trim().toLowerCase() === targetEmail) ||
-                 (d.id === mapping.schoolId);
-        });
-
-        if (userDoc) {
-          const uRef = doc(db, 'users', userDoc.id);
-          const existing = userDoc.data();
-          const updatedUser: any = {
-            ...existing,
-            email: mapping.email,
-            role: 'SCHOOL',
-            schoolId: mapping.schoolId,
-            schoolName: mapping.schoolName,
-            accountStatus: 'ACTIVE',
-            status: 'ACTIVE',
-            portalAccessEnabled: true,
-            updatedAt: new Date().toISOString()
-          };
-          if (updatedUser.studentDocId === userDoc.id) {
-            delete updatedUser.studentDocId;
-          }
-          await setDoc(uRef, updatedUser);
-
-          const sRef = doc(db, 'schools', mapping.schoolId);
-          await setDoc(sRef, {
-            name: mapping.schoolName,
-            schoolName: mapping.schoolName,
-            email: mapping.email,
-            contactEmail: mapping.email,
-            adminUid: userDoc.id,
-            userId: userDoc.id,
-            status: 'ACTIVE',
-            accountStatus: 'ACTIVE',
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-
-          linkedCount++;
-        }
+      if (!auth.currentUser) throw new Error('Administrator session is required.');
+      const idToken = await auth.currentUser.getIdToken(true);
+      const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ scope: 'all' })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 207) {
+        throw new Error(result.error || 'Unable to synchronize school administrators.');
       }
 
-      await addDoc(collection(db, 'activityLogs'), {
-        action: 'SCHOOL_ADMINS_SYNCED_AND_LINKED',
-        type: 'school_admin_linked',
-        message: `Linked ${linkedCount} School Administrator accounts to their respective schools.`,
-        timestamp: serverTimestamp()
-      }).catch(() => undefined);
-
-      toast.success(`Successfully verified and linked ${linkedCount} School Administrator accounts!`);
       await fetchAllSchoolData();
+      if (result.failed) {
+        const failed = (result.results || [])
+          .filter((item: any) => item.status !== 'LINKED')
+          .map((item: any) => `${item.email}: ${item.status}`)
+          .join('; ');
+        toast.error(`Linked ${result.linked || 0} account(s). Needs attention: ${failed}`);
+      } else {
+        toast.success(`Verified and linked all ${result.linked || 0} school administrator accounts safely.`);
+      }
     } catch (err: any) {
       console.error('Error syncing school admins:', err);
-      toast.error('Failed to link school administrators: ' + (err.message || 'Unknown error'));
+      toast.error(err?.message || 'Failed to link school administrators.');
     } finally {
       setSyncingAllAdmins(false);
     }
   };
 
-  // Link Single School Administrator
+  // Link a single administrator by using the same trusted server-side resolver.
   const handleLinkSingleAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSchoolForLink || !linkEmailInput.trim()) {
-      toast.error('Please enter or select a valid administrator email.');
+      toast.error('Please enter a valid administrator email.');
+      return;
+    }
+    const target = TARGET_ADMIN_MAPPINGS.find(item => item.email.toLowerCase() === linkEmailInput.trim().toLowerCase());
+    if (!target || target.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '') !== selectedSchoolForLink.name.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, target.schoolName.length)) {
+      toast.error('For safety, this action only permits the pre-approved school administrator mapping for this school.');
       return;
     }
     setLinkingLoading(true);
     try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const targetEmail = linkEmailInput.trim().toLowerCase();
-      const userDoc = usersSnap.docs.find(d => {
-        const data = d.data();
-        return data.email && data.email.trim().toLowerCase() === targetEmail;
+      if (!auth.currentUser) throw new Error('Administrator session is required.');
+      const idToken = await auth.currentUser.getIdToken(true);
+      const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({ scope: 'single', email: target.email })
       });
-
-      const schoolId = selectedSchoolForLink.id;
-      const schoolName = selectedSchoolForLink.name;
-
-      if (userDoc) {
-        const uRef = doc(db, 'users', userDoc.id);
-        const existingData = userDoc.data();
-        const updatedData: any = {
-          ...existingData,
-          email: targetEmail,
-          role: 'SCHOOL',
-          schoolId: schoolId,
-          schoolName: schoolName,
-          accountStatus: 'ACTIVE',
-          status: 'ACTIVE',
-          portalAccessEnabled: true,
-          updatedAt: new Date().toISOString()
-        };
-        if (updatedData.studentDocId === userDoc.id) {
-          delete updatedData.studentDocId;
-        }
-        await setDoc(uRef, updatedData);
-
-        const sRef = doc(db, 'schools', schoolId);
-        await setDoc(sRef, {
-          name: schoolName,
-          schoolName: schoolName,
-          email: targetEmail,
-          contactEmail: targetEmail,
-          adminUid: userDoc.id,
-          userId: userDoc.id,
-          status: 'ACTIVE',
-          accountStatus: 'ACTIVE',
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-
-        toast.success(`Successfully linked ${targetEmail} as Administrator for ${schoolName}!`);
-      } else {
-        const sRef = doc(db, 'schools', schoolId);
-        await setDoc(sRef, {
-          name: schoolName,
-          schoolName: schoolName,
-          email: targetEmail,
-          contactEmail: targetEmail,
-          status: 'ACTIVE',
-          accountStatus: 'ACTIVE',
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-
-        toast.success(`Assigned ${targetEmail} as administrator email for ${schoolName}.`);
-      }
-
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok && response.status !== 207) throw new Error(result.error || 'Unable to link administrator.');
+      const item = result.results?.[0];
+      if (item?.status !== 'LINKED') throw new Error(`Mapping was not changed: ${item?.status || 'UNKNOWN'}`);
       setShowLinkModal(false);
       await fetchAllSchoolData();
+      toast.success(`Successfully linked ${target.email} to ${item.schoolName}.`);
     } catch (err: any) {
-      toast.error('Linking error: ' + (err.message || 'Unknown error'));
+      toast.error(err?.message || 'Linking failed.');
     } finally {
       setLinkingLoading(false);
     }
@@ -1774,7 +1690,11 @@ const AdminSchools: React.FC = () => {
 
             {/* Quick target suggestion */}
             {(() => {
-              const suggested = TARGET_ADMIN_MAPPINGS.find(m => m.schoolId === selectedSchoolForLink.id);
+              const suggested = TARGET_ADMIN_MAPPINGS.find(m => {
+                const actual = selectedSchoolForLink.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                const wanted = m.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                return actual === wanted || actual.startsWith(wanted) || wanted.startsWith(actual);
+              });
               if (suggested) {
                 return (
                   <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs dark:border-emerald-900/40 dark:bg-emerald-950/20 flex items-center justify-between gap-2">
