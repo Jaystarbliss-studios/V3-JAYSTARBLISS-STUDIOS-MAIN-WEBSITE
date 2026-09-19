@@ -97,14 +97,37 @@ export const handler: Handler = async (event) => {
         const targetEmail = target.email.toLowerCase();
 
         const matches = schools.filter(({ data }) => {
-          const names = [data.name, data.schoolName].filter(Boolean).map(normalize);
-          const contactEmails = [data.contactEmail, data.email, data.administratorEmail]
+          const names = [
+            data.name,
+            data.schoolName,
+            data.school_name,
+            data.institutionName,
+            data.institution,
+          ].filter(Boolean).map(normalize);
+
+          const contactEmails = [
+            data.contactEmail,
+            data.email,
+            data.administratorEmail,
+            data.adminEmail,
+            data.schoolEmail,
+            data.contact?.email,
+            data.administrator?.email,
+            data.admin?.email,
+          ]
             .filter(Boolean)
             .map((value) => String(value).trim().toLowerCase());
+
           const nameMatch = names.some((name) => wanted.has(name));
           const emailMatch = contactEmails.includes(targetEmail);
-          const active = String(data.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-          return active && (nameMatch || emailMatch);
+
+          // Existing school records created before the current onboarding flow may
+          // use APPROVED/ACTIVE/ENABLED (or omit status entirely). Only explicitly
+          // blocked records should be excluded from an approved mapping.
+          const status = String(data.status || data.accountStatus || '').toUpperCase();
+          const blockedSchool = ['DISABLED', 'SUSPENDED', 'BANNED', 'DELETED', 'ARCHIVED', 'INACTIVE'].includes(status);
+
+          return !blockedSchool && (nameMatch || emailMatch);
         });
 
         if (matches.length !== 1) {
@@ -112,7 +135,10 @@ export const handler: Handler = async (event) => {
             email: target.email,
             status: matches.length === 0 ? 'SCHOOL_NOT_FOUND' : 'AMBIGUOUS_SCHOOL_MATCH',
             uid: authUser.uid,
-            matches: matches.map((m) => ({ schoolId: m.id, name: m.data.name || m.data.schoolName || '' })),
+            matches: matches.map((m) => ({
+              schoolId: m.id,
+              name: m.data.name || m.data.schoolName || m.data.school_name || m.data.institutionName || '',
+            })),
           });
           continue;
         }
