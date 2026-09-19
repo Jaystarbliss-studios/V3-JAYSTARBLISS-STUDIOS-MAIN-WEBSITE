@@ -56,7 +56,7 @@ const SecurePortalLogin: React.FC = () => {
       await signOut(auth).catch(() => undefined); 
       throw new Error('No active portal profile was found for this account. Please complete registration or contact an administrator.'); 
     }
-    const data = snap.data() || {};
+    let data = snap.data() || {};
     if (blocked(data)) { 
       await signOut(auth).catch(() => undefined); 
       throw new Error(`This account is ${String(data.accountStatus || data.status).toLowerCase()}. Please contact an administrator.`); 
