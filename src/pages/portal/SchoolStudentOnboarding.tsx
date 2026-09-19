@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, FileText, Image as ImageIcon, Loader2, UserPlus, Printer, ShieldCheck } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 
 const SchoolStudentOnboarding: React.FC = () => {
@@ -9,6 +10,14 @@ const SchoolStudentOnboarding: React.FC = () => {
   const [form, setForm] = useState({ fullName: '', username: '', email: '', class: 'JSS 1', track: '', parentId: '' });
   const [saving, setSaving] = useState(false);
   const [credentials, setCredentials] = useState<{ username: string; accessCode: string; portal: string } | null>(null);
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
+  const [programId, setProgramId] = useState('');
+
+  useEffect(() => {
+    getDocs(collection(db, 'programs')).then(snap => {
+      setPrograms(snap.docs.map(d => ({ id: d.id, name: String((d.data() as any).name || (d.data() as any).title || d.id) })));
+    }).catch(() => setPrograms([]));
+  }, []);
 
   const update = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
@@ -21,12 +30,13 @@ const SchoolStudentOnboarding: React.FC = () => {
       const response = await fetch('/.netlify/functions/school-student-onboard', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, programId, programName: programs.find(p => p.id === programId)?.name || '' }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to onboard student.');
       setCredentials(result.credentials);
       setForm({ fullName: '', username: '', email: '', class: 'JSS 1', track: '', parentId: '' });
+      setProgramId('');
       toast.success('Student account created. Save the credentials before leaving this page.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to onboard student.');
@@ -64,7 +74,7 @@ const SchoolStudentOnboarding: React.FC = () => {
 
   return <div className="space-y-6"><SEO title="Onboard School Student | Jaystarbliss Studios" description="Create secure student portal access for a school learner." noindex />
     <div className="pro-surface rounded-3xl p-6 md:p-8"><div className="flex items-start gap-3"><div className="rounded-2xl bg-brand-red/10 p-3 text-brand-red"><UserPlus size={22}/></div><div><div className="text-xs uppercase tracking-widest font-black text-brand-red">School Operations</div><h1 className="text-2xl md:text-3xl font-black mt-1">Onboard a student</h1><p className="text-sm text-slate-500 mt-2 max-w-2xl">Create the learner's account once. They use the same Student Portal as independently enrolled students; their school relationship controls the school-specific learning experience.</p></div></div></div>
-    <form onSubmit={onboard} className="pro-surface rounded-2xl p-6"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Student full name" value={form.fullName} onChange={v=>update('fullName',v)} required/><Field label="Username" value={form.username} onChange={v=>update('username',v)} required/><Field label="Email (optional)" value={form.email} onChange={v=>update('email',v)} type="email"/><label className="text-sm font-bold">Class<select value={form.class} onChange={e=>update('class',e.target.value)} className="mt-2 w-full min-h-11 rounded-xl border border-slate-200 px-3 bg-white"><option>Primary 4</option><option>Primary 5</option><option>JSS 1</option><option>JSS 2</option><option>JSS 3</option><option>SS 1</option><option>SS 2</option><option>SS 3</option></select></label><Field label="Learning track (optional)" value={form.track} onChange={v=>update('track',v)}/><Field label="Parent account ID (optional)" value={form.parentId} onChange={v=>update('parentId',v)}/></div><button disabled={saving} className="min-h-11 mt-5 rounded-xl bg-brand-red text-white px-5 text-sm font-black inline-flex items-center gap-2"><ShieldCheck size={16}/>{saving?<><Loader2 size={16} className="animate-spin"/>Creating secure access…</>:'Create Student Portal Access'}</button></form>
+    <form onSubmit={onboard} className="pro-surface rounded-2xl p-6"><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Field label="Student full name" value={form.fullName} onChange={v=>update('fullName',v)} required/><Field label="Username" value={form.username} onChange={v=>update('username',v)} required/><Field label="Email (optional)" value={form.email} onChange={v=>update('email',v)} type="email"/><label className="text-sm font-bold">Class<select value={form.class} onChange={e=>update('class',e.target.value)} className="mt-2 w-full min-h-11 rounded-xl border border-slate-200 px-3 bg-white"><option>Primary 4</option><option>Primary 5</option><option>JSS 1</option><option>JSS 2</option><option>JSS 3</option><option>SS 1</option><option>SS 2</option><option>SS 3</option></select></label><Field label="Learning track (optional)" value={form.track} onChange={v=>update('track',v)}/><label className="text-sm font-bold">Programme<select value={programId} onChange={e=>setProgramId(e.target.value)} className="mt-2 w-full min-h-11 rounded-xl border border-slate-200 px-3 bg-white"><option value="">No specific programme</option>{programs.map(program=><option key={program.id} value={program.id}>{program.name}</option>)}</select></label><Field label="Parent account ID (optional)" value={form.parentId} onChange={v=>update('parentId',v)}/></div><button disabled={saving} className="min-h-11 mt-5 rounded-xl bg-brand-red text-white px-5 text-sm font-black inline-flex items-center gap-2"><ShieldCheck size={16}/>{saving?<><Loader2 size={16} className="animate-spin"/>Creating secure access…</>:'Create Student Portal Access'}</button></form>
     {credentials && <div className="pro-surface rounded-2xl p-6 border-2 border-brand-red/20"><div className="flex items-start gap-3"><div className="rounded-xl bg-brand-red/10 p-3 text-brand-red"><ShieldCheck size={20}/></div><div><h2 className="font-black text-xl">Credentials created</h2><p className="text-sm text-slate-500 mt-1">Save or distribute these credentials now. The student signs in through the normal Student Portal.</p></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5"><Credential label="Username" value={credentials.username}/><Credential label="Access code" value={credentials.accessCode}/></div><div className="flex flex-wrap gap-3 mt-5"><button type="button" onClick={downloadText} className="min-h-11 rounded-xl border border-slate-200 px-4 text-xs font-black inline-flex items-center gap-2"><FileText size={15}/>TXT</button><button type="button" onClick={printCredentials} className="min-h-11 rounded-xl border border-slate-200 px-4 text-xs font-black inline-flex items-center gap-2"><Printer size={15}/>Print / PDF</button><button type="button" onClick={downloadImage} className="min-h-11 rounded-xl border border-slate-200 px-4 text-xs font-black inline-flex items-center gap-2"><ImageIcon size={15}/>PNG Image</button><a href="/portal" className="min-h-11 rounded-xl bg-brand-slate text-white px-4 text-xs font-black inline-flex items-center gap-2"><Download size={15}/>Student Portal</a></div></div>}
   </div>;
 };
