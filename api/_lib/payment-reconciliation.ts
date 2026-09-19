@@ -83,28 +83,42 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
 
   const feeRole = role === "school" ? "school" : "parent";
   const chargePreview = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
-  const providerAmount = Number(tx.amount || 0) / 100;
-  const expectedBase = Math.round(plan.baseAmount * 100);
-  const expectedCustomerTotal = Math.round(chargePreview.totalAmount * 100);
-  const providerAmountMinor = Math.round(providerAmount * 100);
-  const amountMatchesBase = providerAmountMinor === expectedBase;
-  const amountMatchesCustomerTotal = providerAmountMinor === expectedCustomerTotal;
+  const providerAmountMinor = Math.round(Number(tx.amount || 0));
+  const providerAmount = providerAmountMinor / 100;
+  const expectedBaseMinor = Math.round(plan.baseAmount * 100);
+  const hasVerifiedGatewayFee = Number.isFinite(Number(tx.fees)) && Number(tx.fees) >= 0;
+  const actualTransactionFeeMinor = hasVerifiedGatewayFee ? Math.round(Number(tx.fees)) : 0;
+  const actualTransactionFee = hasVerifiedGatewayFee
+    ? Number((actualTransactionFeeMinor / 100).toFixed(2))
+    : chargePreview.transactionFee;
 
-  // Paystack is configured to pass its transaction fee to the customer at checkout.
-  // The gateway transaction amount therefore represents the base tuition, while tx.fees
-  // is the actual Paystack processing fee. Never expect the pre-calculated gross total
-  // to be the gateway amount, otherwise the customer is charged the fee twice.
-  if (String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || (!amountMatchesBase && !amountMatchesCustomerTotal)) {
+  // Paystack's verified transaction amount is the amount the customer actually paid.
+  // When "pass fees to customers" is enabled, that amount includes the gateway fee.
+  // When the merchant absorbs the fee, it equals the configured base fee and tx.fees
+  // is deducted by Paystack from settlement. We therefore reconcile in this order:
+  //   1. exact base fee (merchant absorbs gateway fee), or
+  //   2. base fee + Paystack's own verified fee (customer bears gateway fee).
+  // We deliberately do NOT calculate Paystack's fee ourselves for acceptance because
+  // the gateway's verified fees value is the source of truth and can vary by channel,
+  // account pricing, caps, or education-specific pricing.
+  const amountMatchesBase = providerAmountMinor === expectedBaseMinor;
+  const amountMatchesBasePlusVerifiedFee =
+    hasVerifiedGatewayFee && providerAmountMinor === expectedBaseMinor + actualTransactionFeeMinor;
+
+  if (
+    String(tx.status || "").toLowerCase() !== "success" ||
+    String(tx.currency || "").toUpperCase() !== "NGN" ||
+    (!amountMatchesBase && !amountMatchesBasePlusVerifiedFee)
+  ) {
     throw new Error("PAYMENT_AMOUNT_MISMATCH");
   }
 
-  const actualTransactionFee = Number.isFinite(Number(tx.fees)) && Number(tx.fees) >= 0
-    ? Number((Number(tx.fees) / 100).toFixed(2))
-    : chargePreview.transactionFee;
-  const customerTotal = amountMatchesCustomerTotal ? providerAmount : Number((plan.baseAmount + actualTransactionFee).toFixed(2));
+  // The verified gateway amount is the receipt total.
+  const customerTotal = providerAmount;
 
-  const metadataBase = Number(metadata.baseAmount || 0);
-  if (metadataBase && Math.round(metadataBase * 100) !== expectedBase) throw new Error("PAYMENT_METADATA_AMOUNT_MISMATCH");
+  // Metadata is informational only at reconciliation. The admin-assigned billing
+  // record above is authoritative, so stale frontend metadata must never cause a
+  // valid Paystack payment to be rejected.
 
   const canonicalPaymentRef = adminDb.collection("payments").doc(reference);
   const enrollmentRef = enrollmentRequestId ? adminDb.collection("enrollment_requests").doc(enrollmentRequestId) : null;
@@ -165,7 +179,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       baseAmount: plan.baseAmount,
       transactionFee: actualTransactionFee,
       estimatedTransactionFee: chargePreview.transactionFee,
-      amount: Math.round(customerTotal * 100),
+      amount: providerAmountMinor,
       providerAmount: providerAmountMinor,
       customerTotal,
       currency: "NGN",
@@ -245,7 +259,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       paymentTransactionFee: actualTransactionFee,
       paymentEstimatedTransactionFee: chargePreview.transactionFee,
       paymentTotal: customerTotal,
-      paymentProviderAmount: plan.baseAmount,
+      paymentProviderAmount: providerAmount,
       paymentFeeVerified: Number.isFinite(Number(tx.fees)),
       durationWeeks: paymentData.durationWeeks,
       teachingMode: paymentData.teachingMode,
