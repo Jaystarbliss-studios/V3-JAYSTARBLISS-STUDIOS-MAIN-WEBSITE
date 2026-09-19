@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { BarChart3, Download, RefreshCw, Users, School, CreditCard, ClipboardList, Activity, FileSpreadsheet } from 'lucide-react';
-import { db } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
 
 const money = (value: number) => `₦${Math.round(value || 0).toLocaleString('en-NG')}`;
 const dateValue = (value: any) => value?.toDate ? value.toDate() : value ? new Date(value) : null;
@@ -13,8 +13,19 @@ const AdminReports: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const unsubs = [
-      ['users', setUsers], ['schools', setSchools], ['students', setStudents], ['payments', setPayments], ['inquiries', setInquiries], ['activityLogs', setActivity]
+      ['users', setUsers], ['schools', setSchools], ['payments', setPayments], ['inquiries', setInquiries], ['activityLogs', setActivity]
     ].map(([name, setter]) => onSnapshot(collection(db, name as string), snap => (setter as React.Dispatch<React.SetStateAction<any[]>>)(snap.docs.map(d => ({ id: d.id, ...d.data() }))), error => console.error(`Reports ${name}`, error)));
+    const loadStudents = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const response = await fetch('/.netlify/functions/admin-students-directory', { headers: { Authorization: `Bearer ${token}` } });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok) setStudents(Array.isArray(result.students) ? result.students : []);
+      } catch (error) { console.error('Reports students', error); }
+    };
+    void loadStudents();
     const timer = window.setTimeout(() => setLoading(false), 900);
     return () => { unsubs.forEach(unsub => unsub()); window.clearTimeout(timer); };
   }, []);
