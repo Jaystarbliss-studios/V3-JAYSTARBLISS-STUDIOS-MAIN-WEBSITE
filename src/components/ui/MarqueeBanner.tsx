@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { 
-  AlertTriangle, X, Radio, ArrowRight, ShieldAlert, 
-  Info, CheckCircle2, Sparkles 
-} from 'lucide-react';
+import { AlertTriangle, X, Radio, ArrowRight, ShieldAlert, Info, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export interface BannerConfig {
@@ -36,7 +33,7 @@ export const MarqueeBanner: React.FC = () => {
 
   useEffect(() => {
     const bannerRef = doc(db, 'settings', 'banner');
-    
+
     getDoc(bannerRef).then((snap) => {
       if (snap.exists()) {
         const data = snap.data() as BannerConfig;
@@ -66,31 +63,25 @@ export const MarqueeBanner: React.FC = () => {
     setIsDismissed(true);
   };
 
-  // Glassmorphic variants matching the login system
   const variantStyles = {
     warning: {
       bg: 'bg-amber-950/70 dark:bg-amber-950/80 text-amber-200 border-amber-400/30 shadow-[0_-10px_35px_rgba(245,158,11,0.15)]',
-      badge: 'bg-amber-500/20 text-amber-300 border-amber-400/40',
       icon: <AlertTriangle size={13} className="text-amber-400 shrink-0" />
     },
     maintenance: {
       bg: 'bg-slate-950/75 dark:bg-slate-950/85 text-slate-100 border-white/15 dark:border-white/10 shadow-[0_-10px_35px_rgba(0,0,0,0.4)]',
-      badge: 'bg-brand-red/25 text-red-300 border-brand-red/40',
       icon: <Radio size={13} className="text-brand-red animate-pulse shrink-0" />
     },
     crimson: {
       bg: 'bg-red-950/75 dark:bg-red-950/85 text-red-100 border-red-500/30 shadow-[0_-10px_35px_rgba(220,38,38,0.2)]',
-      badge: 'bg-red-500/30 text-white border-red-400/50',
       icon: <ShieldAlert size={13} className="text-red-300 shrink-0" />
     },
     info: {
       bg: 'bg-slate-900/75 dark:bg-slate-950/85 text-sky-100 border-sky-400/25 shadow-[0_-10px_35px_rgba(14,165,233,0.15)]',
-      badge: 'bg-sky-500/20 text-sky-300 border-sky-400/40',
       icon: <Info size={13} className="text-sky-400 shrink-0" />
     },
     emerald: {
       bg: 'bg-emerald-950/75 dark:bg-emerald-950/85 text-emerald-100 border-emerald-400/25 shadow-[0_-10px_35px_rgba(16,185,129,0.15)]',
-      badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40',
       icon: <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
     }
   };
@@ -99,7 +90,7 @@ export const MarqueeBanner: React.FC = () => {
   const speedDuration = config.speed === 'slow' ? '45s' : config.speed === 'fast' ? '20s' : '32s';
 
   return (
-    <aside 
+    <aside
       id="global-sticky-marquee-banner"
       aria-label="System Announcement Banner"
       className={`fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t py-1.5 px-3 sm:px-4 flex items-center justify-between text-xs transition-all ${currentVariant.bg}`}
@@ -110,17 +101,8 @@ export const MarqueeBanner: React.FC = () => {
       onMouseLeave={() => setIsPaused(false)}
     >
       <div className="flex items-center gap-2.5 w-full overflow-hidden mr-2">
-        {/* Glass Badge */}
-        {config.badgeText && (
-          <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border backdrop-blur-md shrink-0 shadow-inner ${currentVariant.badge}`}>
-            <Sparkles size={9} />
-            {config.badgeText}
-          </span>
-        )}
-
-        {/* Scrolling text marquee */}
         <div className="relative flex-1 overflow-hidden h-5 flex items-center select-none">
-          <div 
+          <div
             className="flex items-center whitespace-nowrap gap-12 font-medium text-[11px] sm:text-xs text-white/90 drop-shadow-xs"
             style={{
               animation: `marqueeScroll ${speedDuration} linear infinite`,
@@ -145,7 +127,6 @@ export const MarqueeBanner: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Link */}
         {config.linkUrl && (
           <Link
             to={config.linkUrl}
@@ -157,7 +138,6 @@ export const MarqueeBanner: React.FC = () => {
         )}
       </div>
 
-      {/* Dismiss Button */}
       {config.showDismiss !== false && (
         <button
           id="dismiss-marquee-banner-btn"
@@ -170,7 +150,6 @@ export const MarqueeBanner: React.FC = () => {
         </button>
       )}
 
-      {/* Global Style for keyframes */}
       <style>{`
         @keyframes marqueeScroll {
           0% {
