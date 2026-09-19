@@ -3,7 +3,7 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { 
   AlertTriangle, X, Radio, ArrowRight, ShieldAlert, 
-  Info, CheckCircle2 
+  Info, CheckCircle2, Sparkles 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -35,10 +35,8 @@ export const MarqueeBanner: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    // Subscribe to Firestore settings/banner in real-time
     const bannerRef = doc(db, 'settings', 'banner');
     
-    // Initial fetch fallback
     getDoc(bannerRef).then((snap) => {
       if (snap.exists()) {
         const data = snap.data() as BannerConfig;
@@ -68,79 +66,93 @@ export const MarqueeBanner: React.FC = () => {
     setIsDismissed(true);
   };
 
-  // Variant styling
+  // Glassmorphic variants matching the login system
   const variantStyles = {
     warning: {
-      bg: 'bg-amber-500 text-slate-950 border-amber-400',
-      icon: <AlertTriangle size={14} className="text-slate-950 shrink-0" />
+      bg: 'bg-amber-950/70 dark:bg-amber-950/80 text-amber-200 border-amber-400/30 shadow-[0_-10px_35px_rgba(245,158,11,0.15)]',
+      badge: 'bg-amber-500/20 text-amber-300 border-amber-400/40',
+      icon: <AlertTriangle size={13} className="text-amber-400 shrink-0" />
     },
     maintenance: {
-      bg: 'bg-slate-950/95 backdrop-blur-md text-amber-300 border-amber-500/40 shadow-2xl',
-      icon: <Radio size={14} className="text-amber-400 animate-pulse shrink-0" />
+      bg: 'bg-slate-950/75 dark:bg-slate-950/85 text-slate-100 border-white/15 dark:border-white/10 shadow-[0_-10px_35px_rgba(0,0,0,0.4)]',
+      badge: 'bg-brand-red/25 text-red-300 border-brand-red/40',
+      icon: <Radio size={13} className="text-brand-red animate-pulse shrink-0" />
     },
     crimson: {
-      bg: 'bg-brand-red text-white border-red-400 shadow-xl',
-      icon: <ShieldAlert size={14} className="text-white shrink-0" />
+      bg: 'bg-red-950/75 dark:bg-red-950/85 text-red-100 border-red-500/30 shadow-[0_-10px_35px_rgba(220,38,38,0.2)]',
+      badge: 'bg-red-500/30 text-white border-red-400/50',
+      icon: <ShieldAlert size={13} className="text-red-300 shrink-0" />
     },
     info: {
-      bg: 'bg-blue-900/95 backdrop-blur-md text-blue-100 border-blue-500/40',
-      icon: <Info size={14} className="text-blue-300 shrink-0" />
+      bg: 'bg-slate-900/75 dark:bg-slate-950/85 text-sky-100 border-sky-400/25 shadow-[0_-10px_35px_rgba(14,165,233,0.15)]',
+      badge: 'bg-sky-500/20 text-sky-300 border-sky-400/40',
+      icon: <Info size={13} className="text-sky-400 shrink-0" />
     },
     emerald: {
-      bg: 'bg-emerald-950/95 backdrop-blur-md text-emerald-200 border-emerald-500/40',
-      icon: <CheckCircle2 size={14} className="text-emerald-300 shrink-0" />
+      bg: 'bg-emerald-950/75 dark:bg-emerald-950/85 text-emerald-100 border-emerald-400/25 shadow-[0_-10px_35px_rgba(16,185,129,0.15)]',
+      badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40',
+      icon: <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
     }
   };
 
   const currentVariant = variantStyles[config.variant || 'maintenance'] || variantStyles.maintenance;
-
-  // Animation duration based on speed
-  const speedDuration = config.speed === 'slow' ? '45s' : config.speed === 'fast' ? '20s' : '30s';
+  const speedDuration = config.speed === 'slow' ? '45s' : config.speed === 'fast' ? '20s' : '32s';
 
   return (
     <aside 
       id="global-sticky-marquee-banner"
       aria-label="System Announcement Banner"
-      className={`fixed bottom-0 left-0 right-0 z-50 border-t py-2 px-3 sm:px-4 flex items-center justify-between text-xs sm:text-sm font-medium transition-all ${currentVariant.bg}`}
+      className={`fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl border-t py-1.5 px-3 sm:px-4 flex items-center justify-between text-xs transition-all ${currentVariant.bg}`}
+      style={{
+        boxShadow: '0 -4px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
+      }}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="flex items-center gap-3 w-full overflow-hidden mr-2">
+      <div className="flex items-center gap-2.5 w-full overflow-hidden mr-2">
+        {/* Glass Badge */}
+        {config.badgeText && (
+          <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border backdrop-blur-md shrink-0 shadow-inner ${currentVariant.badge}`}>
+            <Sparkles size={9} />
+            {config.badgeText}
+          </span>
+        )}
+
         {/* Scrolling text marquee */}
-        <div className="relative flex-1 overflow-hidden h-6 flex items-center select-none">
+        <div className="relative flex-1 overflow-hidden h-5 flex items-center select-none">
           <div 
-            className="flex items-center whitespace-nowrap gap-12 font-medium"
+            className="flex items-center whitespace-nowrap gap-12 font-medium text-[11px] sm:text-xs text-white/90 drop-shadow-xs"
             style={{
               animation: `marqueeScroll ${speedDuration} linear infinite`,
               animationPlayState: isPaused ? 'paused' : 'running',
               willChange: 'transform'
             }}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5">
               {currentVariant.icon}
               {config.message}
             </span>
-            <span className="opacity-40">• • •</span>
-            <span className="flex items-center gap-2">
+            <span className="opacity-30 text-[9px]">• • •</span>
+            <span className="flex items-center gap-1.5">
               {currentVariant.icon}
               {config.message}
             </span>
-            <span className="opacity-40">• • •</span>
-            <span className="flex items-center gap-2">
+            <span className="opacity-30 text-[9px]">• • •</span>
+            <span className="flex items-center gap-1.5">
               {currentVariant.icon}
               {config.message}
             </span>
           </div>
         </div>
 
-        {/* Action Link if provided */}
+        {/* Action Link */}
         {config.linkUrl && (
           <Link
             to={config.linkUrl}
-            className="hidden md:inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all shrink-0"
+            className="hidden md:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all shrink-0 backdrop-blur-md shadow-xs"
           >
-            <span>{config.linkLabel || 'Learn More'}</span>
-            <ArrowRight size={12} />
+            <span>{config.linkLabel || 'Access'}</span>
+            <ArrowRight size={11} />
           </Link>
         )}
       </div>
@@ -150,15 +162,15 @@ export const MarqueeBanner: React.FC = () => {
         <button
           id="dismiss-marquee-banner-btn"
           onClick={handleDismiss}
-          className="p-1 rounded-full hover:bg-white/20 text-current transition-colors shrink-0 ml-1"
+          className="p-1 rounded-lg hover:bg-white/15 text-white/70 hover:text-white transition-colors shrink-0 ml-1"
           aria-label="Dismiss banner"
           title="Dismiss banner"
         >
-          <X size={15} />
+          <X size={13} />
         </button>
       )}
 
-      {/* Global Style for the keyframes */}
+      {/* Global Style for keyframes */}
       <style>{`
         @keyframes marqueeScroll {
           0% {

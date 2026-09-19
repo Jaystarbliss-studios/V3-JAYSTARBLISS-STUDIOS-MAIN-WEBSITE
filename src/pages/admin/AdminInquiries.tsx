@@ -1,39 +1,778 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
-import { Download, X, Search, Mail, Phone, CalendarDays, UserRound, Filter, Save, ArrowUpRight, Database, Copy, CheckCircle2, Building2, Loader2 } from 'lucide-react';
+import { 
+  Download, X, Search, Mail, Phone, CalendarDays, 
+  UserRound, Filter, Save, ArrowUpRight, Database, 
+  Copy, CheckCircle2, Building2, Loader2, RefreshCw,
+  GraduationCap, Briefcase, MessageSquare, ChevronDown, 
+  ChevronRight, Calendar, User, Clock, Check, Sparkles,
+  ExternalLink, Send, ShieldCheck
+} from 'lucide-react';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import SEO from '../../components/ui/SEO';
 
-type LeadStage = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST' | 'CLOSED';
-const STAGES: { value: LeadStage; label: string }[] = [
-  { value: 'NEW', label: 'New' }, { value: 'CONTACTED', label: 'Contacted' }, { value: 'QUALIFIED', label: 'Qualified' },
-  { value: 'CONVERTED', label: 'Converted' }, { value: 'LOST', label: 'Lost' }, { value: 'CLOSED', label: 'Closed' },
+export type LeadStage = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED' | 'LOST' | 'CLOSED';
+
+const STAGES: { value: LeadStage; label: string; color: string }[] = [
+  { value: 'NEW', label: 'New', color: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' },
+  { value: 'CONTACTED', label: 'Contacted', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+  { value: 'QUALIFIED', label: 'Qualified', color: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' },
+  { value: 'CONVERTED', label: 'Converted', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' },
+  { value: 'LOST', label: 'Lost', color: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' },
+  { value: 'CLOSED', label: 'Closed', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' }
 ];
+
+const CATEGORIES = [
+  { id: 'ALL', label: 'All Lead Categories', icon: MessageSquare },
+  { id: 'SCHOOL_PARTNERSHIP_PROPOSAL', label: 'School Partnerships', icon: Building2 },
+  { id: 'PARENT_ENQUIRY', label: 'Parent Admissions', icon: GraduationCap },
+  { id: 'TUTOR_APPLICATION', label: 'Tutor Applications', icon: Briefcase },
+  { id: 'PROJECT_REQUEST', label: 'Project Requests', icon: Sparkles },
+  { id: 'GENERAL', label: 'General Inquiries', icon: MessageSquare }
+];
+
 const toDate = (value: any) => value?.toDate ? value.toDate() : value ? new Date(value) : null;
-const formatDate = (value: any, time = false) => { const date = toDate(value); return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('en-NG', time ? undefined : { year: 'numeric', month: 'short', day: 'numeric' }) : '—'; };
+const formatDate = (value: any, time = false) => { 
+  const date = toDate(value); 
+  return date && !Number.isNaN(date.getTime()) 
+    ? date.toLocaleString('en-NG', time ? { dateStyle: 'medium', timeStyle: 'short' } : { year: 'numeric', month: 'short', day: 'numeric' }) 
+    : '—'; 
+};
+
 const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
 const displayKey = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-const serialise = (value: unknown): string => { if (value == null) return '—'; if (value && typeof (value as any).toDate === 'function') return formatDate(value, true); if (value instanceof Date) return value.toLocaleString('en-NG'); if (Array.isArray(value)) return value.map(serialise).join(', '); if (typeof value === 'object') return JSON.stringify(value, null, 2); return String(value); };
+const serialise = (value: unknown): string => { 
+  if (value == null) return '—'; 
+  if (value && typeof (value as any).toDate === 'function') return formatDate(value, true); 
+  if (value instanceof Date) return value.toLocaleString('en-NG'); 
+  if (Array.isArray(value)) return value.map(serialise).join(', '); 
+  if (typeof value === 'object') return JSON.stringify(value, null, 2); 
+  return String(value); 
+};
+
+const inputClass = 'w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-brand-red transition-all';
 
 const AdminInquiries: React.FC = () => {
   const { toast } = useToast();
-  const [inquiries, setInquiries] = useState<any[]>([]); const [loading, setLoading] = useState(true); const [selected, setSelected] = useState<any | null>(null); const [search, setSearch] = useState(''); const [stage, setStage] = useState<'ALL' | LeadStage>('ALL'); const [saving, setSaving] = useState(false); const [approvingId, setApprovingId] = useState<string | null>(null); const [copied, setCopied] = useState(false);
-  const [draft, setDraft] = useState({ status: 'NEW' as LeadStage, assignedTo: '', nextFollowUp: '', internalNotes: '' });
-  useEffect(() => onSnapshot(collection(db, 'inquiries'), snap => { setInquiries(snap.docs.map(item => ({ id: item.id, ...item.data() }))); setLoading(false); }, error => { console.error(error); setLoading(false); toast.error('Could not load the lead pipeline.'); }), [toast]);
-  useEffect(() => { if (selected) setDraft({ status: String(selected.status || 'NEW').toUpperCase() as LeadStage, assignedTo: selected.assignedTo || '', nextFollowUp: selected.nextFollowUp || '', internalNotes: selected.internalNotes || '' }); }, [selected]);
-  const counts = useMemo(() => inquiries.reduce<Record<string, number>>((acc, item) => { const key = String(item.status || 'NEW').toUpperCase(); acc.ALL = (acc.ALL || 0) + 1; acc[key] = (acc[key] || 0) + 1; return acc; }, {}), [inquiries]);
-  const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return [...inquiries].sort((a,b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)).filter(item => { const itemStage = String(item.status || 'NEW').toUpperCase(); if (stage !== 'ALL' && itemStage !== stage) return false; return !q || Object.values(item).map(serialise).join(' ').toLowerCase().includes(q); }); }, [inquiries, search, stage]);
-  const quickStage = async (item: any, next: LeadStage) => { try { await updateDoc(doc(db, 'inquiries', item.id), { status: next, updatedBy: auth.currentUser?.uid || null, updatedAt: serverTimestamp() }); await addDoc(collection(db, 'activityLogs'), { type: 'inquiry_stage_changed', action: 'INQUIRY_STAGE_CHANGED', inquiryId: item.id, actorId: auth.currentUser?.uid || null, previousStatus: item.status || 'NEW', nextStatus: next, leadSnapshot: item, timestamp: serverTimestamp() }).catch(() => undefined); } catch (error: any) { toast.error(error?.message || 'Could not update lead stage.'); } };
-  const approveSchool = async (item: any) => { if (String(item.type || '').toUpperCase() !== 'SCHOOL_PARTNERSHIP_PROPOSAL') return; if (!window.confirm(`Approve ${item.schoolName || item.name || 'this school'} and create its school portal account?`)) return; setApprovingId(item.id); try { const token = await auth.currentUser?.getIdToken(); if (!token) throw new Error('Your admin session has expired. Please sign in again.'); const response = await fetch('/.netlify/functions/admin-approve-school-partnership', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ inquiryId: item.id }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'School onboarding failed.'); if (payload.passwordSetupLink) await navigator.clipboard?.writeText(payload.passwordSetupLink).catch(() => undefined); toast.success(`${payload.school?.name || 'School'} approved and onboarded. The secure password setup link was copied when supported.`); setSelected(null); } catch (error: any) { toast.error(error?.message || 'Could not approve school partnership.'); } finally { setApprovingId(null); } };
-  const save = async () => { if (!selected) return; setSaving(true); try { const previousStatus = String(selected.status || 'NEW').toUpperCase(); await updateDoc(doc(db, 'inquiries', selected.id), { status: draft.status, assignedTo: draft.assignedTo.trim(), nextFollowUp: draft.nextFollowUp || null, internalNotes: draft.internalNotes.trim(), updatedBy: auth.currentUser?.uid || null, updatedAt: serverTimestamp() }); await addDoc(collection(db, 'activityLogs'), { type: 'inquiry_updated', action: 'INQUIRY_UPDATED', inquiryId: selected.id, actorId: auth.currentUser?.uid || null, previousStatus, nextStatus: draft.status, leadSnapshot: selected, changes: draft, timestamp: serverTimestamp() }).catch(() => undefined); setSelected(null); toast.success('Lead record updated.'); } catch (error: any) { toast.error(error?.message || 'Could not update lead.'); } finally { setSaving(false); } };
-  const exportCsv = () => { const keySet = new Set<string>(); filtered.forEach(item => Object.keys(item).forEach(key => keySet.add(key))); const headers = Array.from(keySet); const rows = filtered.map(item => headers.map(key => serialise(item[key]))); const blob = new Blob([[headers.map(escapeCsv).join(','), ...rows.map(row => row.map(escapeCsv).join(','))].join('\n')], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `jaystarbliss_leads_full_${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url); toast.success(`Exported all captured fields for ${filtered.length} lead${filtered.length === 1 ? '' : 's'}.`); };
-  const copyAll = async () => { if (!selected) return; await navigator.clipboard.writeText(JSON.stringify(selected, (_key, value) => value && typeof value.toDate === 'function' ? value.toDate().toISOString() : value, 2)); setCopied(true); setTimeout(() => setCopied(false), 1800); toast.success('Full lead record copied.'); };
+  const [inquiries, setInquiries] = useState<any[]>([]); 
+  const [loading, setLoading] = useState(true); 
+  const [selected, setSelected] = useState<any | null>(null); 
+  const [search, setSearch] = useState(''); 
+  const [stageFilter, setStageFilter] = useState<'ALL' | LeadStage>('ALL'); 
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [saving, setSaving] = useState(false); 
+  const [approvingId, setApprovingId] = useState<string | null>(null); 
+  const [copied, setCopied] = useState(false);
+  
+  // Accordion state inside lead drawer
+  const [openSection, setOpenSection] = useState<'details' | 'crm' | 'raw'>('details');
 
-  return <div className="space-y-6"><header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><div className="flex items-center gap-2 text-brand-red text-xs font-black uppercase tracking-[0.18em]"><Filter size={14}/> CRM Pipeline</div><h1 className="mt-1 text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">Inquiries & Leads</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Every submitted field is retained, searchable, exportable and available for review.</p></div><button type="button" onClick={exportCsv} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><Download size={16}/> Export full records</button></header>
-  <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Lead stages"><button type="button" onClick={() => setStage('ALL')} className={`rounded-2xl border p-4 text-left bg-white dark:bg-slate-900 ${stage === 'ALL' ? 'border-brand-red ring-2 ring-brand-red/10' : 'border-slate-200 dark:border-slate-800'}`}><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">All leads</span><strong className="mt-1 block text-xl text-slate-900 dark:text-white">{counts.ALL || 0}</strong></button>{STAGES.map(item => <button key={item.value} type="button" onClick={() => setStage(item.value)} className={`rounded-2xl border p-4 text-left bg-white dark:bg-slate-900 ${stage === item.value ? 'border-brand-red ring-2 ring-brand-red/10' : 'border-slate-200 dark:border-slate-800'}`}><span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{item.label}</span><strong className="mt-1 block text-xl text-slate-900 dark:text-white">{counts[item.value] || 0}</strong></button>)}</section>
-  <label className="relative block"><Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search any captured lead detail…" className="min-h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/10 dark:border-slate-700 dark:bg-slate-900 dark:text-white"/></label>
-  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="overflow-x-auto"><table className="min-w-[1100px] w-full"><thead className="bg-slate-50 dark:bg-slate-950/70"><tr>{['Lead','Source / Type','Stage','Owner / Follow-up','Received','Action'].map(h => <th key={h} className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{loading ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-400">Loading lead pipeline…</td></tr> : filtered.length === 0 ? <tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-400">No leads match the current filters.</td></tr> : filtered.map(item => { const currentStage = String(item.status || 'NEW').toUpperCase() as LeadStage; const schoolLead = String(item.type || '').toUpperCase() === 'SCHOOL_PARTNERSHIP_PROPOSAL'; const converted = Boolean(item.schoolId); return <tr key={item.id} className="align-top hover:bg-slate-50/70 dark:hover:bg-slate-950/50"><td className="px-5 py-4"><div className="font-bold text-slate-900 dark:text-white">{item.name || 'Unnamed lead'}</div><div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.email || 'No email'}</div>{item.phone && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.phone}</div>}</td><td className="px-5 py-4"><div className="text-xs font-bold uppercase tracking-wider text-brand-slate dark:text-slate-200">{String(item.type || item.inquirySubject || 'GENERAL').replace(/_/g,' ')}</div>{item.schoolName && <div className="mt-1 text-xs text-slate-500">{item.schoolName}</div>}</td><td className="px-5 py-4"><select value={currentStage} onChange={event => quickStage(item,event.target.value as LeadStage)} className="min-h-10 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-black dark:border-slate-700 dark:bg-slate-900 dark:text-white">{STAGES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{converted && <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-black text-emerald-600"><CheckCircle2 size={12}/> School active</span>}</td><td className="px-5 py-4"><div className="text-xs font-semibold text-slate-700 dark:text-slate-300">{item.assignedTo || 'Unassigned'}</div><div className="mt-1 text-[11px] text-slate-400">{item.nextFollowUp ? `Follow-up ${item.nextFollowUp}` : 'No follow-up set'}</div></td><td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500">{formatDate(item.createdAt)}</td><td className="px-5 py-4 text-right"><div className="flex flex-wrap justify-end gap-2">{schoolLead && !converted && <button type="button" disabled={approvingId === item.id} onClick={() => approveSchool(item)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-brand-red px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-red-700 disabled:opacity-60">{approvingId === item.id ? <Loader2 size={14} className="animate-spin"/> : <Building2 size={14}/>} Approve & onboard</button>}<button type="button" onClick={() => setSelected(item)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-brand-red hover:bg-red-50 dark:hover:bg-red-950/30">Open full record <ArrowUpRight size={14}/></button></div></td></tr>; })}</tbody></table></div></div>
-  {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="lead-dialog-title"><div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"><header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-800"><div><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-brand-red"><Database size={13}/> Complete lead record</p><h2 id="lead-dialog-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{selected.name || 'Unnamed lead'}</h2><p className="mt-1 text-xs text-slate-500">Received {formatDate(selected.createdAt,true)} · ID {selected.id}</p></div><div className="flex items-center gap-2"><button type="button" onClick={copyAll} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">{copied ? 'Copied' : 'Copy all'} <Copy size={14}/></button><button type="button" onClick={() => setSelected(null)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Close lead details"><X size={20}/></button></div></header><div className="grid gap-6 overflow-y-auto p-5 lg:grid-cols-[1fr_320px]"><div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400"><Mail size={14}/> Email</div><div className="mt-2 break-all text-sm font-semibold text-brand-red">{selected.email || 'Not provided'}</div></div><div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"><div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400"><Phone size={14}/> Phone</div><div className="mt-2 text-sm font-semibold text-slate-800 dark:text-white">{selected.phone || 'Not provided'}</div></div></div><div className="rounded-xl border border-slate-200 dark:border-slate-800"><div className="border-b border-slate-100 px-4 py-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:border-slate-800">All submitted / captured fields</div><div className="divide-y divide-slate-100 dark:divide-slate-800">{Object.entries(selected).filter(([key]) => key !== 'id').map(([key, value]) => <div key={key} className="grid gap-2 px-4 py-3 sm:grid-cols-[190px_1fr]"><div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{displayKey(key)}</div><pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-slate-700 dark:text-slate-200">{serialise(value)}</pre></div>)}</div></div></div><aside className="space-y-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-950"><div className="flex items-center gap-2 text-sm font-black text-slate-900 dark:text-white"><UserRound size={16}/> Pipeline controls</div>{String(selected.type || '').toUpperCase() === 'SCHOOL_PARTNERSHIP_PROPOSAL' && !selected.schoolId && <button type="button" disabled={approvingId === selected.id} onClick={() => approveSchool(selected)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-red px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">{approvingId === selected.id ? <Loader2 size={16} className="animate-spin"/> : <Building2 size={16}/>} Approve & onboard school</button>}<label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">Stage</span><select value={draft.status} onChange={event => setDraft(current => ({...current,status:event.target.value as LeadStage}))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">{STAGES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="block"><span className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">Assigned owner</span><input value={draft.assignedTo} onChange={event => setDraft(current => ({...current,assignedTo:event.target.value}))} placeholder="Staff member / team" className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><label className="block"><span className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500"><CalendarDays size={13}/> Next follow-up</span><input type="date" value={draft.nextFollowUp} onChange={event => setDraft(current => ({...current,nextFollowUp:event.target.value}))} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><label className="block"><span className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Internal notes</span><textarea rows={7} value={draft.internalNotes} onChange={event => setDraft(current => ({...current,internalNotes:event.target.value}))} placeholder="Private team notes…" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><button type="button" onClick={save} disabled={saving} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-red px-4 py-2.5 text-sm font-black text-white disabled:opacity-60">{saving ? 'Saving…' : 'Save pipeline changes'} <Save size={15}/></button></aside></div></div></div>}
-  </div>;
+  const [draft, setDraft] = useState({ 
+    status: 'NEW' as LeadStage, 
+    assignedTo: '', 
+    nextFollowUp: '', 
+    internalNotes: '' 
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'inquiries'), snap => { 
+      setInquiries(snap.docs.map(item => ({ id: item.id, ...item.data() }))); 
+      setLoading(false); 
+    }, error => { 
+      console.error(error); 
+      setLoading(false); 
+      toast.error('Could not load the inquiries pipeline.'); 
+    });
+    return () => unsub();
+  }, [toast]);
+
+  useEffect(() => { 
+    if (selected) {
+      setDraft({ 
+        status: String(selected.status || 'NEW').toUpperCase() as LeadStage, 
+        assignedTo: selected.assignedTo || '', 
+        nextFollowUp: selected.nextFollowUp || '', 
+        internalNotes: selected.internalNotes || '' 
+      }); 
+    }
+  }, [selected]);
+
+  // Counts by stage
+  const stageCounts = useMemo(() => {
+    return inquiries.reduce<Record<string, number>>((acc, item) => { 
+      const key = String(item.status || 'NEW').toUpperCase(); 
+      acc.ALL = (acc.ALL || 0) + 1; 
+      acc[key] = (acc[key] || 0) + 1; 
+      return acc; 
+    }, {});
+  }, [inquiries]);
+
+  // Counts by category
+  const categoryCounts = useMemo(() => {
+    return inquiries.reduce<Record<string, number>>((acc, item) => {
+      const type = String(item.type || item.inquirySubject || 'GENERAL').toUpperCase();
+      acc.ALL = (acc.ALL || 0) + 1;
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+  }, [inquiries]);
+
+  // Filtered leads
+  const filtered = useMemo(() => { 
+    const q = search.trim().toLowerCase(); 
+    return [...inquiries]
+      .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
+      .filter(item => { 
+        const itemStage = String(item.status || 'NEW').toUpperCase(); 
+        if (stageFilter !== 'ALL' && itemStage !== stageFilter) return false; 
+
+        const itemType = String(item.type || item.inquirySubject || 'GENERAL').toUpperCase();
+        if (categoryFilter !== 'ALL' && !itemType.includes(categoryFilter) && categoryFilter !== itemType) {
+          return false;
+        }
+
+        if (!q) return true;
+        return Object.values(item).some(val => serialise(val).toLowerCase().includes(q));
+      }); 
+  }, [inquiries, search, stageFilter, categoryFilter]);
+
+  const quickStage = async (item: any, next: LeadStage) => { 
+    try { 
+      await updateDoc(doc(db, 'inquiries', item.id), { 
+        status: next, 
+        updatedBy: auth.currentUser?.uid || null, 
+        updatedAt: serverTimestamp() 
+      }); 
+      await addDoc(collection(db, 'activityLogs'), { 
+        type: 'inquiry_stage_changed', 
+        action: 'INQUIRY_STAGE_CHANGED', 
+        inquiryId: item.id, 
+        actorId: auth.currentUser?.uid || null, 
+        previousStatus: item.status || 'NEW', 
+        nextStatus: next, 
+        leadSnapshot: item, 
+        timestamp: serverTimestamp() 
+      }).catch(() => undefined); 
+      toast.success(`Stage updated to ${next}`);
+    } catch (error: any) { 
+      toast.error(error?.message || 'Could not update lead stage.'); 
+    } 
+  };
+
+  const approveSchool = async (item: any) => { 
+    if (String(item.type || '').toUpperCase() !== 'SCHOOL_PARTNERSHIP_PROPOSAL') return; 
+    if (!window.confirm(`Approve ${item.schoolName || item.name || 'this institution'} and create its official school portal account?`)) return; 
+    
+    setApprovingId(item.id); 
+    try { 
+      const token = await auth.currentUser?.getIdToken(); 
+      if (!token) throw new Error('Your admin session has expired. Please sign in again.'); 
+      
+      const response = await fetch('/.netlify/functions/admin-approve-school-partnership', { 
+        method: 'POST', 
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ inquiryId: item.id }) 
+      }); 
+      const payload = await response.json().catch(() => ({})); 
+      if (!response.ok) throw new Error(payload.error || 'School onboarding failed.'); 
+      
+      if (payload.passwordSetupLink) {
+        await navigator.clipboard?.writeText(payload.passwordSetupLink).catch(() => undefined); 
+      }
+      toast.success(`${payload.school?.name || 'School'} approved and onboarded. Setup credentials ready.`); 
+      setSelected(null); 
+    } catch (error: any) { 
+      toast.error(error?.message || 'Could not approve school partnership.'); 
+    } finally { 
+      setApprovingId(null); 
+    } 
+  };
+
+  const saveDrawerDraft = async () => { 
+    if (!selected) return; 
+    setSaving(true); 
+    try { 
+      const previousStatus = String(selected.status || 'NEW').toUpperCase(); 
+      await updateDoc(doc(db, 'inquiries', selected.id), { 
+        status: draft.status, 
+        assignedTo: draft.assignedTo.trim(), 
+        nextFollowUp: draft.nextFollowUp || null, 
+        internalNotes: draft.internalNotes.trim(), 
+        updatedBy: auth.currentUser?.uid || null, 
+        updatedAt: serverTimestamp() 
+      }); 
+
+      await addDoc(collection(db, 'activityLogs'), { 
+        type: 'inquiry_updated', 
+        action: 'INQUIRY_UPDATED', 
+        inquiryId: selected.id, 
+        actorId: auth.currentUser?.uid || null, 
+        previousStatus, 
+        nextStatus: draft.status, 
+        leadSnapshot: selected, 
+        changes: draft, 
+        timestamp: serverTimestamp() 
+      }).catch(() => undefined); 
+
+      setSelected((prev: any) => ({ ...prev, ...draft })); 
+      toast.success('Lead pipeline record updated.'); 
+    } catch (error: any) { 
+      toast.error(error?.message || 'Could not update lead.'); 
+    } finally { 
+      setSaving(false); 
+    } 
+  };
+
+  const exportCsv = () => { 
+    const keySet = new Set<string>(); 
+    filtered.forEach(item => Object.keys(item).forEach(key => keySet.add(key))); 
+    const headers = Array.from(keySet); 
+    const rows = filtered.map(item => headers.map(key => serialise(item[key]))); 
+    const blob = new Blob([[headers.map(escapeCsv).join(','), ...rows.map(row => row.map(escapeCsv).join(','))].join('\n')], { type: 'text/csv;charset=utf-8;' }); 
+    const url = URL.createObjectURL(blob); 
+    const link = document.createElement('a'); 
+    link.href = url; 
+    link.download = `jaystarbliss_leads_${new Date().toISOString().slice(0, 10)}.csv`; 
+    link.click(); 
+    URL.revokeObjectURL(url); 
+    toast.success(`Exported ${filtered.length} lead records.`); 
+  };
+
+  const copyAllJson = async () => { 
+    if (!selected) return; 
+    await navigator.clipboard.writeText(JSON.stringify(selected, (_key, value) => value && typeof value.toDate === 'function' ? value.toDate().toISOString() : value, 2)); 
+    setCopied(true); 
+    setTimeout(() => setCopied(false), 1800); 
+    toast.success('Full lead payload copied to clipboard.'); 
+  };
+
+  const getCategoryBadge = (item: any) => {
+    const type = String(item.type || item.inquirySubject || 'GENERAL').toUpperCase();
+    if (type.includes('SCHOOL') || type.includes('PARTNERSHIP')) {
+      return { label: 'School Partnership', color: 'bg-red-50 text-brand-red dark:bg-red-950/40 dark:text-red-300', icon: Building2 };
+    }
+    if (type.includes('PARENT') || type.includes('ADMISSION')) {
+      return { label: 'Parent Admission', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', icon: GraduationCap };
+    }
+    if (type.includes('TUTOR') || type.includes('STAFF')) {
+      return { label: 'Tutor Application', color: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Briefcase };
+    }
+    if (type.includes('PROJECT')) {
+      return { label: 'Project Request', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300', icon: Sparkles };
+    }
+    return { label: 'General Inquiry', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', icon: MessageSquare };
+  };
+
+  return (
+    <div className="space-y-4 max-w-7xl mx-auto pb-12">
+      <SEO title="Inquiries & Lead Pipeline | Admin" description="Manage captured leads, school proposals, and admissions." noindex={true} />
+
+      {/* Header */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-brand-red font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5">
+              <Filter size={13} /> CRM Operations & Lead Ingestion
+            </div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
+              Inquiries & Leads
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              All incoming admissions, school partnership proposals, and requests in a responsive workspace.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              type="button" 
+              onClick={exportCsv} 
+              className="min-h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold inline-flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Control Bar with Dropdown Selectors & Search */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+          
+          {/* Category Dropdown List Box */}
+          <div className="sm:col-span-4">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              Filter Category
+            </label>
+            <div className="relative">
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="w-full min-h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-red focus:border-brand-red outline-none appearance-none cursor-pointer"
+              >
+                {CATEGORIES.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label} {categoryCounts[cat.id] ? `(${categoryCounts[cat.id]})` : ''}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+            </div>
+          </div>
+
+          {/* Stage Dropdown List Box */}
+          <div className="sm:col-span-4">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              Pipeline Stage
+            </label>
+            <div className="relative">
+              <select
+                value={stageFilter}
+                onChange={e => setStageFilter(e.target.value as any)}
+                className="w-full min-h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-red focus:border-brand-red outline-none appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Stages ({stageCounts.ALL || 0})</option>
+                {STAGES.map(stg => (
+                  <option key={stg.value} value={stg.value}>
+                    {stg.label} ({stageCounts[stg.value] || 0})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+            </div>
+          </div>
+
+          {/* Search Box */}
+          <div className="sm:col-span-4">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              Instant Search
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Name, email, phone, details…"
+                className="w-full min-h-9 pl-8 pr-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-red focus:border-brand-red outline-none"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Quick count chips row */}
+        <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 overflow-x-auto text-[11px]">
+          <span className="text-slate-400 font-bold uppercase text-[9px] mr-1">Stages:</span>
+          {STAGES.map(stg => {
+            const count = stageCounts[stg.value] || 0;
+            const isSelected = stageFilter === stg.value;
+            return (
+              <button
+                key={stg.value}
+                type="button"
+                onClick={() => setStageFilter(isSelected ? 'ALL' : stg.value)}
+                className={`px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap transition-all text-[10px] flex items-center gap-1 ${
+                  isSelected 
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm' 
+                    : `${stg.color} hover:opacity-80`
+                }`}
+              >
+                <span>{stg.label}</span>
+                <span className="opacity-70 font-mono">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Table / Directory List */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="py-16 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+            <Loader2 className="animate-spin" size={16} /> Loading lead records…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center text-xs text-slate-400">
+            No inquiries or leads match the selected criteria.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[860px]">
+              <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
+                <tr>
+                  <th className="py-3 px-3.5">Lead / Contact</th>
+                  <th className="py-3 px-3.5">Category & Subject</th>
+                  <th className="py-3 px-3.5">Stage</th>
+                  <th className="py-3 px-3.5">Owner & Follow-up</th>
+                  <th className="py-3 px-3.5">Received</th>
+                  <th className="py-3 px-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {filtered.map(item => {
+                  const currentStage = String(item.status || 'NEW').toUpperCase() as LeadStage;
+                  const isSchoolProposal = String(item.type || '').toUpperCase() === 'SCHOOL_PARTNERSHIP_PROPOSAL';
+                  const isConverted = Boolean(item.schoolId);
+                  const badge = getCategoryBadge(item);
+                  const Icon = badge.icon;
+
+                  return (
+                    <tr 
+                      key={item.id} 
+                      className={`hover:bg-slate-50/60 dark:hover:bg-slate-950/40 transition-colors cursor-pointer ${
+                        selected?.id === item.id ? 'bg-red-50/30 dark:bg-red-950/10' : ''
+                      }`}
+                      onClick={() => setSelected(item)}
+                    >
+                      {/* Lead Contact Info */}
+                      <td className="py-3 px-3.5 max-w-[220px]">
+                        <div className="font-bold text-slate-900 dark:text-white truncate">
+                          {item.name || item.fullName || 'Unnamed Contact'}
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                          {item.email && <span className="truncate">{item.email}</span>}
+                        </div>
+                        {item.phone && (
+                          <div className="text-[10px] font-mono text-slate-400 mt-0.5">
+                            {item.phone}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Category & Subject */}
+                      <td className="py-3 px-3.5 max-w-[200px]">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.color}`}>
+                          <Icon size={11} /> {badge.label}
+                        </span>
+                        {item.schoolName && (
+                          <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mt-1 truncate">
+                            {item.schoolName}
+                          </div>
+                        )}
+                        {item.message && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                            "{item.message}"
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Pipeline Stage Selector */}
+                      <td className="py-3 px-3.5" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={currentStage}
+                            onChange={e => void quickStage(item, e.target.value as LeadStage)}
+                            className="min-h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-red"
+                          >
+                            {STAGES.map(stg => (
+                              <option key={stg.value} value={stg.value}>{stg.label}</option>
+                            ))}
+                          </select>
+                          {isConverted && (
+                            <span className="text-emerald-600" title="School account created">
+                              <CheckCircle2 size={14} />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Assigned Owner & Next Follow up */}
+                      <td className="py-3 px-3.5 text-slate-600 dark:text-slate-400 text-[11px]">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200">
+                          {item.assignedTo || '—'}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {item.nextFollowUp ? `Due ${item.nextFollowUp}` : 'No date set'}
+                        </div>
+                      </td>
+
+                      {/* Received Date */}
+                      <td className="py-3 px-3.5 text-slate-400 text-[11px] whitespace-nowrap">
+                        {formatDate(item.createdAt)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3 px-3.5 text-right" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isSchoolProposal && !isConverted && (
+                            <button
+                              type="button"
+                              disabled={approvingId === item.id}
+                              onClick={() => void approveSchool(item)}
+                              className="min-h-7 px-2.5 rounded-lg bg-brand-red hover:bg-red-700 text-white text-[10px] font-black inline-flex items-center gap-1 shadow-sm transition-all"
+                            >
+                              {approvingId === item.id ? <Loader2 className="animate-spin" size={11} /> : <Building2 size={11} />}
+                              Approve
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelected(item)}
+                            className="min-h-7 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[10px] font-bold inline-flex items-center gap-1"
+                          >
+                            Details <ChevronRight size={11} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Slide-over / Modal Lead Workspace */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-fadeIn">
+          <div className="h-full sm:h-auto sm:max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-none sm:rounded-3xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col">
+            
+            {/* Drawer Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-brand-red">
+                  <Database size={12} /> Lead Record #{selected.id?.slice(0, 8)}
+                </div>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate mt-0.5">
+                  {selected.name || selected.fullName || 'Unnamed Lead'}
+                </h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Received {formatDate(selected.createdAt, true)}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={copyAllJson}
+                  className="min-h-8 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1"
+                >
+                  {copied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                  {copied ? 'Copied' : 'JSON'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="min-h-8 min-w-8 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Drawer Content */}
+            <div className="p-4 sm:p-6 space-y-4 text-xs flex-1">
+              
+              {/* Quick Contact Ribbon */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-0.5">Email Address</span>
+                  {selected.email ? (
+                    <a href={`mailto:${selected.email}`} className="font-bold text-brand-red hover:underline break-all">
+                      {selected.email}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400 font-medium">Not provided</span>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-0.5">Phone Contact</span>
+                  {selected.phone ? (
+                    <a href={`tel:${selected.phone}`} className="font-bold text-slate-800 dark:text-slate-200 hover:underline">
+                      {selected.phone}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400 font-medium">Not provided</span>
+                  )}
+                </div>
+              </div>
+
+              {/* School Proposal 1-Click Action if relevant */}
+              {String(selected.type || '').toUpperCase() === 'SCHOOL_PARTNERSHIP_PROPOSAL' && !selected.schoolId && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/20 border border-red-200 dark:border-red-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-slate-900 dark:text-white text-xs">
+                      Partner School Onboarding Ready
+                    </h3>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                      Create school record and generate access credentials.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={approvingId === selected.id}
+                    onClick={() => void approveSchool(selected)}
+                    className="min-h-9 px-3.5 rounded-xl bg-brand-red hover:bg-red-700 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 shadow-sm transition-all flex-shrink-0"
+                  >
+                    {approvingId === selected.id ? <Loader2 className="animate-spin" size={13} /> : <Building2 size={13} />}
+                    Approve & Onboard School
+                  </button>
+                </div>
+              )}
+
+              {/* Navigation Tabs inside Drawer */}
+              <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
+                {[
+                  { id: 'details', label: 'Captured Data' },
+                  { id: 'crm', label: 'Pipeline & Notes' },
+                  { id: 'raw', label: 'All Fields' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setOpenSection(tab.id as any)}
+                    className={`min-h-8 px-3 rounded-lg text-xs font-bold transition-all ${
+                      openSection === tab.id
+                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* TAB 1: Captured Data */}
+              {openSection === 'details' && (
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                    {selected.message && (
+                      <div className="p-3.5 bg-slate-50/50 dark:bg-slate-950/30">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Message / Request</span>
+                        <p className="text-xs leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
+                          {selected.message}
+                        </p>
+                      </div>
+                    )}
+
+                    {selected.schoolName && (
+                      <div className="p-3 flex justify-between">
+                        <span className="text-slate-400">Institution Name:</span>
+                        <span className="font-bold text-slate-900 dark:text-white">{selected.schoolName}</span>
+                      </div>
+                    )}
+
+                    {selected.program && (
+                      <div className="p-3 flex justify-between">
+                        <span className="text-slate-400">Program Track:</span>
+                        <span className="font-bold text-brand-red">{selected.program}</span>
+                      </div>
+                    )}
+
+                    {selected.experience && (
+                      <div className="p-3 flex justify-between">
+                        <span className="text-slate-400">Experience / Level:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{selected.experience}</span>
+                      </div>
+                    )}
+
+                    {selected.cvLink && (
+                      <div className="p-3 flex justify-between items-center">
+                        <span className="text-slate-400">CV / Portfolio Link:</span>
+                        <a href={selected.cvLink} target="_blank" rel="noopener noreferrer" className="text-brand-red font-bold inline-flex items-center gap-1 hover:underline">
+                          View File <ExternalLink size={11} />
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="p-3 flex justify-between">
+                      <span className="text-slate-400">Ingestion Source:</span>
+                      <span className="font-mono text-[11px] text-slate-500">{selected.source || selected.type || 'Web Form'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: CRM & Notes */}
+              {openSection === 'crm' && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Pipeline Stage</label>
+                      <select
+                        value={draft.status}
+                        onChange={e => setDraft({ ...draft, status: e.target.value as LeadStage })}
+                        className={inputClass}
+                      >
+                        {STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Assigned Staff Owner</label>
+                      <input
+                        value={draft.assignedTo}
+                        onChange={e => setDraft({ ...draft, assignedTo: e.target.value })}
+                        placeholder="e.g. Admissions Team"
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Scheduled Next Follow-Up</label>
+                    <input
+                      type="date"
+                      value={draft.nextFollowUp}
+                      onChange={e => setDraft({ ...draft, nextFollowUp: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Internal Confidential Notes</label>
+                    <textarea
+                      rows={5}
+                      value={draft.internalNotes}
+                      onChange={e => setDraft({ ...draft, internalNotes: e.target.value })}
+                      placeholder="Add follow-up notes, call logs, requirements..."
+                      className={`${inputClass} leading-relaxed`}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={saveDrawerDraft}
+                    className="w-full min-h-10 rounded-xl bg-brand-red hover:bg-red-700 text-white font-black text-xs inline-flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                    Save Pipeline Changes
+                  </button>
+                </div>
+              )}
+
+              {/* TAB 3: All raw key-values */}
+              {openSection === 'raw' && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden text-[11px]">
+                  {Object.entries(selected).filter(([k]) => k !== 'id').map(([k, val]) => (
+                    <div key={k} className="p-2.5 grid grid-cols-3 gap-2">
+                      <span className="text-slate-400 font-bold uppercase text-[9px]">{displayKey(k)}</span>
+                      <pre className="col-span-2 whitespace-pre-wrap break-words font-mono text-[10px] text-slate-700 dark:text-slate-300">
+                        {serialise(val)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
+
 export default AdminInquiries;

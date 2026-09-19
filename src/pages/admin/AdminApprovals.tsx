@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, doc, setDoc, addDoc, updateDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { 
-  CheckCircle2, XCircle, Clock, ExternalLink, Award, DollarSign, 
-  Calendar, Phone, Mail, Eye
+  CheckCircle2, XCircle, Clock, ExternalLink, Award, 
+  Calendar, Phone, Mail, Eye, ChevronDown, Search, Loader2, X
 } from 'lucide-react';
+import { useToast } from '../../contexts/ToastContext';
+import SEO from '../../components/ui/SEO';
 
 const AdminApprovals: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'students' | 'tutors' | 'enrollments'>('tutors');
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'tutors' | 'students' | 'enrollments'>('tutors');
+  const [search, setSearch] = useState('');
   const [studentReqs, setStudentReqs] = useState<any[]>([]);
   const [tutorReqs, setTutorReqs] = useState<any[]>([]);
   const [enrollmentReqs, setEnrollmentReqs] = useState<any[]>([]);
@@ -91,9 +95,9 @@ const AdminApprovals: React.FC = () => {
         accessCode,
         approvedAt: serverTimestamp()
       });
-      alert(`Student Approved! Generated Student Access code: ${accessCode}`);
+      toast.success(`Student Approved! Access code: ${accessCode}`);
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      toast.error('Error: ' + e.message);
     } finally {
       setLoadingId(null);
     }
@@ -148,9 +152,9 @@ const AdminApprovals: React.FC = () => {
         approvedAt: serverTimestamp(),
       });
 
-      alert(`Enrollment approved for ${studentName}. Student username: ${username}. Access code: ${accessCode}`);
+      toast.success(`Enrollment approved for ${studentName}. Code: ${accessCode}`);
     } catch (e: any) {
-      alert('Error approving enrollment: ' + e.message);
+      toast.error('Error approving enrollment: ' + e.message);
     } finally {
       setLoadingId(null);
     }
@@ -189,9 +193,9 @@ const AdminApprovals: React.FC = () => {
         setSelectedTutorDetail(null);
       }
 
-      alert(`Tutor ${req.name} has been approved into the instructional faculty!`);
+      toast.success(`Tutor ${req.name} approved into faculty!`);
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      toast.error('Error: ' + e.message);
     } finally {
       setLoadingId(null);
     }
@@ -208,104 +212,447 @@ const AdminApprovals: React.FC = () => {
       if (selectedTutorDetail?.id === id) {
         setSelectedTutorDetail(null);
       }
+      toast.info('Request has been marked as rejected.');
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      toast.error('Error: ' + e.message);
     } finally {
       setLoadingId(null);
     }
   };
 
+  const filteredTutors = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return tutorReqs;
+    return tutorReqs.filter(r => 
+      (r.name && r.name.toLowerCase().includes(q)) || 
+      (r.email && r.email.toLowerCase().includes(q)) ||
+      (r.phone && r.phone.toLowerCase().includes(q))
+    );
+  }, [tutorReqs, search]);
+
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return studentReqs;
+    return studentReqs.filter(r => 
+      (r.name && r.name.toLowerCase().includes(q)) || 
+      (r.email && r.email.toLowerCase().includes(q)) ||
+      (r.phone && r.phone.toLowerCase().includes(q))
+    );
+  }, [studentReqs, search]);
+
+  const filteredEnrollments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return enrollmentReqs;
+    return enrollmentReqs.filter(r => 
+      (r.studentName && r.studentName.toLowerCase().includes(q)) || 
+      (r.parentEmail && r.parentEmail.toLowerCase().includes(q))
+    );
+  }, [enrollmentReqs, search]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">Approvals & Onboarding</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Review incoming tutor applications, student enrollment requests, and program leads.</p>
+    <div className="space-y-4 max-w-7xl mx-auto pb-12">
+      <SEO title="Approvals & Onboarding | Admin" description="Review and approve incoming tutor applications, student enrollment requests, and program leads." noindex={true} />
+
+      {/* Header */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-brand-red font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5">
+              <Clock size={13} /> Admission & Staffing Queue
+            </div>
+            <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
+              Approvals & Onboarding
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Review and approve incoming instructor credentials, student requests, and enrollments.
+            </p>
+          </div>
         </div>
       </div>
-      
-      <div className="flex border-b border-gray-200 dark:border-slate-800 gap-2 overflow-x-auto">
-        <button type="button" className={`min-h-11 py-3 px-5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 shrink-0 ${activeTab === 'tutors' ? 'border-brand-red text-brand-red bg-brand-red/5 dark:bg-brand-red/10 rounded-t-lg' : 'border-transparent text-gray-500 hover:text-gray-700'}`} onClick={() => setActiveTab('tutors')}>
-          <span>Tutor Applications</span><span className="px-2 py-0.5 text-xs rounded-full bg-brand-red text-white">{tutorReqs.length}</span>
-        </button>
-        <button type="button" className={`min-h-11 py-3 px-5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 shrink-0 ${activeTab === 'students' ? 'border-brand-red text-brand-red bg-brand-red/5 dark:bg-brand-red/10 rounded-t-lg' : 'border-transparent text-gray-500 hover:text-gray-700'}`} onClick={() => setActiveTab('students')}>
-          <span>Student Requests</span><span className="px-2 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{studentReqs.length}</span>
-        </button>
-        <button type="button" className={`min-h-11 py-3 px-5 font-bold text-sm border-b-2 transition-all flex items-center gap-2 shrink-0 ${activeTab === 'enrollments' ? 'border-brand-red text-brand-red bg-brand-red/5 dark:bg-brand-red/10 rounded-t-lg' : 'border-transparent text-gray-500 hover:text-gray-700'}`} onClick={() => setActiveTab('enrollments')}>
-          <span>Course Enrollments</span><span className="px-2 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{enrollmentReqs.length}</span>
-        </button>
+
+      {/* Responsive Filter / Dropdown Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+          
+          {/* Category Dropdown for Mobile / Compact selector */}
+          <div className="sm:col-span-6">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              Approval Queue Type
+            </label>
+            <div className="relative">
+              <select
+                value={activeTab}
+                onChange={e => setActiveTab(e.target.value as any)}
+                className="w-full min-h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-brand-red focus:border-brand-red outline-none appearance-none cursor-pointer"
+              >
+                <option value="tutors">Tutor Applications ({tutorReqs.length})</option>
+                <option value="students">Student Requests ({studentReqs.length})</option>
+                <option value="enrollments">Course Enrollments ({enrollmentReqs.length})</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+            </div>
+          </div>
+
+          {/* Instant Search Box */}
+          <div className="sm:col-span-6">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              Search Applicants
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Name, email or contact..."
+                className="w-full min-h-9 pl-8 pr-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-medium focus:ring-2 focus:ring-brand-red focus:border-brand-red outline-none"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* Quick pill toggle row */}
+        <div className="flex items-center gap-1.5 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-[11px] overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('tutors')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'tutors'
+                ? 'bg-brand-red text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            Tutor Applications <span className="text-[10px] opacity-80">({tutorReqs.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('students')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'students'
+                ? 'bg-brand-red text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            Student Requests <span className="text-[10px] opacity-80">({studentReqs.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('enrollments')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'enrollments'
+                ? 'bg-brand-red text-white shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            Course Enrollments <span className="text-[10px] opacity-80">({enrollmentReqs.length})</span>
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 shadow-sm rounded-2xl border border-gray-100 dark:border-slate-800 overflow-x-auto">
-        <table className="min-w-[760px] w-full divide-y divide-gray-200 dark:divide-slate-800 text-left">
-          <thead className="bg-gray-50 dark:bg-slate-950">
-            <tr>
-              <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Applicant / Name</th>
-              <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Tracks / Details</th>
-              {activeTab === 'tutors' && <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Availability & Rate</th>}
-              <th className="px-6 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Applied Date</th>
-              <th className="px-6 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-slate-800 text-sm">
-            {activeTab === 'tutors' && tutorReqs.map(req => (
-              <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">{req.name}</div><div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Mail size={12} /> {req.email}</div>{req.phone && <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Phone size={12} /> {req.phone}</div>}{req.qualification && <div className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1 mt-1"><Award size={12} /> {req.qualification}</div>}</td>
-                <td className="px-6 py-4"><div className="flex flex-wrap gap-1 mb-1.5 max-w-sm">{Array.isArray(req.subjects) ? req.subjects.map((s: string, i: number) => <span key={i} className="px-2 py-0.5 bg-brand-red/10 text-brand-red text-[11px] font-bold rounded-md">{s}</span>) : req.subjects}</div><div className="text-xs text-gray-500 max-w-xs line-clamp-2">{req.bio || 'No bio provided.'}</div>{req.cvUrl && <a href={req.cvUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline mt-1"><ExternalLink size={12} /> View Portfolio / CV</a>}</td>
-                <td className="px-6 py-4"><div className="text-xs font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1"><Calendar size={12} className="text-gray-400" /> {req.daysPerWeek || 'Not specified'}</div>{req.timeSlot && <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><Clock size={12} /> {req.timeSlot}</div>}{req.expectedSalary && <div className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1 mt-1"><DollarSign size={12} /> {req.expectedSalary}</div>}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => setSelectedTutorDetail(req)} className="min-h-11 min-w-11 p-1.5 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800 text-xs font-bold" title="View Full Profile" aria-label="View full tutor profile"><Eye size={14} className="mx-auto" /></button><button type="button" onClick={() => approveTutor(req)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"><CheckCircle2 size={13} /> Approve</button><button type="button" onClick={() => rejectRequest('tutor_applications', req.id)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1"><XCircle size={13} /> Reject</button></td>
-              </tr>
-            ))}
-
-            {activeTab === 'students' && studentReqs.map(req => (
-              <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30">
-                <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white">{req.name}</div><div className="text-xs text-gray-500">{req.email}</div>{req.phone && <div className="text-xs text-gray-500">Phone: {req.phone}</div>}{req.parentPhone && <div className="text-xs text-gray-500">Parent: {req.parentPhone}</div>}</td>
-                <td className="px-6 py-4"><div className="text-xs font-bold text-brand-red mb-1">Class: {req.class || 'N/A'}</div><div className="text-xs text-gray-700 dark:text-gray-300">{Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects}</div>{req.notes && <div className="text-xs text-gray-400 mt-1 italic">&quot;{req.notes}&quot;</div>}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveStudent(req)} disabled={loadingId === req.id} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50">Approve &amp; Issue Code</button><button type="button" onClick={() => rejectRequest('student_requests', req.id)} disabled={loadingId === req.id} className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold disabled:opacity-50">Reject</button></td>
-              </tr>
-            ))}
-
-            {activeTab === 'enrollments' && enrollmentReqs.map(req => (
-              <tr key={req.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30">
-                <td className="px-6 py-4"><div className="font-bold text-gray-900 dark:text-white">{req.studentName}</div><div className="text-xs text-gray-500">{req.parentEmail || req.email || 'Parent account'}</div></td>
-                <td className="px-6 py-4"><div className="text-xs font-bold text-gray-900 dark:text-white">Plan: {req.plan || '—'}</div><div className="text-xs text-gray-500">Age / Grade: {req.studentAge || '—'}</div><div className="text-xs text-gray-500">Subjects: {Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects || '—'}</div></td>
-                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2"><button type="button" onClick={() => approveEnrollment(req)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"><CheckCircle2 size={13} /> Approve &amp; Issue Access</button><button type="button" onClick={() => rejectRequest('enrollment_requests', req.id)} disabled={loadingId === req.id} className="min-h-11 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1"><XCircle size={13} /> Reject</button></td>
-              </tr>
-            ))}
-
-            {((activeTab === 'students' && studentReqs.length === 0) || (activeTab === 'tutors' && tutorReqs.length === 0) || (activeTab === 'enrollments' && enrollmentReqs.length === 0)) && (
+      {/* Main Table / Directory List */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs min-w-[760px]">
+            <thead className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
               <tr>
-                <td colSpan={activeTab === 'tutors' ? 5 : 4} className="px-6 py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-                  <div className="flex flex-col items-center justify-center"><CheckCircle2 size={32} className="text-green-500 mb-2" /><p className="font-bold">No pending {activeTab} applications</p><p className="text-xs text-gray-400 mt-0.5">All incoming requests have been reviewed and processed.</p></div>
-                </td>
+                <th className="py-3 px-3.5">Applicant / Name</th>
+                <th className="py-3 px-3.5">Tracks & Details</th>
+                {activeTab === 'tutors' && <th className="py-3 px-3.5">Availability & Rate</th>}
+                <th className="py-3 px-3.5">Applied Date</th>
+                <th className="py-3 px-3.5 text-right">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+              {/* TUTOR APPLICATIONS */}
+              {activeTab === 'tutors' && filteredTutors.map(req => (
+                <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-950/40 transition-colors">
+                  <td className="py-3 px-3.5 max-w-[200px]">
+                    <div className="font-bold text-slate-900 dark:text-white truncate">{req.name}</div>
+                    <div className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                      <Mail size={11} /> {req.email}
+                    </div>
+                    {req.phone && (
+                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Phone size={10} /> {req.phone}
+                      </div>
+                    )}
+                    {req.qualification && (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1 mt-1">
+                        <Award size={10} /> {req.qualification}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3.5 max-w-[240px]">
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {Array.isArray(req.subjects) ? req.subjects.map((s: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-brand-red/10 text-brand-red text-[10px] font-bold rounded-md">
+                          {s}
+                        </span>
+                      )) : req.subjects}
+                    </div>
+                    {req.bio && <div className="text-[10px] text-slate-500 line-clamp-2">{req.bio}</div>}
+                    {req.cvUrl && (
+                      <a href={req.cvUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-brand-red font-bold hover:underline mt-1">
+                        <ExternalLink size={10} /> CV Document
+                      </a>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3.5 text-[11px]">
+                    <div className="text-slate-700 dark:text-slate-300 font-semibold flex items-center gap-1">
+                      <Calendar size={11} className="text-slate-400" /> {req.daysPerWeek || 'Not specified'}
+                    </div>
+                    {req.timeSlot && (
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Clock size={10} /> {req.timeSlot}
+                      </div>
+                    )}
+                    {req.expectedSalary && (
+                      <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                        {req.expectedSalary}
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-slate-400">
+                    {req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}
+                  </td>
+
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedTutorDetail(req)} 
+                        className="min-h-7 px-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 text-[10px] font-bold inline-flex items-center gap-1"
+                        title="View Full Profile"
+                      >
+                        <Eye size={11} /> Profile
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => void approveTutor(req)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        {loadingId === req.id ? <Loader2 className="animate-spin" size={11} /> : <CheckCircle2 size={11} />} Approve
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => void rejectRequest('tutor_applications', req.id)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <XCircle size={11} /> Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {/* STUDENT REQUESTS */}
+              {activeTab === 'students' && filteredStudents.map(req => (
+                <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-950/40 transition-colors">
+                  <td className="py-3 px-3.5">
+                    <div className="font-bold text-slate-900 dark:text-white">{req.name}</div>
+                    <div className="text-[11px] text-slate-400">{req.email}</div>
+                    {req.phone && <div className="text-[10px] text-slate-400">Phone: {req.phone}</div>}
+                    {req.parentPhone && <div className="text-[10px] text-slate-400">Parent: {req.parentPhone}</div>}
+                  </td>
+                  <td className="py-3 px-3.5">
+                    <div className="text-[11px] font-bold text-brand-red mb-0.5">Class: {req.class || 'N/A'}</div>
+                    <div className="text-[11px] text-slate-700 dark:text-slate-300">{Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects}</div>
+                    {req.notes && <div className="text-[10px] text-slate-400 mt-0.5 italic">"{req.notes}"</div>}
+                  </td>
+                  <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-slate-400">
+                    {req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}
+                  </td>
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button 
+                        type="button" 
+                        onClick={() => void approveStudent(req)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        {loadingId === req.id ? <Loader2 className="animate-spin" size={11} /> : <CheckCircle2 size={11} />} Approve & Code
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => void rejectRequest('student_requests', req.id)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-[10px] font-bold disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <XCircle size={11} /> Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {/* COURSE ENROLLMENTS */}
+              {activeTab === 'enrollments' && filteredEnrollments.map(req => (
+                <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-950/40 transition-colors">
+                  <td className="py-3 px-3.5">
+                    <div className="font-bold text-slate-900 dark:text-white">{req.studentName}</div>
+                    <div className="text-[11px] text-slate-400">{req.parentEmail || req.email || 'Parent account'}</div>
+                  </td>
+                  <td className="py-3 px-3.5">
+                    <div className="text-[11px] font-bold text-brand-red mb-0.5">Plan: {req.plan || '—'}</div>
+                    <div className="text-[10px] text-slate-500">Age / Grade: {req.studentAge || '—'}</div>
+                    <div className="text-[10px] text-slate-500">Subjects: {Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects || '—'}</div>
+                  </td>
+                  <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-slate-400">
+                    {req.createdAt?.toDate?.().toLocaleDateString() || 'Recently'}
+                  </td>
+                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button 
+                        type="button" 
+                        onClick={() => void approveEnrollment(req)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        {loadingId === req.id ? <Loader2 className="animate-spin" size={11} /> : <CheckCircle2 size={11} />} Approve Access
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => void rejectRequest('enrollment_requests', req.id)} 
+                        disabled={loadingId === req.id} 
+                        className="min-h-7 px-2 bg-red-50 dark:bg-red-950/40 text-red-600 hover:bg-red-100 rounded-lg text-[10px] font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                      >
+                        <XCircle size={11} /> Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {/* EMPTY STATE */}
+              {((activeTab === 'students' && filteredStudents.length === 0) || 
+                (activeTab === 'tutors' && filteredTutors.length === 0) || 
+                (activeTab === 'enrollments' && filteredEnrollments.length === 0)) && (
+                <tr>
+                  <td colSpan={activeTab === 'tutors' ? 5 : 4} className="py-16 text-center text-xs text-slate-400">
+                    <div className="flex flex-col items-center justify-center">
+                      <CheckCircle2 size={24} className="text-emerald-500 mb-1.5" />
+                      <p className="font-bold text-slate-800 dark:text-slate-200">No pending {activeTab} applications</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">All incoming requests have been reviewed.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
+      {/* Tutor Detail Modal */}
       {selectedTutorDetail && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="tutor-detail-title">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-6 space-y-5 border border-gray-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 pb-3">
-              <div><h3 id="tutor-detail-title" className="font-bold text-lg text-gray-900 dark:text-white">Tutor Application: {selectedTutorDetail.name}</h3><p className="text-xs text-gray-500">Full credentials and availability breakdown</p></div>
-              <button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 min-w-11 p-2 rounded-lg text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800" aria-label="Close tutor profile">✕</button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-5 space-y-4 border border-slate-200 dark:border-slate-800 max-h-[92vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                  Tutor Profile: {selectedTutorDetail.name}
+                </h3>
+                <p className="text-[11px] text-slate-400">Credentials and instructional background</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSelectedTutorDetail(null)} 
+                className="min-h-8 min-w-8 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
+              >
+                <X size={16} />
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Email:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.email}</p></div>
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Phone:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.phone || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Location:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.location || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Qualification:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.qualification || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Availability:</span><p className="font-bold text-gray-900 dark:text-white">{selectedTutorDetail.daysPerWeek || 'N/A'}</p></div>
-              <div className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl space-y-1"><span className="text-gray-500 font-medium">Expected Rate:</span><p className="font-bold text-green-600 dark:text-green-400">{selectedTutorDetail.expectedSalary || 'N/A'}</p></div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Email</span>
+                <p className="font-bold text-slate-900 dark:text-white break-all">{selectedTutorDetail.email}</p>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Phone</span>
+                <p className="font-bold text-slate-900 dark:text-white">{selectedTutorDetail.phone || 'N/A'}</p>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Location</span>
+                <p className="font-bold text-slate-900 dark:text-white">{selectedTutorDetail.location || 'N/A'}</p>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Qualification</span>
+                <p className="font-bold text-amber-600 dark:text-amber-400">{selectedTutorDetail.qualification || 'N/A'}</p>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Availability</span>
+                <p className="font-bold text-slate-900 dark:text-white">{selectedTutorDetail.daysPerWeek || 'N/A'}</p>
+              </div>
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl">
+                <span className="text-slate-400 font-bold block text-[9px] uppercase">Expected Rate</span>
+                <p className="font-bold text-emerald-600 dark:text-emerald-400">{selectedTutorDetail.expectedSalary || 'N/A'}</p>
+              </div>
             </div>
-            <div><span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Instructional Tracks &amp; Subjects:</span><div className="flex flex-wrap gap-1.5">{Array.isArray(selectedTutorDetail.subjects) && selectedTutorDetail.subjects.map((s: string, i: number) => <span key={i} className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-bold rounded-lg">{s}</span>)}</div></div>
-            {selectedTutorDetail.bio && <div><span className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">Bio / Teaching Philosophy:</span><p className="p-3 bg-gray-50 dark:bg-slate-800/50 rounded-xl text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{selectedTutorDetail.bio}</p></div>}
-            {selectedTutorDetail.cvUrl && <a href={selectedTutorDetail.cvUrl} target="_blank" rel="noopener noreferrer" className="w-full py-2.5 px-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-100"><ExternalLink size={14} /> Open Resume / Portfolio Document</a>}
-            <div className="pt-4 border-t border-gray-200 dark:border-slate-800 flex justify-end gap-3"><button type="button" onClick={() => setSelectedTutorDetail(null)} className="min-h-11 px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-xs font-bold text-gray-600 dark:text-gray-300">Close</button><button type="button" onClick={() => approveTutor(selectedTutorDetail)} disabled={loadingId === selectedTutorDetail.id} className="min-h-11 px-5 py-2 rounded-xl bg-green-600 text-white text-xs font-bold hover:bg-green-700 disabled:opacity-50">Approve Tutor</button></div>
+
+            <div>
+              <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Instructional Tracks</span>
+              <div className="flex flex-wrap gap-1">
+                {Array.isArray(selectedTutorDetail.subjects) && selectedTutorDetail.subjects.map((s: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-brand-red/10 text-brand-red text-[10px] font-bold rounded-md">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {selectedTutorDetail.bio && (
+              <div>
+                <span className="text-[10px] font-black uppercase text-slate-400 block mb-1">Teaching Philosophy</span>
+                <p className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {selectedTutorDetail.bio}
+                </p>
+              </div>
+            )}
+
+            {selectedTutorDetail.cvUrl && (
+              <a 
+                href={selectedTutorDetail.cvUrl} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="w-full py-2 px-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-brand-red font-bold text-xs flex items-center justify-center gap-1.5 hover:bg-red-100 transition-all"
+              >
+                <ExternalLink size={13} /> Open Resume / Portfolio Document
+              </a>
+            )}
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+              <button 
+                type="button" 
+                onClick={() => setSelectedTutorDetail(null)} 
+                className="min-h-9 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300"
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                onClick={() => void approveTutor(selectedTutorDetail)} 
+                disabled={loadingId === selectedTutorDetail.id} 
+                className="min-h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Approve Tutor
+              </button>
+            </div>
           </div>
         </div>
       )}
