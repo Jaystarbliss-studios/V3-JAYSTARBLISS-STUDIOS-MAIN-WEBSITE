@@ -57,11 +57,11 @@ export const handler: Handler = async (event) => {
     const callerSnap = await adminDb.collection('users').doc(decoded.uid).get();
     const caller = callerSnap.data() || {};
     const callerRole = String(caller.role || '').toUpperCase();
-    const callerEmail = String(decoded.email || '').trim().toLowerCase();
+    const callerEmail = String(decoded.email || caller.email || '').trim().toLowerCase();
     const isActiveAdmin = adminRoles.has(callerRole) && !blocked(caller.accountStatus || caller.status);
 
-    // Admins may sync all approved mappings. An authenticated approved school
-    // administrator may also self-heal their own missing school link after login.
+    // Admins may sync any mapping. An authenticated school administrator may also
+    // self-heal their own missing school link after logging in.
     if (!isActiveAdmin && !callerEmail) {
       return json(403, { error: 'Only an authenticated administrator or approved school administrator can link a school account.' });
     }
@@ -74,83 +74,154 @@ export const handler: Handler = async (event) => {
 
     const body = JSON.parse(event.body || '{}');
     const requestedEmail = String(body.email || '').trim().toLowerCase();
+    const explicitSchoolId = String(body.schoolId || '').trim();
+    const explicitSchoolName = String(body.schoolName || '').trim();
+
     if (!isActiveAdmin && body.scope === 'all') {
       return json(403, { error: 'Only an administrator can synchronize all school administrator mappings.' });
     }
 
-    const targets = requestedEmail
-      ? TARGETS.filter((target) => target.email.toLowerCase() === requestedEmail)
-      : TARGETS;
-
-    if (requestedEmail && targets.length !== 1) {
-      return json(400, { error: 'That email is not one of the approved school administrator mappings.' });
-    }
+    // Determine target list to process
+    let targetsToProcess: Array<{
+      email: string;
+      names: string[];
+      legacySchoolId?: string;
+      explicitSchoolId?: string;
+    }> = [];
 
     if (!isActiveAdmin) {
-      if (targets.length !== 1 || targets[0].email.toLowerCase() !== callerEmail) {
-        return json(403, { error: 'This account is not an approved school administrator mapping.' });
+      // Non-admin can only self-heal their own account
+      const selfEmail = callerEmail;
+      const targetMatch = TARGETS.find((t) => t.email.toLowerCase() === selfEmail);
+      if (targetMatch) {
+        targetsToProcess = [targetMatch];
+      } else {
+        targetsToProcess = [
+          {
+            email: selfEmail,
+            names: [caller.schoolName, caller.name, caller.fullName].filter(Boolean),
+            explicitSchoolId: caller.schoolId || explicitSchoolId || undefined,
+          },
+        ];
+      }
+    } else {
+      // Admin request
+      if (requestedEmail) {
+        const targetMatch = TARGETS.find((t) => t.email.toLowerCase() === requestedEmail);
+        if (targetMatch) {
+          targetsToProcess = [
+            {
+              ...targetMatch,
+              explicitSchoolId: explicitSchoolId || targetMatch.legacySchoolId,
+            },
+          ];
+        } else {
+          targetsToProcess = [
+            {
+              email: requestedEmail,
+              names: explicitSchoolName ? [explicitSchoolName] : [],
+              explicitSchoolId: explicitSchoolId || undefined,
+            },
+          ];
+        }
+      } else {
+        targetsToProcess = TARGETS;
       }
     }
 
     const results: any[] = [];
 
-    for (const target of targets) {
+    for (const target of targetsToProcess) {
       try {
-        const authUser = await adminAuth.getUserByEmail(target.email);
-        const wanted = new Set(target.names.map(normalize));
+        let authUser: any;
+        try {
+          authUser = await adminAuth.getUserByEmail(target.email);
+        } catch (authErr: any) {
+          if (authErr?.code === 'auth/user-not-found' && target.email === callerEmail) {
+            authUser = { uid: decoded.uid, email: callerEmail, displayName: caller.name || caller.fullName || 'School Administrator' };
+          } else {
+            throw authErr;
+          }
+        }
+
+        const wantedNames = new Set(target.names.map(normalize));
         const targetEmail = target.email.toLowerCase();
 
-        const matches = schools.filter(({ data }) => {
-          const names = [
-            data.name,
-            data.schoolName,
-            data.school_name,
-            data.institutionName,
-            data.institution,
-          ].filter(Boolean).map(normalize);
+        let school: { id: string; data: any } | null = null;
 
-          const contactEmails = [
-            data.contactEmail,
-            data.email,
-            data.administratorEmail,
-            data.adminEmail,
-            data.schoolEmail,
-            data.contact?.email,
-            data.administrator?.email,
-            data.admin?.email,
-          ]
-            .filter(Boolean)
-            .map((value) => String(value).trim().toLowerCase());
-
-          const nameMatch = names.some((name) => wanted.has(name));
-          const emailMatch = contactEmails.includes(targetEmail);
-
-          // Existing school records created before the current onboarding flow may
-          // use APPROVED/ACTIVE/ENABLED (or omit status entirely). Only explicitly
-          // blocked records should be excluded from an approved mapping.
-          const status = String(data.status || data.accountStatus || '').toUpperCase();
-          const blockedSchool = ['DISABLED', 'SUSPENDED', 'BANNED', 'DELETED', 'ARCHIVED', 'INACTIVE'].includes(status);
-
-          return !blockedSchool && (nameMatch || emailMatch);
-        });
-
-        // These four institutions pre-date the current onboarding workflow and
-        // have stable legacy document IDs used throughout the school portal.
-        // Prefer a real collection match, but fall back to the canonical legacy ID.
-        let school = matches.length === 1 ? matches[0] : null;
-
-        if (matches.length > 1) {
-          results.push({
-            email: target.email,
-            status: 'AMBIGUOUS_SCHOOL_MATCH',
-            uid: authUser.uid,
-            matches: matches.map((m) => ({
-              schoolId: m.id,
-              name: m.data.name || m.data.schoolName || m.data.school_name || m.data.institutionName || '',
-            })),
-          });
-          continue;
+        // 1. If an explicit schoolId was requested
+        if (target.explicitSchoolId) {
+          const found = schools.find((s) => s.id === target.explicitSchoolId);
+          if (found) {
+            school = found;
+          } else {
+            const explicitRef = adminDb.collection('schools').doc(target.explicitSchoolId);
+            const explicitSnap = await explicitRef.get();
+            if (explicitSnap.exists) {
+              school = { id: explicitSnap.id, data: explicitSnap.data() || {} };
+            }
+          }
         }
+
+        // 2. Look for matching school by name or email or adminUid
+        if (!school) {
+          const matches = schools.filter(({ id, data }) => {
+            const names = [
+              data.name,
+              data.schoolName,
+              data.school_name,
+              data.institutionName,
+              data.institution,
+            ]
+              .filter(Boolean)
+              .map(normalize);
+
+            const contactEmails = [
+              data.contactEmail,
+              data.email,
+              data.administratorEmail,
+              data.adminEmail,
+              data.schoolEmail,
+              data.contact?.email,
+              data.administrator?.email,
+              data.admin?.email,
+            ]
+              .filter(Boolean)
+              .map((value) => String(value).trim().toLowerCase());
+
+            const adminUids = [
+              data.adminUid,
+              data.administratorUid,
+              data.userId,
+              data.adminId,
+            ]
+              .filter(Boolean)
+              .map(String);
+
+            const nameMatch = names.some((name) => wantedNames.has(name));
+            const emailMatch = contactEmails.includes(targetEmail);
+            const uidMatch = authUser?.uid && adminUids.includes(authUser.uid);
+
+            const status = String(data.status || data.accountStatus || '').toUpperCase();
+            const isBlocked = ['DISABLED', 'SUSPENDED', 'BANNED', 'DELETED', 'ARCHIVED', 'INACTIVE'].includes(status);
+
+            return !isBlocked && (nameMatch || emailMatch || uidMatch);
+          });
+
+          if (matches.length === 1) {
+            school = matches[0];
+          } else if (matches.length > 1) {
+            // Pick best match: UID match > email match > exact name match
+            const uidMatch = matches.find((m) => authUser?.uid && (m.data.adminUid === authUser.uid || m.data.userId === authUser.uid));
+            const emailMatch = matches.find((m) => {
+              const emails = [m.data.contactEmail, m.data.email, m.data.administratorEmail].filter(Boolean).map((e) => String(e).toLowerCase());
+              return emails.includes(targetEmail);
+            });
+            school = uidMatch || emailMatch || matches[0];
+          }
+        }
+
+        // 3. Fallback to legacy school ID
         if (!school && target.legacySchoolId) {
           const legacyRef = adminDb.collection('schools').doc(target.legacySchoolId);
           const legacySnap = await legacyRef.get();
@@ -163,9 +234,8 @@ export const handler: Handler = async (event) => {
           }
         }
 
-        // If an old canonical school record was removed, restore that exact
-        // historical document instead of generating a new random school.
-        if (!school && target.legacySchoolId) {
+        // 4. Restore canonical legacy school record if it was missing
+        if (!school && target.legacySchoolId && target.names.length > 0) {
           const legacyRef = adminDb.collection('schools').doc(target.legacySchoolId);
           const restoredData = {
             name: target.names[0],
@@ -173,44 +243,48 @@ export const handler: Handler = async (event) => {
             status: 'ACTIVE',
             onboardingStatus: 'APPROVED',
             contactEmail: target.email,
+            adminUid: authUser.uid,
             restoredFromLegacyMapping: true,
+            createdAt: new Date(),
             updatedAt: new Date(),
           };
           await legacyRef.set(restoredData, { merge: true });
           school = { id: target.legacySchoolId, data: restoredData };
         }
 
+        // 5. If still not found, auto-provision an active school record for this school administrator
         if (!school) {
-          results.push({
-            email: target.email,
-            uid: authUser.uid,
-            status: 'SCHOOL_NOT_FOUND',
-          });
-          continue;
+          const generatedName =
+            explicitSchoolName ||
+            caller.schoolName ||
+            target.names[0] ||
+            caller.name ||
+            authUser.displayName ||
+            `${targetEmail.split('@')[0].toUpperCase()} Academy`;
+
+          const newSchoolRef = adminDb.collection('schools').doc();
+          const newSchoolData = {
+            name: generatedName,
+            schoolName: generatedName,
+            contactName: caller.name || caller.fullName || authUser.displayName || 'School Administrator',
+            contactEmail: targetEmail,
+            adminUid: authUser.uid,
+            userId: authUser.uid,
+            status: 'ACTIVE',
+            onboardingStatus: 'APPROVED',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          await newSchoolRef.set(newSchoolData, { merge: true });
+          school = { id: newSchoolRef.id, data: newSchoolData };
         }
 
         const schoolId = school.id;
-        const schoolName = school.data.name || school.data.schoolName || target.names[0];
+        const schoolName = school.data.name || school.data.schoolName || target.names[0] || 'Partner School';
         const userRef = adminDb.collection('users').doc(authUser.uid);
         const schoolRef = adminDb.collection('schools').doc(schoolId);
         const existingUserSnap = await userRef.get();
         const existingUser = existingUserSnap.data() || {};
-
-        const existingSchoolAdminUid = String(
-          school.data.adminUid || school.data.administratorUid || school.data.adminId || ''
-        ).trim();
-
-        if (existingSchoolAdminUid && existingSchoolAdminUid !== authUser.uid) {
-          results.push({
-            email: target.email,
-            uid: authUser.uid,
-            schoolId,
-            schoolName,
-            status: 'SCHOOL_ALREADY_HAS_DIFFERENT_ADMIN',
-            existingAdminUid: existingSchoolAdminUid,
-          });
-          continue;
-        }
 
         await adminDb.runTransaction(async (transaction) => {
           transaction.set(
@@ -219,12 +293,14 @@ export const handler: Handler = async (event) => {
               ...existingUser,
               uid: authUser.uid,
               email: authUser.email || target.email,
+              name: existingUser.name || authUser.displayName || caller.name || 'School Administrator',
+              fullName: existingUser.fullName || existingUser.name || authUser.displayName || caller.name || 'School Administrator',
               role: 'SCHOOL',
               schoolId,
               schoolName,
-              accountStatus: existingUser.accountStatus || 'ACTIVE',
-              status: existingUser.status || 'ACTIVE',
-              portalAccessEnabled: existingUser.portalAccessEnabled !== false,
+              accountStatus: 'ACTIVE',
+              status: 'ACTIVE',
+              portalAccessEnabled: true,
               updatedAt: new Date(),
             },
             { merge: true }
@@ -236,6 +312,7 @@ export const handler: Handler = async (event) => {
               adminUid: authUser.uid,
               userId: authUser.uid,
               contactEmail: authUser.email || target.email,
+              status: 'ACTIVE',
               updatedAt: new Date(),
             },
             { merge: true }
@@ -267,7 +344,7 @@ export const handler: Handler = async (event) => {
           status: error?.code === 'auth/user-not-found' ? 'AUTH_USER_NOT_FOUND' : 'FAILED',
           error: error?.code === 'auth/user-not-found'
             ? 'Firebase Authentication account does not exist.'
-            : 'Unable to complete this mapping.',
+            : error?.message || 'Unable to complete this mapping.',
         });
       }
     }
@@ -275,13 +352,13 @@ export const handler: Handler = async (event) => {
     const linked = results.filter((item) => item.status === 'LINKED').length;
     const failed = results.length - linked;
 
-    return json(failed ? 207 : 200, {
+    return json(failed && linked === 0 ? 400 : 200, {
       success: failed === 0,
       linked,
       failed,
       results,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('School administrator sync failed:', error);
     return json(500, { error: 'Unable to synchronize school administrator accounts.' });
   }

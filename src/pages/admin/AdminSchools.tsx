@@ -307,19 +307,12 @@ const AdminSchools: React.FC = () => {
     }
   };
 
-  // Link a single administrator by using the same trusted server-side resolver.
+  // Link a single administrator by using the trusted server-side resolver.
   const handleLinkSingleAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSchoolForLink || !linkEmailInput.trim()) {
+    const cleanEmail = linkEmailInput.trim().toLowerCase();
+    if (!selectedSchoolForLink || !cleanEmail || !cleanEmail.includes('@')) {
       toast.error('Please enter a valid administrator email.');
-      return;
-    }
-    const target = TARGET_ADMIN_MAPPINGS.find(item => item.email.toLowerCase() === linkEmailInput.trim().toLowerCase());
-    const selectedNormalized = selectedSchoolForLink.name.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    const targetNormalized = target?.schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '') || '';
-    const schoolMatches = Boolean(target && (selectedNormalized === targetNormalized || selectedNormalized.startsWith(targetNormalized) || targetNormalized.startsWith(selectedNormalized)));
-    if (!target || !schoolMatches) {
-      toast.error('For safety, this action only permits the pre-approved school administrator mapping for this school.');
       return;
     }
     setLinkingLoading(true);
@@ -329,15 +322,20 @@ const AdminSchools: React.FC = () => {
       const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ scope: 'single', email: target.email })
+        body: JSON.stringify({
+          scope: 'single',
+          email: cleanEmail,
+          schoolId: selectedSchoolForLink.id,
+          schoolName: selectedSchoolForLink.name,
+        }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok && response.status !== 207) throw new Error(result.error || 'Unable to link administrator.');
       const item = result.results?.[0];
-      if (item?.status !== 'LINKED') throw new Error(`Mapping was not changed: ${item?.status || 'UNKNOWN'}`);
+      if (item?.status !== 'LINKED') throw new Error(`Mapping was not completed: ${item?.error || item?.status || 'UNKNOWN'}`);
       setShowLinkModal(false);
       await fetchAllSchoolData();
-      toast.success(`Successfully linked ${target.email} to ${item.schoolName}.`);
+      toast.success(`Successfully linked ${cleanEmail} to ${item.schoolName || selectedSchoolForLink.name}.`);
     } catch (err: any) {
       toast.error(err?.message || 'Linking failed.');
     } finally {

@@ -32,7 +32,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
       setIsAuthorized(false);
       try {
         if (!currentUser) return;
-        const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+        let userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+        
+        // Self-heal for school route if user profile or role/schoolId is missing
+        if (location.pathname.startsWith('/portal/school') || !userSnap.exists()) {
+          try {
+            const idToken = await currentUser.getIdToken(true);
+            const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ scope: 'single', email: currentUser.email || '' }),
+            });
+            const syncData = await syncResponse.json().catch(() => ({}));
+            if (syncResponse.ok && syncData?.results?.[0]?.status === 'LINKED') {
+              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
+              if (refreshed.exists()) userSnap = refreshed;
+            }
+          } catch (repairError) {
+            console.warn('School administrator link repair check:', repairError);
+          }
+        }
+
         if (!userSnap.exists()) {
           await signOut(auth).catch(() => undefined);
           throw new Error('Authenticated user has no authoritative portal profile.');
@@ -46,11 +66,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
           return;
         }
 
-        const role = String(data.role || '').trim().toUpperCase();
+        let role = String(data.role || '').trim().toUpperCase();
         // School administrators can arrive here with an authenticated Firebase
         // session but without the legacy schoolId field. Repair the approved
         // mapping server-side before deciding whether the portal is authorized.
-        if (role === 'SCHOOL' && !String(data.schoolId || '').trim()) {
+        if ((role === 'SCHOOL' || location.pathname.startsWith('/portal/school')) && !String(data.schoolId || '').trim()) {
           try {
             const idToken = await currentUser.getIdToken(true);
             const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {
@@ -61,7 +81,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
             const syncData = await syncResponse.json().catch(() => ({}));
             if (syncResponse.ok && syncData?.results?.[0]?.status === 'LINKED') {
               const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
-              if (refreshed.exists()) data = refreshed.data() || {};
+              if (refreshed.exists()) {
+                data = refreshed.data() || {};
+                role = String(data.role || 'SCHOOL').trim().toUpperCase();
+              }
             }
           } catch (repairError) {
             console.warn('School administrator link repair failed:', repairError);
