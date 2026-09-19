@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
 import crypto from 'node:crypto';
+import { createPortalNotification } from '../../api/_lib/email';
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) });
 const token = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ''; return value.startsWith('Bearer ') ? value.slice(7) : ''; };
@@ -38,6 +39,14 @@ export const handler: Handler = async (event) => {
         transaction.set(adminDb.collection('activityLogs').doc(), { type: 'school_onboarded', action: 'SCHOOL_ONBOARDED', message: `School ${name} was onboarded by an administrator.`, actorId: decoded.uid, userId: authUser.uid, userEmail: email, userType: 'SCHOOL', schoolId: schoolRef.id, schoolName: name, timestamp: now, details: { schoolCode: code, contactName, phone, address, state, status: 'ACTIVE' } });
       });
     } catch (error) { await adminAuth.deleteUser(authUser.uid).catch(() => undefined); throw error; }
+    await createPortalNotification({
+      recipientId: authUser.uid,
+      email,
+      type: 'SCHOOL_ONBOARDING_APPROVED',
+      title: 'Your Jaystarbliss Studios school portal is ready',
+      message: `Your school account for ${name} has been created. Sign in at ${process.env.URL || 'https://jaystarbliss-studios.name.ng'}/portal using your administrator email (${email}) and temporary password: ${password}. Please change your password immediately after signing in. Your school code ${code} is for institutional exam/operations purposes and is not your login password.`,
+      data: { schoolId: schoolRef.id, schoolCode: code }
+    });
     return json(200, { success: true, school: { id: schoolRef.id, name, schoolCode: code, status: 'ACTIVE' }, administrator: { uid: authUser.uid, name: contactName, email }, temporaryPassword: password });
   } catch (error) { console.error('School onboarding error:', error); return json(500, { error: 'Unable to onboard this school right now.' }); }
 };
