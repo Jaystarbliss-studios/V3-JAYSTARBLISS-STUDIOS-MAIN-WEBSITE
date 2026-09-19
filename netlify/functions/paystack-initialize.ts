@@ -47,11 +47,26 @@ export const handler: Handler = async (event) => {
       studentId = studentId || String(enrollment.studentId || "").trim();
     }
 
-    const plan = config.plans[planId];
-    if (!plan || !plan.active) return json(400, { error: "The selected payment plan is unavailable." });
-    if (actualRole === "school" && plan.role !== "school") return json(400, { error: "Please select a school payment plan." });
-    if (actualRole !== "school" && plan.role !== "student") return json(400, { error: "Please select a parent/student payment plan." });
-    if (actualRole === "parent" && !studentId && !enrollmentRequestId) return json(400, { error: "Select the child this parent payment is for." });
+    let plan = config.plans[planId];
+    const customAmount = Number(body.amount || body.customAmount || 0);
+
+    if (!plan && customAmount > 0) {
+      plan = {
+        name: String(body.planName || (actualRole === "school" ? "Institutional Partner Fee" : actualRole === "parent" ? "Parent Tuition Fee" : "Course Tuition Fee")),
+        baseAmount: customAmount,
+        durationWeeks: actualRole === "school" ? (String(body.cycle || "").toLowerCase() === "termly" ? 12 : 4) : 4,
+        teachingModes: ["Standard Delivery", "Hybrid / Physical"],
+        role: actualRole === "school" ? "school" : "student",
+        active: true
+      };
+      planId = planId || "custom_plan";
+    }
+
+    if (!plan || !plan.active) return json(400, { error: "The selected payment plan or fee is unavailable." });
+    if (actualRole === "school" && plan.role !== "school" && !customAmount) return json(400, { error: "Please select a school payment plan." });
+    if (actualRole !== "school" && plan.role !== "student" && !customAmount) return json(400, { error: "Please select a parent/student payment plan." });
+    if (actualRole === "parent" && !studentId && !enrollmentRequestId && !customAmount) return json(400, { error: "Select the child this parent payment is for." });
+
 
     if (actualRole === "parent" && studentId) student = await findStudent(studentId, decoded.uid, "parent");
     if (actualRole === "school") {
