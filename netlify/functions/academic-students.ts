@@ -48,6 +48,13 @@ export const handler: Handler = async (event) => {
               const data = assignment.data() || {};
               const studentId = String(data.studentId || data.learnerId || data.cadetId || data.studentDocId || '').trim();
               await addStudentById(studentId);
+              if (studentId) {
+                const userStudent = await adminDb.collection('users').doc(studentId).get();
+                if (userStudent.exists) {
+                  const u = userStudent.data() || {};
+                  if (['STUDENT','SCHOLAR','CADET'].includes(roleOf(u.role)) || u.studentDocId) docs.set(userStudent.id, { id: userStudent.id, ...u, firebaseUid: userStudent.id });
+                }
+              }
             }
           } catch (e) { console.warn(`Tutor assignment compatibility query failed for ${collectionName}.${field}`, e); }
         }
@@ -67,8 +74,18 @@ export const handler: Handler = async (event) => {
         add(await adminDb.collection('students').where('firebaseUid', '==', decoded.uid).limit(10).get());
       }
     } else if (['ADMIN', 'SUPER_ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN'].includes(role)) {
-      add(await adminDb.collection('individualStudents').limit(200).get());
-      add(await adminDb.collection('students').limit(200).get());
+      add(await adminDb.collection('individualStudents').limit(5000).get());
+      add(await adminDb.collection('students').limit(5000).get());
+      // Some historical accounts exist only in users/{uid}. Include those
+      // student identities so every tutor-facing selector can resolve them.
+      const userStudents = await adminDb.collection('users').limit(5000).get();
+      userStudents.forEach(d => {
+        const data = d.data() || {};
+        const userRole = roleOf(data.role);
+        if (['STUDENT','SCHOLAR','CADET'].includes(userRole) || data.studentDocId) {
+          docs.set(d.id, { id: d.id, ...data, firebaseUid: d.id });
+        }
+      });
     } else {
       return json(403, { error: 'This account does not have access to student learning records.' });
     }
