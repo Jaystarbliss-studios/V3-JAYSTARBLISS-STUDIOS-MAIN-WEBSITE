@@ -222,6 +222,31 @@ html.dark .glass-card-subtle:hover {
   background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
 }
 
+/* Global dashboard form contrast: keep editable controls readable in both themes. */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+  caret-color: #f8fafc;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8 !important;
+}
+html.dark select option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+html.dark input:focus,
+html.dark select:focus,
+html.dark textarea:focus {
+  border-color: #b91c1c !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.18);
+}
+
 .pro-surface {
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.7);
