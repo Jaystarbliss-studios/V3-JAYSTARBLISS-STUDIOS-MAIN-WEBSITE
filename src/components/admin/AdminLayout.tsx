@@ -9,6 +9,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { JaystarblissIcon } from '../common/JaystarblissLogo';
 import SEO from '../ui/SEO';
 import NotificationBell from '../common/NotificationBell';
+import adminBgWallpaper from '../../assets/jdi login bg.png';
 import { 
   LayoutDashboard, 
   Users, 
@@ -215,24 +216,24 @@ const AdminLayout: React.FC = () => {
         </div>
       </div>
 
-      {/* Desktop Sidebar (Collapsible & Independently Scrollable) */}
+      {/* Desktop Sidebar (Collapsible, Frosted Glass & Independently Scrollable) */}
       <aside 
-        className={`hidden lg:flex bg-white dark:bg-[#10141f]/95 backdrop-blur-xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-gray-200/80 dark:border-white/5 shrink-0 select-none transition-all duration-300 ease-in-out ${
+        className={`hidden lg:flex bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-2xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-slate-200/80 dark:border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out relative z-30 shadow-lg shadow-black/5 ${
           sidebarCollapsed ? 'w-20' : 'w-72'
         }`}
       >
         {/* Header with Logo and Collapse Toggle */}
-        <div className={`flex items-center justify-between h-16 px-4 bg-white dark:bg-[#10141f] border-b border-gray-100 dark:border-white/5 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
+        <div className={`flex items-center justify-between h-16 px-4 border-b border-slate-200/60 dark:border-white/10 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
           <Tooltip content="Return to Public Website" placement="right">
             <Link to="/" className="flex items-center gap-2.5 group">
-              <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0" />
+              <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0 drop-shadow-sm" />
               {!sidebarCollapsed && (
                 <div className="flex flex-col min-w-0">
                   <span className="font-bold text-xs sm:text-sm tracking-tight text-gray-900 dark:text-white flex items-center gap-1 whitespace-nowrap">
                     JAYSTARBLISS STUDIOS
                     <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity text-slate-400" />
                   </span>
-                  <span className="text-[10px] text-red-600 dark:text-red-400 font-mono font-semibold">Admin Console</span>
+                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono font-semibold">Admin Console</span>
                 </div>
               )}
             </Link>
@@ -278,15 +279,15 @@ const AdminLayout: React.FC = () => {
                           sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
                         } ${
                           isActive 
-                            ? 'bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 border border-red-200/80 dark:border-red-500/25 shadow-xs' 
-                            : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
+                            : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
                         <Icon 
                           className={`flex-shrink-0 h-4 w-4 transition-colors ${
                             sidebarCollapsed ? '' : 'mr-2.5'
                           } ${
-                            isActive ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-slate-500 group-hover:text-gray-900 dark:group-hover:text-white'
+                            isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
                           }`} 
                         />
                         {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
@@ -300,13 +301,13 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Desktop Sidebar Footer */}
-        <div className={`p-3 border-t border-gray-100 dark:border-white/5 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+        <div className={`p-3 border-t border-slate-200/60 dark:border-white/10 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
           <Tooltip content="End administrative session" placement={sidebarCollapsed ? "right" : "top"}>
             <button 
               id="btn-admin-sidebar-logout"
               type="button"
               onClick={handleLogout}
-              className={`flex items-center text-xs font-bold text-gray-500 dark:text-slate-400 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer ${
+              className={`flex items-center text-xs font-bold text-gray-500 dark:text-slate-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer ${
                 sidebarCollapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2'
               }`}
             >
@@ -317,10 +318,20 @@ const AdminLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main content - Independently Scrollable */}
-      <div className="flex-1 h-full max-h-screen flex flex-col min-w-0 overflow-hidden bg-[#f8fafc] dark:bg-[#0c1017]">
+      {/* Main content Area with Blurred Background Image */}
+      <div className="flex-1 h-full max-h-screen flex flex-col min-w-0 overflow-hidden relative">
+        {/* Ambient Blurred Background Wallpaper */}
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden select-none" aria-hidden="true">
+          <img 
+            src={adminBgWallpaper} 
+            alt="" 
+            className="w-full h-full object-cover filter blur-[28px] scale-110 opacity-30 dark:opacity-40 transition-opacity" 
+          />
+          <div className="absolute inset-0 bg-slate-100/75 dark:bg-[#070b14]/80 backdrop-blur-sm" />
+        </div>
+
         {/* Topbar */}
-        <div className="flex-shrink-0 flex items-center justify-between h-16 bg-white/80 dark:bg-[#0f141e]/80 backdrop-blur-md border-b border-gray-200/80 dark:border-white/5 px-4 sm:px-6 lg:px-8 z-20 transition-colors shadow-xs">
+        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-4 sm:px-6 lg:px-8 transition-colors shadow-xs">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Button */}
             <Tooltip content="Open navigation menu" placement="right">
@@ -342,7 +353,7 @@ const AdminLayout: React.FC = () => {
             <Tooltip content="Search admin workspace" placement="bottom">
               <button 
                 onClick={() => setSearchOpen(true)}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 aria-label="Search content"
               >
                 <Search size={18} />
@@ -352,15 +363,17 @@ const AdminLayout: React.FC = () => {
             {/* Persistent Real-time Notification Bell */}
             <NotificationBell role="admin" />
 
-            <div className="h-6 w-px bg-gray-200 dark:bg-slate-800"></div>
+            <div className="h-6 w-px bg-slate-200/80 dark:bg-slate-800"></div>
             
             <Tooltip content="Administrator Terminal Session" placement="bottom">
-              <div className="flex items-center gap-2.5 py-1 px-2 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+              <div className="flex items-center gap-2.5 py-1 px-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                 <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-gray-700 dark:text-gray-200 leading-tight">Admin Officer</div>
-                  <div className="text-[10px] text-green-500 font-semibold">Active Session</div>
+                  <div className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">Admin Officer</div>
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center justify-end gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Session
+                  </div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-brand-red text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
                   JD
                 </div>
               </div>
@@ -369,7 +382,7 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Main Content Area - Isolated independent scroll */}
-        <main className="flex-1 relative overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar">
+        <main className="flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
               <AnimatePresence mode="wait">

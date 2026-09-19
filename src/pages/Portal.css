@@ -13,13 +13,53 @@
   font-family: var(--sans);
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2.2rem 1.5rem;
   position: relative;
   overflow-x: hidden;
-  transition: background 0.3s ease, color 0.3s ease;
+  transition: color 0.3s ease;
+  background: transparent;
+}
+
+.jdh-portal-bg-viewport {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.jdh-portal-bg-viewport img {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.jdh-portal-bg-viewport .bg-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: radial-gradient(circle at 50% 50%, rgba(3, 7, 18, 0.12) 0%, rgba(3, 7, 18, 0.45) 100%);
 }
 
 /* ========================================================= */
@@ -27,39 +67,32 @@
 /* ========================================================= */
 .jdh-portal.dark,
 .dark .jdh-portal {
-  --bg: #040404;
+  --bg: transparent;
   --surface: #0a0a0a;
   --surf2: #121212;
-  --border: rgba(255, 46, 0, 0.28);
-  --border2: rgba(255, 46, 0, 0.48);
+  --border: rgba(56, 189, 248, 0.28);
+  --border2: rgba(56, 189, 248, 0.48);
   --text: #ffffff;
   --text-dim: #ffffff;
   --muted: #ffffff;
   --dim: #ffffff;
-  --link: #ff3311;
+  --link: #38bdf8;
   
-  background: linear-gradient(180deg, #000000 0%, #060202 35%, #0d0202 70%, #150302 100%);
+  background: transparent;
 }
 
 .jdh-portal.dark::after,
-.dark .jdh-portal::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: linear-gradient(rgba(255, 46, 0, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 46, 0, 0.08) 1px, transparent 1px);
-  background-size: 36px 36px;
-}
-
+.dark .jdh-portal::after,
 .jdh-portal.dark::before,
 .dark .jdh-portal::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: radial-gradient(ellipse 85% 55% at 50% 80%, rgba(255, 46, 0, 0.28) 0%, rgba(185, 28, 28, 0.16) 45%, transparent 75%),
-              radial-gradient(ellipse 60% 45% at 20% 20%, rgba(255, 46, 0, 0.15) 0%, transparent 65%);
+  display: none !important;
 }
 
 .jdh-portal.dark .scanlines,
 .dark .jdh-portal .scanlines {
   position: absolute; inset: 0; pointer-events: none; z-index: 1;
-  background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.3) 50%);
-  background-size: 100% 3px; opacity: 0.25;
+  background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%);
+  background-size: 100% 3px; opacity: 0.15;
 }
 
 .jdh-portal.dark .card,
@@ -215,32 +248,25 @@
 /* ========================================================= */
 .jdh-portal.light,
 html:not(.dark) .jdh-portal {
-  --bg: #ffffff;
+  --bg: transparent;
   --surface: #ffffff;
   --surf2: #f0f9ff;
   --border: rgba(2, 132, 199, 0.25);
   --border2: rgba(2, 132, 199, 0.38);
-  --text: #0f172a;
-  --text-dim: #334155;
-  --muted: #475569;
-  --dim: #64748b;
-  --link: #0284c7;
+  --text: #ffffff;
+  --text-dim: #e2e8f0;
+  --muted: #cbd5e1;
+  --dim: #94a3b8;
+  --link: #38bdf8;
   
-  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 20%, #e0f2fe 45%, #bae6fd 70%, #7dd3fc 90%, #38bdf8 100%);
+  background: transparent;
 }
 
 .jdh-portal.light::after,
-html:not(.dark) .jdh-portal::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background-image: linear-gradient(rgba(2, 132, 199, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(2, 132, 199, 0.05) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
+html:not(.dark) .jdh-portal::after,
 .jdh-portal.light::before,
 html:not(.dark) .jdh-portal::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background: radial-gradient(ellipse 80% 50% at 50% 15%, rgba(255, 255, 255, 0.95) 0%, rgba(186, 230, 253, 0.45) 50%, transparent 75%),
-              radial-gradient(ellipse 60% 50% at 85% 85%, rgba(56, 189, 248, 0.25) 0%, transparent 60%);
+  display: none !important;
 }
 
 .jdh-portal.light .scanlines,
@@ -248,8 +274,8 @@ html:not(.dark) .jdh-portal .scanlines {
   display: none;
 }
 
-.jdh-portal.light .card,
-html:not(.dark) .jdh-portal .card {
+.jdh-portal.light .card:not(.glass-modal-card),
+html:not(.dark) .jdh-portal .card:not(.glass-modal-card) {
   position: relative; z-index: 2; display: flex; width: 100%; max-width: 1140px; min-height: 640px;
   border-radius: var(--r); overflow: hidden; border: 1.5px solid var(--border2);
   background: #ffffff;
@@ -625,6 +651,279 @@ html:not(.dark) .jdh-portal .cyber-liquid-button .btn-label-text {
   font-size: 0.78rem;
   letter-spacing: 0.16em;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 12px rgba(255, 255, 255, 0.65), 0 0 20px rgba(255, 46, 0, 0.9);
+}
+
+/* ========================================================= */
+/* GLASSMORHPIC MODAL CARDS (LOGIN & REGISTER)               */
+/* ========================================================= */
+.jdh-portal .card.glass-modal-card {
+  width: 92vw !important;
+  max-width: 420px !important;
+  min-height: auto !important;
+  max-height: 85vh !important;
+  max-height: 85dvh !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  display: flex !important;
+  flex-direction: column !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(8px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 20px !important;
+  padding: 1.6rem 1.6rem 1.3rem 1.6rem !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+  position: relative !important;
+  z-index: 2 !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.jdh-portal .card.glass-modal-card::-webkit-scrollbar {
+  width: 4px;
+}
+
+.jdh-portal .card.glass-modal-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jdh-portal .card.glass-modal-card::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+}
+
+.jdh-portal .card.register-modal-card {
+  max-width: min(520px, 66.66vw) !important;
+  padding: 1.5rem 1.4rem 1.2rem 1.4rem !important;
+}
+
+.jdh-portal .glass-header h1 {
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
+}
+
+.jdh-portal .glass-header span {
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
+}
+
+.jdh-portal .glass-header p {
+  color: #f1f5f9 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.jdh-portal .glass-role-tabs {
+  display: flex !important;
+  gap: 5px !important;
+  padding: 4px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+.jdh-portal .glass-role-tab {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  padding: 0.5rem 0.35rem !important;
+  border-radius: 8px !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  color: #e2e8f0 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.jdh-portal .glass-role-tab:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.jdh-portal .glass-role-tab.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.92) 0%, rgba(37, 99, 235, 0.92) 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8) !important;
+}
+
+.jdh-portal .glass-input {
+  width: 100% !important;
+  padding: 0.72rem 0.85rem 0.72rem 2.4rem !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 10px !important;
+  color: #ffffff !important;
+  font-size: 0.88rem !important;
+  font-weight: 500 !important;
+  outline: none !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+.jdh-portal .glass-input:focus {
+  border-color: rgba(56, 189, 248, 0.7) !important;
+  box-shadow: 0 0 14px rgba(14, 165, 233, 0.35), inset 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.jdh-portal .glass-input::placeholder {
+  color: rgba(226, 232, 240, 0.6) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+.jdh-portal .field label {
+  color: #ffffff !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95) !important;
+  letter-spacing: 0.06em !important;
+}
+
+.jdh-portal .input-icon {
+  color: #ffffff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) !important;
+}
+
+.jdh-portal .pw-eye {
+  color: #ffffff !important;
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.9)) !important;
+}
+
+.jdh-portal .pw-eye:hover {
+  opacity: 1;
+  color: #ffffff !important;
+}
+
+.jdh-portal .glass-submit-btn {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #1d4ed8 100%) !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+  cursor: pointer !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+}
+
+.jdh-portal .glass-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 10px 25px rgba(2, 132, 199, 0.7), 0 0 20px rgba(56, 189, 248, 0.5) !important;
+}
+
+.jdh-portal .glass-submit-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.jdh-portal .glass-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 480px) {
+  .jdh-portal .card.glass-modal-card {
+    width: calc(100vw - 1.25rem) !important;
+    max-width: calc(100vw - 1.25rem) !important;
+    padding: 1.25rem 0.95rem 1rem 0.95rem !important;
+    border-radius: 16px !important;
+  }
+  .jdh-portal .glass-role-tab {
+    padding: 0.42rem 0.2rem !important;
+    font-size: 0.68rem !important;
+    gap: 3px !important;
+  }
+  .jdh-portal .glass-input {
+    padding: 0.62rem 0.75rem 0.62rem 2.2rem !important;
+    font-size: 0.82rem !important;
+  }
+}
+
+/* Light Mode Glassmorphism Overrides */
+.jdh-portal.light .card.glass-modal-card,
+html:not(.dark) .jdh-portal .card.glass-modal-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(8px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+}
+
+.jdh-portal.light .glass-header h1,
+html:not(.dark) .jdh-portal .glass-header h1,
+.jdh-portal.light .glass-header span,
+html:not(.dark) .jdh-portal .glass-header span {
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
+}
+
+.jdh-portal.light .glass-header p,
+html:not(.dark) .jdh-portal .glass-header p {
+  color: #f1f5f9 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.jdh-portal.light .glass-role-tabs,
+html:not(.dark) .jdh-portal .glass-role-tabs {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.jdh-portal.light .glass-role-tab,
+html:not(.dark) .jdh-portal .glass-role-tab {
+  color: #e2e8f0 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+.jdh-portal.light .glass-role-tab:hover,
+html:not(.dark) .jdh-portal .glass-role-tab:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.jdh-portal.light .glass-role-tab.active,
+html:not(.dark) .jdh-portal .glass-role-tab.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.92) 0%, rgba(37, 99, 235, 0.92) 100%) !important;
+  color: #ffffff !important;
+}
+
+.jdh-portal.light .glass-input,
+html:not(.dark) .jdh-portal .glass-input {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+.jdh-portal.light .glass-input:focus,
+html:not(.dark) .jdh-portal .glass-input:focus {
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25) !important;
+}
+
+.jdh-portal.light .glass-input::placeholder,
+html:not(.dark) .jdh-portal .glass-input::placeholder {
+  color: rgba(226, 232, 240, 0.6) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+.jdh-portal.light .field label,
+html:not(.dark) .jdh-portal .field label {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95) !important;
 }
 
 /* ========================================================= */

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { School, GraduationCap, Users, ShieldCheck, Mail, Lock, Eye, EyeOff, ArrowLeft, Sun, Moon } from 'lucide-react';
+import { School, GraduationCap, Users, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -8,9 +8,7 @@ import { useTheme } from '../hooks/useTheme';
 import SEO from '../components/ui/SEO';
 import { useToast } from '../contexts/ToastContext';
 import { JaystarblissIcon } from '../components/common/JaystarblissLogo';
-import CyberTerrainCanvas from '../components/portal/CyberTerrainCanvas';
-import CyberLiquidButton from '../components/portal/CyberLiquidButton';
-import ThreeOctagonLogo from '../components/portal/ThreeOctagonLogo';
+import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 import './SecurePortalTheme.css';
 
@@ -27,7 +25,7 @@ const storeSession = (role: string, uid: string, name: string, extras: Record<st
 
 const SecurePortalLogin: React.FC = () => {
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<Role>('student');
   const [identifier, setIdentifier] = useState('');
@@ -113,9 +111,6 @@ const SecurePortalLogin: React.FC = () => {
       const existing = snap.exists() ? snap.data() || {} : {};
       const existingRole = String(existing.role || '').toUpperCase();
 
-      // Existing administrator profiles are authoritative. If the Google identity
-      // is separate from the provisioned admin UID, the server verifies the Google
-      // ID token + verified email and mints a custom token for that existing UID.
       if (activeTab === 'staff' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(existingRole)) {
         const idToken = await googleUser.getIdToken(true);
         const response = await fetch('/.netlify/functions/admin-google-login', {
@@ -159,29 +154,179 @@ const SecurePortalLogin: React.FC = () => {
   };
 
   const tabs: { id: Role; label: string; icon: React.ReactNode }[] = [
-    { id: 'student', label: 'Students', icon: <GraduationCap size={16} /> },
-    { id: 'school', label: 'Schools', icon: <School size={16} /> },
-    { id: 'parent', label: 'Parents', icon: <Users size={16} /> },
-    { id: 'staff', label: 'Staff', icon: <ShieldCheck size={16} /> },
+    { id: 'student', label: 'Students', icon: <GraduationCap size={13} /> },
+    { id: 'school', label: 'Schools', icon: <School size={13} /> },
+    { id: 'parent', label: 'Parents', icon: <Users size={13} /> },
+    { id: 'staff', label: 'Staff', icon: <ShieldCheck size={13} /> },
   ];
 
-  return <div className={`jdh-portal ${theme === 'dark' ? 'dark' : 'light'}`}><SEO title="Academy & Client Portal — Jaystarbliss Studios" description="Secure access to student dashboards, school portals, parent progress reports, and staff workspaces." /><div className="scanlines" />
-    <div className="card">
-      <div className="deco-panel relative"><CyberTerrainCanvas theme={theme} /><Link to="/" className="deco-brand flex items-center gap-3 select-none group" aria-label="Home"><JaystarblissIcon className="w-9 h-9 rounded-xl group-hover:scale-105 transition-transform shrink-0" /><span className="font-black text-base tracking-wider uppercase whitespace-nowrap">JAYSTARBLISS STUDIOS</span></Link><div className="deco-center-stage"><div className="stage-glow-reflection" /><ThreeOctagonLogo size={185} className="relative z-10" /></div><div className="deco-bottom"><div className="deco-tagline">Learn. <br/><span>Grow.</span> <br/>Thrive.</div></div></div>
-      <div className="form-panel"><div className="role-tabs">{tabs.map(tab => <button key={tab.id} type="button" className={`role-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => { setActiveTab(tab.id); setIdentifier(''); setPassword(''); setError(''); }}>{tab.icon}<span>{tab.label}</span></button>)}</div>
-        <div className="form-body"><div className="pane"><div className="form-title capitalize">{activeTab} <em>Portal Login</em></div><div className="form-sub">{activeTab === 'student' ? 'Use the Student Username / Email and Access Code issued by your tutor or school.' : activeTab === 'school' ? 'Use your School Email / Terminal ID and institutional access code.' : activeTab === 'parent' ? 'Sign in to monitor your children’s classes and progress.' : 'Sign in to your tutor, instructor, or administrator workspace.'}</div>
-          {error && <div className="msg msg-error show" role="alert">{error}</div>}
-          <form onSubmit={handleLogin} autoComplete="on"><div className="field"><label>{activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Email or Terminal ID' : activeTab === 'parent' ? 'Parent Email Address' : 'Staff / Admin Email'}</label><div className="input-wrap"><span className="input-icon"><Mail size={15}/></span><input type={activeTab === 'parent' || activeTab === 'staff' ? 'email' : 'text'} required value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={activeTab === 'student' ? 'e.g. john or john@example.com' : activeTab === 'school' ? 'school@institution.edu' : activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'} /></div></div>
-          <div className="field"><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'0.75rem'}}><label style={{margin:0}}>{activeTab === 'student' || activeTab === 'school' ? 'Access Code' : 'Password'}</label>{(activeTab === 'parent' || activeTab === 'staff') && <button type="button" onClick={handlePasswordReset} disabled={loading} className="text-xs" style={{color:'var(--text-dim)',background:'none',border:0,padding:0,cursor:loading?'not-allowed':'pointer'}}>Forgot password?</button>}</div><div className="input-wrap"><span className="input-icon"><Lock size={15}/></span><input type={showPassword ? 'text' : 'password'} className="has-eye" required value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" /><button type="button" className="pw-eye" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={15}/> : <Eye size={15}/>}</button></div></div>
-          <div className="field" style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:'-0.5rem'}}><label htmlFor="rememberMe" style={{display:'flex',alignItems:'center',gap:'0.5rem',margin:0,fontSize:'0.85rem',fontWeight:'normal',textTransform:'none',letterSpacing:'normal'}}><input id="rememberMe" type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} style={{width:'auto'}}/>Remember me</label>{(activeTab === 'staff' || activeTab === 'school') && <span className="text-xs" style={{color:'var(--text-dim)'}}>{activeTab === 'staff' ? 'Managed by administrators' : 'Institutional access'}</span>}</div>
-          <CyberLiquidButton type="submit" loading={loading}>{activeTab === 'student' ? 'LAUNCH STUDENT HUB →' : 'INITIALIZE ACCESS →'}</CyberLiquidButton></form>
-          {(activeTab === 'parent' || activeTab === 'staff') && <><div className="auth-divider">or</div><button type="button" className="google-btn" onClick={handleGoogle} disabled={loading}><span aria-hidden="true" style={{fontWeight:900,fontSize:18}}>G</span><span className="btn-text">Continue with Google</span></button></>}
-          <div className="toggle-link">Don't have an account yet? <Link to="/register">Register / Enroll Here →</Link></div>
-        </div></div>
-        <div className="form-foot"><Link to="/" className="back-link"><ArrowLeft size={14}/> Main Site</Link><div style={{display:'flex',alignItems:'center',gap:'0.5rem'}}><span style={{fontFamily:'var(--mono)',fontSize:'0.55rem',color:'var(--dim)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Secure Portal</span><button type="button" className="theme-btn" onClick={toggleTheme} title="Toggle theme">{theme === 'dark' ? <Moon size={14}/> : <Sun size={14}/>}</button></div></div>
+  return (
+    <div className={`jdh-portal ${theme === 'dark' ? 'dark' : 'light'}`}>
+      <div className="jdh-portal-bg-viewport" aria-hidden="true">
+        <img src={portalWallpaper} alt="" />
+        <div className="bg-overlay" />
+      </div>
+      <SEO title="Academy & Client Portal — Jaystarbliss Studios" description="Secure access to student dashboards, school portals, parent progress reports, and staff workspaces." />
+      <div className="scanlines" />
+
+      <div className="card glass-modal-card">
+        {/* TOP BRAND HEADER */}
+        <div className="glass-header text-center pt-1 pb-2">
+          <div className="flex items-center justify-center gap-2.5">
+            <Link to="/" className="inline-flex items-center select-none group shrink-0" aria-label="Home">
+              <JaystarblissIcon className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg group-hover:scale-105 transition-transform drop-shadow-md" />
+            </Link>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight drop-shadow-md m-0">
+              Welcome Back
+            </h1>
+          </div>
+        </div>
+
+        {/* ROLE TABS */}
+        <div className="glass-role-tabs mb-3.5">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`glass-role-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setIdentifier('');
+                setPassword('');
+                setError('');
+              }}
+            >
+              {tab.icon}
+              <span className="text-[10px]">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ERROR MESSAGE */}
+        {error && (
+          <div className="msg msg-error show mb-3 text-xs py-2 px-3" role="alert">
+            {error}
+          </div>
+        )}
+
+        {/* FORM */}
+        <form onSubmit={handleLogin} autoComplete="on" className="space-y-3">
+          <div className="field mb-2.5">
+            <label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1 drop-shadow">
+              {activeTab === 'student' ? 'Student Username or Email' : activeTab === 'school' ? 'School Email or Terminal ID' : activeTab === 'parent' ? 'Email Address' : 'Staff / Admin Email'}
+            </label>
+            <div className="input-wrap relative">
+              <span className="input-icon">
+                <Mail size={14} />
+              </span>
+              <input
+                type={activeTab === 'parent' || activeTab === 'staff' ? 'email' : 'text'}
+                required
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                placeholder={activeTab === 'student' ? 'example@gmail.com or username' : activeTab === 'school' ? 'school@institution.edu' : activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'}
+                className="glass-input"
+              />
+            </div>
+          </div>
+
+          <div className="field mb-2.5">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-bold text-white uppercase tracking-wider block m-0 drop-shadow">
+                {activeTab === 'student' || activeTab === 'school' ? 'Access Code' : 'Password'}
+              </label>
+              {(activeTab === 'parent' || activeTab === 'staff') && (
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={loading}
+                  className="text-[11px] font-semibold text-sky-200 hover:text-white transition-colors bg-transparent border-0 p-0 cursor-pointer drop-shadow"
+                >
+                  Forgot Password?
+                </button>
+              )}
+            </div>
+            <div className="input-wrap relative">
+              <span className="input-icon">
+                <Lock size={14} />
+              </span>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="glass-input has-eye"
+              />
+              <button
+                type="button"
+                className="pw-eye"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-0.5 pb-0.5">
+            <label htmlFor="rememberMe" className="flex items-center gap-1.5 text-[11px] font-medium text-white cursor-pointer select-none drop-shadow">
+              <input
+                id="rememberMe"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className="rounded bg-white/10 border-white/40 text-sky-500 focus:ring-0 focus:ring-offset-0"
+              />
+              Remember me
+            </label>
+            {(activeTab === 'staff' || activeTab === 'school') && (
+              <span className="text-[10px] text-slate-200 drop-shadow">
+                {activeTab === 'staff' ? 'Admin managed' : 'Institutional'}
+              </span>
+            )}
+          </div>
+
+          {/* PRIMARY LOGIN BUTTON */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="glass-submit-btn w-full mt-2 py-2.5 px-4 rounded-xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2 transition-all duration-200"
+          >
+            {loading ? (
+              <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            ) : (
+              <span>Login</span>
+            )}
+          </button>
+        </form>
+
+        {/* GOOGLE SIGN IN (PARENT / STAFF) */}
+        {(activeTab === 'parent' || activeTab === 'staff') && (
+          <>
+            <div className="auth-divider my-2.5 text-xs text-slate-200">or</div>
+            <button
+              type="button"
+              className="google-btn w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white font-medium text-xs transition-all bg-white/5 border border-white/20 hover:bg-white/15"
+              onClick={handleGoogle}
+              disabled={loading}
+            >
+              <span aria-hidden="true" className="font-black text-sm">G</span>
+              <span>Continue with Google</span>
+            </button>
+          </>
+        )}
+
+        {/* BOTTOM REGISTER LINK */}
+        <div className="text-center pt-3 pb-1 text-xs text-slate-200 drop-shadow">
+          Are You New Member?{' '}
+          <Link to="/register" className="text-white font-bold hover:underline transition-all ml-1">
+            Sign UP
+          </Link>
+        </div>
       </div>
     </div>
-  </div>;
+  );
 };
 
 export default SecurePortalLogin;

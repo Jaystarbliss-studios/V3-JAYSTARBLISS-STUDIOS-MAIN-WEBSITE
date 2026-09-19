@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, 
+  collection, getDocs, addDoc, deleteDoc, doc, 
   query, where, orderBy, serverTimestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
@@ -8,8 +8,8 @@ import { useToast } from '../../contexts/ToastContext';
 import StaffSchoolAssignments from './StaffSchoolAssignments';
 import { 
   UserCheck, Key, Plus, Trash2, 
-  ExternalLink, Mail, BookOpen, 
-  Copy, Briefcase, ShieldBan, ShieldCheck
+  ExternalLink, BookOpen, 
+  Briefcase, Mail, ShieldBan, ShieldCheck
 } from 'lucide-react';
 
 const AdminStaff: React.FC = () => {
@@ -20,8 +20,6 @@ const AdminStaff: React.FC = () => {
   // Staff members
   const [staffList, setStaffList] = useState<any[]>([]);
 
-  // Invite Form
-
   // Staff Resources
   const [staffResources, setStaffResources] = useState<any[]>([]);
   const [resForm, setResForm] = useState({
@@ -30,11 +28,6 @@ const AdminStaff: React.FC = () => {
     description: ''
   });
   const [postingResource, setPostingResource] = useState(false);
-
-  // Staff School Access Code
-  const [currentStaffSchoolCode, setCurrentStaffSchoolCode] = useState('STAFF_JDH_2026');
-  const [newStaffSchoolCode, setNewStaffSchoolCode] = useState('');
-  const [updatingStaffSchoolCode, setUpdatingStaffSchoolCode] = useState(false);
 
   const fetchStaffData = useCallback(async () => {
     setLoading(true);
@@ -46,22 +39,6 @@ const AdminStaff: React.FC = () => {
       // 2. Fetch staff general resources
       const resSnap = await getDocs(query(collection(db, 'staffGeneralResources'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'staffGeneralResources')));
       setStaffResources(resSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-      // 4. Fetch staff school access code
-      try {
-        const codeSnap = await getDoc(doc(db, 'staffSchoolAccess', 'accessCode'));
-        if (codeSnap.exists() && codeSnap.data().code) {
-          setCurrentStaffSchoolCode(codeSnap.data().code);
-          setNewStaffSchoolCode(codeSnap.data().code);
-        } else {
-          await setDoc(doc(db, 'staffSchoolAccess', 'accessCode'), { code: 'STAFF_JDH_2026', updatedAt: serverTimestamp() });
-          setCurrentStaffSchoolCode('STAFF_JDH_2026');
-          setNewStaffSchoolCode('STAFF_JDH_2026');
-        }
-      } catch (e) {
-        console.warn(e);
-      }
-
     } catch (err: any) {
       console.error(err);
       toast.error('Failed to load staff operations data.');
@@ -139,33 +116,6 @@ const AdminStaff: React.FC = () => {
     } catch (err: any) {
       toast.error('Error: ' + err.message);
     }
-  };
-
-  // Update Staff School Access Code
-  const handleUpdateStaffSchoolCode = async () => {
-    if (!newStaffSchoolCode.trim()) {
-      toast.error('Access code cannot be blank.');
-      return;
-    }
-    setUpdatingStaffSchoolCode(true);
-    try {
-      await setDoc(doc(db, 'staffSchoolAccess', 'accessCode'), {
-        code: newStaffSchoolCode.trim(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      setCurrentStaffSchoolCode(newStaffSchoolCode.trim());
-      toast.success(`Staff School Access Passcode updated to: ${newStaffSchoolCode.trim()}`);
-    } catch (err: any) {
-      toast.error('Failed to update access code: ' + err.message);
-    } finally {
-      setUpdatingStaffSchoolCode(false);
-    }
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard!');
   };
 
   return (

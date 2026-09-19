@@ -21,17 +21,17 @@ interface AdminAnalyticsWidgetProps {
 }
 
 const BRAND_PALETTE = {
-  red: '#B91C1C',
-  slate: '#1E293B',
-  blue: '#3B82F6',
-  emerald: '#10B981',
-  amber: '#F59E0B',
-  purple: '#8B5CF6',
-  cyan: '#06B6D4'
+  red: '#0284c7',
+  slate: '#0f172a',
+  blue: '#2563eb',
+  emerald: '#10b981',
+  amber: '#f59e0b',
+  purple: '#8b5cf6',
+  cyan: '#06b6d4'
 };
 
 const PIE_COLORS = [
-  '#B91C1C', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#06B6D4'
+  '#0284c7', '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'
 ];
 
 export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
@@ -182,33 +182,33 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
 
   return (
     <div className="pro-surface rounded-3xl overflow-hidden transition-colors">
-      <div className="p-6 md:p-8 border-b border-gray-100 dark:border-white/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="p-6 md:p-8 border-b border-slate-200/70 dark:border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1">
-            <span className="p-2 rounded-xl bg-brand-red/10 text-brand-red" aria-hidden="true">
+            <span className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20" aria-hidden="true">
               <BarChart3 size={20} />
             </span>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Super Admin Telemetry &amp; Analytics Matrix
             </h2>
           </div>
-          <p className="text-xs text-gray-500 dark:text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-300">
             Dashboard snapshot of student enrolment activity, portal login records, resource inventory, and assessment performance.
           </p>
         </div>
 
         <div className="flex items-center flex-wrap gap-2">
-          <div className="flex items-center bg-gray-100 dark:bg-slate-800/80 p-1 rounded-xl border border-gray-200/50 dark:border-white/5" role="group" aria-label="Analytics time range">
+          <div className="flex items-center bg-slate-200/50 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-300/40 dark:border-white/10" role="group" aria-label="Analytics time range">
             {(['7d', '30d', '90d', '1y'] as const).map(range => (
               <button
                 key={range}
                 type="button"
                 onClick={() => setTimeRange(range)}
                 aria-pressed={timeRange === range}
-                className={`min-h-11 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`min-h-10 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   timeRange === range
-                    ? 'bg-white dark:bg-brand-red text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-white dark:bg-sky-600 text-sky-900 dark:text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : range === '90d' ? '90 Days' : '1 Year'}
@@ -221,7 +221,7 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
               type="button"
               onClick={onRefresh}
               disabled={isLoading}
-              className="min-h-11 min-w-11 p-2 rounded-xl border border-gray-200 dark:border-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800/80 transition-colors disabled:opacity-50"
+              className="min-h-10 min-w-10 p-2 rounded-xl border border-slate-300/60 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
               title="Refresh Firestore Metrics"
               aria-label={isLoading ? 'Refreshing Firestore metrics' : 'Refresh Firestore metrics'}
               aria-busy={isLoading}
@@ -232,63 +232,63 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20">
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-6 md:px-8 border-b border-slate-200/60 dark:border-white/10 bg-slate-50/40 dark:bg-black/20">
+        <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 shadow-2xs backdrop-blur-md">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Student Records</span>
             <span className="text-emerald-600 dark:text-emerald-400 font-bold">Current</span>
           </div>
-          <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalCadets} <span className="text-xs font-medium text-gray-400">Cadets</span>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">
+            {totalCadets} <span className="text-xs font-medium text-slate-400">Cadets</span>
           </div>
-          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            Persisted student records loaded for this dashboard
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            Persisted student records loaded
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 shadow-2xs backdrop-blur-md">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">Recorded Login Activity</span>
             <span className="text-emerald-600 dark:text-emerald-400 font-bold">From logs</span>
           </div>
-          <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalLogins} <span className="text-xs font-medium text-gray-400">Recorded sessions</span>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">
+            {totalLogins} <span className="text-xs font-medium text-slate-400">Sessions</span>
           </div>
-          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            {totalActiveUsers} user records loaded for this dashboard
-          </div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
-            <span className="font-semibold">Published Resource Inventory</span>
-            <span className="text-blue-600 dark:text-blue-400 font-bold">Current</span>
-          </div>
-          <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalResCount} <span className="text-xs font-medium text-gray-400">Resources</span>
-          </div>
-          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-            Published resource records
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            {totalActiveUsers} user accounts active
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-850 border border-gray-100 dark:border-white/5 shadow-2xs">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-2">
+        <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 shadow-2xs backdrop-blur-md">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <span className="font-semibold">Published Resources</span>
+            <span className="text-sky-600 dark:text-sky-400 font-bold">Current</span>
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">
+            {totalResCount} <span className="text-xs font-medium text-slate-400">Guides</span>
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+            Curriculum guides &amp; lab files
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white/70 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/10 shadow-2xs backdrop-blur-md">
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
             <span className="font-semibold">CBT Exam Results</span>
             <span className="text-emerald-600 dark:text-emerald-400 font-bold">
               <CheckCircle2 size={13} className="mr-0.5 inline" aria-hidden="true" /> {overallPassRate === null ? 'No scored data' : `${overallPassRate}%`}
             </span>
           </div>
-          <div className="text-2xl font-black text-gray-900 dark:text-white">
-            {totalExamsCount} <span className="text-xs font-medium text-gray-400">Exam records</span>
+          <div className="text-2xl font-black text-slate-900 dark:text-white">
+            {totalExamsCount} <span className="text-xs font-medium text-slate-400">Exams</span>
           </div>
-          <div className="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Average score: {overallAvgScore === null ? '—' : `${overallAvgScore}%`}
           </div>
         </div>
       </div>
 
-      <div className="px-6 md:px-8 pt-4 border-b border-gray-100 dark:border-white/5 flex items-center gap-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Admin analytics views">
+      <div className="px-6 md:px-8 pt-4 border-b border-slate-200/60 dark:border-white/10 flex items-center gap-2 overflow-x-auto no-scrollbar" role="tablist" aria-label="Admin analytics views">
         {[
           { key: 'growth', label: 'Student Growth Trend', icon: Users },
           { key: 'logins', label: 'Portal Login Frequency', icon: Activity },
@@ -304,10 +304,10 @@ export const AdminAnalyticsWidget: React.FC<AdminAnalyticsWidgetProps> = ({
               role="tab"
               aria-selected={selected}
               onClick={() => setActiveTab(tab.key as any)}
-              className={`min-h-11 pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
+              className={`min-h-11 pb-3 px-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                 selected
-                  ? 'border-brand-red text-brand-red'
-                  : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               <Icon size={16} aria-hidden="true" />

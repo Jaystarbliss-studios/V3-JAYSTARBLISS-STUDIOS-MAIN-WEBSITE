@@ -17,7 +17,22 @@ const SchoolPartnershipV2: React.FC = () => {
   const [tier, setTier] = useState(SCHOOL_DELIVERY_TIERS[1]?.id || SCHOOL_DELIVERY_TIERS[0]?.id || 'development');
   const [form, setForm] = useState({ name:'', schoolName:'', role:'', email:'', phone:'', addressCity:'', estimatedStudents:'50-100', preferredDays:'2 Days / Week', programsOfInterest:[programs[0], programs[1]], message:'' });
   const set = (key: string, value: string) => setForm(current => ({ ...current, [key]: value }));
-  const valid = () => { setError(''); if (step === 0 && !tier) return setError('Select a delivery model.') || false; if (step === 1 && fields.some(f => !String((form as any)[f.key] || '').trim())) return setError('Please complete all contact and school details.') || false; if (step === 2 && !form.programsOfInterest.length) return setError('Select at least one programme.') || false; return true; };
+  const valid = () => {
+    setError('');
+    if (step === 0 && !tier) {
+      setError('Select a delivery model.');
+      return false;
+    }
+    if (step === 1 && fields.some(f => !String((form as any)[f.key] || '').trim())) {
+      setError('Please complete all contact and school details.');
+      return false;
+    }
+    if (step === 2 && !form.programsOfInterest.length) {
+      setError('Select at least one programme.');
+      return false;
+    }
+    return true;
+  };
   const submit = async () => { if (!valid()) return; setLoading(true); setError(''); try { const response = await fetch('/.netlify/functions/school-partnership-submit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...form, deliveryTier:tier }) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload.error || 'Submission failed.'); setSuccess(true); toast.success('Partnership proposal received.'); } catch (e:any) { setError(e?.message || 'We could not submit your request. Please try again.'); toast.error(e?.message || 'Submission failed.'); } finally { setLoading(false); } };
   const steps = [{ label:'Model', icon:Layers }, { label:'Institution', icon:Building2 }, { label:'Programmes', icon:BookOpen }, { label:'Submit', icon:Send }];
   return <MainLayout><SEO title="School Partnerships" description="Request a structured Jaystarbliss Studios school partnership proposal." />

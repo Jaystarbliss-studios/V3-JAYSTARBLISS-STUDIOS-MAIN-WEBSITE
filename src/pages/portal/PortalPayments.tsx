@@ -31,7 +31,7 @@ export const PortalPayments: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'bank_transfer'>('card');
   const [renewalSuccess, setRenewalSuccess] = useState(false);
   const [enrollmentRequestId, setEnrollmentRequestId] = useState('');
-  const [enrollmentContext, setEnrollmentContext] = useState<{ studentName: string; planId: string } | null>(null);
+  const [, setEnrollmentContext] = useState<{ studentName: string; planId: string } | null>(null);
 
   useEffect(() => {
     const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();

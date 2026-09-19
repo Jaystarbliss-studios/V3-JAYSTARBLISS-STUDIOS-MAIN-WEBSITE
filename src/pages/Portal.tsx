@@ -25,6 +25,7 @@ import { JaystarblissIcon } from '../components/common/JaystarblissLogo';
 import CyberTerrainCanvas from '../components/portal/CyberTerrainCanvas';
 import CyberLiquidButton from '../components/portal/CyberLiquidButton';
 import ThreeOctagonLogo from '../components/portal/ThreeOctagonLogo';
+import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
@@ -807,6 +808,10 @@ const Portal: React.FC = () => {
 
   return (
     <div className={`jdh-portal ${theme === 'dark' ? 'dark' : 'light'}`}>
+      <div className="jdh-portal-bg-viewport" aria-hidden="true">
+        <img src={portalWallpaper} alt="" />
+        <div className="bg-overlay" />
+      </div>
       <SEO 
         title="Academy & Client Portal — Jaystarbliss Studios" 
         description="Access student dashboards, school portals, parent progress reports, and staff workspace." 

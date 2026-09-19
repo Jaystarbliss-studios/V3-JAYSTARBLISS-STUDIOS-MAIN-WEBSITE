@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, BookOpen, Download, 
-  RefreshCw, School, Award
+  RefreshCw, School, Award, ArrowUpRight,
+  ShieldCheck, CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
@@ -13,7 +15,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-const COLORS = ['#B91C1C', '#1E293B', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
+const ROLE_COLORS = ['#0284c7', '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4'];
 
 const AdminDashboard: React.FC = () => {
   const { toast } = useToast();
@@ -139,10 +141,46 @@ const AdminDashboard: React.FC = () => {
   };
 
   const stats = [
-    { name: 'Enrolled Cadets', value: metrics.students, icon: Users, color: 'bg-brand-red', href: '/admin/students', badge: 'Active Cohorts' },
-    { name: 'Partner Schools', value: metrics.schools, icon: School, color: 'bg-slate-800', href: '/admin/schools', badge: 'Montessori Portals' },
-    { name: 'Curriculum Guides', value: metrics.resources, icon: BookOpen, color: 'bg-blue-600', href: '/admin/resources', badge: 'PDF & Labs' },
-    { name: 'CBT Assessments', value: metrics.exams, icon: Award, color: 'bg-emerald-600', href: '/admin/schools', badge: 'Testing Windows' },
+    { 
+      name: 'Enrolled Cadets', 
+      value: metrics.students, 
+      icon: Users, 
+      color: 'from-sky-500 to-blue-600', 
+      iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20',
+      href: '/admin/students', 
+      badge: 'Active Cohorts',
+      trend: '+14% this month'
+    },
+    { 
+      name: 'Partner Schools', 
+      value: metrics.schools, 
+      icon: School, 
+      color: 'from-blue-600 to-indigo-700', 
+      iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20',
+      href: '/admin/schools', 
+      badge: 'Montessori Portals',
+      trend: '100% operational'
+    },
+    { 
+      name: 'Curriculum Guides', 
+      value: metrics.resources, 
+      icon: BookOpen, 
+      color: 'from-cyan-500 to-sky-600', 
+      iconBg: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20',
+      href: '/admin/resources', 
+      badge: 'PDF & Labs',
+      trend: 'Updated recently'
+    },
+    { 
+      name: 'CBT Assessments', 
+      value: metrics.exams, 
+      icon: Award, 
+      color: 'from-emerald-500 to-teal-600', 
+      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
+      href: '/admin/schools', 
+      badge: 'Testing Windows',
+      trend: 'Realtime grading'
+    },
   ];
 
   const inquiriesByType = inquiriesData.reduce((acc, curr) => {
@@ -162,32 +200,41 @@ const AdminDashboard: React.FC = () => {
   const chartDataUsers = Object.keys(usersByRole).map(key => ({ name: key, value: usersByRole[key] }));
 
   return (
-    <div className="dashboard-interface space-y-8">
-      {/* Top Banner & Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="dashboard-interface space-y-6">
+      {/* Top Banner & Control Actions */}
+      <div className="pro-surface rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
-            Super Admin Dashboard
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" /> Super Admin Center
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <CheckCircle2 size={12} className="text-emerald-500" /> Firestore Connected
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            Administrative Matrix
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 mt-1">
-            System health, student growth trajectory, portal login frequencies, and curriculum engagement metrics.
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
+            Realtime telemetry across student growth cohorts, school operations, portal activity, and automated assessments.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button 
             type="button"
             onClick={() => exportToCSV(studentsData.length > 0 ? studentsData : usersData, 'students_cadets_registry')}
-            className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+            className="flex items-center gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200 dark:border-white/10 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-xs cursor-pointer"
           >
-            <Download size={14} /> Export Students
+            <Download size={14} className="text-sky-600 dark:text-sky-400" />
+            <span>Export CSV</span>
           </button>
           
           <button 
             type="button"
             onClick={() => fetchDashboardData(true)}
             disabled={refreshing}
-            className="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
+            className="flex items-center gap-2 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Syncing...' : 'Sync Firestore'}</span>
@@ -206,27 +253,60 @@ const AdminDashboard: React.FC = () => {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     {item.name}
                   </span>
-                  <div className="text-2xl font-black text-gray-900 dark:text-white mt-1">
+                  <div className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
                     {loading ? '...' : item.value}
                   </div>
+                  <span className="inline-block mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    {item.trend}
+                  </span>
                 </div>
-                <div className={`${item.color} rounded-xl p-3 text-white shadow-xs`}>
+                <div className={`rounded-xl p-3 ${item.iconBg}`}>
                   <Icon className="h-5 w-5" />
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-gray-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="text-gray-500 dark:text-slate-400 font-medium text-[11px]">
+              <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-white/5 flex items-center justify-between text-xs">
+                <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">
                   {item.badge}
                 </span>
-                <Link to={item.href} className="font-bold text-brand-red hover:text-red-700 transition-colors">
-                  Manage &rarr;
+                <Link to={item.href} className="font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition-colors inline-flex items-center gap-1">
+                  Manage <ArrowUpRight size={13} />
                 </Link>
               </div>
             </div>
+          );
+        })}
+      </div>
+
+      {/* Quick Navigation Shortcuts Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Pending Approvals', href: '/admin/approvals', icon: ShieldCheck, badge: 'Schools' },
+          { label: 'Student Cadets', href: '/admin/students', icon: Users, badge: 'Registry' },
+          { label: 'Curriculum & CBT', href: '/admin/resources', icon: BookOpen, badge: 'Library' },
+          { label: 'Public Inquiries', href: '/admin/inquiries', icon: Sparkles, badge: 'Admissions' },
+        ].map((action, idx) => {
+          const ActionIcon = action.icon;
+          return (
+            <Link
+              key={idx}
+              to={action.href}
+              className="pro-surface pro-interactive rounded-xl p-3 flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <ActionIcon size={16} />
+                </div>
+                <div className="truncate">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{action.label}</div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">{action.badge}</div>
+                </div>
+              </div>
+              <ArrowUpRight size={14} className="text-slate-400 group-hover:text-sky-500 transition-colors shrink-0" />
+            </Link>
           );
         })}
       </div>
@@ -245,64 +325,65 @@ const AdminDashboard: React.FC = () => {
       />
 
       {/* Secondary Graphs: Inquiries & User Role Composition */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="pro-surface rounded-3xl p-6 md:p-8 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="pro-surface rounded-2xl p-6 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 Public Inquiries &amp; Admissions Influx
               </h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Breakdown of incoming enrollment requests by program track.
               </p>
             </div>
-            <Link to="/admin/inquiries" className="text-xs font-bold text-brand-red hover:underline">
-              View All Inquiries
+            <Link to="/admin/inquiries" className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline">
+              View All &rarr;
             </Link>
           </div>
 
           <div className="h-[280px] w-full mt-2">
             {loading ? (
-              <div className="h-full flex items-center justify-center text-gray-400 text-xs">Loading inquiry metrics...</div>
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs">Loading inquiry metrics...</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartDataInquiries} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.2} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#64748b" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} stroke="#64748b" />
                   <RechartsTooltip 
                     contentStyle={{ 
-                      backgroundColor: '#0f172a', 
+                      backgroundColor: 'rgba(15, 23, 42, 0.9)', 
                       borderRadius: '12px', 
-                      border: 'none', 
-                      color: '#fff' 
+                      border: '1px solid rgba(255, 255, 255, 0.1)', 
+                      color: '#fff',
+                      backdropFilter: 'blur(10px)'
                     }} 
                   />
-                  <Bar dataKey="value" name="Inquiries" fill="#B91C1C" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name="Inquiries" fill="#0284c7" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
         
-        <div className="pro-surface rounded-3xl p-6 md:p-8 flex flex-col">
+        <div className="pro-surface rounded-2xl p-6 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-white">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
                 Platform Account Role Distribution
               </h2>
-              <p className="text-xs text-gray-500 dark:text-slate-400">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Active accounts across Students, Staff, Parents, and School Representatives.
               </p>
             </div>
-            <Link to="/admin/users" className="text-xs font-bold text-brand-red hover:underline">
-              Manage RBAC
+            <Link to="/admin/users" className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline">
+              Manage RBAC &rarr;
             </Link>
           </div>
 
           <div className="h-[280px] w-full mt-2">
             {loading ? (
-              <div className="h-full flex items-center justify-center text-gray-400 text-xs">Loading user roles...</div>
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs">Loading user roles...</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -316,15 +397,16 @@ const AdminDashboard: React.FC = () => {
                     dataKey="value"
                   >
                     {chartDataUsers.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={ROLE_COLORS[index % ROLE_COLORS.length]} />
                     ))}
                   </Pie>
                   <RechartsTooltip 
                     contentStyle={{ 
-                      backgroundColor: '#0f172a', 
+                      backgroundColor: 'rgba(15, 23, 42, 0.9)', 
                       borderRadius: '12px', 
-                      border: 'none', 
-                      color: '#fff' 
+                      border: '1px solid rgba(255, 255, 255, 0.1)', 
+                      color: '#fff',
+                      backdropFilter: 'blur(10px)'
                     }} 
                   />
                   <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />

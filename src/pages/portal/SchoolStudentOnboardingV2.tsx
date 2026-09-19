@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
-import { Download, FileText, Image as ImageIcon, Loader2, UserPlus, Printer, ShieldCheck, BookOpen } from 'lucide-react';
+import { Download, FileText, Loader2, UserPlus, Printer, ShieldCheck, BookOpen } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
