@@ -38,7 +38,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
           throw new Error('Authenticated user has no authoritative portal profile.');
         }
 
-        const data = userSnap.data() || {};
+        let data = userSnap.data() || {};
         const accountStatus = String(data.accountStatus || data.status || 'ACTIVE').toUpperCase();
         if (blockedStatuses.includes(accountStatus.toLowerCase())) {
           if (mounted) setBlockedMessage(`Your account is currently ${accountStatus.toLowerCase()}. Please contact Jaystarbliss Studios support.`);
@@ -47,6 +47,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         }
 
         const role = String(data.role || '').trim().toUpperCase();
+        // School administrators can arrive here with an authenticated Firebase
+        // session but without the legacy schoolId field. Repair the approved
+        // mapping server-side before deciding whether the portal is authorized.
+        if (role === 'SCHOOL' && !String(data.schoolId || '').trim()) {
+          try {
+            const idToken = await currentUser.getIdToken(true);
+            const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+              body: JSON.stringify({ scope: 'single', email: currentUser.email || data.email || '' }),
+            });
+            const syncData = await syncResponse.json().catch(() => ({}));
+            if (syncResponse.ok && syncData?.results?.[0]?.status === 'LINKED') {
+              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
+              if (refreshed.exists()) data = refreshed.data() || {};
+            }
+          } catch (repairError) {
+            console.warn('School administrator link repair failed:', repairError);
+          }
+        }
+
         if (!role) {
           await signOut(auth).catch(() => undefined);
           throw new Error('Authenticated user has no authoritative portal role.');
