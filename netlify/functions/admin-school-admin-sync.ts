@@ -27,18 +27,22 @@ const TARGETS = [
   {
     email: 'peniellilystudent@gmail.com',
     names: ['Peniel Lily', 'Peniel Lily Montessori School'],
+    legacySchoolId: 'peniel',
   },
   {
     email: 'studentseasystars@gmail.com',
     names: ['Easy Stars Early Years Academy'],
+    legacySchoolId: 'easystars',
   },
   {
     email: 'southgold@gmail.com',
     names: ['South Gold Montessori', 'South Gold Montessori School'],
+    legacySchoolId: 'southgold',
   },
   {
     email: 'sapphirestudent@gmail.com',
     names: ['Sapphire Explorer Montessori School'],
+    legacySchoolId: 'sapphire',
   },
 ];
 
@@ -143,7 +147,48 @@ export const handler: Handler = async (event) => {
           continue;
         }
 
-        const school = matches[0];
+        // These four institutions pre-date the current onboarding workflow and
+        // have stable legacy document IDs used throughout the school portal.
+        // Prefer a real collection match, but fall back to the canonical legacy ID.
+        let school = matches[0] || null;
+        if (!school && target.legacySchoolId) {
+          const legacyRef = adminDb.collection('schools').doc(target.legacySchoolId);
+          const legacySnap = await legacyRef.get();
+          if (legacySnap.exists) {
+            const legacyData = legacySnap.data() || {};
+            const legacyStatus = String(legacyData.status || legacyData.accountStatus || '').toUpperCase();
+            if (!['DISABLED', 'SUSPENDED', 'BANNED', 'DELETED', 'ARCHIVED', 'INACTIVE'].includes(legacyStatus)) {
+              school = { id: legacySnap.id, data: legacyData };
+            }
+          }
+        }
+
+        // If an old canonical school record was removed, restore that exact
+        // historical document instead of generating a new random school.
+        if (!school && target.legacySchoolId) {
+          const legacyRef = adminDb.collection('schools').doc(target.legacySchoolId);
+          const restoredData = {
+            name: target.names[0],
+            schoolName: target.names[0],
+            status: 'ACTIVE',
+            onboardingStatus: 'APPROVED',
+            contactEmail: target.email,
+            restoredFromLegacyMapping: true,
+            updatedAt: new Date(),
+          };
+          await legacyRef.set(restoredData, { merge: true });
+          school = { id: target.legacySchoolId, data: restoredData };
+        }
+
+        if (!school) {
+          results.push({
+            email: target.email,
+            uid: authUser.uid,
+            status: 'SCHOOL_NOT_FOUND',
+          });
+          continue;
+        }
+
         const schoolId = school.id;
         const schoolName = school.data.name || school.data.schoolName || target.names[0];
         const userRef = adminDb.collection('users').doc(authUser.uid);
