@@ -64,9 +64,19 @@ export const handler: Handler = async (event) => {
       data: doc.data() || {},
     }));
 
+    const body = JSON.parse(event.body || '{}');
+    const requestedEmail = String(body.email || '').trim().toLowerCase();
+    const targets = requestedEmail
+      ? TARGETS.filter((target) => target.email.toLowerCase() === requestedEmail)
+      : TARGETS;
+
+    if (requestedEmail && targets.length !== 1) {
+      return json(400, { error: 'That email is not one of the approved school administrator mappings.' });
+    }
+
     const results: any[] = [];
 
-    for (const target of TARGETS) {
+    for (const target of targets) {
       try {
         const authUser = await adminAuth.getUserByEmail(target.email);
         const wanted = new Set(target.names.map(normalize));
