@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { School, GraduationCap, Users, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { School, GraduationCap, Users, ShieldCheck, Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -12,15 +12,19 @@ import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 import './SecurePortalTheme.css';
 
-type Role = 'school' | 'student' | 'parent' | 'staff';
+type Role = 'student' | 'school' | 'parent' | 'staff' | 'admin';
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 const blocked = (data: Record<string, any>) => ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(data.accountStatus || data.status || 'ACTIVE').toUpperCase());
 
 const storeSession = (role: string, uid: string, name: string, extras: Record<string, string> = {}) => {
-  sessionStorage.setItem('userRole', role); sessionStorage.setItem('userId', uid); sessionStorage.setItem('userName', name);
+  sessionStorage.setItem('userRole', role);
+  sessionStorage.setItem('userId', uid);
+  sessionStorage.setItem('userName', name);
   Object.entries(extras).forEach(([key, value]) => sessionStorage.setItem(key, value || ''));
-  localStorage.setItem('jaystar_cached_user_role', role); localStorage.setItem('jaystar_cached_user_id', uid); localStorage.setItem('jaystar_cached_user_name', name);
+  localStorage.setItem('jaystar_cached_user_role', role);
+  localStorage.setItem('jaystar_cached_user_id', uid);
+  localStorage.setItem('jaystar_cached_user_name', name);
 };
 
 const SecurePortalLogin: React.FC = () => {
@@ -37,7 +41,8 @@ const SecurePortalLogin: React.FC = () => {
 
   const serverAccess = async (role: 'student') => {
     const response = await fetch('/.netlify/functions/portal-access-login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role, identifier: identifier.trim(), code: password.trim() }),
     });
     const data = await response.json().catch(() => ({}));
@@ -51,6 +56,26 @@ const SecurePortalLogin: React.FC = () => {
     if (!email || !password) throw new Error('Enter your email and password.');
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
+
+    // Check admin authentication / self-heal first
+    if (activeTab === 'admin' || email === 'johnrufai242@gmail.com' || activeTab === 'staff') {
+      try {
+        const idToken = await user.getIdToken(true);
+        const adminRes = await fetch('/.netlify/functions/admin-auth-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        });
+        const adminData = await adminRes.json().catch(() => ({}));
+        if (adminRes.ok && adminData.isAdmin) {
+          storeSession('super_admin', user.uid, adminData.user?.name || user.displayName || 'Administrator', { userEmail: user.email || '' });
+          navigate('/admin');
+          return;
+        }
+      } catch (adminErr) {
+        console.warn('Admin auth sync check:', adminErr);
+      }
+    }
+
     let snap = await getDoc(doc(db, 'users', user.uid));
     let data = snap.exists() ? (snap.data() || {}) : {};
 
@@ -76,19 +101,25 @@ const SecurePortalLogin: React.FC = () => {
       }
     }
 
-    if (!snap.exists()) { 
-      await signOut(auth).catch(() => undefined); 
-      throw new Error('No active portal profile was found for this account. Please complete registration or contact an administrator.'); 
+    if (!snap.exists()) {
+      await signOut(auth).catch(() => undefined);
+      throw new Error('No active portal profile was found for this account. Please complete registration or contact an administrator.');
     }
-    if (blocked(data)) { 
-      await signOut(auth).catch(() => undefined); 
-      throw new Error(`This account is ${String(data.accountStatus || data.status).toLowerCase()}. Please contact an administrator.`); 
+    if (blocked(data)) {
+      await signOut(auth).catch(() => undefined);
+      throw new Error(`This account is ${String(data.accountStatus || data.status).toLowerCase()}. Please contact an administrator.`);
     }
+
     const role = String(data.role || '').toUpperCase();
-    if (role.includes('ADMIN')) { 
-      storeSession('super_admin', user.uid, data.name || user.displayName || 'Admin', { userEmail: user.email || '' }); 
-      navigate('/admin'); 
-      return; 
+    if (role.includes('ADMIN')) {
+      storeSession('super_admin', user.uid, data.name || user.displayName || 'Admin', { userEmail: user.email || '' });
+      navigate('/admin');
+      return;
+    }
+
+    if (activeTab === 'admin') {
+      await signOut(auth).catch(() => undefined);
+      throw new Error('This account is not authorized as an administrator.');
     }
 
     if (activeTab === 'parent' && role !== 'PARENT') {
@@ -125,35 +156,39 @@ const SecurePortalLogin: React.FC = () => {
       }
     }
 
-    const sessionRole = role === 'TUTOR' || role === 'INSTRUCTOR' || role === 'STAFF' 
-      ? 'staff' 
-      : role === 'SCHOOL' 
-        ? 'school' 
+    const sessionRole = role === 'TUTOR' || role === 'INSTRUCTOR' || role === 'STAFF'
+      ? 'staff'
+      : role === 'SCHOOL'
+        ? 'school'
         : role.toLowerCase();
-    const route = sessionRole === 'parent' 
-      ? '/portal/parent' 
-      : sessionRole === 'school' 
-        ? '/portal/school' 
+    const route = sessionRole === 'parent'
+      ? '/portal/parent'
+      : sessionRole === 'school'
+        ? '/portal/school'
         : '/portal/staff';
-    
-    storeSession(sessionRole, user.uid, data.name || data.schoolName || user.displayName || email.split('@')[0], { 
-      userEmail: user.email || '', 
+
+    storeSession(sessionRole, user.uid, data.name || data.schoolName || user.displayName || email.split('@')[0], {
+      userEmail: user.email || '',
       schoolId: data.schoolId || '',
-      schoolName: data.schoolName || ''
+      schoolName: data.schoolName || '',
     });
     navigate(route);
   };
 
   const handleLogin = async (event?: React.FormEvent) => {
-    event?.preventDefault(); setError(''); setLoading(true);
+    event?.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       if (!identifier.trim() || !password.trim()) {
         throw new Error(
-          activeTab === 'student' 
-            ? 'Enter your Student Username / Email and Access Code.' 
-            : activeTab === 'school' 
-              ? 'Enter your School Administrator Email and Password.' 
-              : 'Enter your email and password.'
+          activeTab === 'student'
+            ? 'Enter your Student Username / Email and Access Code.'
+            : activeTab === 'school'
+              ? 'Enter your School Administrator Email and Password.'
+              : activeTab === 'admin'
+                ? 'Enter your Administrator Email and Password.'
+                : 'Enter your email and password.'
         );
       }
       if (activeTab === 'student') {
@@ -164,7 +199,7 @@ const SecurePortalLogin: React.FC = () => {
           studentUsername: result.data.username || '',
           studentClass: result.data.class || '',
           schoolId: result.data.schoolId || '',
-          schoolName: result.data.schoolName || ''
+          schoolName: result.data.schoolName || '',
         });
         toast.success(`Welcome ${String(name).split(' ')[0]}! Logged in successfully.`);
         navigate('/portal/student');
@@ -175,72 +210,109 @@ const SecurePortalLogin: React.FC = () => {
     } catch (err: any) {
       const code = String(err?.code || '');
       setError(code === 'auth/invalid-credential' ? 'The email or password is incorrect. If you no longer know the password, use “Forgot password?” below to reset it.' : err?.message || 'Login failed. Please check your credentials and try again.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePasswordReset = async () => {
     const email = identifier.trim().toLowerCase();
-    if (!email) { setError('Enter your email address first, then select “Forgot password?”.'); return; }
-    setError(''); setLoading(true);
+    if (!email) {
+      setError('Enter your email address first, then select “Forgot password?”.');
+      return;
+    }
+    setError('');
+    setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
       toast.success('If an account exists for that email, a password reset link has been sent.');
       setError('Check your email for the password reset link.');
     } catch (err: any) {
       setError(err?.message || 'Unable to start password recovery. Please try again.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogle = async () => {
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
     try {
-      if (activeTab !== 'parent' && activeTab !== 'staff') throw new Error('Google sign-in is available for parent and staff accounts only.');
+      if (activeTab !== 'parent' && activeTab !== 'staff' && activeTab !== 'admin') {
+        throw new Error('Google sign-in is available for parent, staff, and administrator accounts.');
+      }
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       const googleUser = result.user;
-      const snap = await getDoc(doc(db, 'users', googleUser.uid));
-      const existing = snap.exists() ? snap.data() || {} : {};
-      const existingRole = String(existing.role || '').toUpperCase();
+      const idToken = await googleUser.getIdToken(true);
 
-      if (activeTab === 'staff' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(existingRole)) {
-        const idToken = await googleUser.getIdToken(true);
-        const response = await fetch('/.netlify/functions/admin-google-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken }),
-        });
-        const adminData = await response.json().catch(() => ({}));
-        if (response.ok && adminData.customToken) {
-          const credential = await signInWithCustomToken(auth, adminData.customToken);
-          const adminSnap = await getDoc(doc(db, 'users', credential.user.uid));
-          const adminProfile = adminSnap.exists() ? adminSnap.data() || {} : {};
-          const adminRole = String(adminProfile.role || adminData.role || '').toUpperCase();
-          if (!adminRole.includes('ADMIN')) { await signOut(auth).catch(() => undefined); throw new Error('Administrator profile verification failed.'); }
-          storeSession('super_admin', credential.user.uid, adminProfile.name || adminData.name || credential.user.displayName || 'Admin', { userEmail: credential.user.email || adminData.email || '' });
-          navigate('/admin');
-          return;
+      // Check admin Google authentication first
+      if (activeTab === 'admin' || googleUser.email === 'johnrufai242@gmail.com' || activeTab === 'staff') {
+        try {
+          const response = await fetch('/.netlify/functions/admin-google-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          const adminData = await response.json().catch(() => ({}));
+          if (response.ok && adminData.customToken) {
+            const credential = await signInWithCustomToken(auth, adminData.customToken);
+            storeSession('super_admin', credential.user.uid, adminData.name || 'Super Admin', {
+              userEmail: credential.user.email || adminData.email || '',
+            });
+            toast.success('Administrator verified. Welcome back!');
+            navigate('/admin');
+            return;
+          }
+        } catch (adminErr) {
+          console.warn('Admin Google check:', adminErr);
         }
       }
 
+      if (activeTab === 'admin') {
+        await signOut(auth).catch(() => undefined);
+        throw new Error('This Google account is not configured with administrator privileges.');
+      }
+
+      const snap = await getDoc(doc(db, 'users', googleUser.uid));
       let data = snap.exists() ? snap.data() || {} : null;
+
       if (!data) {
-        if (activeTab !== 'parent') { await signOut(auth).catch(() => undefined); throw new Error('Staff accounts are created by administrators. Please contact an administrator.'); }
+        if (activeTab !== 'parent') {
+          await signOut(auth).catch(() => undefined);
+          throw new Error('Staff accounts are provisioned by administrators. Please contact an administrator.');
+        }
         data = { email: googleUser.email || '', name: googleUser.displayName || '', role: 'parent', createdAt: serverTimestamp() };
         await setDoc(doc(db, 'users', googleUser.uid), data);
       }
-      if (blocked(data)) { await signOut(auth).catch(() => undefined); throw new Error('This account is currently disabled. Please contact an administrator.'); }
+
+      if (blocked(data)) {
+        await signOut(auth).catch(() => undefined);
+        throw new Error('This account is currently disabled. Please contact an administrator.');
+      }
+
       const role = String(data.role || '').toUpperCase();
       if (role.includes('ADMIN')) {
         storeSession('super_admin', googleUser.uid, data.name || googleUser.displayName || 'Admin', { userEmail: googleUser.email || '' });
         navigate('/admin');
         return;
       }
-      if (role !== 'PARENT' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) { await signOut(auth).catch(() => undefined); throw new Error('This Google account is not enabled for this portal.'); }
+
+      if (role !== 'PARENT' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
+        await signOut(auth).catch(() => undefined);
+        throw new Error('This Google account is not enabled for this portal.');
+      }
+
       const sessionRole = role === 'PARENT' ? 'parent' : 'staff';
-      storeSession(sessionRole, googleUser.uid, data.name || googleUser.displayName || 'Portal User', { userEmail: googleUser.email || '', schoolId: data.schoolId || '' });
+      storeSession(sessionRole, googleUser.uid, data.name || googleUser.displayName || 'Portal User', {
+        userEmail: googleUser.email || '',
+        schoolId: data.schoolId || '',
+      });
       navigate(`/portal/${sessionRole}`);
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const tabs: { id: Role; label: string; icon: React.ReactNode }[] = [
@@ -248,6 +320,7 @@ const SecurePortalLogin: React.FC = () => {
     { id: 'school', label: 'Schools', icon: <School size={13} /> },
     { id: 'parent', label: 'Parents', icon: <Users size={13} /> },
     { id: 'staff', label: 'Staff', icon: <ShieldCheck size={13} /> },
+    { id: 'admin', label: 'Admin', icon: <Shield size={13} /> },
   ];
 
   return (
@@ -256,7 +329,10 @@ const SecurePortalLogin: React.FC = () => {
         <img src={portalWallpaper} alt="" />
         <div className="bg-overlay" />
       </div>
-      <SEO title="Academy & Client Portal — Jaystarbliss Studios" description="Secure access to student dashboards, school portals, parent progress reports, and staff workspaces." />
+      <SEO
+        title="Academy & Client Portal — Jaystarbliss Studios"
+        description="Secure access to student dashboards, school portals, parent progress reports, staff workspaces, and administrative panels."
+      />
       <div className="scanlines" />
 
       <div className="card glass-modal-card">
@@ -303,13 +379,15 @@ const SecurePortalLogin: React.FC = () => {
         <form onSubmit={handleLogin} autoComplete="on" className="space-y-3">
           <div className="field mb-2.5">
             <label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1 drop-shadow">
-              {activeTab === 'student' 
-                ? 'Student Username or Email' 
-                : activeTab === 'school' 
-                  ? 'School Administrator Email' 
-                  : activeTab === 'parent' 
-                    ? 'Email Address' 
-                    : 'Staff / Admin Email'}
+              {activeTab === 'student'
+                ? 'Student Username or Email'
+                : activeTab === 'school'
+                  ? 'School Administrator Email'
+                  : activeTab === 'parent'
+                    ? 'Parent Email Address'
+                    : activeTab === 'admin'
+                      ? 'Administrator Email'
+                      : 'Staff / Instructor Email'}
             </label>
             <div className="input-wrap relative">
               <span className="input-icon">
@@ -321,13 +399,15 @@ const SecurePortalLogin: React.FC = () => {
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 placeholder={
-                  activeTab === 'student' 
-                    ? 'example@gmail.com or username' 
-                    : activeTab === 'school' 
-                      ? 'peniellilystudent@gmail.com' 
-                      : activeTab === 'parent' 
-                        ? 'parent@example.com' 
-                        : 'staff@jaystarbliss.ng'
+                  activeTab === 'student'
+                    ? 'student@example.com or username'
+                    : activeTab === 'school'
+                      ? 'school@example.com'
+                      : activeTab === 'parent'
+                        ? 'parent@example.com'
+                        : activeTab === 'admin'
+                          ? 'admin@jaystarbliss.ng'
+                          : 'staff@jaystarbliss.ng'
                 }
                 className="glass-input"
               />
@@ -339,7 +419,7 @@ const SecurePortalLogin: React.FC = () => {
               <label className="text-[11px] font-bold text-white uppercase tracking-wider block m-0 drop-shadow">
                 {activeTab === 'student' ? 'Access Code' : 'Password'}
               </label>
-              {(activeTab === 'school' || activeTab === 'parent' || activeTab === 'staff') && (
+              {(activeTab === 'school' || activeTab === 'parent' || activeTab === 'staff' || activeTab === 'admin') && (
                 <button
                   type="button"
                   onClick={handlePasswordReset}
@@ -384,9 +464,9 @@ const SecurePortalLogin: React.FC = () => {
               />
               Remember me
             </label>
-            {(activeTab === 'staff' || activeTab === 'school') && (
+            {(activeTab === 'staff' || activeTab === 'school' || activeTab === 'admin') && (
               <span className="text-[10px] text-slate-200 drop-shadow">
-                {activeTab === 'staff' ? 'Admin managed' : 'Institutional'}
+                {activeTab === 'admin' ? 'Super Admin' : activeTab === 'staff' ? 'Staff Workspace' : 'Institutional'}
               </span>
             )}
           </div>
@@ -405,8 +485,8 @@ const SecurePortalLogin: React.FC = () => {
           </button>
         </form>
 
-        {/* GOOGLE SIGN IN (PARENT / STAFF) */}
-        {(activeTab === 'parent' || activeTab === 'staff') && (
+        {/* GOOGLE SIGN IN (PARENT / STAFF / ADMIN) */}
+        {(activeTab === 'parent' || activeTab === 'staff' || activeTab === 'admin') && (
           <>
             <div className="auth-divider my-2.5 text-xs text-slate-200">or</div>
             <button

@@ -1,11 +1,18 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
+const SUPER_ADMIN_EMAILS = new Set([
+  "johnrufai242@gmail.com",
+]);
+
 const ADMIN_ROLES = new Set([
   "super_admin",
+  "admin",
   "content_admin",
   "education_admin",
   "services_admin",
+  "marketing_admin",
+  "support_admin",
 ]);
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({
@@ -25,8 +32,6 @@ export const handler: Handler = async (event) => {
     const idToken = String(body.idToken || "").trim();
     if (!idToken) return json(400, { error: "Google authentication token is required." });
 
-    // The browser must first authenticate with Google. We then verify the
-    // resulting Firebase ID token on the server before considering any admin role.
     const decoded = await adminAuth.verifyIdToken(idToken, true);
     const provider = String(decoded.firebase?.sign_in_provider || "");
     const email = String(decoded.email || "").trim().toLowerCase();
@@ -35,19 +40,38 @@ export const handler: Handler = async (event) => {
       return json(403, { error: "A verified Google account is required for administrator access." });
     }
 
-    // Never trust the Google UID as an administrator merely because the email matches.
-    // Resolve the authoritative administrator account already provisioned by JBS.
-    const targetAuth = await adminAuth.getUserByEmail(email);
-    const targetSnap = await adminDb.collection("users").doc(targetAuth.uid).get();
-    if (!targetSnap.exists) return json(403, { error: "No administrator profile is associated with this account." });
+    let targetAuth: any;
+    try {
+      targetAuth = await adminAuth.getUserByEmail(email);
+    } catch {
+      targetAuth = { uid: decoded.uid, email, displayName: decoded.name || "Administrator" };
+    }
 
-    const target = targetSnap.data() || {};
-    const role = String(target.role || "").toLowerCase();
-    const accountStatus = String(target.accountStatus || target.status || "ACTIVE").toUpperCase();
+    const targetSnap = await adminDb.collection("users").doc(targetAuth.uid).get();
+    let target = targetSnap.exists ? targetSnap.data() || {} : {};
+    let role = String(target.role || "").toLowerCase();
+
+    const isKnownSuperAdmin = SUPER_ADMIN_EMAILS.has(email);
+
+    if (isKnownSuperAdmin) {
+      role = "super_admin";
+      await adminDb.collection("users").doc(targetAuth.uid).set({
+        uid: targetAuth.uid,
+        email,
+        name: target.name || decoded.name || "Super Admin",
+        fullName: target.fullName || target.name || decoded.name || "Super Admin",
+        role: "SUPER_ADMIN",
+        accountStatus: "ACTIVE",
+        status: "ACTIVE",
+        updatedAt: new Date(),
+      }, { merge: true });
+    }
 
     if (!ADMIN_ROLES.has(role)) {
       return json(403, { error: "This Google account is not enabled for administrator access." });
     }
+
+    const accountStatus = String(target.accountStatus || target.status || "ACTIVE").toUpperCase();
     if (["DISABLED", "SUSPENDED", "BANNED"].includes(accountStatus) || targetAuth.disabled) {
       return json(403, { error: "This administrator account is currently disabled." });
     }
@@ -61,13 +85,13 @@ export const handler: Handler = async (event) => {
       targetEmail: email,
       googleAuthUid: decoded.uid,
       createdAt: new Date(),
-    });
+    }).catch(() => undefined);
 
     return json(200, {
       success: true,
       customToken,
       userId: targetAuth.uid,
-      role,
+      role: role.toUpperCase(),
       name: target.name || targetAuth.displayName || "Admin",
       email: targetAuth.email || email,
     });

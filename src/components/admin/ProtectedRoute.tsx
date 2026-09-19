@@ -34,8 +34,24 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         if (!currentUser) return;
         let userSnap = await getDoc(doc(db, 'users', currentUser.uid));
         
-        // Self-heal for school route if user profile or role/schoolId is missing
-        if (location.pathname.startsWith('/portal/school') || !userSnap.exists()) {
+        // Self-heal for admin routes if accessing /admin or if user is known admin
+        if (location.pathname.startsWith('/admin') || currentUser.email === 'johnrufai242@gmail.com') {
+          try {
+            const idToken = await currentUser.getIdToken(true);
+            const adminSyncResponse = await fetch('/.netlify/functions/admin-auth-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+            });
+            const adminSyncData = await adminSyncResponse.json().catch(() => ({}));
+            if (adminSyncResponse.ok && adminSyncData.isAdmin) {
+              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
+              if (refreshed.exists()) userSnap = refreshed;
+            }
+          } catch (adminSyncErr) {
+            console.warn('Admin auth sync check:', adminSyncErr);
+          }
+        } else if (location.pathname.startsWith('/portal/school')) {
+          // Self-heal for school route if user profile or role/schoolId is missing
           try {
             const idToken = await currentUser.getIdToken(true);
             const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {

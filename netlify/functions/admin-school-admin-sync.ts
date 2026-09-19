@@ -286,6 +286,13 @@ export const handler: Handler = async (event) => {
         const existingUserSnap = await userRef.get();
         const existingUser = existingUserSnap.data() || {};
 
+        const isUserAdmin = String(existingUser.role || '').toUpperCase().includes('ADMIN') ||
+          ['johnrufai242@gmail.com'].includes(String(authUser.email || target.email).toLowerCase());
+
+        const userRoleToSave = isUserAdmin 
+          ? (String(existingUser.role || '').toUpperCase().includes('ADMIN') ? existingUser.role : 'SUPER_ADMIN')
+          : 'SCHOOL';
+
         await adminDb.runTransaction(async (transaction) => {
           transaction.set(
             userRef,
@@ -293,11 +300,10 @@ export const handler: Handler = async (event) => {
               ...existingUser,
               uid: authUser.uid,
               email: authUser.email || target.email,
-              name: existingUser.name || authUser.displayName || caller.name || 'School Administrator',
-              fullName: existingUser.fullName || existingUser.name || authUser.displayName || caller.name || 'School Administrator',
-              role: 'SCHOOL',
-              schoolId,
-              schoolName,
+              name: existingUser.name || authUser.displayName || caller.name || (isUserAdmin ? 'Administrator' : 'School Administrator'),
+              fullName: existingUser.fullName || existingUser.name || authUser.displayName || caller.name || (isUserAdmin ? 'Administrator' : 'School Administrator'),
+              role: userRoleToSave,
+              ...(isUserAdmin ? {} : { schoolId, schoolName }),
               accountStatus: 'ACTIVE',
               status: 'ACTIVE',
               portalAccessEnabled: true,
