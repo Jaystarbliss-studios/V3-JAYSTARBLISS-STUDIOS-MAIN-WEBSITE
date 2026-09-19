@@ -447,7 +447,7 @@ const AdminSchools: React.FC = () => {
   }, [schoolExams, selectedSchoolFilter]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 admin-schools-command">
       {/* Header Banner */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
