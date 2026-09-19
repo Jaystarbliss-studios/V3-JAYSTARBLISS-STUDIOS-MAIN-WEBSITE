@@ -39,7 +39,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       id: asString(assignedBilling.planId || planId || "assigned_plan"),
       name: asString(assignedBilling.planName || metadata.planName || (requestedRole === "school" ? "Fees/Payments" : "Assigned Tuition Plan")),
       role: requestedRole === "school" ? "school" : "student",
-      baseAmount: Number(metadata.baseAmount || assignedBilling.baseAmount),
+      baseAmount: Number(assignedBilling.baseAmount),
       durationWeeks: cycle === "termly" ? 12 : 4,
       teachingModes: ["Standard Delivery", "Hybrid / Physical"],
       description: "Admin-assigned billing plan",
@@ -85,19 +85,23 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   const chargePreview = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
   const providerAmount = Number(tx.amount || 0) / 100;
   const expectedBase = Math.round(plan.baseAmount * 100);
+  const expectedCustomerTotal = Math.round(chargePreview.totalAmount * 100);
+  const providerAmountMinor = Math.round(providerAmount * 100);
+  const amountMatchesBase = providerAmountMinor === expectedBase;
+  const amountMatchesCustomerTotal = providerAmountMinor === expectedCustomerTotal;
 
   // Paystack is configured to pass its transaction fee to the customer at checkout.
   // The gateway transaction amount therefore represents the base tuition, while tx.fees
   // is the actual Paystack processing fee. Never expect the pre-calculated gross total
   // to be the gateway amount, otherwise the customer is charged the fee twice.
-  if (String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || Math.round(providerAmount * 100) !== expectedBase) {
+  if (String(tx.status || "").toLowerCase() !== "success" || String(tx.currency || "").toUpperCase() !== "NGN" || (!amountMatchesBase && !amountMatchesCustomerTotal)) {
     throw new Error("PAYMENT_AMOUNT_MISMATCH");
   }
 
   const actualTransactionFee = Number.isFinite(Number(tx.fees)) && Number(tx.fees) >= 0
     ? Number((Number(tx.fees) / 100).toFixed(2))
     : chargePreview.transactionFee;
-  const customerTotal = Number((plan.baseAmount + actualTransactionFee).toFixed(2));
+  const customerTotal = amountMatchesCustomerTotal ? providerAmount : Number((plan.baseAmount + actualTransactionFee).toFixed(2));
 
   const metadataBase = Number(metadata.baseAmount || 0);
   if (metadataBase && Math.round(metadataBase * 100) !== expectedBase) throw new Error("PAYMENT_METADATA_AMOUNT_MISMATCH");
@@ -162,7 +166,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       transactionFee: actualTransactionFee,
       estimatedTransactionFee: chargePreview.transactionFee,
       amount: Math.round(customerTotal * 100),
-      providerAmount: Math.round(plan.baseAmount * 100),
+      providerAmount: providerAmountMinor,
       customerTotal,
       currency: "NGN",
       durationWeeks,
