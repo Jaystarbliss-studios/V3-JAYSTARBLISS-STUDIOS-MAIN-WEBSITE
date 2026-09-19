@@ -128,254 +128,59 @@ const AdminStudents: React.FC = () => {
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch all candidate collections in parallel
-      const [
-        indivSnap,
-        studSnap,
-        usersSnap,
-        schoolsSnap,
-        resSnap,
-        linkSnap
-      ] = await Promise.all([
-        getDocs(collection(db, 'individualStudents')).catch(e => { console.warn('indiv fetch notice:', e); return { docs: [] }; }),
-        getDocs(collection(db, 'students')).catch(e => { console.warn('stud fetch notice:', e); return { docs: [] }; }),
-        getDocs(collection(db, 'users')).catch(e => { console.warn('users fetch notice:', e); return { docs: [] }; }),
-        getDocs(collection(db, 'schools')).catch(e => { console.warn('schools fetch notice:', e); return { docs: [] }; }),
+      const user = auth.currentUser;
+      if (!user) throw new Error('Your administrator session has expired.');
+      const token = await user.getIdToken();
+
+      // The admin directory is resolved server-side so every student source is
+      // authoritative and Firestore client rules cannot silently hide a collection.
+      const response = await fetch('/.netlify/functions/admin-students-directory', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to load the complete student directory.');
+
+      setStudents(Array.isArray(result.students) ? result.students : []);
+
+      const [schoolsSnap, usersSnap, resSnap, linkSnap] = await Promise.all([
+        getDocs(collection(db, 'schools')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'users')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalResources')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalLinks')).catch(() => ({ docs: [] })),
       ]);
 
-      // 2. Build Lookup Maps
-      // Schools map
-      const schoolLookup = new Map<string, string>();
-      STATIC_SCHOOLS.forEach(s => schoolLookup.set(s.id, s.name));
-      const loadedSchools: { id: string; name: string }[] = [...STATIC_SCHOOLS];
-      
+      const schoolMap = new Map<string, string>();
+      STATIC_SCHOOLS.forEach(s => schoolMap.set(s.id, s.name));
+      const loadedSchools = [...STATIC_SCHOOLS];
       schoolsSnap.docs.forEach((d: any) => {
         const data = d.data();
-        const sName = data.name || data.schoolName || d.id;
-        schoolLookup.set(d.id, sName);
-        if (!loadedSchools.some(s => s.id === d.id)) {
-          loadedSchools.push({ id: d.id, name: sName });
-        }
+        const name = data.name || data.schoolName || d.id;
+        schoolMap.set(d.id, name);
+        if (!loadedSchools.some(s => s.id === d.id)) loadedSchools.push({ id: d.id, name });
       });
       setSchools(loadedSchools);
 
-      // Tutors & Parents maps
       const loadedTutors: { id: string; name: string; email: string }[] = [];
       const loadedParents: { id: string; name: string; email: string; phone?: string }[] = [];
-      const tutorLookup = new Map<string, { name: string; email: string }>();
-      const parentLookup = new Map<string, { name: string; email: string; phone?: string }>();
-
       usersSnap.docs.forEach((d: any) => {
         const u = d.data();
         const role = String(u.role || '').toUpperCase();
-        const uName = u.name || u.fullName || u.displayName || u.email || 'User';
-        const uEmail = u.email || '';
-
-        if (['STAFF', 'TUTOR', 'INSTRUCTOR', 'TEACHER'].includes(role)) {
-          loadedTutors.push({ id: d.id, name: uName, email: uEmail });
-          tutorLookup.set(d.id, { name: uName, email: uEmail });
-        } else if (['PARENT', 'GUARDIAN'].includes(role)) {
-          loadedParents.push({ id: d.id, name: uName, email: uEmail, phone: u.phone || u.phoneNumber });
-          parentLookup.set(d.id, { name: uName, email: uEmail, phone: u.phone || u.phoneNumber });
-        }
+        const name = u.name || u.fullName || u.displayName || u.email || 'User';
+        if (['STAFF','TUTOR','INSTRUCTOR','TEACHER'].includes(role)) loadedTutors.push({ id: d.id, name, email: u.email || '' });
+        if (['PARENT','GUARDIAN'].includes(role)) loadedParents.push({ id: d.id, name, email: u.email || '', phone: u.phone || u.phoneNumber });
       });
-
       setTutors(loadedTutors);
       setParents(loadedParents);
 
-      // 3. Unified Student Aggregator & Normalizer
-      const studentMap = new Map<string, UnifiedStudent>();
-
-      // A. Ingest individualStudents
-      indivSnap.docs.forEach((d: any) => {
-        const data = d.data();
-        const sId = data.schoolId || '';
-        const pId = data.parentId || '';
-        const tId = data.tutorId || data.assignedTutorId || data.assignedStaffId || data.staffId || '';
-
-        let studentType: 'personal' | 'parent' | 'school' = 'personal';
-        if (sId) studentType = 'school';
-        else if (pId || data.parentEmail || data.source === 'parent_enrollment') studentType = 'parent';
-
-        const sName = data.schoolName || (sId ? schoolLookup.get(sId) : '') || '';
-        const pInfo = parentLookup.get(pId);
-        const tInfo = tutorLookup.get(tId);
-
-        const record: UnifiedStudent = {
-          id: d.id,
-          docSource: 'individualStudents',
-          fullName: data.fullName || data.studentName || data.name || data.username || 'Cadet',
-          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `cadet-${d.id.slice(0, 5)}`),
-          email: data.email || data.studentEmail || data.authEmail || '',
-          class: data.class || data.grade || data.className || 'General',
-          grade: data.grade || data.class || '',
-          track: data.track || data.programName || data.plan || 'STEM & Coding',
-          subjects: Array.isArray(data.subjects) ? data.subjects.join(', ') : (data.subjects || 'Coding, Mathematics'),
-          schoolId: sId,
-          schoolName: sName,
-          parentId: pId,
-          parentName: data.parentName || pInfo?.name || '',
-          parentEmail: data.parentEmail || pInfo?.email || '',
-          parentPhone: data.parentPhone || pInfo?.phone || '',
-          tutorId: tId,
-          tutorName: data.tutorName || tInfo?.name || '',
-          tutorEmail: data.tutorEmail || tInfo?.email || '',
-          accountStatus: data.accountStatus || data.status || 'ACTIVE',
-          accessCode: data.accessCode || (data.accessCodeHash ? 'Protected Code' : ''),
-          accessCodeHash: data.accessCodeHash || '',
-          portalAccessEnabled: data.portalAccessEnabled !== false,
-          studentType,
-          createdAt: data.createdAt || data.timestamp || null,
-          firebaseUid: data.firebaseUid || data.userId || ''
-        };
-
-        studentMap.set(d.id, record);
-      });
-
-      // B. Ingest legacy / enrollment 'students' collection
-      studSnap.docs.forEach((d: any) => {
-        const data = d.data();
-        const existingKey = Array.from(studentMap.keys()).find(k => {
-          const item = studentMap.get(k)!;
-          return item.id === d.id || 
-                 (data.email && item.email && item.email.toLowerCase() === data.email.toLowerCase()) ||
-                 (data.username && item.username && item.username.toLowerCase() === data.username.toLowerCase());
-        });
-
-        if (existingKey) {
-          // Enrich
-          const cur = studentMap.get(existingKey)!;
-          cur.class = cur.class || data.class || data.grade || '';
-          cur.track = cur.track || data.track || data.program || '';
-          cur.subjects = cur.subjects || (Array.isArray(data.subjects) ? data.subjects.join(', ') : data.subjects || '');
-          cur.tutorId = cur.tutorId || data.tutorId || data.assignedTutorId || '';
-          if (cur.tutorId && !cur.tutorName) {
-            cur.tutorName = tutorLookup.get(cur.tutorId)?.name || '';
-          }
-        } else {
-          const sId = data.schoolId || '';
-          const pId = data.parentId || '';
-          const tId = data.tutorId || data.assignedTutorId || '';
-
-          let studentType: 'personal' | 'parent' | 'school' = 'personal';
-          if (sId) studentType = 'school';
-          else if (pId || data.parentEmail) studentType = 'parent';
-
-          const sName = data.schoolName || (sId ? schoolLookup.get(sId) : '') || '';
-          const pInfo = parentLookup.get(pId);
-          const tInfo = tutorLookup.get(tId);
-
-          const record: UnifiedStudent = {
-            id: d.id,
-            docSource: 'students',
-            fullName: data.fullName || data.studentName || data.name || 'Student',
-            username: data.username || (data.email ? data.email.split('@')[0] : `student-${d.id.slice(0, 5)}`),
-            email: data.email || '',
-            class: data.class || data.grade || 'General',
-            grade: data.grade || data.class || '',
-            track: data.track || data.plan || 'STEM Track',
-            subjects: Array.isArray(data.subjects) ? data.subjects.join(', ') : (data.subjects || 'STEM Core'),
-            schoolId: sId,
-            schoolName: sName,
-            parentId: pId,
-            parentName: data.parentName || pInfo?.name || '',
-            parentEmail: data.parentEmail || pInfo?.email || '',
-            parentPhone: data.parentPhone || pInfo?.phone || '',
-            tutorId: tId,
-            tutorName: tInfo?.name || '',
-            tutorEmail: tInfo?.email || '',
-            accountStatus: data.accountStatus || data.status || 'ACTIVE',
-            accessCode: data.accessCode || '',
-            portalAccessEnabled: true,
-            studentType,
-            createdAt: data.createdAt || null,
-            firebaseUid: data.userId || ''
-          };
-          studentMap.set(d.id, record);
-        }
-      });
-
-      // C. Ingest student accounts in 'users' collection
-      usersSnap.docs.forEach((d: any) => {
-        const u = d.data();
-        const role = String(u.role || '').toLowerCase();
-        const isStudentRole = ['student', 'cadet', 'scholar'].includes(role) || Boolean(u.studentDocId);
-
-        if (!isStudentRole) return;
-
-        // Check if already mapped
-        const existingKey = Array.from(studentMap.keys()).find(k => {
-          const item = studentMap.get(k)!;
-          return item.id === d.id || 
-                 item.firebaseUid === d.id || 
-                 item.id === u.studentDocId ||
-                 (u.email && item.email && item.email.toLowerCase() === u.email.toLowerCase());
-        });
-
-        if (existingKey) {
-          const cur = studentMap.get(existingKey)!;
-          if (!cur.firebaseUid) cur.firebaseUid = d.id;
-          if (!cur.email && u.email) cur.email = u.email;
-        } else {
-          const sId = u.schoolId || '';
-          const pId = u.parentId || '';
-          const tId = u.tutorId || u.assignedStaffId || '';
-
-          let studentType: 'personal' | 'parent' | 'school' = 'personal';
-          if (sId) studentType = 'school';
-          else if (pId) studentType = 'parent';
-
-          const record: UnifiedStudent = {
-            id: d.id,
-            docSource: 'users',
-            fullName: u.fullName || u.name || u.displayName || 'Cadet',
-            username: u.username || (u.email ? u.email.split('@')[0] : `cadet-${d.id.slice(0, 5)}`),
-            email: u.email || '',
-            class: u.class || u.grade || 'General',
-            grade: u.grade || u.class || '',
-            track: u.track || u.plan || 'STEM & Coding',
-            subjects: u.subjects || 'STEM Core',
-            schoolId: sId,
-            schoolName: u.schoolName || (sId ? schoolLookup.get(sId) : '') || '',
-            parentId: pId,
-            parentName: parentLookup.get(pId)?.name || '',
-            parentEmail: parentLookup.get(pId)?.email || '',
-            parentPhone: parentLookup.get(pId)?.phone || '',
-            tutorId: tId,
-            tutorName: tutorLookup.get(tId)?.name || '',
-            tutorEmail: tutorLookup.get(tId)?.email || '',
-            accountStatus: u.accountStatus || u.status || 'ACTIVE',
-            accessCode: u.accessCode || '',
-            portalAccessEnabled: u.portalAccessEnabled !== false,
-            studentType,
-            createdAt: u.createdAt || null,
-            firebaseUid: d.id
-          };
-          studentMap.set(d.id, record);
-        }
-      });
-
-      const finalStudents = Array.from(studentMap.values());
-      // Sort alphabetically by full name
-      finalStudents.sort((a, b) => a.fullName.localeCompare(b.fullName));
-      setStudents(finalStudents);
-
-      // 4. Merge Recent Dispatches
       const mergedDispatches: Dispatch[] = [];
-      resSnap.docs.forEach((item: any) => {
-        mergedDispatches.push({ id: item.id, collectionName: 'personalResources', kind: 'resource', ...item.data() });
-      });
-      linkSnap.docs.forEach((item: any) => {
-        mergedDispatches.push({ id: item.id, collectionName: 'personalLinks', kind: 'link', ...item.data() });
-      });
+      resSnap.docs.forEach((item: any) => mergedDispatches.push({ id: item.id, collectionName: 'personalResources', kind: 'resource', ...item.data() }));
+      linkSnap.docs.forEach((item: any) => mergedDispatches.push({ id: item.id, collectionName: 'personalLinks', kind: 'link', ...item.data() }));
       mergedDispatches.sort((a, b) => (b.timestamp?.toDate?.() || 0) - (a.timestamp?.toDate?.() || 0));
       setDispatches(mergedDispatches);
-
     } catch (error) {
       console.error('Unified student operations load error:', error);
-      toast.error('Unable to synchronize student directory.');
+      toast.error(error instanceof Error ? error.message : 'Unable to synchronize student directory.');
+      setStudents([]);
     } finally {
       setLoading(false);
     }
