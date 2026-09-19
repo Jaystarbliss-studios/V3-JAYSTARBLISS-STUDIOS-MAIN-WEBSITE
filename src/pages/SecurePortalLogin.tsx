@@ -82,8 +82,34 @@ const SecurePortalLogin: React.FC = () => {
         throw new Error('This account is not registered as an affiliated school administrator.');
       }
       if (!data.schoolId) {
-        await signOut(auth).catch(() => undefined);
-        throw new Error('Your school administrator account is not linked to an active school record yet. Please contact an administrator.');
+        // The approved school-admin mapping can safely repair a missing Firestore
+        // link because the server verifies the Firebase Auth ID token and email.
+        const idToken = await user.getIdToken(true);
+        const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ scope: 'single', email: user.email || email }),
+        });
+        const syncData = await response.json().catch(() => ({}));
+        if (!response.ok || syncData?.results?.[0]?.status !== 'LINKED') {
+          await signOut(auth).catch(() => undefined);
+          const status = syncData?.results?.[0]?.status;
+          if (status === 'SCHOOL_ALREADY_HAS_DIFFERENT_ADMIN') {
+            throw new Error('This school is already linked to a different administrator. Please contact an administrator.');
+          }
+          if (status === 'AUTH_USER_NOT_FOUND') {
+            throw new Error('This school administrator account could not be verified. Please contact an administrator.');
+          }
+          throw new Error('Your school administrator account is not linked to an active school record yet. Please contact an administrator.');
+        }
+
+        const refreshedSnap = await getDoc(doc(db, 'users', user.uid));
+        const refreshed = refreshedSnap.exists() ? refreshedSnap.data() || {} : {};
+        if (!refreshed.schoolId) {
+          await signOut(auth).catch(() => undefined);
+          throw new Error('Your school administrator account could not be linked to a school record. Please contact an administrator.');
+        }
+        data = refreshed;
       }
     }
 
