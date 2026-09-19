@@ -3,7 +3,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { 
   BarChart3, Download, RefreshCw, Users, School, 
   CreditCard, ClipboardList, Activity, FileSpreadsheet,
-  Calendar, ChevronDown, CheckCircle2, TrendingUp
+  ChevronDown, TrendingUp
 } from 'lucide-react';
 import { db, auth } from '../../lib/firebase';
 import SEO from '../../components/ui/SEO';

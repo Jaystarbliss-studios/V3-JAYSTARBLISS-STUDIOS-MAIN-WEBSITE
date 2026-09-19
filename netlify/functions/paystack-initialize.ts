@@ -50,6 +50,38 @@ export const handler: Handler = async (event) => {
     let plan = config.plans[planId];
     const customAmount = Number(body.amount || body.customAmount || 0);
 
+    // Check if school or user has an admin-assigned billing configuration
+    let assignedBilling = (user as any).billing || null;
+    let schoolDocData: any = null;
+    if (actualRole === "school") {
+      const sId = String((user as any).schoolId || decoded.uid);
+      const schoolSnap = await adminDb.collection("schools").doc(sId).get();
+      if (schoolSnap.exists) {
+        schoolDocData = schoolSnap.data() || {};
+        if (schoolDocData.billing) {
+          assignedBilling = schoolDocData.billing;
+        }
+      }
+    }
+
+    // Resolve assigned plan if user/school has custom admin billing or if planId matches assigned plan
+    if (assignedBilling && Number(assignedBilling.baseAmount) > 0) {
+      if (!plan || !plan.active || planId === "school_custom_fee" || planId === "custom_school_billing" || planId === "assigned_plan" || planId === "custom_plan" || customAmount > 0) {
+        const cycle = String(assignedBilling.cycle || body.cycle || "monthly").toLowerCase();
+        const baseAmt = customAmount > 0 ? customAmount : Number(assignedBilling.baseAmount);
+        plan = {
+          id: planId || "assigned_plan",
+          name: String(body.planName || assignedBilling.planName || (actualRole === "school" ? "Institutional Partner Fee" : "Assigned Tuition Plan")),
+          baseAmount: baseAmt,
+          durationWeeks: cycle === "termly" ? 12 : 4,
+          teachingModes: ["Standard Delivery", "Hybrid / Physical"],
+          role: actualRole === "school" ? "school" : "student",
+          active: true
+        };
+        planId = planId || "assigned_plan";
+      }
+    }
+
     if (!plan && customAmount > 0) {
       plan = {
         name: String(body.planName || (actualRole === "school" ? "Institutional Partner Fee" : actualRole === "parent" ? "Parent Tuition Fee" : "Course Tuition Fee")),
@@ -62,10 +94,15 @@ export const handler: Handler = async (event) => {
       planId = planId || "custom_plan";
     }
 
-    if (!plan || !plan.active) return json(400, { error: "The selected payment plan or fee is unavailable." });
-    if (actualRole === "school" && plan.role !== "school" && !customAmount) return json(400, { error: "Please select a school payment plan." });
-    if (actualRole !== "school" && plan.role !== "student" && !customAmount) return json(400, { error: "Please select a parent/student payment plan." });
-    if (actualRole === "parent" && !studentId && !enrollmentRequestId && !customAmount) return json(400, { error: "Select the child this parent payment is for." });
+    // If plan was found in config, activate it if the admin has assigned it or if user is paying their assigned plan
+    if (plan && !plan.active) {
+      plan = { ...plan, active: true };
+    }
+
+    if (!plan) return json(400, { error: "The selected payment plan or fee is unavailable." });
+    if (actualRole === "school" && plan.role !== "school" && !customAmount && !assignedBilling) return json(400, { error: "Please select a school payment plan." });
+    if (actualRole !== "school" && plan.role !== "student" && !customAmount && !assignedBilling) return json(400, { error: "Please select a parent/student payment plan." });
+    if (actualRole === "parent" && !studentId && !enrollmentRequestId && !customAmount && !assignedBilling) return json(400, { error: "Select the child this parent payment is for." });
 
 
     if (actualRole === "parent" && studentId) student = await findStudent(studentId, decoded.uid, "parent");
@@ -123,7 +160,8 @@ export const handler: Handler = async (event) => {
           tutorId: tutorId || null,
           enrollmentRequestId: enrollmentRequestId || null,
           schoolId: schoolId || null,
-          paymentMethod
+          paymentMethod,
+          paymentSource: String(body.paymentSource || "This Quarter's Escrow Account")
         }
       })
     });

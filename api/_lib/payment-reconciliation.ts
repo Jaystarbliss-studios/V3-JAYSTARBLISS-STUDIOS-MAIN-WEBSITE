@@ -16,8 +16,31 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   if (verifiedUserId && userId !== verifiedUserId) throw new Error("PAYMENT_OWNER_MISMATCH");
 
   const config = await getPaymentConfig();
-  const plan = config.plans[planId];
-  if (!plan || !plan.active) throw new Error("PAYMENT_PLAN_INVALID");
+  let plan = config.plans[planId];
+
+  // Resolve admin-assigned or custom billing plan if not found in static config or marked inactive
+  if (!plan || !plan.active) {
+    const metadataBase = Number(metadata.baseAmount || 0);
+    const txAmountBase = Number(tx.amount || 0) / 100;
+    const baseAmount = metadataBase > 0 ? metadataBase : txAmountBase;
+    if (baseAmount > 0) {
+      plan = {
+        id: planId || "assigned_plan",
+        name: asString(metadata.planName || metadata.plan || (requestedRole === "school" ? "Institutional Partner Fee" : "Assigned Tuition Plan")),
+        role: (requestedRole === "school" || (plan && plan.role === "school")) ? "school" : "student",
+        baseAmount,
+        durationWeeks: Number(metadata.durationWeeks || (requestedRole === "school" ? 4 : 4)),
+        teachingModes: ["Standard Delivery", "Hybrid / Physical"],
+        description: "Admin-assigned institutional / tuition plan",
+        active: true
+      };
+    } else if (plan) {
+      // If plan existed in config but had active:false, activate it for this assigned payment
+      plan = { ...plan, active: true };
+    } else {
+      throw new Error("PAYMENT_PLAN_INVALID");
+    }
+  }
 
   const userSnap = await adminDb.collection("users").doc(userId).get();
   if (!userSnap.exists) throw new Error("PAYMENT_USER_NOT_FOUND");
@@ -86,6 +109,13 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       if (!studentSnap.exists || asString(studentSnap.data()?.parentId) !== userId) throw new Error("PAYMENT_STUDENT_OWNER_MISMATCH");
     }
 
+    const durationWeeks = Number(metadata.durationWeeks || enrollment.durationWeeks || plan.durationWeeks || 4);
+    const cycleDays = durationWeeks * 7;
+    const paidThrough = new Date(paidAt.getTime() + cycleDays * 24 * 60 * 60 * 1000);
+    const quarterNumber = Math.floor(paidAt.getMonth() / 3) + 1;
+    const escrowQuarter = `Q${quarterNumber} ${paidAt.getFullYear()}`;
+    const paymentSource = asString(metadata.paymentSource || "This Quarter's Escrow Account");
+
     paymentData = {
       userId,
       parentId: role === "parent" ? userId : null,
@@ -106,9 +136,14 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
       providerAmount: Math.round(plan.baseAmount * 100),
       customerTotal,
       currency: "NGN",
-      durationWeeks: Number(metadata.durationWeeks || enrollment.durationWeeks || plan.durationWeeks),
+      durationWeeks,
+      cycleDays,
       teachingMode: asString(metadata.teachingMode || enrollment.teachingMode || enrollment.modeOfTeaching || plan.teachingModes[0]),
       paymentMethod: asString(tx.channel || metadata.paymentMethod || "paystack"),
+      paymentSource,
+      escrowQuarter,
+      paidThrough: paidThrough.toISOString(),
+      nextDueDate: paidThrough.toISOString(),
       status: "PAID",
       reference,
       email: asString(tx.customer?.email || userRecord.email),
@@ -132,6 +167,41 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
 
     transaction.create(canonicalPaymentRef, paymentData);
     created = true;
+
+    // Update school or user billing record with active paid status and 4-week renewal due date
+    if (role === "school" && (schoolId || userId)) {
+      const targetSchoolRef = adminDb.collection("schools").doc(schoolId || userId);
+      transaction.set(targetSchoolRef, {
+        billing: {
+          status: "PAID",
+          lastPaidAt: paidAt.toISOString(),
+          paidThrough: paidThrough.toISOString(),
+          nextDueDate: paidThrough.toISOString(),
+          paymentSource,
+          escrowQuarter,
+          cycle: durationWeeks === 12 ? "termly" : "monthly",
+          baseAmount: plan.baseAmount,
+          updatedAt: new Date().toISOString()
+        }
+      }, { merge: true });
+    }
+
+    if (role === "parent" || role === "student") {
+      const targetUserRef = adminDb.collection("users").doc(userId);
+      transaction.set(targetUserRef, {
+        billing: {
+          status: "PAID",
+          lastPaidAt: paidAt.toISOString(),
+          paidThrough: paidThrough.toISOString(),
+          nextDueDate: paidThrough.toISOString(),
+          paymentSource,
+          escrowQuarter,
+          cycle: "monthly",
+          baseAmount: plan.baseAmount,
+          updatedAt: new Date().toISOString()
+        }
+      }, { merge: true });
+    }
 
     if (enrollmentRef) transaction.set(enrollmentRef, {
       paymentStatus: "PAID",
