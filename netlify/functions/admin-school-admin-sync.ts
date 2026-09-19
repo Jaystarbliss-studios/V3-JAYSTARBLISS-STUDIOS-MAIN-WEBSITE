@@ -53,9 +53,13 @@ export const handler: Handler = async (event) => {
     const callerSnap = await adminDb.collection('users').doc(decoded.uid).get();
     const caller = callerSnap.data() || {};
     const callerRole = String(caller.role || '').toUpperCase();
+    const callerEmail = String(decoded.email || '').trim().toLowerCase();
+    const isActiveAdmin = adminRoles.has(callerRole) && !blocked(caller.accountStatus || caller.status);
 
-    if (!adminRoles.has(callerRole) || blocked(caller.accountStatus || caller.status)) {
-      return json(403, { error: 'Only an active administrator can link school administrator accounts.' });
+    // Admins may sync all approved mappings. An authenticated approved school
+    // administrator may also self-heal their own missing school link after login.
+    if (!isActiveAdmin && !callerEmail) {
+      return json(403, { error: 'Only an authenticated administrator or approved school administrator can link a school account.' });
     }
 
     const schoolSnap = await adminDb.collection('schools').get();
@@ -66,12 +70,22 @@ export const handler: Handler = async (event) => {
 
     const body = JSON.parse(event.body || '{}');
     const requestedEmail = String(body.email || '').trim().toLowerCase();
+    if (!isActiveAdmin && body.scope === 'all') {
+      return json(403, { error: 'Only an administrator can synchronize all school administrator mappings.' });
+    }
+
     const targets = requestedEmail
       ? TARGETS.filter((target) => target.email.toLowerCase() === requestedEmail)
       : TARGETS;
 
     if (requestedEmail && targets.length !== 1) {
       return json(400, { error: 'That email is not one of the approved school administrator mappings.' });
+    }
+
+    if (!isActiveAdmin) {
+      if (targets.length !== 1 || targets[0].email.toLowerCase() !== callerEmail) {
+        return json(403, { error: 'This account is not an approved school administrator mapping.' });
+      }
     }
 
     const results: any[] = [];
