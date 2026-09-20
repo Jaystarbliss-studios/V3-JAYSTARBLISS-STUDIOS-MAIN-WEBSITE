@@ -129,7 +129,7 @@ const AdminLayout: React.FC = () => {
   const currentTitle = currentNav ? `Admin ${currentNav.name}` : 'Admin Management Panel';
 
   return (
-    <div className="digital-canvas h-screen w-full flex overflow-hidden">
+    <div className="admin-shell digital-canvas h-screen w-full flex overflow-hidden">
       <SEO 
         title={currentTitle} 
         description="Jaystarbliss Studios Administration and Content Management System." 
