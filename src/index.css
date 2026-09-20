@@ -1,593 +1,224 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-html {
+[object Object]
+/* =========================================================================
+   PORTAL DASHBOARD REDESIGN
+   Compact, editorial layout inspired by the supplied UX boards.
+   This layer is presentation-only: existing data, routes and interactions
+   remain untouched. The visual hierarchy uses fewer floating surfaces,
+   tighter spacing and flatter nested content so dashboards read as one
+   application rather than a wall of cards.
+   ========================================================================= */
+.dashboard-interface,
+.school-dashboard {
   width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  position: relative;
-  -webkit-text-size-adjust: 100%;
+  min-width: 0;
+  color: #0f172a;
 }
 
-body {
-  font-family: 'Poppins', sans-serif;
-  background-color: #F8FAFC;
-  color: #1E293B;
-  transition: background-color 0.25s ease, color 0.25s ease;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  position: relative;
-  margin: 0;
-  padding: 0;
-}
-
-#root {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  min-height: 100vh;
+.dashboard-interface.space-y-6,
+.dashboard-interface.space-y-8,
+.school-dashboard.space-y-6 {
   display: flex;
   flex-direction: column;
+  gap: 1rem;
 }
 
-html.dark body {
-  background-color: #0B1120;
-  color: #F8FAFC;
+.dashboard-interface.space-y-6 > *,
+.dashboard-interface.space-y-8 > *,
+.school-dashboard.space-y-6 > * {
+  margin-top: 0 !important;
 }
 
-/* =========================================================================
-   ACCESSIBILITY: HIGH CONTRAST MODE
-   ========================================================================= */
-html.high-contrast body {
-  color: #000000 !important;
-  background-color: #FFFFFF !important;
-  font-weight: 500;
+.dashboard-interface > .pro-surface,
+.dashboard-interface > section.pro-surface,
+.school-dashboard > .pro-surface,
+.school-dashboard > section.pro-surface {
+  border-radius: 1rem !important;
+  padding: 1.125rem !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.03), 0 8px 24px rgba(15,23,42,.045) !important;
 }
 
-html.high-contrast.dark body {
-  color: #FFFFFF !important;
-  background-color: #000000 !important;
-  font-weight: 500;
+.dashboard-interface > .grid,
+.school-dashboard > .grid {
+  gap: .75rem !important;
 }
 
-html.high-contrast .text-gray-400,
-html.high-contrast .text-gray-500,
-html.high-contrast .text-gray-600,
-html.high-contrast .text-slate-400,
-html.high-contrast .text-slate-500 {
-  color: #111827 !important;
-  font-weight: 500 !important;
+.dashboard-interface > .grid > .pro-surface,
+.school-dashboard > .grid > .pro-surface {
+  border-radius: .875rem !important;
+  padding: 1rem !important;
+  box-shadow: none !important;
 }
 
-html.high-contrast.dark .text-gray-400,
-html.high-contrast.dark .text-gray-500,
-html.high-contrast.dark .text-gray-600,
-html.high-contrast.dark .text-slate-400,
-html.high-contrast.dark .text-slate-500 {
-  color: #F9FAFB !important;
-  font-weight: 500 !important;
+/* Large sections remain visually important; their inner records do not become
+   separate floating cards. */
+.dashboard-interface .pro-surface .rounded-2xl,
+.dashboard-interface .pro-surface .rounded-3xl,
+.school-dashboard .pro-surface .rounded-2xl,
+.school-dashboard .pro-surface .rounded-3xl {
+  border-radius: .75rem !important;
 }
 
-html.high-contrast input,
-html.high-contrast select,
-html.high-contrast textarea {
-  border: 2px solid #000000 !important;
+.dashboard-interface .pro-surface .bg-slate-50,
+.dashboard-interface .pro-surface .dark\\:bg-slate-950,
+.dashboard-interface .pro-surface .dark\\:bg-slate-900,
+.school-dashboard .pro-surface .bg-slate-50,
+.school-dashboard .pro-surface .dark\\:bg-slate-950,
+.school-dashboard .pro-surface .dark\\:bg-slate-900 {
+  box-shadow: none !important;
 }
 
-html.high-contrast.dark input,
-html.high-contrast.dark select,
-html.high-contrast.dark textarea {
-  border: 2px solid #FFFFFF !important;
-  background-color: #000000 !important;
-  color: #FFFFFF !important;
+/* Metric strips: compact numbers first, labels second. */
+.dashboard-interface > .grid.sm\\:grid-cols-2 > .pro-surface,
+.dashboard-interface > .grid.lg\\:grid-cols-2 > .pro-surface {
+  min-height: 96px;
 }
 
-html.high-contrast .border,
-html.high-contrast .border-gray-200,
-html.high-contrast .border-gray-300,
-html.high-contrast .border-gray-100,
-html.high-contrast .border-gray-200\/80,
-html.high-contrast .dark\:border-slate-800,
-html.high-contrast .dark\:border-slate-700 {
-  border-color: #000000 !important;
+.dashboard-interface h1,
+.dashboard-interface h2,
+.dashboard-interface h3,
+.school-dashboard h1,
+.school-dashboard h2,
+.school-dashboard h3 {
+  text-wrap: balance;
 }
 
-html.high-contrast.dark .border,
-html.high-contrast.dark .border-gray-200,
-html.high-contrast.dark .border-gray-300,
-html.high-contrast.dark .border-gray-100,
-html.high-contrast.dark .border-gray-200\/80,
-html.high-contrast.dark .dark\:border-slate-800,
-html.high-contrast.dark .dark\:border-slate-700 {
-  border-color: #FFFFFF !important;
+.dashboard-interface h2,
+.school-dashboard h2 {
+  font-size: 1rem;
+  line-height: 1.35;
 }
 
-html.high-contrast button:focus-visible,
-html.high-contrast a:focus-visible,
-html.high-contrast input:focus-visible {
-  outline: 3px solid #0284C7 !important;
-  outline-offset: 2px !important;
+.dashboard-interface p,
+.school-dashboard p {
+  line-height: 1.45;
 }
 
-html.high-contrast.dark button:focus-visible,
-html.high-contrast.dark a:focus-visible,
-html.high-contrast.dark input:focus-visible {
-  outline: 3px solid #38BDF8 !important;
-  outline-offset: 2px !important;
+/* Keep charts and dense data areas integrated with their parent section. */
+.dashboard-interface .recharts-responsive-container,
+.school-dashboard .recharts-responsive-container {
+  min-width: 0;
 }
 
-@layer utilities {
-  .text-brand-slate { color: #1E293B; }
-  .text-brand-red { color: #B91C1C; }
-  .bg-brand-slate { background-color: #1E293B; }
-  .bg-brand-red { background-color: #B91C1C; }
-  .bg-brand-neutral { background-color: #F8FAFC; }
+.dashboard-interface table,
+.school-dashboard table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
 
-  /* Glassmorphism Classes */
-  .glass-card {
-    background-color: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    box-shadow: 0 8px 32px 0 rgba(30, 41, 59, 0.05);
-    border-radius: 1rem;
-    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                background-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+.dashboard-interface th,
+.dashboard-interface td,
+.school-dashboard th,
+.school-dashboard td {
+  white-space: nowrap;
+}
+
+/* Avoid icon-heavy dashboard tiles. Icons stay useful for actions/statuses,
+   but large decorative icon blocks become quieter. */
+.dashboard-interface .h-12.w-12,
+.dashboard-interface .w-12.h-12,
+.dashboard-interface .h-14.w-14,
+.school-dashboard .h-12.w-12,
+.school-dashboard .w-12.h-12,
+.school-dashboard .h-14.w-14 {
+  border-radius: .7rem !important;
+}
+
+@media (max-width: 768px) {
+  .dashboard-interface,
+  .school-dashboard {
+    gap: .75rem !important;
   }
 
-  .glass-card:hover {
-    border-color: rgba(6, 182, 212, 0.45);
-    box-shadow: 0 16px 36px 0 rgba(30, 41, 59, 0.08), 
-                0 0 20px 2px rgba(6, 182, 212, 0.16);
+  .dashboard-interface > .pro-surface,
+  .dashboard-interface > section.pro-surface,
+  .school-dashboard > .pro-surface,
+  .school-dashboard > section.pro-surface {
+    border-radius: .875rem !important;
+    padding: .875rem !important;
   }
 
-  .glass-card-subtle {
-    background-color: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  .dashboard-interface > .grid,
+  .school-dashboard > .grid {
+    gap: .625rem !important;
   }
 
-  .glass-card-subtle:hover {
-    border-color: rgba(6, 182, 212, 0.35);
-    box-shadow: 0 10px 28px 0 rgba(6, 182, 212, 0.12);
+  .dashboard-interface > .grid.sm\\:grid-cols-2,
+  .dashboard-interface > .grid.xl\\:grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-interface > .grid.lg\\:grid-cols-12 > * {
+    grid-column: span 12 / span 12 !important;
+  }
+
+  .dashboard-interface .overflow-x-auto,
+  .school-dashboard .overflow-x-auto {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .dashboard-interface button,
+  .dashboard-interface a,
+  .school-dashboard button,
+  .school-dashboard a {
+    max-width: 100%;
+  }
+
+  .dashboard-interface .text-3xl,
+  .school-dashboard .text-3xl {
+    font-size: 1.6rem !important;
+    line-height: 1.1 !important;
   }
 }
 
-html.dark .glass-card {
-  background-color: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.35);
+@media (max-width: 480px) {
+  .dashboard-interface > .grid.sm\\:grid-cols-2,
+  .dashboard-interface > .grid.xl\\:grid-cols-4 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .dashboard-interface .grid.grid-cols-2,
+  .school-dashboard .grid.grid-cols-2 {
+    gap: .5rem !important;
+  }
 }
 
-html.dark .glass-card:hover {
-  border-color: rgba(6, 182, 212, 0.55);
-  box-shadow: 0 16px 40px 0 rgba(0, 0, 0, 0.5), 
-              0 0 24px 2px rgba(6, 182, 212, 0.22);
-}
-
-html.dark .glass-card-subtle {
-  background-color: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-html.dark .glass-card-subtle:hover {
-  border-color: rgba(6, 182, 212, 0.4);
-  box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.4), 
-              0 0 16px 1px rgba(6, 182, 212, 0.16);
-}
-
-/* Jaystarbliss 2026 interface system --------------------------------------- */
-.digital-canvas {
-  position: relative;
-  isolation: isolate;
-  background:
-    radial-gradient(circle at 10% 12%, rgba(230, 57, 70, 0.08), transparent 30rem),
-    radial-gradient(circle at 90% 20%, rgba(230, 57, 70, 0.06), transparent 28rem),
-    radial-gradient(circle at 50% 85%, rgba(230, 57, 70, 0.05), transparent 32rem),
-    #f8fafc;
-}
-
-.dark .digital-canvas {
-  background:
-    radial-gradient(circle at 0% 15%, rgba(230, 57, 70, 0.18), transparent 36rem),
-    radial-gradient(circle at 100% 25%, rgba(230, 57, 70, 0.15), transparent 34rem),
-    radial-gradient(circle at 50% 85%, rgba(230, 57, 70, 0.12), transparent 38rem),
-    #0c1017;
-}
-
-.digital-canvas::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: .25;
-  background-image: linear-gradient(rgba(100,116,139,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,139,.08) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, black, transparent 75%);
-}
-
-.dark .digital-canvas::before {
-  opacity: .18;
-  background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
-}
-
-/* Global dashboard form contrast: keep editable controls readable in both themes. */
-html.dark input,
-html.dark select,
-html.dark textarea {
-  background-color: #0f172a !important;
-  color: #f8fafc !important;
-  border-color: #334155 !important;
-  caret-color: #f8fafc;
-}
-html.dark input::placeholder,
-html.dark textarea::placeholder {
-  color: #94a3b8 !important;
-}
-html.dark select option {
-  background-color: #0f172a;
+html.dark .dashboard-interface,
+html.dark .school-dashboard {
   color: #f8fafc;
 }
-html.dark input:focus,
-html.dark select:focus,
-html.dark textarea:focus {
-  border-color: #b91c1c !important;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(185, 28, 28, 0.18);
+
+html.dark .dashboard-interface > .pro-surface,
+html.dark .dashboard-interface > section.pro-surface,
+html.dark .school-dashboard > .pro-surface,
+html.dark .school-dashboard > section.pro-surface {
+  box-shadow: 0 8px 26px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.045) !important;
 }
 
-.pro-surface {
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(226, 232, 240, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+html.dark .dashboard-interface .bg-slate-50,
+html.dark .school-dashboard .bg-slate-50 {
+  background-color: rgba(15,23,42,.55) !important;
 }
 
-.dark .pro-surface {
-  background: rgba(14, 20, 34, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+html.dark .dashboard-interface .border-slate-100,
+html.dark .dashboard-interface .border-slate-200,
+html.dark .school-dashboard .border-slate-100,
+html.dark .school-dashboard .border-slate-200 {
+  border-color: rgba(148,163,184,.18) !important;
 }
 
-.admin-glass-card {
-  background: rgba(255, 255, 255, 0.82) !important;
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 0 8px 32px -4px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(226, 232, 240, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(20px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
-}
-
-.dark .admin-glass-card {
-  background: rgba(14, 20, 34, 0.72) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-  backdrop-filter: blur(20px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
-}
-
-.pro-interactive {
-  transition: transform .25s cubic-bezier(.2,.8,.2,1), border-color .25s ease, box-shadow .25s ease;
-}
-.pro-interactive:hover { 
-  transform: translateY(-2px); 
-  border-color: rgba(2, 132, 199, 0.45); 
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(56, 189, 248, 0.35); 
-}
-.dark .pro-interactive:hover { 
-  border-color: rgba(56, 189, 248, 0.4); 
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(14, 165, 233, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2); 
-}
-
-.tech-label { font-size: .68rem; line-height: 1rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.hairline { height: 1px; background: linear-gradient(90deg, #0284c7, rgba(56, 189, 248, 0.4), transparent); }
-
-.dashboard-interface > [class*="grid"] > [class*="bg-white"],
-.dashboard-interface > [class*="bg-white"],
-.dashboard-interface [class*="rounded-3xl"][class*="bg-white"] {
-  background: rgba(255, 255, 255, 0.82) !important;
-  border-color: rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 0 0 1px rgba(226, 232, 240, 0.8), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-}
-.dark .dashboard-interface > [class*="grid"] > [class*="bg-white"],
-.dark .dashboard-interface > [class*="bg-white"],
-.dark .dashboard-interface [class*="rounded-3xl"][class*="bg-white"] {
-  background: rgba(14, 20, 34, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 10px 32px -4px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-}
-.dashboard-interface h1, .dashboard-interface h2 { letter-spacing: -.025em; }
-.dashboard-interface [class*="shadow"] { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-}
-
-@media (max-width: 640px) {
-  .glass-card {
-    border-radius: 0.875rem;
-    padding: 1.25rem;
-  }
-}
-
-/* Glass Ripple Effect */
-.glass-ripple-container {
-  position: relative;
-  overflow: hidden;
-}
-
-.glass-ripple {
-  position: absolute;
-  border-radius: 50%;
-  transform: scale(0);
-  animation: glassRippleAnimation 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  pointer-events: none;
-  background: radial-gradient(circle, rgba(6, 182, 212, 0.4) 0%, rgba(255, 255, 255, 0.2) 65%, transparent 100%);
-  z-index: 25;
-}
-
-html.dark .glass-ripple {
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.45) 0%, rgba(255, 255, 255, 0.15) 65%, transparent 100%);
-}
-
-@keyframes glassRippleAnimation {
-  0% {
-    transform: scale(0);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(3.2);
-    opacity: 0;
-  }
-}
-
-/* Skeleton shimmer animation */
-@keyframes glassShimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.glass-skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    rgba(226, 232, 240, 0.65) 0%,
-    rgba(255, 255, 255, 0.95) 50%,
-    rgba(226, 232, 240, 0.65) 100%
-  );
-  background-size: 200% 100%;
-  animation: glassShimmer 1.7s infinite ease-in-out;
-}
-
-html.dark .glass-skeleton-pulse {
-  background: linear-gradient(
-    90deg,
-    rgba(30, 41, 59, 0.7) 0%,
-    rgba(51, 65, 85, 0.9) 50%,
-    rgba(30, 41, 59, 0.7) 100%
-  );
-  background-size: 200% 100%;
-  animation: glassShimmer 1.7s infinite ease-in-out;
-}
-
-html.dark .bg-brand-neutral {
-  background-color: #0B1120;
-}
-
-@keyframes pulse-glow {
-  0%,100% { box-shadow: 0 0 20px rgba(185,28,28,0.4); transform: scale(1); }
-  50%      { box-shadow: 0 0 45px rgba(185,28,28,0.8); transform: scale(1.08); }
-}
-
-.galaxy-container {
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 1.5rem; position: relative; overflow: hidden;
-  width: 100%; max-width: 100%;
-}
-
-.orbit-path {
-  position: absolute; border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.07);
-  pointer-events: none; z-index: 2;
-  top: 50%; left: 50%; transform-origin: center center;
-  max-width: 100%;
-}
-.path-inner-1 { width: min(400px, 90vw); height: min(180px, 45vw); margin-top: calc(min(180px, 45vw) / -2);  margin-left: calc(min(400px, 90vw) / -2); }
-.path-inner-2 { width: min(400px, 90vw); height: min(180px, 45vw); margin-top: calc(min(180px, 45vw) / -2);  margin-left: calc(min(400px, 90vw) / -2); }
-.path-outer   { width: min(520px, 96vw); height: min(240px, 50vw); margin-top: calc(min(240px, 50vw) / -2); margin-left: calc(min(520px, 96vw) / -2); }
-
-.central-hub {
-  width: clamp(70px,12vw,120px); height: clamp(70px,12vw,120px);
-  background: transparent; border-radius: 50%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  overflow: hidden; cursor: pointer; flex-shrink: 0;
-  animation: pulse-glow 3s infinite;
-  z-index: 10;
-}
-
-.planet-node {
-  position: absolute;
-  width: clamp(30px,4vw,44px); height: clamp(30px,4vw,44px);
-  background: #1E293B; border: 2px solid currentColor; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transform: translate(-50%,-50%); z-index: 20;
-  will-change: left,top; transition: all 0.25s;
-}
-.planet-node svg {
-  width: clamp(14px,2vw,20px); height: clamp(14px,2vw,20px);
-}
-.planet-node:hover { transform: translate(-50%,-50%) scale(1.22); z-index: 60; }
-
-.subject-detail {
-  position: absolute; bottom: calc(100% + 15px); left: 50%;
-  transform: translateX(-50%); width: 220px; max-width: calc(100vw - 32px);
-  background: #1E293B; border: 1px solid currentColor;
-  padding: 12px 14px; border-radius: 12px;
-  font-size: 11px; color: #fff;
-  opacity: 0; visibility: hidden;
-  transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.7);
-  pointer-events: none; text-align: left; white-space: normal; z-index: 300;
-}
-.planet-node:hover .subject-detail {
-  opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-4px);
-}
-.subject-detail h5 { font-weight: 700; margin-bottom: 4px; font-size: 13px; }
-.subject-detail p  { opacity: 0.7; line-height: 1.4; margin: 0;}
-.subject-detail::after {
-  content: ''; position: absolute; top: 100%; left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent; border-top-color: currentColor;
-}
-.quill-content h1 { font-size: 2em; font-weight: bold; margin-bottom: 0.5em; }
-.quill-content h2 { font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em; }
-.quill-content h3 { font-size: 1.17em; font-weight: bold; margin-bottom: 0.5em; }
-.quill-content p { margin-bottom: 1em; }
-.quill-content ul { list-style-type: disc; margin-left: 1.5em; margin-bottom: 1em; }
-.quill-content ol { list-style-type: decimal; margin-left: 1.5em; margin-bottom: 1em; }
-.quill-content a { color: #B91C1C; text-decoration: underline; }
-.quill-content strong { font-weight: bold; }
-.quill-content em { font-style: italic; }
-.quill-content blockquote { border-left: 4px solid #ccc; padding-left: 1em; margin-left: 0; color: #666; font-style: italic; }
-.quill-content img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
-
-/* =========================================================================
-   INDEPENDENT SMOOTH SCROLLBARS FOR SIDEBARS & DASHBOARDS
-   ========================================================================= */
-.custom-scrollbar {
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.3);
-  border-radius: 9999px;
-  border: 1px solid transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148, 163, 184, 0.6);
-}
-
-.dark .custom-scrollbar {
-  scrollbar-color: rgba(71, 85, 105, 0.45) transparent;
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(71, 85, 105, 0.45);
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148, 163, 184, 0.7);
-}
-
-
-/* =========================================================================
-   PORTAL / ADMIN TYPOGRAPHY CONSISTENCY
-   Keep ordinary interface copy on one readable neutral color. Brand colors
-   remain reserved for intentional accents, status indicators and actions.
-   ========================================================================= */
-.dashboard-interface .text-slate-400,
-.dashboard-interface .text-slate-500,
-.dashboard-interface .text-slate-600,
-.dashboard-interface .text-slate-700,
-.dashboard-interface .text-slate-800,
-.dashboard-interface .text-slate-900,
-.dashboard-interface .text-gray-400,
-.dashboard-interface .text-gray-500,
-.dashboard-interface .text-gray-600,
-.dashboard-interface .text-gray-700,
-.dashboard-interface .text-gray-800,
-.dashboard-interface .text-gray-900,
-.admin-schools-command .text-slate-400,
-.admin-schools-command .text-slate-500,
-.admin-schools-command .text-slate-600,
-.admin-schools-command .text-slate-700,
-.admin-schools-command .text-slate-800,
-.admin-schools-command .text-slate-900,
-.admin-schools-command .text-gray-400,
-.admin-schools-command .text-gray-500,
-.admin-schools-command .text-gray-600,
-.admin-schools-command .text-gray-700,
-.admin-schools-command .text-gray-800,
-.admin-schools-command .text-gray-900 {
-  color: #334155 !important;
-}
-
-html.dark .dashboard-interface .text-slate-400,
 html.dark .dashboard-interface .text-slate-500,
-html.dark .dashboard-interface .text-slate-600,
-html.dark .dashboard-interface .text-slate-700,
-html.dark .dashboard-interface .text-slate-800,
-html.dark .dashboard-interface .text-slate-900,
-html.dark .dashboard-interface .text-gray-400,
 html.dark .dashboard-interface .text-gray-500,
-html.dark .dashboard-interface .text-gray-600,
-html.dark .dashboard-interface .text-gray-700,
-html.dark .dashboard-interface .text-gray-800,
-html.dark .dashboard-interface .text-gray-900,
-html.dark .admin-schools-command .text-slate-400,
-html.dark .admin-schools-command .text-slate-500,
-html.dark .admin-schools-command .text-slate-600,
-html.dark .admin-schools-command .text-slate-700,
-html.dark .admin-schools-command .text-slate-800,
-html.dark .admin-schools-command .text-slate-900,
-html.dark .admin-schools-command .text-gray-400,
-html.dark .admin-schools-command .text-gray-500,
-html.dark .admin-schools-command .text-gray-600,
-html.dark .admin-schools-command .text-gray-700,
-html.dark .admin-schools-command .text-gray-800,
-html.dark .admin-schools-command .text-gray-900 {
-  color: #E2E8F0 !important;
+html.dark .school-dashboard .text-slate-500,
+html.dark .school-dashboard .text-gray-500 {
+  color: #94a3b8 !important;
 }
 
-/* Prevent the neutral copy rule from flattening intentional action text. */
-.dashboard-interface .text-white,
-.admin-schools-command .text-white,
-.dashboard-interface .text-brand-red,
-.admin-schools-command .text-brand-red,
-.dashboard-interface .text-emerald-600,
-.dashboard-interface .text-emerald-700,
-.dashboard-interface .text-amber-600,
-.dashboard-interface .text-amber-700,
-.dashboard-interface .text-red-600,
-.dashboard-interface .text-red-700,
-.admin-schools-command .text-emerald-600,
-.admin-schools-command .text-emerald-700,
-.admin-schools-command .text-amber-600,
-.admin-schools-command .text-amber-700,
-.admin-schools-command .text-red-600,
-.admin-schools-command .text-red-700 {
-  color: revert-layer !important;
+html.dark .dashboard-interface .text-slate-600,
+html.dark .dashboard-interface .text-gray-600,
+html.dark .school-dashboard .text-slate-600,
+html.dark .school-dashboard .text-gray-600 {
+  color: #cbd5e1 !important;
 }
