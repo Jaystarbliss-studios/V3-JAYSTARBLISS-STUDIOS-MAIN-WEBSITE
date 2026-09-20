@@ -95,8 +95,8 @@
   background-size: 100% 3px; opacity: 0.15;
 }
 
-.jdh-portal.dark .card,
-.dark .jdh-portal .card {
+.jdh-portal.dark .card:not(.glass-modal-card),
+.dark .jdh-portal .card:not(.glass-modal-card) {
   position: relative; z-index: 2; display: flex; width: 100%; max-width: 1140px; min-height: 640px;
   border-radius: var(--r); overflow: hidden; border: 1.5px solid var(--border2);
   background: rgba(10, 10, 10, 0.96);
@@ -833,21 +833,176 @@ html:not(.dark) .jdh-portal .cyber-liquid-button .btn-label-text {
   transform: none;
 }
 
-@media (max-width: 480px) {
-  .jdh-portal .card.glass-modal-card {
-    width: calc(100vw - 1.25rem) !important;
-    max-width: calc(100vw - 1.25rem) !important;
-    padding: 1.25rem 0.95rem 1rem 0.95rem !important;
-    border-radius: 16px !important;
+@media (max-width: 768px) {
+  .jdh-portal {
+    min-height: 100vh !important;
+    min-height: 100dvh !important;
+    width: 100vw !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    background: transparent !important;
   }
-  .jdh-portal .glass-role-tab {
-    padding: 0.42rem 0.2rem !important;
-    font-size: 0.68rem !important;
+
+  .jdh-portal .card.glass-modal-card {
+    width: 70vw !important;
+    max-width: 70vw !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: 70vh !important;
+    max-height: 70dvh !important;
+    min-height: 0 !important;
+    margin: auto !important;
+    align-self: center !important;
+    padding: 0.75rem 0.65rem 0.6rem 0.65rem !important;
+    border-radius: 16px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    box-sizing: border-box !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  }
+
+  .jdh-portal .card.glass-modal-card::-webkit-scrollbar {
+    width: 3px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  .jdh-portal .card.glass-modal-card::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-radius: 9999px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-header {
+    padding-top: 0 !important;
+    padding-bottom: 0.2rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-header h1 {
+    font-size: 0.95rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-header img,
+  .jdh-portal .card.glass-modal-card .glass-header svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-role-tabs {
+    gap: 2px !important;
+    padding: 2.5px !important;
+    border-radius: 8px !important;
+    margin-bottom: 0.45rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-role-tab {
+    padding: 0.32rem 0.1rem !important;
+    font-size: 0.58rem !important;
+    border-radius: 5px !important;
+    gap: 2px !important;
+    white-space: nowrap !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-role-tab svg {
+    width: 10px !important;
+    height: 10px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .msg {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.65rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .field {
+    margin-bottom: 0.35rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .field label {
+    font-size: 0.58rem !important;
+    margin-bottom: 0.12rem !important;
+    letter-spacing: 0.03em !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .field button {
+    font-size: 0.58rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-input {
+    padding: 0.38rem 0.55rem 0.38rem 1.7rem !important;
+    font-size: 0.72rem !important;
+    border-radius: 7px !important;
+    min-height: 30px !important;
+    height: 30px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .input-icon {
+    left: 0.45rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .input-icon svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .pw-eye {
+    right: 0.4rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    padding: 1px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .pw-eye svg {
+    width: 11px !important;
+    height: 11px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card label[for="rememberMe"] {
+    font-size: 0.6rem !important;
     gap: 3px !important;
   }
-  .jdh-portal .glass-input {
-    padding: 0.62rem 0.75rem 0.62rem 2.2rem !important;
-    font-size: 0.82rem !important;
+
+  .jdh-portal .card.glass-modal-card label[for="rememberMe"] input {
+    width: 11px !important;
+    height: 11px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .glass-submit-btn {
+    padding: 0.42rem 0.65rem !important;
+    font-size: 0.75rem !important;
+    border-radius: 7px !important;
+    margin-top: 0.3rem !important;
+    min-height: 30px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .auth-divider {
+    margin: 0.3rem 0 !important;
+    font-size: 0.5rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .google-btn {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.65rem !important;
+    border-radius: 7px !important;
+    min-height: 28px !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .text-slate-200 {
+    font-size: 0.6rem !important;
+  }
+
+  .jdh-portal .card.glass-modal-card .drop-shadow {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)) !important;
   }
 }
 
@@ -981,11 +1136,11 @@ html:not(.dark) .jdh-portal .field label {
     min-height: 100vh;
   }
   
-  .jdh-portal .card,
-  .jdh-portal.dark .card,
-  .dark .jdh-portal .card,
-  .jdh-portal.light .card,
-  html:not(.dark) .jdh-portal .card { 
+  .jdh-portal .card:not(.glass-modal-card),
+  .jdh-portal.dark .card:not(.glass-modal-card),
+  .dark .jdh-portal .card:not(.glass-modal-card),
+  .jdh-portal.light .card:not(.glass-modal-card),
+  html:not(.dark) .jdh-portal .card:not(.glass-modal-card) { 
     flex-direction: column !important;
     max-width: 680px; 
     width: 100% !important;
@@ -1017,17 +1172,17 @@ html:not(.dark) .jdh-portal .field label {
 }
 
 @media(max-width: 640px) {
-  .jdh-portal { 
+  .jdh-portal:not(:has(.glass-modal-card)) { 
     padding: 0 !important; 
     align-items: stretch !important;
     background: var(--bg) !important;
   }
   
-  .jdh-portal .card,
-  .jdh-portal.dark .card,
-  .dark .jdh-portal .card,
-  .jdh-portal.light .card,
-  html:not(.dark) .jdh-portal .card { 
+  .jdh-portal .card:not(.glass-modal-card),
+  .jdh-portal.dark .card:not(.glass-modal-card),
+  .dark .jdh-portal .card:not(.glass-modal-card),
+  .jdh-portal.light .card:not(.glass-modal-card),
+  html:not(.dark) .jdh-portal .card:not(.glass-modal-card) { 
     flex-direction: column !important; 
     max-width: 100vw !important; 
     width: 100vw !important; 

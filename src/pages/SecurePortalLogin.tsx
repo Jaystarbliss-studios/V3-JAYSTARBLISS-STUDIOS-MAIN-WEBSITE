@@ -309,7 +309,7 @@ const SecurePortalLogin: React.FC = () => {
     { id: 'student', label: 'Students', icon: <GraduationCap size={13} /> },
     { id: 'school', label: 'Schools', icon: <School size={13} /> },
     { id: 'parent', label: 'Parents', icon: <Users size={13} /> },
-    { id: 'staff', label: 'Staff / Admin', icon: <ShieldCheck size={13} /> },
+    { id: 'staff', label: 'Staff', icon: <ShieldCheck size={13} /> },
   ];
 
   return (
@@ -374,7 +374,7 @@ const SecurePortalLogin: React.FC = () => {
                   ? 'School Administrator Email'
                   : activeTab === 'parent'
                     ? 'Parent Email Address'
-                    : 'Staff / Administrator Email'}
+                    : 'Staff / Admin Email'}
             </label>
             <div className="input-wrap relative">
               <span className="input-icon">
@@ -392,7 +392,7 @@ const SecurePortalLogin: React.FC = () => {
                       ? 'school@example.com'
                       : activeTab === 'parent'
                         ? 'parent@example.com'
-                        : 'admin@jaystarbliss.ng / staff@jaystarbliss.ng'
+                        : 'staff@jaystarbliss.ng'
                 }
                 className="glass-input"
               />
@@ -451,7 +451,7 @@ const SecurePortalLogin: React.FC = () => {
             </label>
             {(activeTab === 'staff' || activeTab === 'school') && (
               <span className="text-[10px] text-slate-200 drop-shadow">
-                {activeTab === 'staff' ? 'Faculty & Admin Workspace' : 'Institutional'}
+                {activeTab === 'staff' ? 'Faculty & Admin' : 'Institutional'}
               </span>
             )}
           </div>
