@@ -145,7 +145,7 @@ const AdminLayout: React.FC = () => {
       />
 
       {/* Mobile Drawer (Independent Scroll) */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-brand-slate text-white flex flex-col h-full overflow-hidden transform transition-transform duration-300 ease-in-out lg:hidden ${
+      <div className={`admin-mobile-drawer fixed inset-y-0 left-0 z-50 w-72 bg-brand-slate text-white flex flex-col h-full overflow-hidden transform transition-transform duration-300 ease-in-out lg:hidden ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex items-center justify-between h-16 px-6 bg-brand-slate border-b border-white/10 shrink-0">
@@ -220,7 +220,7 @@ const AdminLayout: React.FC = () => {
 
       {/* Desktop Sidebar (Collapsible, Frosted Glass & Independently Scrollable) */}
       <aside 
-        className={`hidden lg:flex bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-2xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-slate-200/80 dark:border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out relative z-30 shadow-lg shadow-black/5 ${
+        className={`admin-sidebar hidden lg:flex bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-2xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-slate-200/80 dark:border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out relative z-30 shadow-lg shadow-black/5 ${
           sidebarCollapsed ? 'w-20' : 'w-72'
         }`}
       >
@@ -333,7 +333,7 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Topbar */}
-        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-4 sm:px-6 lg:px-8 transition-colors shadow-xs">
+        <div className="admin-topbar relative z-20 flex-shrink-0 flex items-center justify-between h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-4 sm:px-6 lg:px-8 transition-colors shadow-xs">
           <div className="flex items-center gap-3">
             {/* Mobile Menu Button */}
             <Tooltip content="Open navigation menu" placement="right">
@@ -384,11 +384,12 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Main Content Area - Isolated independent scroll */}
-        <main className="flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar">
+        <main className="admin-main flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar">
           <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            <div className="admin-content max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
               <AnimatePresence mode="wait">
                 <motion.div
+                  className="admin-workspace"
                   key={location.pathname}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
