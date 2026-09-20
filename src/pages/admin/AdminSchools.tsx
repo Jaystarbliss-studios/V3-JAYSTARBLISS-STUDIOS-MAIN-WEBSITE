@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, 
-  setDoc, query, orderBy, serverTimestamp, updateDoc, where, getDoc
+  setDoc, query, serverTimestamp, updateDoc, where
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../lib/firebase';
@@ -9,13 +9,13 @@ import { useToast } from '../../contexts/ToastContext';
 import { 
   School, BookOpen, Plus, Trash2, ExternalLink, 
   FileText, RefreshCw, Loader2, 
-  Key, Copy, CheckCircle2, 
-  X, Search, UserPlus, HelpCircle,
-  KeyRound, Sparkles, ArrowLeft,
-  CreditCard, Calendar, Bell, ShieldCheck, Check,
-  Layers, Users, Code, ChevronRight, Edit3, Send, Clock, AlertTriangle
+  Key, Copy, 
+  X, Search,
+  KeyRound, ArrowLeft,
+  CreditCard, Bell, ShieldCheck, Check,
+  Users, Code, ChevronRight, Edit3, Send
 } from 'lucide-react';
-import { formatNaira } from '../../lib/billing';
+import { formatNaira, billingPost } from '../../lib/billing';
 
 export interface SchoolProgram {
   id: string;
@@ -464,38 +464,56 @@ const AdminSchools: React.FC = () => {
     if (!selectedSchool) return;
     setSavingAction(true);
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const response = await fetch('/.netlify/functions/billing-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
+      const cleanBaseAmount = Number(String(billingForm.baseAmount || 0).replace(/[^0-9.]/g, '')) || 0;
+      const updatedBilling = {
+        ...billingForm,
+        baseAmount: cleanBaseAmount
+      };
+
+      // 1. Direct Firestore update on school document
+      await setDoc(doc(db, 'schools', selectedSchool.id), {
+        billing: updatedBilling,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // 2. Sync to linked school administrator user record in Firestore
+      try {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('schoolId', '==', selectedSchool.id)));
+        if (!usersSnap.empty) {
+          for (const uDoc of usersSnap.docs) {
+            await setDoc(doc(db, 'users', uDoc.id), {
+              billing: updatedBilling,
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          }
+        }
+      } catch (uErr) {
+        console.warn('School user billing sync notice:', uErr);
+      }
+
+      // 3. Billing post helper for backend / notifications
+      try {
+        await billingPost('billing-admin', {
           action: 'set_school_billing',
           schoolId: selectedSchool.id,
-          baseAmount: Number(billingForm.baseAmount),
+          baseAmount: cleanBaseAmount,
           cycle: billingForm.cycle,
           allowedModes: billingForm.allowedModes,
           mode: billingForm.mode,
           nextDueDate: billingForm.nextDueDate || '',
           status: billingForm.status,
-          notes: billingForm.notes
-        })
-      });
-
-      if (!response.ok) {
-        const resJson = await response.json().catch(() => ({}));
-        throw new Error(resJson.error || 'Failed to update billing config.');
+          notes: billingForm.notes || ''
+        });
+      } catch (postErr) {
+        console.debug('Background billing post notice:', postErr);
       }
 
-      await setDoc(doc(db, 'schools', selectedSchool.id), {
-        billing: billingForm,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      setSchools(prev => prev.map(s => s.id === selectedSchool.id ? { ...s, billing: billingForm } : s));
-      toast.success('Institutional billing configuration updated.');
+      setBillingForm(updatedBilling);
+      setSchools(prev => prev.map(s => s.id === selectedSchool.id ? { ...s, billing: updatedBilling } : s));
+      toast.success(`Institutional billing configuration saved for ${selectedSchool.name}.`);
     } catch (err) {
       console.error('Save billing failed:', err);
-      toast.error(err instanceof Error ? err.message : 'Unable to update billing.');
+      toast.error(err instanceof Error ? err.message : 'Unable to update billing configuration.');
     } finally {
       setSavingAction(false);
     }
@@ -506,26 +524,18 @@ const AdminSchools: React.FC = () => {
     if (!selectedSchool) return;
     setSendingReminder(true);
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const response = await fetch('/.netlify/functions/billing-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          action: 'send_payment_reminder',
-          targetType: 'SCHOOL',
-          targetId: selectedSchool.id,
-          recipientId: selectedSchool.adminUid || selectedSchool.id,
-          email: selectedSchool.contactEmail || selectedSchool.email,
-          amount: billingForm.baseAmount,
-          nextDueDate: billingForm.nextDueDate,
-          title: `Tuition & Lab Subscription Due - ${selectedSchool.name}`
-        })
+      const nowIso = new Date().toISOString();
+      await billingPost('billing-admin', {
+        action: 'send_payment_reminder',
+        targetType: 'SCHOOL',
+        targetId: selectedSchool.id,
+        recipientId: selectedSchool.adminUid || selectedSchool.id,
+        email: selectedSchool.contactEmail || selectedSchool.email,
+        amount: billingForm.baseAmount,
+        nextDueDate: billingForm.nextDueDate,
+        title: `Tuition & Lab Subscription Due - ${selectedSchool.name}`
       });
 
-      const resJson = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(resJson.error || 'Failed to issue reminder.');
-
-      const nowIso = resJson.sentAt || new Date().toISOString();
       setBillingForm(prev => ({ ...prev, lastReminderSentAt: nowIso }));
       setSchools(prev => prev.map(s => s.id === selectedSchool.id ? {
         ...s,
@@ -546,25 +556,24 @@ const AdminSchools: React.FC = () => {
     if (!selectedSchool) return;
     setSavingAction(true);
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      await fetch('/.netlify/functions/billing-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          action: 'update_school_programs',
-          schoolId: selectedSchool.id,
-          programs: updatedPrograms
-        })
-      });
-
       await setDoc(doc(db, 'schools', selectedSchool.id), {
         programs: updatedPrograms,
         updatedAt: serverTimestamp()
       }, { merge: true });
 
+      try {
+        await billingPost('billing-admin', {
+          action: 'update_school_programs',
+          schoolId: selectedSchool.id,
+          programs: updatedPrograms
+        });
+      } catch (postErr) {
+        console.debug('Background programs sync notice:', postErr);
+      }
+
       setProgramsList(updatedPrograms);
       setSchools(prev => prev.map(s => s.id === selectedSchool.id ? { ...s, programs: updatedPrograms } : s));
-      toast.success('Programmes undergoing updated.');
+      toast.success('Programmes list updated.');
       setEditingProgram(null);
       setIsNewProgram(false);
     } catch (err) {
@@ -1951,8 +1960,8 @@ const AdminSchools: React.FC = () => {
                       </div>
                       <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                         <span>Configured Fee:</span>
-                        <strong className="font-black text-slate-900 dark:text-white">
-                          {feeAmount ? `${formatNaira(feeAmount)} / ${feeCycle}` : 'Default Plan'}
+                        <strong className="font-black text-slate-900 dark:text-white capitalize">
+                          {feeAmount ? `${formatNaira(feeAmount)} / ${feeCycle} (${feeMode})` : 'Default Plan'}
                         </strong>
                       </div>
 

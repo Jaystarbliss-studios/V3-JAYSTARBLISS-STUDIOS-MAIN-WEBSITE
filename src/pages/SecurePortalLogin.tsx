@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { School, GraduationCap, Users, ShieldCheck, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { School, GraduationCap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -12,7 +12,7 @@ import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 import './SecurePortalTheme.css';
 
-type Role = 'student' | 'school' | 'parent' | 'staff';
+type Role = 'student' | 'school';
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 const blocked = (data: Record<string, any>) => ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(data.accountStatus || data.status || 'ACTIVE').toUpperCase());
@@ -57,8 +57,8 @@ const SecurePortalLogin: React.FC = () => {
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
 
-    // Check admin authentication / self-heal first (handles admin logging in from staff tab or anywhere)
-    if (activeTab === 'staff' || email === 'johnrufai242@gmail.com') {
+    // Check admin authentication / self-heal first (handles admin logging in from school tab or direct email)
+    if (email === 'johnrufai242@gmail.com') {
       try {
         const idToken = await user.getIdToken(true);
         const adminRes = await fetch('/.netlify/functions/admin-auth-sync', {
@@ -117,16 +117,19 @@ const SecurePortalLogin: React.FC = () => {
       return;
     }
 
-    if (activeTab === 'parent' && role !== 'PARENT') {
-      await signOut(auth).catch(() => undefined);
-      throw new Error('This account is not registered as a parent.');
-    }
-    if (activeTab === 'staff' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
-      await signOut(auth).catch(() => undefined);
-      throw new Error('This account is not registered as teaching or administrative staff.');
-    }
     if (activeTab === 'school') {
       if (role !== 'SCHOOL') {
+        // If account is registered as staff or parent, guide them to google auth or route directly
+        if (role === 'PARENT') {
+          storeSession('parent', user.uid, data.name || user.displayName || email.split('@')[0], { userEmail: user.email || '' });
+          navigate('/portal/parent');
+          return;
+        }
+        if (['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
+          storeSession('staff', user.uid, data.name || user.displayName || email.split('@')[0], { userEmail: user.email || '' });
+          navigate('/portal/staff');
+          return;
+        }
         await signOut(auth).catch(() => undefined);
         throw new Error('This account is not registered as an affiliated school administrator.');
       }
@@ -179,11 +182,7 @@ const SecurePortalLogin: React.FC = () => {
         throw new Error(
           activeTab === 'student'
             ? 'Enter your Student Username / Email and Access Code.'
-            : activeTab === 'school'
-              ? 'Enter your School Administrator Email and Password.'
-              : activeTab === 'staff'
-                ? 'Enter your Staff or Administrator Email and Password.'
-                : 'Enter your email and password.'
+            : 'Enter your School Administrator Email and Password.'
         );
       }
       if (activeTab === 'student') {
@@ -233,15 +232,12 @@ const SecurePortalLogin: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      if (activeTab !== 'parent' && activeTab !== 'staff') {
-        throw new Error('Google sign-in is available for parent and staff/admin accounts.');
-      }
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       const googleUser = result.user;
       const idToken = await googleUser.getIdToken(true);
 
-      // Check admin Google authentication first (from staff tab or direct email)
-      if (activeTab === 'staff' || googleUser.email === 'johnrufai242@gmail.com') {
+      // Check admin Google authentication first
+      if (googleUser.email === 'johnrufai242@gmail.com') {
         try {
           const response = await fetch('/.netlify/functions/admin-google-login', {
             method: 'POST',
@@ -266,12 +262,14 @@ const SecurePortalLogin: React.FC = () => {
       const snap = await getDoc(doc(db, 'users', googleUser.uid));
       let data = snap.exists() ? snap.data() || {} : null;
 
+      // If no account exists yet, provision default parent account
       if (!data) {
-        if (activeTab !== 'parent') {
-          await signOut(auth).catch(() => undefined);
-          throw new Error('Staff accounts are provisioned by administrators. Please contact an administrator.');
-        }
-        data = { email: googleUser.email || '', name: googleUser.displayName || '', role: 'parent', createdAt: serverTimestamp() };
+        data = { 
+          email: googleUser.email || '', 
+          name: googleUser.displayName || '', 
+          role: 'parent', 
+          createdAt: serverTimestamp() 
+        };
         await setDoc(doc(db, 'users', googleUser.uid), data);
       }
 
@@ -287,17 +285,40 @@ const SecurePortalLogin: React.FC = () => {
         return;
       }
 
-      if (role !== 'PARENT' && !['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
-        await signOut(auth).catch(() => undefined);
-        throw new Error('This Google account is not enabled for this portal.');
+      if (role === 'SCHOOL') {
+        storeSession('school', googleUser.uid, data.name || data.schoolName || googleUser.displayName || 'School Partner', {
+          userEmail: googleUser.email || '',
+          schoolId: data.schoolId || googleUser.uid,
+          schoolName: data.schoolName || '',
+        });
+        navigate('/portal/school');
+        return;
       }
 
-      const sessionRole = role === 'PARENT' ? 'parent' : 'staff';
-      storeSession(sessionRole, googleUser.uid, data.name || googleUser.displayName || 'Portal User', {
+      if (['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
+        storeSession('staff', googleUser.uid, data.name || googleUser.displayName || 'Faculty Member', {
+          userEmail: googleUser.email || '',
+          schoolId: data.schoolId || '',
+        });
+        navigate('/portal/staff');
+        return;
+      }
+
+      if (role === 'STUDENT') {
+        storeSession('student', googleUser.uid, data.name || googleUser.displayName || 'Student', {
+          studentDocId: data.studentDocId || '',
+          schoolId: data.schoolId || '',
+        });
+        navigate('/portal/student');
+        return;
+      }
+
+      // Default role is parent
+      storeSession('parent', googleUser.uid, data.name || googleUser.displayName || 'Parent', {
         userEmail: googleUser.email || '',
         schoolId: data.schoolId || '',
       });
-      navigate(`/portal/${sessionRole}`);
+      navigate('/portal/parent');
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed.');
     } finally {
@@ -306,10 +327,8 @@ const SecurePortalLogin: React.FC = () => {
   };
 
   const tabs: { id: Role; label: string; icon: React.ReactNode }[] = [
-    { id: 'student', label: 'Students', icon: <GraduationCap size={13} /> },
-    { id: 'school', label: 'Schools', icon: <School size={13} /> },
-    { id: 'parent', label: 'Parents', icon: <Users size={13} /> },
-    { id: 'staff', label: 'Staff', icon: <ShieldCheck size={13} /> },
+    { id: 'student', label: 'Students', icon: <GraduationCap size={14} /> },
+    { id: 'school', label: 'Schools', icon: <School size={14} /> },
   ];
 
   return (
@@ -337,7 +356,7 @@ const SecurePortalLogin: React.FC = () => {
           </div>
         </div>
 
-        {/* ROLE TABS */}
+        {/* ROLE TABS (STUDENTS & SCHOOLS ONLY) */}
         <div className="glass-role-tabs mb-3.5">
           {tabs.map(tab => (
             <button
@@ -352,7 +371,7 @@ const SecurePortalLogin: React.FC = () => {
               }}
             >
               {tab.icon}
-              <span className="text-[10px]">{tab.label}</span>
+              <span className="text-[11px] font-bold">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -370,11 +389,7 @@ const SecurePortalLogin: React.FC = () => {
             <label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1 drop-shadow">
               {activeTab === 'student'
                 ? 'Student Username or Email'
-                : activeTab === 'school'
-                  ? 'School Administrator Email'
-                  : activeTab === 'parent'
-                    ? 'Parent Email Address'
-                    : 'Staff / Admin Email'}
+                : 'School Administrator Email'}
             </label>
             <div className="input-wrap relative">
               <span className="input-icon">
@@ -388,11 +403,7 @@ const SecurePortalLogin: React.FC = () => {
                 placeholder={
                   activeTab === 'student'
                     ? 'student@example.com or username'
-                    : activeTab === 'school'
-                      ? 'school@example.com'
-                      : activeTab === 'parent'
-                        ? 'parent@example.com'
-                        : 'staff@jaystarbliss.ng'
+                    : 'school@example.com'
                 }
                 className="glass-input"
               />
@@ -404,7 +415,7 @@ const SecurePortalLogin: React.FC = () => {
               <label className="text-[11px] font-bold text-white uppercase tracking-wider block m-0 drop-shadow">
                 {activeTab === 'student' ? 'Access Code' : 'Password'}
               </label>
-              {(activeTab === 'school' || activeTab === 'parent' || activeTab === 'staff') && (
+              {activeTab === 'school' && (
                 <button
                   type="button"
                   onClick={handlePasswordReset}
@@ -449,9 +460,9 @@ const SecurePortalLogin: React.FC = () => {
               />
               Remember me
             </label>
-            {(activeTab === 'staff' || activeTab === 'school') && (
+            {activeTab === 'school' && (
               <span className="text-[10px] text-slate-200 drop-shadow">
-                {activeTab === 'staff' ? 'Faculty & Admin' : 'Institutional'}
+                Institutional Partner
               </span>
             )}
           </div>
@@ -470,24 +481,24 @@ const SecurePortalLogin: React.FC = () => {
           </button>
         </form>
 
-        {/* GOOGLE SIGN IN (PARENT / STAFF & ADMIN) */}
-        {(activeTab === 'parent' || activeTab === 'staff') && (
-          <>
-            <div className="auth-divider my-2.5 text-xs text-slate-200">or</div>
-            <button
-              type="button"
-              className="google-btn w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white font-medium text-xs transition-all bg-white/5 border border-white/20 hover:bg-white/15"
-              onClick={handleGoogle}
-              disabled={loading}
-            >
-              <span aria-hidden="true" className="font-black text-sm">G</span>
-              <span>Continue with Google</span>
-            </button>
-          </>
-        )}
+        {/* NOT A STUDENT OR PARTNERED SCHOOL / GOOGLE SSO */}
+        <div className="mt-3 pt-3 border-t border-white/15 text-center">
+          <p className="text-[11px] font-medium text-slate-100/90 mb-2 drop-shadow">
+            Not a student or Partnered school? Continue here
+          </p>
+          <button
+            type="button"
+            className="google-btn w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white font-medium text-xs transition-all bg-white/10 border border-white/25 hover:bg-white/20 shadow-sm"
+            onClick={handleGoogle}
+            disabled={loading}
+          >
+            <span aria-hidden="true" className="font-black text-sm">G</span>
+            <span>Continue with Google</span>
+          </button>
+        </div>
 
         {/* BOTTOM REGISTER LINK */}
-        <div className="text-center pt-3 pb-1 text-xs text-slate-200 drop-shadow">
+        <div className="text-center pt-2.5 pb-0.5 text-xs text-slate-200 drop-shadow">
           Are You New Member?{' '}
           <Link to="/register" className="text-white font-bold hover:underline transition-all ml-1">
             Sign UP

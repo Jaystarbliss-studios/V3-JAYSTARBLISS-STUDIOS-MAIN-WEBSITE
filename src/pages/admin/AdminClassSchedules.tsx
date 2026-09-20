@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, Clock3, Loader2, Plus, RefreshCw, School, XCircle } from "lucide-react";
 import SEO from "../../components/ui/SEO";
 import { auth, db } from "../../lib/firebase";
@@ -25,7 +25,7 @@ const AdminClassSchedules:React.FC = () => {
     recurring:true, weeks:"52"
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [schoolSnap] = await Promise.all([getDocs(collection(db,"schools"))]);
@@ -40,9 +40,9 @@ const AdminClassSchedules:React.FC = () => {
       setSchedules(Array.isArray(result.schedules)?result.schedules:[]);
     } catch(e){ toast.error(e instanceof Error?e.message:"Unable to load schedules."); }
     finally{setLoading(false);}
-  };
+  }, [filterSchool, toast]);
 
-  useEffect(()=>{void load();},[filterSchool]);
+  useEffect(()=>{void load();},[load]);
 
   const create = async (e:React.FormEvent) => {
     e.preventDefault();

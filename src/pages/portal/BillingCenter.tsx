@@ -214,7 +214,17 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
       }
 
       const result = await billingPost<any>('paystack-initialize', checkoutPayload); 
-      window.location.assign(result.authorizationUrl); 
+      if (result?.authorizationUrl) {
+        if (result.authorizationUrl.startsWith('http://') || result.authorizationUrl.startsWith('https://')) {
+          window.location.assign(result.authorizationUrl);
+        } else {
+          window.location.href = result.authorizationUrl;
+        }
+      } else {
+        toast.success('Payment recorded successfully.');
+        await load();
+        setShowCheckout(false);
+      } 
     } catch (error) { 
       toast.error(error instanceof Error ? error.message : 'Unable to start checkout.'); 
     } finally { 

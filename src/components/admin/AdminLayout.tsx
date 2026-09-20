@@ -31,6 +31,7 @@ import {
   Bell,
   Activity,
   Layers,
+  CalendarDays,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';

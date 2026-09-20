@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   Activity, CheckCircle2, DollarSign, Edit3, Loader2, Save, 
-  ShieldCheck, TrendingUp, Users, Wallet, School, Bell, 
-  Send, Calendar, Clock, CreditCard, RefreshCw, ChevronRight, Check
+  ShieldCheck, TrendingUp, Users, Wallet, School, 
+  Send, CreditCard, RefreshCw, Check
 } from 'lucide-react';
 import { billingGet, billingPost, dateLabel, formatNaira } from '../../lib/billing';
 import SEO from '../../components/ui/SEO';
@@ -46,7 +46,7 @@ const AdminBilling: React.FC = () => {
   // Quick school fee editor
   const [editingSchoolBilling, setEditingSchoolBilling] = useState<any | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [billingResult, schoolSnap] = await Promise.all([
@@ -68,11 +68,11 @@ const AdminBilling: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const plans = Object.values((data.config?.plans || {}) as Record<string, Plan>);
   const paid = useMemo(() => (data.payments || []).filter((p: any) => String(p.status).toUpperCase() === 'PAID'), [data.payments]);
@@ -220,20 +220,28 @@ const AdminBilling: React.FC = () => {
     if (!editingSchoolBilling) return;
     setSaving('school-quick');
     try {
+      const cleanAmount = Number(String(editingSchoolBilling.billing?.baseAmount || 300000).replace(/[^0-9.]/g, '')) || 0;
       await billingPost('billing-admin', {
         action: 'set_school_billing',
         schoolId: editingSchoolBilling.id,
-        baseAmount: Number(editingSchoolBilling.billing?.baseAmount || 300000),
+        baseAmount: cleanAmount,
         cycle: editingSchoolBilling.billing?.cycle || 'termly',
         mode: editingSchoolBilling.billing?.mode || 'advance_termly',
         nextDueDate: editingSchoolBilling.billing?.nextDueDate || '',
         notes: editingSchoolBilling.billing?.notes || ''
       });
 
-      await setDoc(doc(db, 'schools', editingSchoolBilling.id), {
-        billing: editingSchoolBilling.billing,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      try {
+        await setDoc(doc(db, 'schools', editingSchoolBilling.id), {
+          billing: {
+            ...editingSchoolBilling.billing,
+            baseAmount: cleanAmount
+          },
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (fsErr) {
+        console.warn('Direct firestore client cache update notice:', fsErr);
+      }
 
       toast.success(`Billing updated for ${editingSchoolBilling.name}`);
       setEditingSchoolBilling(null);
@@ -658,6 +666,17 @@ const AdminBilling: React.FC = () => {
             <button disabled={saving === 'withdrawal-fee'} onClick={() => void saveWithdrawalFee()} className="min-h-11 mt-4 rounded-xl bg-slate-900 hover:bg-black text-white px-5 text-xs font-black inline-flex items-center gap-2">
               <Save size={14} /> {saving === 'withdrawal-fee' ? 'Saving…' : 'Save Withdrawal Fee Policy'}
             </button>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <h2 className="font-black text-base text-slate-900 dark:text-white">Minimum Staff Wallet Withdrawal Amount</h2>
+            <p className="text-xs text-slate-500 mt-1">Enforced threshold when instructors submit payout requests.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 max-w-md">
+              <input type="number" value={minimumWithdrawal} onChange={e => setMinimumWithdrawal(e.target.value)} placeholder="Minimum amount (₦)" className={inputClass} />
+              <button disabled={saving === 'minimum'} onClick={() => void saveMinimum()} className="min-h-11 rounded-xl bg-slate-900 hover:bg-black text-white px-5 text-xs font-black inline-flex items-center justify-center gap-2">
+                <Save size={14} /> {saving === 'minimum' ? 'Saving…' : 'Save Minimum Threshold'}
+              </button>
+            </div>
           </div>
 
           {/* Standard Plans Editor */}

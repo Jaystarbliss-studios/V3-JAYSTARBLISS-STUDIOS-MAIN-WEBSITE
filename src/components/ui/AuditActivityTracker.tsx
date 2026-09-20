@@ -1,18 +1,36 @@
 import { useEffect, useRef } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../../lib/firebase';
 import { useLocation } from 'react-router-dom';
 
 const record = async (token: string, payload: Record<string, unknown>) => {
   try {
-    await fetch('/.netlify/functions/audit-log', {
+    // Try Netlify function if available
+    const res = await fetch('/.netlify/functions/audit-log', {
       method: 'POST',
       keepalive: true,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(payload)
-    });
-  } catch (error) {
-    console.debug('Audit event could not be recorded:', error);
+    }).catch(() => null);
+
+    // If Netlify function is not available (e.g. 404 in client preview/dev), write directly to Firestore
+    if (!res || !res.ok) {
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        const email = auth.currentUser.email || '';
+        await addDoc(collection(db, 'activityLogs'), {
+          ...payload,
+          actorId: uid,
+          userId: uid,
+          userEmail: email,
+          createdAt: serverTimestamp(),
+          timestamp: new Date().toISOString()
+        }).catch(() => {});
+      }
+    }
+  } catch {
+    // Silent catch for telemetry
   }
 };
 

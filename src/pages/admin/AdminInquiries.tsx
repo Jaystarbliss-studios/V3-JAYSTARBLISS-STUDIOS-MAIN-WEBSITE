@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, doc, onSnapshot, updateDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { 
-  Download, X, Search, Mail, Phone, CalendarDays, 
-  UserRound, Filter, Save, ArrowUpRight, Database, 
-  Copy, CheckCircle2, Building2, Loader2, RefreshCw,
+  Download, X, Search, Filter, Save, Database, 
+  Copy, CheckCircle2, Building2, Loader2,
   GraduationCap, Briefcase, MessageSquare, ChevronDown, 
-  ChevronRight, Calendar, User, Clock, Check, Sparkles,
-  ExternalLink, Send, ShieldCheck
+  ChevronRight, Check, Sparkles, ExternalLink
 } from 'lucide-react';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';

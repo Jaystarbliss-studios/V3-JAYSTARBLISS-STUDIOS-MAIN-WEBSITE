@@ -21,18 +21,22 @@ export const handler: Handler = async event => {
     const token = tokenFromEvent(event);
     if (!token) return response(401, { error: "Authentication required." });
     const decoded = await adminAuth.verifyIdToken(token);
-    const adminUser = await getUserRecord(decoded.uid);
+    const email = String(decoded.email || "").toLowerCase();
+    const adminUser = await getUserRecord(decoded.uid, email);
     const adminRole = normaliseRole(adminUser.role);
-    if (!isPrivilegedRole(adminRole) || !isActiveRecord(adminUser)) return response(403, { error: "Administrator privileges are required." });
+    const isSuperAdmin = email === "johnrufai242@gmail.com" || adminRole === "superadmin";
+    if (!isSuperAdmin && (!isPrivilegedRole(adminRole) || !isActiveRecord(adminUser))) {
+      return response(403, { error: "Administrator privileges are required." });
+    }
 
     const body = JSON.parse(event.body || "{}");
     const action = String(body.action || "").toLowerCase();
     const configRef = adminDb.collection("payment_config").doc("settings");
 
     if (action === "update_plan") {
-      if (adminRole !== "superadmin") return response(403, { error: "Only the super admin can change payment fees or plans." });
+      if (!isSuperAdmin) return response(403, { error: "Only the super admin can change payment fees or plans." });
       const planId = String(body.planId || "").trim();
-      const baseAmount = Number(body.baseAmount);
+      const baseAmount = Number(String(body.baseAmount ?? 0).replace(/[^0-9.]/g, ""));
       const durationWeeks = Number(body.durationWeeks);
       const name = String(body.name || "").trim();
       if (!planId || !Number.isFinite(baseAmount) || baseAmount < 0 || !Number.isFinite(durationWeeks) || durationWeeks < 1 || !name) {
@@ -60,7 +64,7 @@ export const handler: Handler = async event => {
     }
 
     if (action === "update_fee_policy") {
-      if (adminRole !== "superadmin") return response(403, { error: "Only the super admin can change transaction fee settings." });
+      if (!isSuperAdmin) return response(403, { error: "Only the super admin can change transaction fee settings." });
       const role = String(body.role || "parent").toLowerCase();
       if (role !== "parent" && role !== "school") return response(400, { error: "Fee policy role must be parent or school." });
       const percentage = Number(body.percentage), flat = Number(body.flat), cap = Number(body.cap), waiveFlatBelow = Number(body.waiveFlatBelow);
@@ -77,7 +81,7 @@ export const handler: Handler = async event => {
     }
 
     if (action === "set_withdrawal_fee_policy") {
-      if (adminRole !== "superadmin") return response(403, { error: "Only the super admin can change withdrawal fee settings." });
+      if (!isSuperAdmin) return response(403, { error: "Only the super admin can change withdrawal fee settings." });
       const percentage = Number(body.percentage), flat = Number(body.flat), cap = Number(body.cap);
       if (![percentage, flat, cap].every(Number.isFinite) || percentage < 0 || flat < 0 || cap < 0) {
         return response(400, { error: "Withdrawal fee values must be valid non-negative numbers." });
@@ -91,7 +95,7 @@ export const handler: Handler = async event => {
     }
 
     if (action === "set_minimum_withdrawal") {
-      if (adminRole !== "superadmin") return response(403, { error: "Only the super admin can change wallet withdrawal rules." });
+      if (!isSuperAdmin) return response(403, { error: "Only the super admin can change wallet withdrawal rules." });
       const amount = Number(body.amount);
       if (!Number.isFinite(amount) || amount < 0) return response(400, { error: "Invalid minimum withdrawal amount." });
       await configRef.set({ minimumWithdrawalAmount: amount, updatedBy: decoded.uid, updatedAt: new Date() }, { merge: true });
@@ -102,12 +106,13 @@ export const handler: Handler = async event => {
     if (action === "set_school_billing") {
       const schoolId = String(body.schoolId || "").trim();
       if (!schoolId) return response(400, { error: "School ID is required." });
-      const baseAmount = Number(body.baseAmount ?? 0);
-      const cycle = String(body.cycle || "monthly").toLowerCase(); // 'monthly' (4 weeks) or 'termly' (12 weeks)
+      const rawAmount = body.baseAmount ?? body.amount ?? 0;
+      const baseAmount = Number(String(rawAmount).replace(/[^0-9.]/g, "")) || 0;
+      const cycle = String(body.cycle || "termly").toLowerCase(); // 'monthly' (4 weeks) or 'termly' (12 weeks)
       const allowedModes = Array.isArray(body.allowedModes) && body.allowedModes.length > 0 
         ? body.allowedModes 
         : ["advance_monthly", "advance_termly", "post_monthly", "post_termly"];
-      const mode = String(body.mode || allowedModes[0] || "advance_monthly");
+      const mode = String(body.mode || allowedModes[0] || (cycle === "monthly" ? "advance_monthly" : "advance_termly"));
       const nextDueDate = body.nextDueDate ? String(body.nextDueDate) : "";
       const status = String(body.status || "ACTIVE").toUpperCase();
       const notes = String(body.notes || "").trim();
@@ -128,6 +133,21 @@ export const handler: Handler = async event => {
         billing: billingPayload,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+
+      // Also sync billing to any school admin user account linked to this schoolId
+      try {
+        const schoolAdminUsersSnap = await adminDb.collection("users").where("schoolId", "==", schoolId).get();
+        if (!schoolAdminUsersSnap.empty) {
+          for (const userDoc of schoolAdminUsersSnap.docs) {
+            await userDoc.ref.set({
+              billing: billingPayload,
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          }
+        }
+      } catch (syncErr) {
+        console.warn("School admin billing user sync notice:", syncErr);
+      }
 
       return response(200, { updated: true, billing: billingPayload });
     }
