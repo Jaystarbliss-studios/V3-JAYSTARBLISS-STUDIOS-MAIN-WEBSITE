@@ -1,4 +1,3 @@
-[object Object]
 /* =========================================================================
    PORTAL DASHBOARD REDESIGN
    Compact, editorial layout inspired by the supplied UX boards.
@@ -221,4 +220,367 @@ html.dark .dashboard-interface .text-gray-600,
 html.dark .school-dashboard .text-slate-600,
 html.dark .school-dashboard .text-gray-600 {
   color: #cbd5e1 !important;
+}
+
+
+/* ========================================================================
+   JAYSTARBLISS APPLICATION UI SYSTEM — DEEP PORTAL REDESIGN
+   Presentation-only layer. Existing routes, state, Firebase calls and actions
+   are intentionally untouched. The goal is an application-like workspace:
+   quiet chrome, strong hierarchy, compact information density and fewer
+   floating surfaces.
+   ======================================================================== */
+
+:root {
+  --jb-red: #b91c1c;
+  --jb-red-strong: #dc2626;
+  --jb-slate: #1e293b;
+  --jb-sand: #f7f3ea;
+  --jb-page: #f6f7f9;
+  --jb-line: #e5e7eb;
+  --jb-muted: #64748b;
+  --jb-dark-page: #0b0f14;
+  --jb-dark-surface: #11161d;
+  --jb-dark-raised: #171d25;
+  --jb-dark-line: rgba(255,255,255,.09);
+}
+
+.portal-shell,
+.admin-shell {
+  --app-page: var(--jb-page);
+  --app-surface: #ffffff;
+  --app-raised: #fbfcfd;
+  --app-line: var(--jb-line);
+  --app-text: #0f172a;
+  --app-muted: #64748b;
+  --app-accent: var(--jb-red);
+  background: var(--app-page);
+}
+
+.dark .portal-shell,
+.dark .admin-shell,
+html.dark .portal-shell,
+html.dark .admin-shell {
+  --app-page: var(--jb-dark-page);
+  --app-surface: var(--jb-dark-surface);
+  --app-raised: var(--jb-dark-raised);
+  --app-line: var(--jb-dark-line);
+  --app-text: #f8fafc;
+  --app-muted: #94a3b8;
+  --app-accent: #ef4444;
+}
+
+/* ------------------------------ APP CHROME ------------------------------ */
+.portal-sidebar,
+.admin-sidebar {
+  background: var(--app-surface) !important;
+  border-color: var(--app-line) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.portal-sidebar nav,
+.admin-sidebar > div:nth-child(2) {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,116,139,.28) transparent;
+}
+
+.portal-sidebar a,
+.admin-sidebar a {
+  border-radius: .55rem !important;
+  transition: background-color .16s ease, color .16s ease, border-color .16s ease !important;
+}
+
+.portal-sidebar a:not([class*="bg-red"]):hover,
+.admin-sidebar a:not([class*="bg-sky"]):hover {
+  background: rgba(15,23,42,.045) !important;
+}
+
+.dark .portal-sidebar a:not([class*="bg-red"]):hover,
+.dark .admin-sidebar a:not([class*="bg-sky"]):hover {
+  background: rgba(255,255,255,.055) !important;
+}
+
+.portal-topbar,
+.admin-topbar {
+  height: 3.75rem !important;
+  min-height: 3.75rem !important;
+  background: color-mix(in srgb, var(--app-surface) 94%, transparent) !important;
+  border-color: var(--app-line) !important;
+  box-shadow: 0 1px 0 rgba(15,23,42,.025) !important;
+  backdrop-filter: blur(14px) !important;
+}
+
+.portal-topbar h1,
+.admin-topbar > div:first-child > span {
+  font-size: .875rem !important;
+  letter-spacing: -.01em;
+}
+
+.portal-content,
+.admin-content {
+  color: var(--app-text);
+}
+
+.portal-workspace,
+.admin-workspace {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+/* --------------------------- PAGE HEADERS ------------------------------ */
+.portal-workspace > * > :is(h1,h2):first-child,
+.admin-workspace > * > :is(h1,h2):first-child {
+  letter-spacing: -.035em;
+}
+
+.portal-workspace h1,
+.admin-workspace h1 {
+  letter-spacing: -.035em;
+}
+
+.portal-workspace h2,
+.admin-workspace h2 {
+  letter-spacing: -.02em;
+}
+
+/* Most page roots use space-y-*; reduce its default Tailwind rhythm. */
+.portal-workspace > .space-y-8 > * + *,
+.portal-workspace > .space-y-7 > * + *,
+.portal-workspace > .space-y-6 > * + *,
+.admin-workspace > .space-y-8 > * + *,
+.admin-workspace > .space-y-7 > * + *,
+.admin-workspace > .space-y-6 > * + * {
+  margin-top: .9rem !important;
+}
+
+/* ------------------------ SURFACE LANGUAGE ----------------------------- */
+.portal-workspace .pro-surface,
+.admin-workspace .pro-surface {
+  background: var(--app-surface) !important;
+  border: 1px solid var(--app-line) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.025), 0 5px 18px rgba(15,23,42,.035) !important;
+  border-radius: .85rem !important;
+}
+
+.dark .portal-workspace .pro-surface,
+.dark .admin-workspace .pro-surface,
+html.dark .portal-workspace .pro-surface,
+html.dark .admin-workspace .pro-surface {
+  box-shadow: 0 7px 24px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+
+/* Flatten nested cards: the page section owns the boundary; records become
+   rows/list items instead of another stack of floating rectangles. */
+.portal-workspace .pro-surface [class*="bg-white"][class*="rounded-"],
+.portal-workspace .pro-surface [class*="bg-slate-50"][class*="rounded-"],
+.portal-workspace .pro-surface [class*="bg-gray-50"][class*="rounded-"],
+.admin-workspace .pro-surface [class*="bg-white"][class*="rounded-"],
+.admin-workspace .pro-surface [class*="bg-slate-50"][class*="rounded-"],
+.admin-workspace .pro-surface [class*="bg-gray-50"][class*="rounded-"] {
+  box-shadow: none !important;
+}
+
+/* Generic white dashboard panels on pages that predate pro-surface. */
+.portal-workspace > * [class*="bg-white"][class*="rounded-3xl"],
+.portal-workspace > * [class*="bg-white"][class*="rounded-2xl"],
+.admin-workspace > * [class*="bg-white"][class*="rounded-3xl"],
+.admin-workspace > * [class*="bg-white"][class*="rounded-2xl"] {
+  border-color: var(--app-line) !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.025) !important;
+  border-radius: .85rem !important;
+}
+
+/* --------------------------- METRIC STRIPS ------------------------------ */
+.portal-workspace [class*="grid"] > .pro-surface,
+.admin-workspace [class*="grid"] > .pro-surface {
+  min-width: 0;
+}
+
+.portal-workspace .pro-surface [class*="text-3xl"],
+.portal-workspace .pro-surface [class*="text-4xl"],
+.admin-workspace .pro-surface [class*="text-3xl"],
+.admin-workspace .pro-surface [class*="text-4xl"] {
+  letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------- TABLES ---------------------------------- */
+.portal-workspace table,
+.admin-workspace table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: .76rem;
+}
+
+.portal-workspace thead th,
+.admin-workspace thead th {
+  color: var(--app-muted) !important;
+  font-size: .65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--app-line) !important;
+  background: transparent !important;
+}
+
+.portal-workspace tbody tr,
+.admin-workspace tbody tr {
+  transition: background-color .14s ease;
+}
+
+.portal-workspace tbody tr:hover,
+.admin-workspace tbody tr:hover {
+  background: rgba(148,163,184,.055) !important;
+}
+
+.portal-workspace tbody td,
+.admin-workspace tbody td {
+  border-bottom: 1px solid color-mix(in srgb, var(--app-line) 75%, transparent) !important;
+}
+
+/* ----------------------------- FORMS ----------------------------------- */
+.portal-workspace input,
+.portal-workspace select,
+.portal-workspace textarea,
+.admin-workspace input,
+.admin-workspace select,
+.admin-workspace textarea {
+  min-height: 2.45rem;
+  border-radius: .6rem !important;
+  border-color: var(--app-line) !important;
+  background: var(--app-surface) !important;
+  color: var(--app-text) !important;
+  box-shadow: none !important;
+}
+
+.portal-workspace input:focus,
+.portal-workspace select:focus,
+.portal-workspace textarea:focus,
+.admin-workspace input:focus,
+.admin-workspace select:focus,
+.admin-workspace textarea:focus {
+  border-color: color-mix(in srgb, var(--app-accent) 55%, var(--app-line)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 10%, transparent) !important;
+  outline: none !important;
+}
+
+/* ------------------------- TABS / FILTERS ------------------------------- */
+.portal-workspace [role="tablist"],
+.admin-workspace [role="tablist"] {
+  border-bottom: 1px solid var(--app-line);
+}
+
+.portal-workspace [role="tab"],
+.admin-workspace [role="tab"] {
+  border-radius: .45rem .45rem 0 0 !important;
+  font-size: .76rem !important;
+}
+
+/* Status pills should be small and semantic, never decorative. */
+.portal-workspace [class*="rounded-full"],
+.admin-workspace [class*="rounded-full"] {
+  box-shadow: none !important;
+}
+
+/* Charts: preserve the existing chart library/configuration while giving the
+   chart area more breathing room and making surrounding chrome quieter. */
+.portal-workspace .recharts-wrapper,
+.admin-workspace .recharts-wrapper,
+.portal-workspace .recharts-responsive-container,
+.admin-workspace .recharts-responsive-container {
+  min-width: 0 !important;
+}
+
+/* ------------------------- MOBILE APP FEEL ----------------------------- */
+.portal-mobilebar {
+  min-height: 3.5rem;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+@media (max-width: 767px) {
+  .portal-content,
+  .admin-content {
+    padding: .75rem !important;
+  }
+
+  .portal-workspace,
+  .admin-workspace {
+    max-width: none;
+  }
+
+  .portal-workspace > .space-y-8 > * + *,
+  .portal-workspace > .space-y-7 > * + *,
+  .portal-workspace > .space-y-6 > * + *,
+  .admin-workspace > .space-y-8 > * + *,
+  .admin-workspace > .space-y-7 > * + *,
+  .admin-workspace > .space-y-6 > * + * {
+    margin-top: .65rem !important;
+  }
+
+  .portal-workspace .pro-surface,
+  .admin-workspace .pro-surface {
+    border-radius: .72rem !important;
+    padding: .85rem !important;
+  }
+
+  .portal-workspace h1,
+  .admin-workspace h1 {
+    font-size: 1.25rem !important;
+    line-height: 1.15 !important;
+  }
+
+  .portal-workspace h2,
+  .admin-workspace h2 {
+    font-size: .95rem !important;
+  }
+
+  .portal-workspace [class*="grid-cols-4"],
+  .portal-workspace [class*="grid-cols-3"],
+  .admin-workspace [class*="grid-cols-4"],
+  .admin-workspace [class*="grid-cols-3"] {
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+  }
+
+  .portal-workspace [class*="lg:grid-cols-"],
+  .admin-workspace [class*="lg:grid-cols-"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .portal-workspace .overflow-x-auto,
+  .admin-workspace .overflow-x-auto {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .portal-workspace table,
+  .admin-workspace table {
+    min-width: 620px;
+  }
+
+  .portal-topbar,
+  .admin-topbar {
+    padding-inline: .75rem !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .portal-workspace [class*="grid-cols-2"],
+  .admin-workspace [class*="grid-cols-2"] {
+    gap: .5rem !important;
+  }
+
+  .portal-workspace .pro-surface,
+  .admin-workspace .pro-surface {
+    padding: .75rem !important;
+  }
+}
+
+/* Never use decorative sparkle icons as part of the dashboard visual language. */
+.portal-workspace [data-icon="sparkles"],
+.admin-workspace [data-icon="sparkles"] {
+  display: none !important;
 }
