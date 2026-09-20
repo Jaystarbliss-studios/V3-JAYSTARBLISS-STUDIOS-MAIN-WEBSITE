@@ -3,7 +3,7 @@ import {
   Users, BookOpen, Download, 
   RefreshCw, School, Award, ArrowUpRight,
   ShieldCheck, CheckCircle2,
-  Sparkles
+  Bell
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
@@ -287,7 +287,7 @@ const AdminDashboard: React.FC = () => {
           { label: 'Pending Approvals', href: '/admin/approvals', icon: ShieldCheck, badge: 'Schools' },
           { label: 'Student Cadets', href: '/admin/students', icon: Users, badge: 'Registry' },
           { label: 'Curriculum & CBT', href: '/admin/resources', icon: BookOpen, badge: 'Library' },
-          { label: 'Public Inquiries', href: '/admin/inquiries', icon: Sparkles, badge: 'Admissions' },
+          { label: 'Public Inquiries', href: '/admin/inquiries', icon: Bell, badge: 'Admissions' },
         ].map((action, idx) => {
           const ActionIcon = action.icon;
           return (
