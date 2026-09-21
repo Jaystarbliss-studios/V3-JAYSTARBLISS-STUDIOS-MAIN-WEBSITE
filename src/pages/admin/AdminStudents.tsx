@@ -130,8 +130,8 @@ const AdminStudents: React.FC = () => {
     username: '',
     email: '',
     className: '',
-    track: 'STEM & Robotics Foundation',
-    subjects: 'Coding, Mathematics, Robotics',
+    track: 'Technology & Hardware & Electronics Foundation',
+    subjects: 'Coding, Mathematics, Hardware & Electronics',
     schoolId: '',
     parentId: '',
     tutorId: '',
@@ -260,7 +260,7 @@ const AdminStudents: React.FC = () => {
 
         const subjectsStr = Array.isArray(data.subjects)
           ? data.subjects.join(', ')
-          : (data.subjects || data.track || data.course || 'Coding, Mathematics, Robotics');
+          : (data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics');
 
         return {
           id,
@@ -270,7 +270,7 @@ const AdminStudents: React.FC = () => {
           email: data.email || data.studentEmail || '',
           class: data.class || data.className || data.grade || 'General',
           grade: data.grade || data.class || 'General',
-          track: data.track || data.learningTrack || data.program || data.course || 'STEM & Coding',
+          track: data.track || data.learningTrack || data.program || data.course || 'Technology & Coding',
           subjects: subjectsStr,
           schoolId,
           schoolName: sName,
@@ -346,7 +346,7 @@ const AdminStudents: React.FC = () => {
                 email: child.email || '',
                 class: child.class || child.grade || 'General',
                 grade: child.grade || child.class || 'General',
-                track: child.track || child.program || 'STEM & Coding',
+                track: child.track || child.program || 'Technology & Coding',
                 subjects: Array.isArray(child.subjects) ? child.subjects.join(', ') : (child.subjects || 'Coding, Mathematics'),
                 schoolId: child.schoolId || '',
                 schoolName: child.schoolName || '',
@@ -476,7 +476,7 @@ const AdminStudents: React.FC = () => {
             username: cleanUsername,
             email: form.email.trim() || undefined,
             class: form.className.trim() || 'General',
-            track: form.track.trim() || 'STEM & Coding',
+            track: form.track.trim() || 'Technology & Coding',
             subjects: subjectsArray,
             schoolId: form.studentType === 'school' ? form.schoolId : undefined,
             parentId: form.studentType === 'parent' ? form.parentId : undefined,
@@ -518,7 +518,7 @@ const AdminStudents: React.FC = () => {
         email: form.email.trim() || null,
         class: form.className.trim() || 'General',
         grade: form.className.trim() || 'General',
-        track: form.track.trim() || 'STEM & Coding',
+        track: form.track.trim() || 'Technology & Coding',
         subjects: subjectsArray,
         schoolId: form.studentType === 'school' ? form.schoolId : null,
         schoolName: form.studentType === 'school' ? (schoolObj?.name || form.schoolId) : null,
@@ -567,8 +567,8 @@ const AdminStudents: React.FC = () => {
       username: '',
       email: '',
       className: '',
-      track: 'STEM & Robotics Foundation',
-      subjects: 'Coding, Mathematics, Robotics',
+      track: 'Technology & Hardware & Electronics Foundation',
+      subjects: 'Coding, Mathematics, Hardware & Electronics',
       schoolId: '',
       parentId: '',
       tutorId: '',
@@ -644,7 +644,7 @@ const AdminStudents: React.FC = () => {
       tutorName: foundTutor.name,
       tutorEmail: foundTutor.email,
       role: newMentorDraft.role || 'Lead Mentor',
-      trackOrSubject: newMentorDraft.trackOrSubject || assigningTutorStudent?.track || 'General STEM'
+      trackOrSubject: newMentorDraft.trackOrSubject || assigningTutorStudent?.track || 'General Technology'
     };
 
     setSelectedTutorsList([...selectedTutorsList, newMentorEntry]);
@@ -1249,7 +1249,7 @@ const AdminStudents: React.FC = () => {
               type="text"
               value={resourceForm.title}
               onChange={e => setResourceForm(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="e.g. Python Loops Workshop Guide or Google Meet Lab"
+              placeholder="e.g. Python Loops Workshop Guide or Google Meet workspace"
               className="w-full rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-950/70 dark:text-white"
               required
             />
@@ -1550,7 +1550,7 @@ const AdminStudents: React.FC = () => {
                     type="text"
                     value={form.track}
                     onChange={e => setForm(prev => ({ ...prev, track: e.target.value }))}
-                    placeholder="e.g. Python & Robotics Track"
+                    placeholder="e.g. Python & Hardware & Electronics Track"
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -1563,7 +1563,7 @@ const AdminStudents: React.FC = () => {
                     type="text"
                     value={form.subjects}
                     onChange={e => setForm(prev => ({ ...prev, subjects: e.target.value }))}
-                    placeholder="Coding, Mathematics, Robotics"
+                    placeholder="Coding, Mathematics, Hardware & Electronics"
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -1672,7 +1672,7 @@ const AdminStudents: React.FC = () => {
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-950/50">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Class &amp; Learning Track</span>
                 <p className="mt-1 text-xs font-semibold text-slate-900 dark:text-white truncate">
-                  {managingStudent.class || 'General'} · <strong className="text-slate-800 dark:text-slate-200">{managingStudent.track || 'STEM & Coding'}</strong>
+                  {managingStudent.class || 'General'} · <strong className="text-slate-800 dark:text-slate-200">{managingStudent.track || 'Technology & Coding'}</strong>
                 </p>
               </div>
 
@@ -1983,7 +1983,7 @@ const AdminStudents: React.FC = () => {
                       className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                     >
                       <option value="Lead Mentor">Lead Mentor</option>
-                      <option value="Robotics Instructor">Robotics Instructor</option>
+                      <option value="Hardware & Electronics Instructor">Hardware & Electronics Instructor</option>
                       <option value="Coding Coach">Coding Coach</option>
                       <option value="Mathematics Specialist">Mathematics Specialist</option>
                       <option value="AI &amp; Data Guide">AI &amp; Data Guide</option>
