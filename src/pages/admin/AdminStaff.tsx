@@ -141,6 +141,7 @@ const AdminStaff: React.FC = () => {
         tutorsSnap,
         staffCollSnap,
         tutorAppsSnap,
+        tutorSubjectsSnap,
         schoolsSnap,
         staffSchoolAccessSnap,
         schoolStudentsSnap,
@@ -151,6 +152,7 @@ const AdminStaff: React.FC = () => {
         getDocs(collection(db, 'tutors')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'staff')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'tutor_applications')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'tutorSubjects')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'staffSchoolAccess')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'students')).catch(() => ({ docs: [] } as any)),
@@ -186,6 +188,16 @@ const AdminStaff: React.FC = () => {
         if (data.email) {
           tutorAppsByEmail.set(String(data.email).toLowerCase().trim(), data);
         }
+      });
+
+      // Map approved teaching subjects
+      const approvedSubjectsByTutor = new Map<string, string[]>();
+      tutorSubjectsSnap.docs.forEach((d: any) => {
+        const data = d.data();
+        if (!data.tutorId || !data.subjectName) return;
+        const current = approvedSubjectsByTutor.get(data.tutorId) || [];
+        current.push(String(data.subjectName));
+        approvedSubjectsByTutor.set(data.tutorId, current);
       });
 
       // Map tutors collection documents
@@ -240,7 +252,8 @@ const AdminStaff: React.FC = () => {
         const userSubjects = normalizeSubjects(st.subjects || st.specialization || st.courses || st.track || st.teachingSubjects);
         const tutorSubjects = normalizeSubjects(tutorData.subjects || tutorData.specialization);
         const appSubjects = normalizeSubjects(appData.subjects);
-        const mergedSubjects = Array.from(new Set([...userSubjects, ...tutorSubjects, ...appSubjects]));
+        const approvedSubjects = approvedSubjectsByTutor.get(staffId) || [];
+        const mergedSubjects = Array.from(new Set([...userSubjects, ...tutorSubjects, ...appSubjects, ...approvedSubjects]));
 
         const specialization = st.specialization || tutorData.specialization || appData.specialization || 
                                st.track || st.department || (mergedSubjects.length > 0 ? mergedSubjects.join(', ') : 'Academic & Creative Track');
