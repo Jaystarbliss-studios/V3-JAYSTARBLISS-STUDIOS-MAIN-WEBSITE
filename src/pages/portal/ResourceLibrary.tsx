@@ -5,7 +5,7 @@ import {
   X, Terminal, Loader2, Zap
 } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 
