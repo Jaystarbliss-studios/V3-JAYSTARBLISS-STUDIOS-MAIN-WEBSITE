@@ -101,7 +101,7 @@ const StaffDashboard: React.FC = () => {
                 amount: 75000,
                 type: 'credit',
                 category: 'Tutor Allocation',
-                description: 'STEM Curriculum Delivery Stipend • Term 1 Batch',
+                description: 'Curriculum Delivery Stipend • Term 1 Batch',
                 channel: 'OPay / Bank Settlement',
                 status: 'successful',
                 paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -116,7 +116,7 @@ const StaffDashboard: React.FC = () => {
                 amount: 35000,
                 type: 'credit',
                 category: 'Mentorship Bonus',
-                description: 'Practical Robotics & CBT Supervision Honorarium',
+                description: 'Practical Coding & Assessment Honorarium',
                 channel: 'Bank Transfer (GTBank)',
                 status: 'successful',
                 paidAt: new Date(Date.now() - 86400000 * 7).toISOString(),
@@ -137,7 +137,7 @@ const StaffDashboard: React.FC = () => {
             amount: 75000,
             type: 'credit',
             category: 'Tutor Allocation',
-            description: 'STEM Curriculum Delivery Stipend • Term 1 Batch',
+            description: 'Curriculum Delivery Stipend • Term 1 Batch',
             channel: 'OPay / Bank Settlement',
             status: 'successful',
             paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -394,7 +394,7 @@ const StaffDashboard: React.FC = () => {
                   </p>
                   <div className="mt-3 text-xs">
                     <span className="text-slate-400 block mb-0.5 text-[10px] uppercase font-bold">Track / Track Plan:</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{st.plan || 'Practical STEM Track'}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{st.plan || 'Practical Learning Track'}</span>
                   </div>
                   {st.schedule && (
                     <div className="mt-2 text-xs text-brand-red font-bold flex items-center gap-1">
@@ -408,7 +408,7 @@ const StaffDashboard: React.FC = () => {
                     to={`/portal/staff/students/${st.id}`} 
                     className="text-xs font-black text-brand-red hover:underline flex items-center gap-1"
                   >
-                    <span>Open Student Lab</span>
+                    <span>Open Student Workspace</span>
                     <ArrowRight size={13} />
                   </Link>
                   <button 
@@ -519,7 +519,7 @@ const StaffDashboard: React.FC = () => {
                   <option>Google Meet</option>
                   <option>Zoom Meeting</option>
                   <option>Microsoft Teams</option>
-                  <option>Scratch Live Lab</option>
+                  <option>Scratch Live Session</option>
                 </select>
               </div>
 
