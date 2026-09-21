@@ -23,7 +23,7 @@ export interface AssignedTutorAllocation {
   tutorEmail?: string;
   payoutRate: number; // in NGN
   payoutType: 'per_student' | 'per_term' | 'per_month' | 'fixed_stipend';
-  role?: 'lead' | 'co_tutor' | 'assistant' | 'lab_engineer';
+  role?: 'lead' | 'co_tutor' | 'assistant' | 'technical_facilitator';
   notes?: string;
 }
 
@@ -130,7 +130,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
       mode: 'advance_termly',
       nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       status: 'ACTIVE',
-      notes: 'Full institutional lab suite and weekend mentorship access.'
+      notes: 'Full institutional workspace suite and weekend mentorship access.'
     }
   },
   { 
@@ -297,7 +297,7 @@ const AdminSchools: React.FC = () => {
   const [resourceForm, setResourceForm] = useState({
     title: '',
     url: '',
-    category: 'Curriculum & Lab Manual',
+    category: 'Curriculum & workspace Manual',
     description: ''
   });
   const [showResourceModal, setShowResourceModal] = useState(false);
@@ -338,7 +338,7 @@ const AdminSchools: React.FC = () => {
           const p = d.data();
           return {
             id: d.id,
-            name: p.title || p.name || 'STEM Programme',
+            name: p.title || p.name || 'Technology Programme',
             description: p.shortDescription || p.description || '',
             level: p.targetAudience || p.level || p.grade || 'All Grades'
           };
@@ -570,7 +570,7 @@ const AdminSchools: React.FC = () => {
         email: selectedSchool.contactEmail || selectedSchool.email,
         amount: billingForm.baseAmount,
         nextDueDate: billingForm.nextDueDate,
-        title: `Tuition & Lab Subscription Due - ${selectedSchool.name}`
+        title: `Tuition & workspace Subscription Due - ${selectedSchool.name}`
       });
 
       setBillingForm(prev => ({ ...prev, lastReminderSentAt: nowIso }));
@@ -732,7 +732,7 @@ const AdminSchools: React.FC = () => {
       const docRef = await addDoc(collection(db, 'schoolLinks'), resData);
       setResources(prev => [{ id: docRef.id, ...resData }, ...prev]);
       setShowResourceModal(false);
-      setResourceForm({ title: '', url: '', category: 'Curriculum & Lab Manual', description: '' });
+      setResourceForm({ title: '', url: '', category: 'Curriculum & workspace Manual', description: '' });
       toast.success('Resource link published for school.');
     } catch (err) {
       console.error('Create resource failed:', err);
@@ -812,7 +812,7 @@ const AdminSchools: React.FC = () => {
           mode: onboardForm.mode,
           nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
           status: 'ACTIVE',
-          notes: 'Standard institutional curriculum and lab partnership agreement.'
+          notes: 'Standard institutional curriculum and workspace partnership agreement.'
         }
       };
 
@@ -1062,7 +1062,7 @@ const AdminSchools: React.FC = () => {
                 <div>
                   <h2 className="text-base font-black text-slate-900 dark:text-white">Active Programmes & Multi-Tutor Deployment</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Assign one or multiple STEM programmes, laboratory scopes, and assign multiple tutors with custom payout rates.
+                    Assign one or multiple Technology programmes, laboratory scopes, and assign multiple tutors with custom payout rates.
                   </p>
                 </div>
                 <button
@@ -1073,7 +1073,7 @@ const AdminSchools: React.FC = () => {
                       name: '',
                       description: '',
                       level: 'Primary 4 - SSS 3',
-                      schedule: 'Weekly STEM Lab (2 Sessions / Week)',
+                      schedule: 'Weekly Technology workspace (2 Sessions / Week)',
                       status: 'ACTIVE',
                       baseFee: 0,
                       assignedTutors: []
@@ -1109,7 +1109,7 @@ const AdminSchools: React.FC = () => {
                   {isNewProgram && catalogPrograms.length > 0 && (
                     <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
                       <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                        Quick Select From STEM Catalog:
+                        Quick Select From Technology Catalog:
                       </label>
                       <div className="flex flex-wrap gap-2">
                         {catalogPrograms.map(cat => (
@@ -1145,7 +1145,7 @@ const AdminSchools: React.FC = () => {
                           required
                           value={editingProgram.name}
                           onChange={e => setEditingProgram(p => p ? { ...p, name: e.target.value } : null)}
-                          placeholder="e.g. Smart Robotics & IoT Lab"
+                          placeholder="e.g. Smart Hardware & Electronics & IoT workspace"
                           className={inputClass}
                         />
                       </div>
@@ -1162,7 +1162,7 @@ const AdminSchools: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className={labelClass}>Lab Days & Time Schedule</label>
+                        <label className={labelClass}>workspace Days & Time Schedule</label>
                         <input
                           value={editingProgram.schedule || ''}
                           onChange={e => setEditingProgram(p => p ? { ...p, schedule: e.target.value } : null)}
@@ -1304,7 +1304,7 @@ const AdminSchools: React.FC = () => {
                                 >
                                   <option value="lead">Lead Instructor</option>
                                   <option value="co_tutor">Co-Tutor / Assistant</option>
-                                  <option value="lab_engineer">Lab Engineer</option>
+                                  <option value="technical_facilitator">workspace Engineer</option>
                                   <option value="assistant">Teaching Assistant</option>
                                 </select>
                               </div>
@@ -1392,7 +1392,7 @@ const AdminSchools: React.FC = () => {
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">No Active Programmes Assigned Yet</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                    This school currently has no active programmes. Click below to add a custom curriculum or STEM laboratory track.
+                    This school currently has no active programmes. Click below to add a custom curriculum or Technology laboratory track.
                   </p>
                   <button
                     type="button"
@@ -1402,7 +1402,7 @@ const AdminSchools: React.FC = () => {
                         name: '',
                         description: '',
                         level: 'Primary 4 - SSS 3',
-                        schedule: 'Weekly STEM Lab (2 Sessions / Week)',
+                        schedule: 'Weekly Technology workspace (2 Sessions / Week)',
                         status: 'ACTIVE',
                         baseFee: 0,
                         assignedTutors: []
@@ -1727,7 +1727,7 @@ const AdminSchools: React.FC = () => {
                       rows={2}
                       value={billingForm.notes || ''}
                       onChange={e => setBillingForm(b => ({ ...b, notes: e.target.value }))}
-                      placeholder="Special discount terms, physical lab kit allocation, or payment invoice notes..."
+                      placeholder="Special discount terms, physical workspace kit allocation, or payment invoice notes..."
                       className={inputClass}
                     />
                   </div>
@@ -1852,7 +1852,7 @@ const AdminSchools: React.FC = () => {
                           required
                           value={passcodeForm.examTitle}
                           onChange={e => setPasscodeForm(p => ({ ...p, examTitle: e.target.value }))}
-                          placeholder="e.g. Mid-Term Robotics Practical Examination"
+                          placeholder="e.g. Mid-Term Hardware & Electronics Practical Examination"
                           className={inputClass}
                         />
                       </div>
@@ -1863,7 +1863,7 @@ const AdminSchools: React.FC = () => {
                           <input
                             value={passcodeForm.subject}
                             onChange={e => setPasscodeForm(p => ({ ...p, subject: e.target.value }))}
-                            placeholder="e.g. Robotics & IoT"
+                            placeholder="e.g. Hardware & Electronics & IoT"
                             className={inputClass}
                           />
                         </div>
@@ -1956,7 +1956,7 @@ const AdminSchools: React.FC = () => {
                               {p.examTitle}
                             </td>
                             <td className="py-3.5 px-3 text-slate-500">
-                              {p.subject || 'STEM'} • {p.classLevel || 'All Levels'}
+                              {p.subject || 'Technology'} • {p.classLevel || 'All Levels'}
                             </td>
                             <td className="py-3.5 px-3 font-mono font-black text-brand-red">
                               <span className="bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-md">
@@ -2021,7 +2021,7 @@ const AdminSchools: React.FC = () => {
                 <div>
                   <h2 className="text-base font-black text-slate-900 dark:text-white">Curriculum Resources & External Practical Links</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Attach lab manuals, Google Drive kits, PDF curriculums, and CBT exam interfaces to this school.
+                    Attach workspace manuals, Google Drive kits, PDF curriculums, and CBT exam interfaces to this school.
                   </p>
                 </div>
                 <button
@@ -2057,7 +2057,7 @@ const AdminSchools: React.FC = () => {
                           required
                           value={resourceForm.title}
                           onChange={e => setResourceForm(r => ({ ...r, title: e.target.value }))}
-                          placeholder="e.g. Primary 5 Robotics Lab Guide (Term 2)"
+                          placeholder="e.g. Primary 5 Hardware & Electronics workspace Guide (Term 2)"
                           className={inputClass}
                         />
                       </div>
@@ -2070,10 +2070,10 @@ const AdminSchools: React.FC = () => {
                             onChange={e => setResourceForm(r => ({ ...r, category: e.target.value }))}
                             className={inputClass}
                           >
-                            <option value="Curriculum & Lab Manual">Curriculum & Lab Manual</option>
+                            <option value="Curriculum & workspace Manual">Curriculum & workspace Manual</option>
                             <option value="CBT Examination Link">CBT Examination Link</option>
                             <option value="Project Assessment Sheet">Project Assessment Sheet</option>
-                            <option value="Tutor Lab Presentation">Tutor Lab Presentation</option>
+                            <option value="Tutor workspace Presentation">Tutor workspace Presentation</option>
                           </select>
                         </div>
                         <div>
