@@ -7,7 +7,7 @@ import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import StaffSchoolAssignments from './StaffSchoolAssignments';
 import { 
-  UserCheck, Key, Plus, Trash2, 
+  UserCheck, Users, Key, Plus, Trash2, 
   ExternalLink, BookOpen, 
   Briefcase, Mail, Phone, ShieldBan, ShieldCheck,
   Settings, X, Copy, School, GraduationCap,
