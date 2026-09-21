@@ -91,13 +91,13 @@ const AdminStaff: React.FC = () => {
 
   // Staff members & enriched data
   const [staffList, setStaffList] = useState<EnrichedStaff[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get('tutorId') || '');
 
   // Filter Popover States
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED' | 'BANNED'>('ALL');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'TUTOR' | 'STAFF' | 'INSTRUCTOR'>('ALL');
-  const [subjectFilter, setSubjectFilter] = useState<string>('ALL');
+  const [subjectFilter, setSubjectFilter] = useState<string>(() => new URLSearchParams(window.location.search).get('subject') || 'ALL');
   const [studentAssignmentFilter, setStudentAssignmentFilter] = useState<'ALL' | 'ASSIGNED' | 'UNASSIGNED'>('ALL');
   const [schoolAssignmentFilter, setSchoolAssignmentFilter] = useState<'ALL' | 'ASSIGNED' | 'UNASSIGNED'>('ALL');
   const filterRef = useRef<HTMLDivElement>(null);
