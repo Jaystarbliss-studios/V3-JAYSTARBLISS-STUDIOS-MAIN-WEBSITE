@@ -15,7 +15,7 @@ export interface ResourceDocument {
   category: 'student' | 'school' | 'both' | 'staff' | 'all';
   subject: string;
   classLevel: string;
-  docType: 'PDF' | 'Lesson Note' | 'Syllabus' | 'Lab Worksheet' | 'Cheatsheet' | 'Past Exam';
+  docType: 'PDF' | 'Lesson Note' | 'Syllabus' | 'Practical Worksheet' | 'Cheatsheet' | 'Past Exam';
   description: string;
   fileUrl?: string;
   fileSize?: string;
@@ -58,10 +58,10 @@ const CLASS_LEVELS = [
   'Primary / Elementary (Grades 1-5)',
   'JSS 1-3 / Junior Secondary',
   'SSS 1-3 / Senior Secondary',
-  'STEM Explorers (Ages 10-13)',
-  'Creative Coders (Ages 7-10)',
+  'Foundational Science & Technology (Ages 10-13)',
+  'Creative Coding (Ages 7-10)',
   'Foundational (Ages 6-8)',
-  'Partner School Labs (All Batches)'
+  'Partner School Programmes (All Batches)'
 ];
 
 const SUBJECTS = [
@@ -69,7 +69,7 @@ const SUBJECTS = [
   'Computer Science & ICT',
   'Python Programming',
   'Web Development (React & Tailwind)',
-  'Robotics & Arduino IoT',
+  'Hardware & Electronics',
   'Scratch & Visual Logic',
   'Digital Literacy & Safety',
   'UI/UX & Creative Design',
@@ -80,7 +80,7 @@ const DOC_TYPES = [
   'All Types',
   'Syllabus',
   'Lesson Note',
-  'Lab Worksheet',
+  'Practical Worksheet',
   'Cheatsheet',
   'Past Exam',
   'PDF'
@@ -113,8 +113,8 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   // Compute number of items uploaded in the last 48 hours for current role
   const recentCount = useMemo(() => {
     return resources.filter(item => {
-      if (role === 'student' && item.category === 'school') return false;
-      if (role === 'school' && item.category === 'student') return false;
+      if (role === 'student' || role === 'parent') return item.category === 'student';
+      if (role === 'school') return item.category === 'school' || item.category === 'both' || item.category === 'all';
       return isResourceRecent(item.dateAdded);
     }).length;
   }, [resources, role]);
@@ -124,30 +124,87 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
     const fetchFirestoreResources = async () => {
       try {
         setLoading(true);
-        const [resSnap, schoolResSnap] = await Promise.all([
-          getDocs(collection(db, 'resources')).catch(() => ({ docs: [] })),
-          getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] }))
-        ]);
-        
-        const allDocs = [...resSnap.docs, ...schoolResSnap.docs];
-        const dbItems: ResourceDocument[] = allDocs.map(doc => {
-          const d = doc.data();
-          return {
-            id: doc.id,
-            title: d.title || 'Curriculum Resource',
-            category: d.category || (d.targetRole === 'school' ? 'school' : 'both'),
-            subject: d.subject || d.subjectTrack || 'Computer Science & ICT',
-            classLevel: d.classLevel || d.gradeLevel || 'STEM Explorers (Ages 10-13)',
-            docType: (d.type as any) || (d.docType as any) || 'PDF',
-            description: d.description || 'Reference notes, syllabus, or worksheet.',
-            fileUrl: d.fileUrl || d.url || '',
-            fileSize: d.fileSize || 'PDF Document',
-            author: d.author || d.instructor || 'Jaystarbliss Tutors',
-            dateAdded: d.timestamp?.toDate ? d.timestamp.toDate().toISOString() : d.dateAdded || d.createdAt || '',
-            tags: d.tags || ['Study Material'],
-            content: d.content
-          };
-        });
+        const currentUid = auth.currentUser?.uid || '';
+        const studentDocId = sessionStorage.getItem('studentDocId') || '';
+        let dbItems: ResourceDocument[] = [];
+
+        if (role === 'school') {
+          const [resSnap, schoolResSnap] = await Promise.all([
+            getDocs(collection(db, 'resources')).catch(() => ({ docs: [] })),
+            getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] }))
+          ]);
+          dbItems = [...resSnap.docs, ...schoolResSnap.docs].map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              title: d.title || 'Curriculum Resource',
+              category: d.category || 'school',
+              subject: d.subject || d.subjectTrack || 'Computer Science & ICT',
+              classLevel: d.classLevel || d.gradeLevel || 'All Classes',
+              docType: (d.type as any) || (d.docType as any) || 'PDF',
+              description: d.description || 'Reference notes, syllabus, or worksheet.',
+              fileUrl: d.fileUrl || d.url || '',
+              fileSize: d.fileSize || 'PDF Document',
+              author: d.author || d.instructor || 'Jaystarbliss Tutors',
+              dateAdded: d.timestamp?.toDate ? d.timestamp.toDate().toISOString() : d.dateAdded || d.createdAt || '',
+              tags: d.tags || ['Study Material'],
+              content: d.content
+            };
+          });
+        } else if (role === 'staff') {
+          const [resSnap, staffSnap] = await Promise.all([
+            getDocs(collection(db, 'resources')).catch(() => ({ docs: [] })),
+            getDocs(collection(db, 'staffGeneralResources')).catch(() => ({ docs: [] }))
+          ]);
+          dbItems = [...resSnap.docs, ...staffSnap.docs].map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              title: d.title || 'Teaching Resource',
+              category: 'staff',
+              subject: d.subject || d.subjectTrack || 'General',
+              classLevel: d.classLevel || d.gradeLevel || 'All Classes',
+              docType: (d.type as any) || (d.docType as any) || 'PDF',
+              description: d.description || 'Teaching material.',
+              fileUrl: d.fileUrl || d.url || '',
+              fileSize: d.fileSize || 'Document',
+              author: d.author || d.instructor || 'Jaystarbliss Studios',
+              dateAdded: d.timestamp?.toDate ? d.timestamp.toDate().toISOString() : d.dateAdded || d.createdAt || '',
+              tags: d.tags || ['Teaching Material'],
+              content: d.content
+            };
+          });
+        } else {
+          // Private learners and parents receive only resources explicitly attached to a learner.
+          let learnerIds = [studentDocId, currentUid].filter(Boolean);
+          if (role === 'parent' && currentUid) {
+            try {
+              const childSnap = await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', currentUid)));
+              learnerIds = [...new Set([...learnerIds, ...childSnap.docs.map(d => d.id)])];
+            } catch {}
+          }
+          const personalDocs = await Promise.all(learnerIds.map(id =>
+            getDocs(query(collection(db, 'personalResources'), where('studentId', '==', id))).catch(() => ({ docs: [] }))
+          ));
+          dbItems = personalDocs.flatMap(snap => snap.docs).map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              title: d.title || 'Personal Learning Resource',
+              category: 'student' as const,
+              subject: d.subject || 'General',
+              classLevel: d.classLevel || d.gradeLevel || 'Personal',
+              docType: (d.type as any) || (d.docType as any) || 'PDF',
+              description: d.description || 'A learning resource assigned to this learner.',
+              fileUrl: d.fileUrl || d.url || '',
+              fileSize: d.fileSize || 'Document',
+              author: d.author || d.instructorName || 'Jaystarbliss Tutor',
+              dateAdded: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.dateAdded || '',
+              tags: d.tags || ['Assigned Resource'],
+              content: d.content
+            };
+          });
+        }
 
         setResources(dbItems);
       } catch (err) {
@@ -179,8 +236,8 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   const filteredResources = useMemo(() => {
     const list = resources.filter(item => {
       // Role match
-      if (role === 'student' && item.category === 'school') return false;
-      if (role === 'school' && item.category === 'student') return false;
+      if (role === 'student' || role === 'parent') return item.category === 'student';
+      if (role === 'school') return item.category === 'school' || item.category === 'both' || item.category === 'all';
 
       // Active tab filter
       if (activeTab === 'recent') {
@@ -192,7 +249,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
       } else if (activeTab === 'notes') {
         if (item.docType !== 'Lesson Note') return false;
       } else if (activeTab === 'worksheets') {
-        if (item.docType !== 'Lab Worksheet' && item.docType !== 'Cheatsheet' && item.docType !== 'Past Exam') return false;
+        if (item.docType !== 'Practical Worksheet' && item.docType !== 'Cheatsheet' && item.docType !== 'Past Exam') return false;
       }
 
       // Class Filter
@@ -261,7 +318,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
         return 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800';
       case 'Lesson Note':
         return 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      case 'Lab Worksheet':
+      case 'Practical Worksheet':
         return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'Cheatsheet':
         return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
@@ -316,7 +373,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by topic, keyword, Python, Scratch, Robotics, JSS, HTML..."
+              placeholder="Search by topic, keyword, Python, Scratch, Hardware & Electronics, JSS, HTML..."
               className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-hidden focus:border-brand-red"
             />
             {searchQuery && (
@@ -432,7 +489,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
           </h3>
           <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 leading-relaxed">
             {resources.length === 0 
-              ? 'Curriculum syllabi, lesson notes, and lab worksheets uploaded by educators in the Admin Panel will appear here automatically.'
+              ? 'Curriculum syllabi, lesson notes, and practical worksheets uploaded by educators in the Admin Panel will appear here automatically.'
               : 'Try resetting your search query, class grade, or document format filters.'}
           </p>
           {resources.length > 0 && (
