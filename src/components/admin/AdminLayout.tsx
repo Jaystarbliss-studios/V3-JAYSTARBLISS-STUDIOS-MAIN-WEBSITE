@@ -123,6 +123,7 @@ const AdminLayout: React.FC = () => {
         { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
         { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
         { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
+        { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: BookOpen, desc: "Approve subjects & find matching tutors" },
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
         { name: "Learning Resources", href: "/admin/resources", icon: FolderOpen, desc: "General downloads, links & tests" },
