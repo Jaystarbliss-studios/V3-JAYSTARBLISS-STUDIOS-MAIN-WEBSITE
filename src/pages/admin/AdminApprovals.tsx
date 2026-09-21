@@ -10,13 +10,15 @@ import SEO from '../../components/ui/SEO';
 
 const AdminApprovals: React.FC = () => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'tutors' | 'students' | 'enrollments'>('tutors');
+  const [activeTab, setActiveTab] = useState<'tutors' | 'subjects' | 'students' | 'enrollments'>('tutors');
   const [search, setSearch] = useState('');
   const [studentReqs, setStudentReqs] = useState<any[]>([]);
   const [tutorReqs, setTutorReqs] = useState<any[]>([]);
+  const [subjectReqs, setSubjectReqs] = useState<any[]>([]);
   const [enrollmentReqs, setEnrollmentReqs] = useState<any[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [selectedTutorDetail, setSelectedTutorDetail] = useState<any | null>(null);
+  const [selectedSubjectDetail, setSelectedSubjectDetail] = useState<any | null>(null);
 
   useEffect(() => {
     const qStudents = query(collection(db, 'student_requests'), where('status', '==', 'pending'));
@@ -29,6 +31,11 @@ const AdminApprovals: React.FC = () => {
       setTutorReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    const qSubjects = query(collection(db, 'tutor_subject_applications'), where('status', '==', 'pending'));
+    const unsubSubjects = onSnapshot(qSubjects, (snap) => {
+      setSubjectReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     const qEnrollments = query(collection(db, 'enrollment_requests'), where('status', '==', 'pending'));
     const unsubEnrollments = onSnapshot(qEnrollments, (snap) => {
       setEnrollmentReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -37,6 +44,7 @@ const AdminApprovals: React.FC = () => {
     return () => {
       unsubStudents();
       unsubTutors();
+      unsubSubjects();
       unsubEnrollments();
     };
   }, []);
@@ -257,9 +265,6 @@ const AdminApprovals: React.FC = () => {
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="text-brand-red font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5">
-              <Clock size={13} /> Admission & Staffing Queue
-            </div>
             <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
               Approvals & Onboarding
             </h1>

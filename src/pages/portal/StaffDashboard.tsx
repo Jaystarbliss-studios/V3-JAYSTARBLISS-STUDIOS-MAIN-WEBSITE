@@ -260,7 +260,6 @@ const StaffDashboard: React.FC = () => {
       />
 
       <DashboardGreeting 
-        name={auth.currentUser?.displayName || 'Faculty Instructor'} 
         role="Faculty Mentor" 
         subtitle="Deliver interactive lessons, manage assigned learners, review earnings, and withdraw funds." 
       />

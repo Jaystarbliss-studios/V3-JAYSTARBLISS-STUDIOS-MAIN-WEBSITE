@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
+import { useTheme } from '../../contexts/ThemeContext';
 import { 
   Loader2, Save, AlertCircle, CheckCircle2, 
-  Radio, Mail, Send, Check, ShieldCheck, Sparkles 
+  Radio, Mail, Send, Check, ShieldCheck, Sparkles, Sun, Moon 
 } from 'lucide-react';
 
 const AdminSettings: React.FC = () => {
+  const { theme, toggleTheme, isHighContrast, toggleHighContrast } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -179,11 +181,23 @@ const AdminSettings: React.FC = () => {
           to: testEmailRecipient
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Test email delivery failed.');
+
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        const errorMsg = data?.error || (res.status === 404 ? 'Email backend endpoint not active in local preview. RESEND_API_KEY is configured for production.' : `Test email delivery failed (Status: ${res.status}).`);
+        throw new Error(errorMsg);
+      }
+
       setTestEmailResult({
         success: true,
-        message: data.message || `Test email successfully dispatched to ${testEmailRecipient} via Resend!`
+        message: data?.message || `Test email successfully dispatched to ${testEmailRecipient} via Resend!`
       });
     } catch (err: any) {
       setTestEmailResult({
@@ -200,19 +214,103 @@ const AdminSettings: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-3xl font-bold text-brand-slate mb-8">Global Settings</h1>
+    <div className="max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Global Settings</h1>
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Configure portal themes, notification channels, cloud storage, and announcements.</p>
+      </div>
       
       {message.text && (
-        <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
-          message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+        <div className={`p-4 rounded-xl flex items-center gap-3 ${
+          message.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
         }`}>
           {message.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
-          <p className="font-semibold">{message.text}</p>
+          <p className="font-semibold text-sm">{message.text}</p>
         </div>
       )}
+
+      {/* Theme Appearance Mode Toggle */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-6 md:p-7 space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Theme Appearance</span>
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Switch your administrative interface between light and dark modes.</p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-600 dark:text-sky-400">
+            {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}
+          </span>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+            Color Theme Mode
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+            <button
+              type="button"
+              onClick={() => { if (theme === 'dark') toggleTheme(); }}
+              className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
+                theme === 'light'
+                  ? 'border-brand-red bg-brand-red/5 ring-1 ring-brand-red/20 shadow-xs'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-amber-500 shadow-xs">
+                <Sun size={18} />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Light Mode</div>
+                <div className="text-[10px] text-slate-500">Crisp daylight contrast</div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { if (theme === 'light') toggleTheme(); }}
+              className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
+                theme === 'dark'
+                  ? 'border-brand-red bg-brand-red/5 ring-1 ring-brand-red/20 shadow-xs'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center text-sky-400 shadow-xs">
+                <Moon size={18} />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-slate-900 dark:text-white">Dark Mode</div>
+                <div className="text-[10px] text-slate-500">Eye-safe slate atmosphere</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Accessibility High Contrast */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-xs text-slate-900 dark:text-white">High Contrast Mode</h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-red/10 text-brand-red">WCAG AAA</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Increases text density and sharpens borders across all admin views.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleHighContrast}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              isHighContrast
+                ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            {isHighContrast ? 'Contrast: Enhanced' : 'Contrast: Standard'}
+          </button>
+        </div>
+      </section>
       
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-8">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-6 md:p-8 space-y-8">
         
         {/* Sticky Maintenance & Announcement Marquee Banner Section */}
         <section className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 border border-slate-700 shadow-md">

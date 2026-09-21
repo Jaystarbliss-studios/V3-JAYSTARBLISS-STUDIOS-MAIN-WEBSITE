@@ -1,19 +1,72 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
+import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { getAuth, type Auth } from "firebase-admin/auth";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-const databaseId = process.env.FIREBASE_DATABASE_ID;
+let cachedApp: App | null = null;
+let cachedAuth: Auth | null = null;
+let cachedDb: Firestore | null = null;
 
-if (!projectId || !clientEmail || !privateKey) {
-  throw new Error("Missing Firebase server credentials. Configure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY.");
+export function getAdminApp(): App | null {
+  if (cachedApp) return cachedApp;
+  if (getApps().length > 0) {
+    cachedApp = getApps()[0];
+    return cachedApp;
+  }
+
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+  if (!projectId || !clientEmail || !privateKey) {
+    return null;
+  }
+
+  try {
+    cachedApp = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    return cachedApp;
+  } catch (err) {
+    console.warn("Could not initialize Firebase Admin SDK:", err);
+    return null;
+  }
 }
 
-const app = getApps().length
-  ? getApps()[0]
-  : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+export function getAdminAuth(): Auth | null {
+  if (cachedAuth) return cachedAuth;
+  const app = getAdminApp();
+  if (!app) return null;
+  cachedAuth = getAuth(app);
+  return cachedAuth;
+}
 
-export const adminAuth = getAuth(app);
-export const adminDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+export function getAdminDb(): Firestore | null {
+  if (cachedDb) return cachedDb;
+  const app = getAdminApp();
+  if (!app) return null;
+  const databaseId = process.env.FIREBASE_DATABASE_ID;
+  cachedDb = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  return cachedDb;
+}
+
+// Proxied exports for backwards compatibility without crashing on import
+export const adminAuth = new Proxy({} as Auth, {
+  get(_, prop) {
+    const auth = getAdminAuth();
+    if (!auth) {
+      throw new Error("Firebase Admin Auth is not configured. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
+    }
+    const val = (auth as any)[prop];
+    return typeof val === "function" ? val.bind(auth) : val;
+  }
+});
+
+export const adminDb = new Proxy({} as Firestore, {
+  get(_, prop) {
+    const db = getAdminDb();
+    if (!db) {
+      throw new Error("Firebase Admin Firestore is not configured. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
+    }
+    const val = (db as any)[prop];
+    return typeof val === "function" ? val.bind(db) : val;
+  }
+});
+

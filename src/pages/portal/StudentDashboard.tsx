@@ -555,7 +555,7 @@ const StudentDashboard: React.FC = () => {
       ) : (
         <>
           <DashboardGreeting
-            name={`Cadet ${student.fullName || 'Student'}`}
+            name={student.fullName || undefined}
             role="STEM Cadet"
             subtitle="Keep going. Your future is in progress."
           />

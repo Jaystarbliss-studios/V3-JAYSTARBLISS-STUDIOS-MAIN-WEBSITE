@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { 
   BarChart3, Download, RefreshCw, Users, School, 
   CreditCard, ClipboardList, Activity, FileSpreadsheet,
@@ -38,16 +38,27 @@ const AdminReports: React.FC = () => {
 
     const loadStudents = async () => {
       try {
-        const user = auth.currentUser;
-        if (!user) return;
-        const token = await user.getIdToken();
-        const response = await fetch('/.netlify/functions/admin-students-directory', { 
-          headers: { Authorization: `Bearer ${token}` } 
+        const [studentsSnap, indStudentsSnap, usersSnap] = await Promise.all([
+          getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'users')).catch(() => ({ docs: [] }))
+        ]);
+
+        const map = new Map<string, any>();
+        studentsSnap.docs.forEach((d: any) => map.set(d.id, { id: d.id, ...d.data() }));
+        indStudentsSnap.docs.forEach((d: any) => {
+          if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
         });
-        const result = await response.json().catch(() => ({}));
-        if (response.ok) setStudents(Array.isArray(result.students) ? result.students : []);
+        usersSnap.docs.forEach((d: any) => {
+          const data = d.data();
+          const role = String(data.role || '').toUpperCase();
+          if (role === 'STUDENT' || role === 'CADET' || data.isStudent) {
+            if (!map.has(d.id)) map.set(d.id, { id: d.id, ...data });
+          }
+        });
+        setStudents(Array.from(map.values()));
       } catch (error) { 
-        console.error('Reports students', error); 
+        console.error('Reports students load error', error); 
       }
     };
 

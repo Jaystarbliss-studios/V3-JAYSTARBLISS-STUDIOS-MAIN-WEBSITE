@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface DashboardGreetingProps {
   name?: string;
@@ -9,34 +10,65 @@ interface DashboardGreetingProps {
   action?: React.ReactNode;
 }
 
+const GENERIC_TITLES = new Set([
+  'parent & guardian console',
+  'parent / guardian',
+  'parent portal',
+  'parent',
+  'guardian',
+  'faculty instructor',
+  'faculty mentor',
+  'tutor',
+  'tutor workspace',
+  'staff',
+  'staff console',
+  'staff teaching console',
+  'stem cadet',
+  'student',
+  'scholar',
+  'cadet',
+  'cadet student',
+  'teaching workspace',
+  'parent learning view',
+  'school learning view',
+  'learner workspace',
+  'assessment workspace',
+  'my assessments',
+  'child assessments',
+  'school assessments',
+  'administrator',
+  'admin',
+  'admin officer',
+  'admin console',
+  'super admin',
+  'overview',
+  'learning progress',
+  'tutor planning workspace'
+]);
+
 // Extract a friendly first name or clean display title
-function getFriendlyFirstName(rawName?: string): string {
-  if (!rawName) {
-    const user = auth.currentUser;
-    if (user?.displayName) rawName = user.displayName;
-    else if (user?.email) rawName = user.email.split('@')[0];
-    else rawName = sessionStorage.getItem('userName') || 'Cadet';
-  }
+function cleanFirstName(raw?: string): string {
+  if (!raw) return '';
+  let cleaned = raw.trim();
 
   // If name has prefixes like "Cadet John Doe" or "Dr. Jane Smith"
-  rawName = rawName.replace(/^(cadet|student|dr\.|mr\.|mrs\.|miss|engr\.|instructor|coach)\s+/i, '');
+  cleaned = cleaned.replace(/^(cadet|student|dr\.|mr\.|mrs\.|miss|engr\.|instructor|coach|tutor)\s+/i, '');
 
-  // Clean email handles if an email was passed as name
-  if (rawName.includes('@')) {
-    rawName = rawName.split('@')[0];
+  // If email was passed, extract handle
+  if (cleaned.includes('@')) {
+    cleaned = cleaned.split('@')[0];
   }
 
-  // Remove numbers and special characters from handles like johnrufai242 -> John Rufai
-  const cleaned = rawName.replace(/[0-9_.-]+/g, ' ').trim();
+  // Remove numbers from handles e.g. johnrufai242 -> johnrufai -> John
+  cleaned = cleaned.replace(/[0-9_.-]+/g, ' ').trim();
   const words = cleaned.split(/\s+/).filter(Boolean);
 
-  if (words.length === 0) return 'Scholar';
+  if (words.length === 0) return '';
 
-  // Capitalize properly
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-  // If it looks like a school name (e.g. "Grace High School"), keep the whole name
-  if (rawName.toLowerCase().includes('school') || rawName.toLowerCase().includes('college') || rawName.toLowerCase().includes('academy')) {
+  // If it is an institution name
+  if (raw.toLowerCase().includes('school') || raw.toLowerCase().includes('college') || raw.toLowerCase().includes('academy') || raw.toLowerCase().includes('institute')) {
     return words.map(capitalize).join(' ');
   }
 
@@ -44,15 +76,87 @@ function getFriendlyFirstName(rawName?: string): string {
 }
 
 export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
-  name,
+  name: propName,
   role,
   subtitle,
   action
 }) => {
-  const [headline, setHeadline] = useState('');
+  const [headline, setHeadline] = useState('Good morning');
   const [formattedDate, setFormattedDate] = useState('');
+  const [resolvedName, setResolvedName] = useState<string>('');
 
-  const firstName = getFriendlyFirstName(name);
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveName = async () => {
+      // 1. Check if propName is a real person/school name
+      if (propName && !GENERIC_TITLES.has(propName.trim().toLowerCase())) {
+        const cleaned = cleanFirstName(propName);
+        if (cleaned) {
+          if (isMounted) setResolvedName(cleaned);
+          return;
+        }
+      }
+
+      // 2. Check current authenticated user
+      const currentUser = auth.currentUser;
+      if (currentUser?.displayName) {
+        const cleaned = cleanFirstName(currentUser.displayName);
+        if (cleaned) {
+          if (isMounted) setResolvedName(cleaned);
+          return;
+        }
+      }
+
+      // 3. Check session/local storage cached name
+      const cached = sessionStorage.getItem('userName') || localStorage.getItem('jaystar_cached_user_name');
+      if (cached && !GENERIC_TITLES.has(cached.trim().toLowerCase())) {
+        const cleaned = cleanFirstName(cached);
+        if (cleaned) {
+          if (isMounted) setResolvedName(cleaned);
+          return;
+        }
+      }
+
+      // 4. Try fetching from Firestore users collection
+      if (currentUser?.uid) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists() && isMounted) {
+            const data = userDoc.data();
+            const fullName = data?.name || data?.fullName || data?.displayName || data?.schoolName;
+            if (fullName) {
+              const cleaned = cleanFirstName(fullName);
+              if (cleaned) {
+                setResolvedName(cleaned);
+                return;
+              }
+            }
+          }
+        } catch {
+          // ignore error and fallback to email handle
+        }
+      }
+
+      // 5. Fallback to email handle
+      if (currentUser?.email) {
+        const emailHandle = currentUser.email.split('@')[0];
+        const cleaned = cleanFirstName(emailHandle);
+        if (cleaned && isMounted) {
+          setResolvedName(cleaned);
+          return;
+        }
+      }
+
+      if (isMounted) setResolvedName('Friend');
+    };
+
+    resolveName();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propName]);
 
   useEffect(() => {
     const now = new Date();
@@ -65,7 +169,12 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
       prefix = 'Good evening';
     }
 
-    setHeadline(`${prefix}, ${firstName}`);
+    if (resolvedName) {
+      setHeadline(`${prefix}, ${resolvedName}!`);
+    } else {
+      setHeadline(`${prefix}!`);
+    }
+
     setFormattedDate(
       now.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -74,7 +183,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         year: 'numeric'
       })
     );
-  }, [firstName]);
+  }, [resolvedName]);
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">

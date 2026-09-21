@@ -9,8 +9,16 @@ import {
   Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, 
   Trash2, Send, RefreshCw, ShieldCheck, X, School, 
   GraduationCap, UserCheck, Download, Link as LinkIcon,
-  Filter, ChevronDown
+  Filter, ChevronDown, Plus, Settings
 } from 'lucide-react';
+
+export interface AssignedStudentTutor {
+  tutorId: string;
+  tutorName: string;
+  tutorEmail?: string;
+  role?: string;
+  trackOrSubject?: string;
+}
 
 export interface UnifiedStudent {
   id: string;
@@ -31,6 +39,7 @@ export interface UnifiedStudent {
   tutorId: string;
   tutorName: string;
   tutorEmail: string;
+  assignedTutors?: AssignedStudentTutor[];
   accountStatus: string;
   accessCode: string;
   accessCodeHash?: string;
@@ -104,9 +113,15 @@ const AdminStudents: React.FC = () => {
 
   // Modals & Drawers
   const [showCreate, setShowCreate] = useState(false);
+  const [managingStudent, setManagingStudent] = useState<UnifiedStudent | null>(null);
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [assigningTutorStudent, setAssigningTutorStudent] = useState<UnifiedStudent | null>(null);
-  const [selectedTutorId, setSelectedTutorId] = useState('');
+  const [selectedTutorsList, setSelectedTutorsList] = useState<AssignedStudentTutor[]>([]);
+  const [newMentorDraft, setNewMentorDraft] = useState({
+    tutorId: '',
+    role: 'Lead Mentor',
+    trackOrSubject: ''
+  });
 
   // Forms
   const [form, setForm] = useState({
@@ -139,27 +154,25 @@ const AdminStudents: React.FC = () => {
     return await user.getIdToken();
   }, []);
 
-  // Main Unified Student Data Loader
+  // Main Unified Student Data Loader - Authoritative direct Firestore query
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Your administrator session has expired.');
-      const token = await user.getIdToken();
-
-      // The admin directory is resolved server-side so every student source is
-      // authoritative and Firestore client rules cannot silently hide a collection.
-      const response = await fetch('/.netlify/functions/admin-students-directory', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to load the complete student directory.');
-
-      setStudents(Array.isArray(result.students) ? result.students : []);
-
-      const [schoolsSnap, usersSnap, resSnap, linkSnap] = await Promise.all([
+      // 1. Fetch from Firestore collections directly
+      const [
+        studentsSnap,
+        individualStudentsSnap,
+        usersSnap,
+        schoolsSnap,
+        parentsSnap,
+        resSnap,
+        linkSnap
+      ] = await Promise.all([
+        getDocs(collection(db, 'students')).catch((err) => { console.warn('Fetch students collection error:', err); return { docs: [] }; }),
+        getDocs(collection(db, 'individualStudents')).catch((err) => { console.warn('Fetch individualStudents collection error:', err); return { docs: [] }; }),
+        getDocs(collection(db, 'users')).catch((err) => { console.warn('Fetch users collection error:', err); return { docs: [] }; }),
         getDocs(collection(db, 'schools')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'users')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'parents')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalResources')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalLinks')).catch(() => ({ docs: [] })),
       ]);
@@ -176,14 +189,38 @@ const AdminStudents: React.FC = () => {
       setSchools(loadedSchools);
 
       const loadedTutors: { id: string; name: string; email: string }[] = [];
+      const tutorMap = new Map<string, { id: string; name: string; email: string }>();
       const loadedParents: { id: string; name: string; email: string; phone?: string }[] = [];
+      const parentMap = new Map<string, { id: string; name: string; email: string; phone?: string }>();
+
       usersSnap.docs.forEach((d: any) => {
         const u = d.data();
         const role = String(u.role || '').toUpperCase();
         const name = u.name || u.fullName || u.displayName || u.email || 'User';
-        if (['STAFF','TUTOR','INSTRUCTOR','TEACHER'].includes(role)) loadedTutors.push({ id: d.id, name, email: u.email || '' });
-        if (['PARENT','GUARDIAN'].includes(role)) loadedParents.push({ id: d.id, name, email: u.email || '', phone: u.phone || u.phoneNumber });
+        if (['STAFF', 'TUTOR', 'INSTRUCTOR', 'TEACHER'].includes(role)) {
+          const tObj = { id: d.id, name, email: u.email || '' };
+          loadedTutors.push(tObj);
+          tutorMap.set(d.id, tObj);
+          if (u.email) tutorMap.set(u.email.toLowerCase(), tObj);
+        }
+        if (['PARENT', 'GUARDIAN'].includes(role)) {
+          const pObj = { id: d.id, name, email: u.email || '', phone: u.phone || u.phoneNumber };
+          loadedParents.push(pObj);
+          parentMap.set(d.id, pObj);
+          if (u.email) parentMap.set(u.email.toLowerCase(), pObj);
+        }
       });
+
+      parentsSnap.docs.forEach((d: any) => {
+        const p = d.data();
+        const name = p.name || p.fullName || p.displayName || p.email || 'Parent';
+        const pObj = { id: d.id, name, email: p.email || '', phone: p.phone || p.phoneNumber };
+        if (!parentMap.has(d.id)) {
+          loadedParents.push(pObj);
+          parentMap.set(d.id, pObj);
+        }
+      });
+
       setTutors(loadedTutors);
       setParents(loadedParents);
 
@@ -192,6 +229,154 @@ const AdminStudents: React.FC = () => {
       linkSnap.docs.forEach((item: any) => mergedDispatches.push({ id: item.id, collectionName: 'personalLinks', kind: 'link', ...item.data() }));
       mergedDispatches.sort((a, b) => (b.timestamp?.toDate?.() || 0) - (a.timestamp?.toDate?.() || 0));
       setDispatches(mergedDispatches);
+
+      // Aggregate all student records
+      const studentMap = new Map<string, UnifiedStudent>();
+
+      const normalizeStudent = (d: any, defaultSource: 'individualStudents' | 'students' | 'users'): UnifiedStudent => {
+        const data = d.data ? d.data() : d;
+        const id = d.id || data.id || `student_${Math.random().toString(36).slice(2, 8)}`;
+        const schoolId = data.schoolId || data.school_id || '';
+        const parentId = data.parentId || data.parent_id || '';
+        const tutorId = data.tutorId || data.assignedTutorId || data.assignedStaffId || data.staffId || '';
+
+        const sName = data.schoolName || (schoolId ? schoolMap.get(schoolId) : '') || '';
+        const pObj = parentId ? parentMap.get(parentId) : undefined;
+        const pName = data.parentName || pObj?.name || '';
+        const pEmail = data.parentEmail || pObj?.email || '';
+        const pPhone = data.parentPhone || data.phone || pObj?.phone || '';
+        const tObj = tutorId ? tutorMap.get(tutorId) : undefined;
+        const tName = data.tutorName || data.assignedTutorName || data.staffName || tObj?.name || '';
+        const tEmail = data.tutorEmail || tObj?.email || '';
+
+        let studentType: 'personal' | 'parent' | 'school' = 'personal';
+        if (data.studentType === 'school' || schoolId) {
+          studentType = 'school';
+        } else if (data.studentType === 'parent' || parentId) {
+          studentType = 'parent';
+        } else if (data.studentType) {
+          studentType = data.studentType;
+        }
+
+        const subjectsStr = Array.isArray(data.subjects)
+          ? data.subjects.join(', ')
+          : (data.subjects || data.track || data.course || 'Coding, Mathematics, Robotics');
+
+        return {
+          id,
+          docSource: defaultSource,
+          fullName: data.fullName || data.studentName || data.name || data.displayName || 'Student Cadet',
+          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `cadet_${id.slice(-4)}`),
+          email: data.email || data.studentEmail || '',
+          class: data.class || data.className || data.grade || 'General',
+          grade: data.grade || data.class || 'General',
+          track: data.track || data.learningTrack || data.program || data.course || 'STEM & Coding',
+          subjects: subjectsStr,
+          schoolId,
+          schoolName: sName,
+          parentId,
+          parentName: pName,
+          parentEmail: pEmail,
+          parentPhone: pPhone,
+          tutorId,
+          tutorName: tName,
+          tutorEmail: tEmail,
+          assignedTutors: Array.isArray(data.assignedTutors) ? data.assignedTutors : (tutorId ? [{ tutorId, tutorName: tName, tutorEmail: tEmail }] : []),
+          accountStatus: String(data.accountStatus || data.status || 'ACTIVE').toUpperCase(),
+          accessCode: data.accessCode || data.passcode || data.code || '',
+          accessCodeHash: data.accessCodeHash,
+          portalAccessEnabled: data.portalAccessEnabled !== false && data.status !== 'SUSPENDED' && data.accountStatus !== 'SUSPENDED',
+          studentType,
+          createdAt: data.createdAt || data.timestamp || null,
+          firebaseUid: data.firebaseUid || data.userId || (defaultSource === 'users' ? id : undefined)
+        };
+      };
+
+      // 1. Process `students` collection
+      studentsSnap.docs.forEach((d: any) => {
+        const student = normalizeStudent(d, 'students');
+        studentMap.set(d.id, student);
+      });
+
+      // 2. Process `individualStudents` collection
+      individualStudentsSnap.docs.forEach((d: any) => {
+        const student = normalizeStudent(d, 'individualStudents');
+        const existingKey = Array.from(studentMap.entries()).find(([_, s]) => 
+          (student.username && s.username.toLowerCase() === student.username.toLowerCase()) ||
+          (student.email && s.email.toLowerCase() === student.email.toLowerCase())
+        );
+        if (existingKey) {
+          studentMap.set(existingKey[0], { ...existingKey[1], ...student, id: existingKey[0] });
+        } else {
+          studentMap.set(d.id, student);
+        }
+      });
+
+      // 3. Process `users` collection for student roles
+      usersSnap.docs.forEach((d: any) => {
+        const u = d.data();
+        const role = String(u.role || '').toUpperCase();
+        if (role === 'STUDENT' || role === 'CADET' || u.isStudent || u.studentProfile) {
+          const student = normalizeStudent(d, 'users');
+          const existingKey = Array.from(studentMap.entries()).find(([_, s]) => 
+            s.firebaseUid === d.id ||
+            (student.username && s.username.toLowerCase() === student.username.toLowerCase()) ||
+            (student.email && s.email.toLowerCase() === student.email.toLowerCase())
+          );
+          if (existingKey) {
+            studentMap.set(existingKey[0], { ...existingKey[1], firebaseUid: d.id, email: student.email || existingKey[1].email });
+          } else {
+            studentMap.set(d.id, student);
+          }
+        }
+      });
+
+      // 4. Process parent enrolled children if present
+      parentsSnap.docs.forEach((d: any) => {
+        const p = d.data();
+        if (Array.isArray(p.children)) {
+          p.children.forEach((child: any, idx: number) => {
+            const childId = child.id || `${d.id}_child_${idx}`;
+            if (!studentMap.has(childId)) {
+              studentMap.set(childId, {
+                id: childId,
+                docSource: 'students',
+                fullName: child.name || child.fullName || `Child ${idx + 1}`,
+                username: child.username || (child.email ? child.email.split('@')[0] : `child_${idx + 1}`),
+                email: child.email || '',
+                class: child.class || child.grade || 'General',
+                grade: child.grade || child.class || 'General',
+                track: child.track || child.program || 'STEM & Coding',
+                subjects: Array.isArray(child.subjects) ? child.subjects.join(', ') : (child.subjects || 'Coding, Mathematics'),
+                schoolId: child.schoolId || '',
+                schoolName: child.schoolName || '',
+                parentId: d.id,
+                parentName: p.name || p.fullName || '',
+                parentEmail: p.email || '',
+                parentPhone: p.phone || '',
+                tutorId: child.tutorId || '',
+                tutorName: child.tutorName || '',
+                tutorEmail: child.tutorEmail || '',
+                accountStatus: 'ACTIVE',
+                accessCode: child.accessCode || '',
+                portalAccessEnabled: true,
+                studentType: 'parent',
+                createdAt: child.createdAt || p.createdAt || null
+              });
+            }
+          });
+        }
+      });
+
+      const aggregatedList = Array.from(studentMap.values());
+      aggregatedList.sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (timeA !== timeB) return timeB - timeA;
+        return a.fullName.localeCompare(b.fullName);
+      });
+
+      setStudents(aggregatedList);
     } catch (error) {
       console.error('Unified student operations load error:', error);
       toast.error(error instanceof Error ? error.message : 'Unable to synchronize student directory.');
@@ -421,22 +606,73 @@ const AdminStudents: React.FC = () => {
     }
   };
 
-  // Action: Assign Tutor
+  // Action: Open Assign Mentor Modal
+  const openAssignMentorModal = (student: UnifiedStudent) => {
+    setAssigningTutorStudent(student);
+    if (Array.isArray(student.assignedTutors) && student.assignedTutors.length > 0) {
+      setSelectedTutorsList(student.assignedTutors);
+    } else if (student.tutorId) {
+      setSelectedTutorsList([{
+        tutorId: student.tutorId,
+        tutorName: student.tutorName || 'Assigned Mentor',
+        tutorEmail: student.tutorEmail || '',
+        role: 'Lead Mentor',
+        trackOrSubject: student.track || 'General'
+      }]);
+    } else {
+      setSelectedTutorsList([]);
+    }
+    setNewMentorDraft({ tutorId: '', role: 'Lead Mentor', trackOrSubject: student.track || '' });
+  };
+
+  // Helper: Add mentor to list
+  const handleAddMentorToStudent = () => {
+    if (!newMentorDraft.tutorId) {
+      toast.error('Please select a faculty mentor to add.');
+      return;
+    }
+    const foundTutor = tutors.find(t => t.id === newMentorDraft.tutorId);
+    if (!foundTutor) return;
+
+    if (selectedTutorsList.some(item => item.tutorId === newMentorDraft.tutorId)) {
+      toast.error('This mentor is already in the assigned list.');
+      return;
+    }
+
+    const newMentorEntry: AssignedStudentTutor = {
+      tutorId: foundTutor.id,
+      tutorName: foundTutor.name,
+      tutorEmail: foundTutor.email,
+      role: newMentorDraft.role || 'Lead Mentor',
+      trackOrSubject: newMentorDraft.trackOrSubject || assigningTutorStudent?.track || 'General STEM'
+    };
+
+    setSelectedTutorsList([...selectedTutorsList, newMentorEntry]);
+    setNewMentorDraft({ tutorId: '', role: 'Lead Mentor', trackOrSubject: '' });
+  };
+
+  // Helper: Remove mentor from list
+  const handleRemoveMentorFromStudent = (tutorId: string) => {
+    setSelectedTutorsList(selectedTutorsList.filter(item => item.tutorId !== tutorId));
+  };
+
+  // Action: Save Multi-Tutor Mentorship Assignment
   const handleAssignTutor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assigningTutorStudent) return;
     setSaving(true);
     try {
-      const tutorObj = tutors.find(t => t.id === selectedTutorId);
-      const tutorName = tutorObj ? tutorObj.name : null;
-      const tutorEmail = tutorObj ? tutorObj.email : null;
-      const tId = selectedTutorId || null;
+      const primaryTutor = selectedTutorsList[0] || null;
+      const tId = primaryTutor ? primaryTutor.tutorId : null;
+      const tName = primaryTutor ? primaryTutor.tutorName : null;
+      const tEmail = primaryTutor ? (primaryTutor.tutorEmail || null) : null;
 
       const collectionTarget = assigningTutorStudent.docSource === 'students' ? 'students' : 'individualStudents';
       await updateDoc(doc(db, collectionTarget, assigningTutorStudent.id), {
+        assignedTutors: selectedTutorsList,
         tutorId: tId,
-        tutorName,
-        tutorEmail,
+        tutorName: tName,
+        tutorEmail: tEmail,
         assignedTutorId: tId,
         assignedStaffId: tId,
         staffId: tId,
@@ -446,19 +682,24 @@ const AdminStudents: React.FC = () => {
       // Also update user doc if UID exists
       if (assigningTutorStudent.firebaseUid) {
         await updateDoc(doc(db, 'users', assigningTutorStudent.firebaseUid), {
+          assignedTutors: selectedTutorsList,
           tutorId: tId,
-          tutorName,
+          tutorName: tName,
           assignedStaffId: tId,
           updatedAt: serverTimestamp()
         }).catch(() => undefined);
       }
 
-      toast.success(tId ? `Assigned mentor ${tutorName} to ${assigningTutorStudent.fullName}.` : `Unassigned mentor from ${assigningTutorStudent.fullName}.`);
+      toast.success(
+        selectedTutorsList.length > 0 
+          ? `Assigned ${selectedTutorsList.length} mentor(s) to ${assigningTutorStudent.fullName}.` 
+          : `Unassigned mentors from ${assigningTutorStudent.fullName}.`
+      );
       setAssigningTutorStudent(null);
-      setSelectedTutorId('');
+      setSelectedTutorsList([]);
       await loadAllData();
     } catch (err: any) {
-      toast.error('Failed to assign mentor: ' + err.message);
+      toast.error('Failed to assign mentors: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -875,15 +1116,15 @@ const AdminStudents: React.FC = () => {
               return (
                 <div 
                   key={student.id} 
-                  className="flex flex-col gap-4 p-5 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/40 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex items-center justify-between gap-4 p-4 sm:p-5 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                 >
-                  {/* Left: Avatar & Profile Info */}
-                  <div className="flex min-w-0 items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-red to-red-700 text-base font-black text-white shadow-xs">
+                  {/* Left: Avatar & Core Summary Info */}
+                  <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-red to-red-700 text-sm font-black text-white shadow-xs">
                       {(student.fullName || 'C').charAt(0).toUpperCase()}
                     </div>
 
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-black text-slate-900 dark:text-white">
                           {student.fullName}
@@ -918,94 +1159,28 @@ const AdminStudents: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* User Identifiers */}
+                      {/* Core Identifiers Line */}
                       <p className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
                         <span className="font-mono font-bold text-slate-700 dark:text-slate-300">@{student.username}</span>
-                        {student.email && <span>· {student.email}</span>}
                         {student.class && <span>· Class: <strong className="text-slate-700 dark:text-slate-200">{student.class}</strong></span>}
-                      </p>
-
-                      {/* Program & Mentor Details */}
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                        <span>Track: <strong className="text-slate-700 dark:text-slate-300">{student.track || 'STEM Foundation'}</strong></span>
-                        
-                        {/* Assigned Tutor */}
-                        <span className="inline-flex items-center gap-1">
-                          Mentor: 
-                          {student.tutorName ? (
-                            <strong className="text-brand-red">{student.tutorName}</strong>
-                          ) : (
-                            <span className="italic text-slate-400">Unassigned</span>
-                          )}
-                        </span>
-
-                        {/* Parent Info if applicable */}
-                        {student.parentName && (
-                          <span>Parent: <strong className="text-slate-700 dark:text-slate-300">{student.parentName}</strong></span>
+                        {student.track && <span>· Track: <strong className="text-slate-700 dark:text-slate-200">{student.track}</strong></span>}
+                        {student.studentType === 'school' && student.schoolName && (
+                          <span className="hidden sm:inline">· School: <strong className="text-slate-700 dark:text-slate-200">{student.schoolName}</strong></span>
                         )}
-                      </div>
+                      </p>
                     </div>
                   </div>
 
-                  {/* Right: Actions */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Send Resource */}
+                  {/* Right: Gear Settings / Management Button */}
+                  <div className="shrink-0">
                     <button
                       type="button"
-                      onClick={() => {
-                        setResourceForm(prev => ({ ...prev, studentId: student.id }));
-                        const elem = document.getElementById('personal-resource-dispatch-card');
-                        elem?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 hover:border-brand-red hover:text-brand-red dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                      onClick={() => setManagingStudent(student)}
+                      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:border-brand-red hover:bg-brand-red/5 hover:text-brand-red dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-brand-red dark:hover:bg-brand-red/10 cursor-pointer"
+                      title={`Manage ${student.fullName}`}
                     >
-                      <Send size={13} />
-                      Send Resource
-                    </button>
-
-                    {/* Assign Tutor */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAssigningTutorStudent(student);
-                        setSelectedTutorId(student.tutorId || '');
-                      }}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 hover:border-purple-600 hover:text-purple-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      <UserCheck size={13} />
-                      {student.tutorId ? 'Change Mentor' : 'Assign Mentor'}
-                    </button>
-
-                    {/* Issue Access Pack */}
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => issueCredentials(student)}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-brand-red/10 px-3 text-[11px] font-black text-brand-red hover:bg-brand-red hover:text-white transition-colors disabled:opacity-50 dark:bg-brand-red/20"
-                    >
-                      <KeyRound size={13} />
-                      Access Pack
-                    </button>
-
-                    {/* Toggle Status */}
-                    <button
-                      type="button"
-                      onClick={() => toggleStudentStatus(student)}
-                      className="inline-flex min-h-9 items-center rounded-xl border border-slate-200 px-2.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-                      title={isSuspended ? 'Activate account' : 'Suspend account'}
-                    >
-                      {isSuspended ? 'Activate' : 'Suspend'}
-                    </button>
-
-                    {/* Delete */}
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => deleteStudent(student)}
-                      className="inline-flex min-h-9 items-center rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-950/30"
-                      title="Delete student record"
-                    >
-                      <Trash2 size={14} />
+                      <Settings size={15} className="text-slate-500 hover:text-brand-red dark:text-slate-400" />
+                      <span>Manage</span>
                     </button>
                   </div>
                 </div>
@@ -1415,17 +1590,325 @@ const AdminStudents: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL: Manage Student & Operations Settings */}
+      {managingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 md:p-8 space-y-6">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-red to-red-700 text-lg font-black text-white shadow-xs">
+                  {(managingStudent.fullName || 'C').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white truncate">
+                      {managingStudent.fullName}
+                    </h2>
+                    {managingStudent.studentType === 'school' ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <School size={11} />
+                        {managingStudent.schoolName || 'School Cadet'}
+                      </span>
+                    ) : managingStudent.studentType === 'parent' ? (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                        <Users size={11} />
+                        Parent Enrolled
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-extrabold text-purple-700 dark:bg-purple-950/40 dark:text-purple-300">
+                        <UserCheck size={11} />
+                        Personal Student
+                      </span>
+                    )}
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                      ['SUSPENDED', 'BANNED', 'DISABLED'].includes(managingStudent.accountStatus.toUpperCase())
+                        ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300' 
+                        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                    }`}>
+                      <ShieldCheck size={11} />
+                      {managingStudent.accountStatus}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500 font-mono">
+                    @{managingStudent.username}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingStudent(null)}
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Close settings"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Profile & Academic Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Email */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-950/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</span>
+                  {managingStudent.email && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(managingStudent.email, 'Email')}
+                      className="text-slate-400 hover:text-brand-red p-1 rounded-md cursor-pointer"
+                      title="Copy email"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-xs font-semibold text-slate-900 dark:text-white truncate">
+                  {managingStudent.email || <span className="text-slate-400 italic font-normal">No email registered</span>}
+                </p>
+              </div>
+
+              {/* Class & Track */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-950/50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Class &amp; Learning Track</span>
+                <p className="mt-1 text-xs font-semibold text-slate-900 dark:text-white truncate">
+                  {managingStudent.class || 'General'} · <strong className="text-slate-800 dark:text-slate-200">{managingStudent.track || 'STEM & Coding'}</strong>
+                </p>
+              </div>
+
+              {/* School / Parent Info */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-950/50">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Affiliation &amp; Guardian</span>
+                <p className="mt-1 text-xs font-semibold text-slate-900 dark:text-white truncate">
+                  {managingStudent.schoolName 
+                    ? `School: ${managingStudent.schoolName}` 
+                    : managingStudent.parentName 
+                      ? `Parent: ${managingStudent.parentName} (${managingStudent.parentEmail || managingStudent.parentPhone || 'No contact'})`
+                      : 'Personal Direct Enrollment'}
+                </p>
+              </div>
+
+              {/* Access Code */}
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-950/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Portal Access Code</span>
+                  {managingStudent.accessCode && (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(managingStudent.accessCode, 'Access Code')}
+                      className="text-slate-400 hover:text-brand-red p-1 rounded-md cursor-pointer"
+                      title="Copy access code"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 font-mono text-xs font-bold text-brand-red dark:text-red-400 truncate">
+                  {managingStudent.accessCode || <span className="text-slate-400 font-sans italic font-normal">Not generated yet</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* Assigned Mentors Section */}
+            <div className="rounded-2xl border border-purple-200/70 bg-purple-50/30 p-4 dark:border-purple-900/40 dark:bg-purple-950/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck size={16} className="text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-purple-900 dark:text-purple-200">
+                    Assigned Mentors {Array.isArray(managingStudent.assignedTutors) && managingStudent.assignedTutors.length > 0 ? `(${managingStudent.assignedTutors.length})` : managingStudent.tutorName ? '(1)' : '(0)'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = managingStudent;
+                    setManagingStudent(null);
+                    openAssignMentorModal(target);
+                  }}
+                  className="text-xs font-bold text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={13} />
+                  <span>Manage Mentors</span>
+                </button>
+              </div>
+
+              {Array.isArray(managingStudent.assignedTutors) && managingStudent.assignedTutors.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {managingStudent.assignedTutors.map((tm, idx) => (
+                    <div key={idx} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-900/50 shadow-2xs">
+                      <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs shrink-0">
+                        {tm.tutorName.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {tm.tutorName}
+                        </p>
+                        <p className="text-[10px] text-purple-600 dark:text-purple-400 truncate">
+                          {tm.role || 'Mentor'} {tm.trackOrSubject ? `• ${tm.trackOrSubject}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : managingStudent.tutorName ? (
+                <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-900/50">
+                  <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs shrink-0">
+                    {managingStudent.tutorName.charAt(0)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {managingStudent.tutorName}
+                    </p>
+                    <p className="text-[10px] text-purple-600 dark:text-purple-400 truncate">
+                      Lead Mentor
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                  No mentors currently assigned to this student. Click "Manage Mentors" above to assign faculty.
+                </p>
+              )}
+            </div>
+
+            {/* Actions Grid */}
+            <div className="space-y-2.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Student Operations &amp; Actions</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Send Resource */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = managingStudent.id;
+                    setManagingStudent(null);
+                    setResourceForm(prev => ({ ...prev, studentId: targetId }));
+                    const elem = document.getElementById('personal-resource-dispatch-card');
+                    elem?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-brand-red hover:bg-brand-red/5 text-left transition-all dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-brand-red cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
+                    <Send size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Send Resource</p>
+                    <p className="text-[11px] text-slate-500 truncate">Dispatch link, meeting or material</p>
+                  </div>
+                </button>
+
+                {/* Manage Mentors */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = managingStudent;
+                    setManagingStudent(null);
+                    openAssignMentorModal(target);
+                  }}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-purple-600 hover:bg-purple-50/50 text-left transition-all dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-purple-600 cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                    <UserCheck size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Manage Mentors</p>
+                    <p className="text-[11px] text-slate-500 truncate">Assign lead coach or tutors</p>
+                  </div>
+                </button>
+
+                {/* Access Pack */}
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={async () => {
+                    const target = managingStudent;
+                    setManagingStudent(null);
+                    await issueCredentials(target);
+                  }}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-amber-500 hover:bg-amber-50/50 text-left transition-all dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-amber-500 cursor-pointer disabled:opacity-50"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <KeyRound size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Access Pack</p>
+                    <p className="text-[11px] text-slate-500 truncate">Re-issue login passcode</p>
+                  </div>
+                </button>
+
+                {/* Toggle Status (Suspend / Reactivate) */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const target = managingStudent;
+                    setManagingStudent(null);
+                    await toggleStudentStatus(target);
+                  }}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-left transition-all dark:border-slate-800 dark:bg-slate-950/70 dark:hover:border-slate-600 cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <ShieldCheck size={15} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      {['SUSPENDED', 'BANNED', 'DISABLED'].includes(managingStudent.accountStatus.toUpperCase()) ? 'Reactivate Student' : 'Suspend Student'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      {['SUSPENDED', 'BANNED', 'DISABLED'].includes(managingStudent.accountStatus.toUpperCase()) ? 'Restore portal access' : 'Pause portal access'}
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Danger Action: Delete Student */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={async () => {
+                    const target = managingStudent;
+                    setManagingStudent(null);
+                    await deleteStudent(target);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-red-200/80 bg-red-50/50 hover:bg-red-100/70 text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:hover:bg-red-950/40 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Trash2 size={16} />
+                    <div className="text-left">
+                      <p className="text-xs font-bold">Delete Student Record</p>
+                      <p className="text-[10px] text-red-600/80 dark:text-red-400">Permanently erase cadet record &amp; dispatches</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-red-700 dark:text-red-400">Delete</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setManagingStudent(null)}
+                className="min-h-10 px-5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Close Settings
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* MODAL: Assign Tutor */}
       {assigningTutorStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h2 className="text-base font-black text-slate-900 dark:text-white">
-                  Assign Mentor / Tutor
+                  Assign Faculty Mentors &amp; Instructors
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Assign a dedicated faculty member to {assigningTutorStudent.fullName}.
+                  Assign one or multiple dedicated mentors for {assigningTutorStudent.fullName}.
                 </p>
               </div>
               <button
@@ -1438,23 +1921,93 @@ const AdminStudents: React.FC = () => {
             </div>
 
             <form onSubmit={handleAssignTutor} className="space-y-4">
+              {/* Assigned Mentors List */}
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Faculty Mentor
+                  Assigned Mentors ({selectedTutorsList.length})
                 </label>
-                <select
-                  value={selectedTutorId}
-                  onChange={e => setSelectedTutorId(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                >
-                  <option value="">-- No Mentor Assigned (Unassign) --</option>
-                  {tutors.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.email})</option>
-                  ))}
-                </select>
-                <p className="mt-1.5 text-[11px] text-slate-500">
-                  Once assigned, this cadet will appear in the selected mentor's workspace console.
-                </p>
+                {selectedTutorsList.length === 0 ? (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+                    No faculty mentors assigned yet. Add one below.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {selectedTutorsList.map((tm) => (
+                      <div key={tm.tutorId} className="flex items-center justify-between p-3 rounded-2xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-800/60">
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>{tm.tutorName}</span>
+                            <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                              {tm.role || 'Lead Mentor'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {tm.tutorEmail} {tm.trackOrSubject ? `• ${tm.trackOrSubject}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMentorFromStudent(tm.tutorId)}
+                          className="p-1.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 text-xs font-bold"
+                          title="Remove this mentor"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Add a Mentor to the Student */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400">
+                  + Add Faculty Mentor
+                </div>
+                <div className="space-y-2">
+                  <select
+                    value={newMentorDraft.tutorId}
+                    onChange={e => setNewMentorDraft(prev => ({ ...prev, tutorId: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">-- Select Instructor / Mentor --</option>
+                    {tutors.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.email})</option>
+                    ))}
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={newMentorDraft.role}
+                      onChange={e => setNewMentorDraft(prev => ({ ...prev, role: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="Lead Mentor">Lead Mentor</option>
+                      <option value="Robotics Instructor">Robotics Instructor</option>
+                      <option value="Coding Coach">Coding Coach</option>
+                      <option value="Mathematics Specialist">Mathematics Specialist</option>
+                      <option value="AI &amp; Data Guide">AI &amp; Data Guide</option>
+                      <option value="Project Advisor">Project Advisor</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      value={newMentorDraft.trackOrSubject}
+                      onChange={e => setNewMentorDraft(prev => ({ ...prev, trackOrSubject: e.target.value }))}
+                      placeholder="Subject / Track focus"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddMentorToStudent}
+                    className="w-full min-h-9 px-3 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Plus size={13} />
+                    <span>Attach Mentor to Roster</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -1470,7 +2023,7 @@ const AdminStudents: React.FC = () => {
                   disabled={saving}
                   className="min-h-10 flex-1 rounded-xl bg-brand-red text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
                 >
-                  {saving ? 'Updating...' : 'Save Assignment'}
+                  {saving ? 'Updating...' : `Save All (${selectedTutorsList.length}) Assignments`}
                 </button>
               </div>
             </form>

@@ -154,9 +154,6 @@ const AdminKidsProjects: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs uppercase tracking-wider mb-2">
-            <Gamepad2 size={14} /> Student Creations CMS
-          </div>
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-white">
             Kids Corner Projects
           </h1>

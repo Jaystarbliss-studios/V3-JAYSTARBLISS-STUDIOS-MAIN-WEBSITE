@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { collection, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
+import { getClientPaymentConfig } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
@@ -115,18 +116,35 @@ export const PortalPayments: React.FC = () => {
 
   const isSchool = role.includes('school');
 
-  const studentPlans = [
-    { id: 'plan_weekend', name: 'Weekend STEM & Coding Track', price: '₦45,000', period: '/ Term', features: ['Saturday 10am Live Class', 'Scratch, Python & React Lab', 'Mentor Project Review', 'Certificate of Completion'] },
-    { id: 'plan_mentorship', name: '1-on-1 Intensive Mentorship', price: '₦120,000', period: '/ Term', popular: true, features: ['Dedicated STEM Instructor', 'Personalized Schedule', 'AI & Machine Learning Track', 'Direct WhatsApp Assistance'] },
-    { id: 'plan_robotics', name: 'Smart Robotics & IoT Hardware Lab', price: '₦85,000', period: '/ Term', features: ['Arduino & Microcontroller Kits', 'Bi-weekly Hands-on Lab', 'Hardware Component Pack', 'Competition Mentorship'] }
-  ];
+  const [plans, setPlans] = useState<any[]>([]);
 
-  const schoolPlans = [
-    { id: 'school_standard', name: 'Institutional STEM Lab Partner', price: '₦350,000', period: '/ Academic Term', features: ['Onboarding up to 100 Cadets', 'Full 5-Stage Curriculum Access', 'Tutor Dispatch & Super-Admin Oversight', 'Custom School Subdomain & Access Codes'] },
-    { id: 'school_cbt', name: 'CBT Exam Portal & Lab Suite', price: '₦600,000', period: '/ Academic Session', popular: true, features: ['Unlimited Student Access Codes', 'Offline/Online CBT Assessment Engine', 'Robotics Kit Hardware Delivery', 'Teacher Training & Certification'] }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    const loadDynamicPlans = async () => {
+      try {
+        const config = await getClientPaymentConfig();
+        const roleKey = isSchool ? 'school' : 'student';
+        const fetchedPlans = Object.values(config.plans || {})
+          .filter((p: any) => p.role === roleKey && p.active !== false)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: `₦${Number(p.baseAmount || 0).toLocaleString()}`,
+            period: isSchool ? '/ Term' : '/ Term',
+            popular: p.id.includes('mentorship') || p.id.includes('cbt'),
+            features: p.teachingModes?.length ? p.teachingModes : [p.description || 'Institutional STEM track']
+          }));
 
-  const plans = isSchool ? schoolPlans : studentPlans;
+        if (!cancelled) {
+          setPlans(fetchedPlans);
+        }
+      } catch (err) {
+        console.warn('Error loading dynamic plans:', err);
+      }
+    };
+    void loadDynamicPlans();
+    return () => { cancelled = true; };
+  }, [isSchool]);
 
   useEffect(() => {
     if (!enrollmentRequestId || role !== 'parent') return;

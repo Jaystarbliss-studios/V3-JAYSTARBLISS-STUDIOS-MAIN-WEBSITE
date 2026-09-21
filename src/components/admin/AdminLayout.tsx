@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import SearchModal from '../ui/SearchModal';
 import { Tooltip } from '../ui/Tooltip';
 import { JaystarblissIcon } from '../common/JaystarblissLogo';
@@ -33,7 +34,11 @@ import {
   Layers,
   CalendarDays,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  ChevronsUpDown,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 interface NavGroup {
@@ -54,7 +59,18 @@ const AdminLayout: React.FC = () => {
     return localStorage.getItem('admin_sidebar_collapsed') === 'true';
   });
 
+  // Collapsible Section Accordion State - starts all tabs collapsed on page load/refresh
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    return {
+      "Overview & Operations": false,
+      "Website & Pages CMS": false,
+      "Portals & Academic Hub": false,
+      "System & Management": false,
+    };
+  });
+
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -122,6 +138,26 @@ const AdminLayout: React.FC = () => {
     }
   ];
 
+  const toggleSection = (sectionTitle: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionTitle]: !prev[sectionTitle]
+    }));
+  };
+
+  const areAllSectionsExpanded = navigationGroups.every(g => expandedSections[g.sectionTitle] === true);
+
+  const toggleAllSections = () => {
+    setExpandedSections(() => {
+      const nextState = !areAllSectionsExpanded;
+      const next: Record<string, boolean> = {};
+      navigationGroups.forEach(g => {
+        next[g.sectionTitle] = nextState;
+      });
+      return next;
+    });
+  };
+
   const closeSidebar = () => setSidebarOpen(false);
   
   const allNavItems = navigationGroups.flatMap(g => g.items);
@@ -167,39 +203,76 @@ const AdminLayout: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain py-4 px-3 space-y-6 custom-scrollbar">
-          {navigationGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              <div className="px-3 text-[10px] font-mono font-bold tracking-widest text-slate-400 uppercase">
-                {group.sectionTitle}
-              </div>
-              <nav className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={closeSidebar}
-                      className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all ${
-                        isActive 
-                          ? 'bg-brand-red text-white shadow-sm' 
-                          : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                      }`}
+        <div className="flex-1 overflow-y-auto overscroll-contain py-4 px-3 space-y-4 custom-scrollbar">
+          {navigationGroups.map((group, gIdx) => {
+            const isExpanded = expandedSections[group.sectionTitle] !== false;
+            const hasActiveItem = group.items.some(
+              item => location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
+            );
+
+            return (
+              <div key={gIdx} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(group.sectionTitle)}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-mono font-bold tracking-wider text-slate-300 hover:text-white uppercase transition-colors rounded-xl hover:bg-white/5 cursor-pointer select-none group"
+                  aria-expanded={isExpanded}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${hasActiveItem ? 'bg-brand-red' : 'bg-slate-600 group-hover:bg-slate-400'}`} />
+                    <span className="truncate">{group.sectionTitle}</span>
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/10 text-slate-400 font-mono font-medium">
+                      {group.items.length}
+                    </span>
+                    <ChevronDown 
+                      size={14} 
+                      className={`text-slate-400 group-hover:text-white transition-transform duration-200 ${
+                        isExpanded ? 'rotate-0' : '-rotate-90'
+                      }`} 
+                    />
+                  </div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.nav
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="space-y-0.5 overflow-hidden pl-1.5"
                     >
-                      <Icon 
-                        className={`flex-shrink-0 mr-2.5 h-4 w-4 transition-colors ${
-                          isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                        }`} 
-                      />
-                      <span className="truncate">{item.name}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          ))}
+                      {group.items.map((item) => {
+                        const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            onClick={closeSidebar}
+                            className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all ${
+                              isActive 
+                                ? 'bg-brand-red text-white shadow-sm' 
+                                : 'text-gray-300 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <Icon 
+                              className={`flex-shrink-0 mr-2.5 h-4 w-4 transition-colors ${
+                                isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                              }`} 
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </motion.nav>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </div>
 
         <div className="p-4 border-t border-white/10 shrink-0">
@@ -253,53 +326,133 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Sidebar Nav Items - Independently Scrollable */}
-        <div className="flex-1 overflow-y-auto overscroll-contain py-4 px-2.5 space-y-5 custom-scrollbar">
-          {navigationGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              {!sidebarCollapsed ? (
-                <div className="px-3 text-[10px] font-mono font-bold tracking-widest text-gray-400 dark:text-slate-400 uppercase truncate">
-                  {group.sectionTitle}
-                </div>
-              ) : (
-                <div className="h-px bg-gray-100 dark:bg-white/10 mx-2 my-2" />
-              )}
-              
-              <nav className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
-                  const Icon = item.icon;
-                  return (
-                    <Tooltip 
-                      key={item.name} 
-                      content={sidebarCollapsed ? `${item.name} • ${item.desc}` : item.desc} 
-                      placement="right" 
-                      delay={200}
-                    >
-                      <Link
-                        to={item.href}
-                        className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all ${
-                          sidebarCollapsed ? 'justify-center px-2' : 'justify-start'
-                        } ${
-                          isActive 
-                            ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
-                            : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
-                        }`}
-                      >
-                        <Icon 
-                          className={`flex-shrink-0 h-4 w-4 transition-colors ${
-                            sidebarCollapsed ? '' : 'mr-2.5'
-                          } ${
-                            isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
-                          }`} 
-                        />
-                        {!sidebarCollapsed && <span className="truncate">{item.name}</span>}
-                      </Link>
-                    </Tooltip>
-                  );
-                })}
-              </nav>
+        <div className="flex-1 overflow-y-auto overscroll-contain py-3 px-2.5 space-y-3 custom-scrollbar">
+          {!sidebarCollapsed && (
+            <div className="flex items-center justify-between px-2 pb-1">
+              <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
+                Navigation
+              </span>
+              <button
+                type="button"
+                onClick={toggleAllSections}
+                className="text-[10px] font-mono text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 font-semibold transition-colors flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-sky-500/10"
+              >
+                <ChevronsUpDown size={11} />
+                <span>{areAllSectionsExpanded ? 'Collapse All' : 'Expand All'}</span>
+              </button>
             </div>
-          ))}
+          )}
+
+          {navigationGroups.map((group, gIdx) => {
+            const isExpanded = expandedSections[group.sectionTitle] !== false;
+            const hasActiveItem = group.items.some(
+              item => location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
+            );
+
+            return (
+              <div key={gIdx} className="space-y-1">
+                {!sidebarCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(group.sectionTitle)}
+                    className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-mono font-bold tracking-widest text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white uppercase transition-colors rounded-lg hover:bg-slate-900/5 dark:hover:bg-white/5 cursor-pointer select-none group"
+                    aria-expanded={isExpanded}
+                  >
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${hasActiveItem ? 'bg-sky-500 shadow-xs shadow-sky-500/50' : 'bg-slate-300 dark:bg-slate-600 group-hover:bg-slate-400'}`} />
+                      <span className="truncate">{group.sectionTitle}</span>
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-200/70 dark:bg-white/10 text-slate-500 dark:text-slate-400 font-mono font-semibold">
+                        {group.items.length}
+                      </span>
+                      <ChevronDown 
+                        size={13} 
+                        className={`text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white transition-transform duration-200 shrink-0 ${
+                          isExpanded ? 'rotate-0' : '-rotate-90'
+                        }`} 
+                      />
+                    </div>
+                  </button>
+                ) : (
+                  <div className="h-px bg-gray-100 dark:bg-white/10 mx-2 my-2" />
+                )}
+                
+                {sidebarCollapsed ? (
+                  <nav className="space-y-0.5">
+                    {group.items.map((item) => {
+                      const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
+                      const Icon = item.icon;
+                      return (
+                        <Tooltip 
+                          key={item.name} 
+                          content={`${item.name} • ${item.desc}`} 
+                          placement="right" 
+                          delay={200}
+                        >
+                          <Link
+                            to={item.href}
+                            className={`group flex items-center px-2 py-2 text-xs font-bold rounded-xl transition-all justify-center ${
+                              isActive 
+                                ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
+                                : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                          >
+                            <Icon 
+                              className={`flex-shrink-0 h-4 w-4 transition-colors ${
+                                isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
+                              }`} 
+                            />
+                          </Link>
+                        </Tooltip>
+                      );
+                    })}
+                  </nav>
+                ) : (
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.nav
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="space-y-0.5 overflow-hidden pl-1"
+                      >
+                        {group.items.map((item) => {
+                          const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
+                          const Icon = item.icon;
+                          return (
+                            <Tooltip 
+                              key={item.name} 
+                              content={item.desc} 
+                              placement="right" 
+                              delay={200}
+                            >
+                              <Link
+                                to={item.href}
+                                className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all justify-start ${
+                                  isActive 
+                                    ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
+                                    : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                                }`}
+                              >
+                                <Icon 
+                                  className={`flex-shrink-0 h-4 w-4 transition-colors mr-2.5 ${
+                                    isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
+                                  }`} 
+                                />
+                                <span className="truncate">{item.name}</span>
+                              </Link>
+                            </Tooltip>
+                          );
+                        })}
+                      </motion.nav>
+                    )}
+                  </AnimatePresence>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Desktop Sidebar Footer */}
@@ -359,6 +512,18 @@ const AdminLayout: React.FC = () => {
                 aria-label="Search content"
               >
                 <Search size={18} />
+              </button>
+            </Tooltip>
+
+            {/* Admin Theme Toggle */}
+            <Tooltip content={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} placement="bottom">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
               </button>
             </Tooltip>
 

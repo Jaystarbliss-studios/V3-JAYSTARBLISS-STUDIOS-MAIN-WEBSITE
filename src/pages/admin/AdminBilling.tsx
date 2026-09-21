@@ -60,8 +60,28 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
   const [withdrawalPolicy, setWithdrawalPolicy] = useState<Policy>({ percentage: '', flat: '', cap: '', enabled: false });
   const [minimumWithdrawal, setMinimumWithdrawal] = useState('10000');
 
-  // Quick school fee editor
+  // Quick school fee editor & Full School Workspace
   const [editingSchoolBilling, setEditingSchoolBilling] = useState<any | null>(null);
+  const [selectedSchoolWorkspace, setSelectedSchoolWorkspace] = useState<any | null>(null);
+  const [activeSchoolTab, setActiveSchoolTab] = useState<'config' | 'margin' | 'record_payment' | 'invoices'>('config');
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
+  const [schoolBillingConfig, setSchoolBillingConfig] = useState({
+    baseAmount: 300000,
+    cycle: 'termly',
+    mode: 'advance_termly',
+    nextDueDate: '',
+    allowedModes: ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'],
+    discountPercent: 0,
+    notes: ''
+  });
+  const [offlinePaymentDraft, setOfflinePaymentDraft] = useState({
+    amount: '300000',
+    reference: '',
+    date: new Date().toISOString().slice(0, 10),
+    payerName: '',
+    description: 'Termly STEM & Robotics Lab Institutional Tuition',
+    notes: 'Direct Bank Settlement'
+  });
 
   // Parent filter state
   const [parentSearch, setParentSearch] = useState('');
@@ -299,6 +319,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       const isSchoolTuition = p.category === 'school_tuition' || Boolean(p.schoolId);
 
       return {
+        ...p,
         id: p.id || p.reference || `TXN-${Math.random().toString(36).slice(2, 8)}`,
         reference: p.reference || p.id,
         amount: amt > 10000000 ? amt / 100 : amt,
@@ -307,18 +328,23 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         transactionFee: Number(p.transactionFee || 0),
         status: p.status || 'PAID',
         paidAt: p.paidAt || p.createdAt,
-        type: isTransferToTutor ? 'outflow' : 'inflow',
-        category: isTransferToTutor ? 'transfer_to' : (isSchoolTuition ? 'school_tuition' : 'parent_tuition'),
+        type: isTransferToTutor ? 'outflow' : (p.type || 'inflow'),
+        category: isTransferToTutor ? 'transfer_to' : (isSchoolTuition ? 'school_tuition' : (p.category || 'parent_tuition')),
         description: p.description || p.plan || (isSchoolTuition ? `Partner School - ${p.schoolName || 'Tuition'}` : (p.studentName ? `Tuition - ${p.studentName}` : 'Tuition Settlement')),
-        plan: p.plan || p.paymentPlanName || 'STEM Curriculum',
-        payerName: p.payerName || p.customerName || p.studentName || 'Student Guardian',
+        plan: p.plan || p.paymentPlanName || p.programName || 'STEM Curriculum',
+        programName: p.programName || p.plan || p.paymentPlanName || '',
+        payerName: p.payerName || p.customerName || p.schoolName || p.studentName || 'Guardian',
         payerEmail: p.payerEmail || p.customerEmail || '',
+        payerRole: p.payerRole || (p.schoolId ? 'School' : (p.parentId ? 'Parent' : undefined)),
         studentName: p.studentName || p.cadetName || '',
         schoolName: p.schoolName || '',
-        tutorName: p.tutorName || ''
+        tutorName: p.tutorName || '',
+        students: p.students || p.metadata?.students || [],
+        metadata: p.metadata || {}
       };
     });
   }, [paid]);
+
 
   // Action: Transfer to Tutor Wallet
   const handleTransferToTutor = async (tutorId: string, tutorName: string, amount: number, notes: string) => {
@@ -455,6 +481,146 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unable to allocate tutor.');
+    } finally {
+      setSaving('');
+    }
+  };
+
+  // Action: Open Comprehensive School Billing Workspace
+  const openSchoolWorkspace = (school: any) => {
+    setSelectedSchoolWorkspace(school);
+    setActiveSchoolTab('config');
+    setSchoolBillingConfig({
+      baseAmount: school.billing?.baseAmount || 300000,
+      cycle: school.billing?.cycle || 'termly',
+      mode: school.billing?.mode || 'advance_termly',
+      nextDueDate: school.billing?.nextDueDate || '',
+      allowedModes: Array.isArray(school.billing?.allowedModes) 
+        ? school.billing.allowedModes 
+        : ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'],
+      discountPercent: Number(school.billing?.discountPercent || 0),
+      notes: school.billing?.notes || ''
+    });
+    setOfflinePaymentDraft({
+      amount: String(school.billing?.baseAmount || 300000),
+      reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString().slice(0, 10),
+      payerName: school.name || '',
+      description: `Institutional Lab & Tuition Payment - ${school.name}`,
+      notes: 'Direct Bank Settlement'
+    });
+  };
+
+  // Action: Save Full School Billing Configuration
+  const saveSchoolFullBilling = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSchoolWorkspace) return;
+    setSaving('school-full');
+    try {
+      const schRef = doc(db, 'schools', selectedSchoolWorkspace.id);
+      const updatedBilling = {
+        ...(selectedSchoolWorkspace.billing || {}),
+        baseAmount: Number(schoolBillingConfig.baseAmount),
+        cycle: schoolBillingConfig.cycle,
+        mode: schoolBillingConfig.mode,
+        nextDueDate: schoolBillingConfig.nextDueDate,
+        allowedModes: schoolBillingConfig.allowedModes,
+        discountPercent: Number(schoolBillingConfig.discountPercent),
+        notes: schoolBillingConfig.notes,
+        updatedAt: new Date().toISOString()
+      };
+      await updateDoc(schRef, {
+        billing: updatedBilling,
+        updatedAt: serverTimestamp()
+      });
+      toast.success(`Billing configuration updated for ${selectedSchoolWorkspace.name}.`);
+      setSelectedSchoolWorkspace({
+        ...selectedSchoolWorkspace,
+        billing: updatedBilling
+      });
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to save school billing.');
+    } finally {
+      setSaving('');
+    }
+  };
+
+  // Action: Record Offline Bank Settlement for School
+  const handleRecordSchoolOfflinePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedSchoolWorkspace) return;
+    setSaving('record-offline');
+    try {
+      const payAmount = Number(offlinePaymentDraft.amount);
+      if (!payAmount || payAmount <= 0) {
+        toast.error('Please specify a valid payment amount.');
+        return;
+      }
+
+      const txRef = offlinePaymentDraft.reference.trim() || `TX-OFFLINE-${Date.now()}`;
+      const paymentRecord = {
+        schoolId: selectedSchoolWorkspace.id,
+        schoolName: selectedSchoolWorkspace.name,
+        payerName: offlinePaymentDraft.payerName || selectedSchoolWorkspace.name,
+        payerEmail: selectedSchoolWorkspace.contactEmail || selectedSchoolWorkspace.email || '',
+        amount: payAmount,
+        customerTotal: payAmount,
+        baseAmount: payAmount,
+        transactionFee: 0,
+        type: 'inflow',
+        category: 'school_tuition',
+        status: 'PAID',
+        method: 'bank_transfer',
+        channel: 'bank_transfer',
+        reference: txRef,
+        description: offlinePaymentDraft.description || `Institutional Tuition - ${selectedSchoolWorkspace.name}`,
+        notes: offlinePaymentDraft.notes,
+        paidAt: offlinePaymentDraft.date ? new Date(offlinePaymentDraft.date).toISOString() : new Date().toISOString(),
+        createdAt: serverTimestamp()
+      };
+
+      // Save to payments collection
+      await setDoc(doc(db, 'payments', txRef), paymentRecord);
+
+      // Also record in school doc
+      const currentSchoolPayments = Array.isArray(selectedSchoolWorkspace.billing?.payments) 
+        ? selectedSchoolWorkspace.billing.payments 
+        : [];
+      
+      const updatedBilling = {
+        ...(selectedSchoolWorkspace.billing || {}),
+        lastPaymentDate: paymentRecord.paidAt,
+        lastPaymentAmount: payAmount,
+        status: 'PAID',
+        payments: [paymentRecord, ...currentSchoolPayments]
+      };
+
+      await updateDoc(doc(db, 'schools', selectedSchoolWorkspace.id), {
+        billing: updatedBilling,
+        updatedAt: serverTimestamp()
+      });
+
+      toast.success(`Offline bank payment of ${formatNaira(payAmount)} successfully recorded for ${selectedSchoolWorkspace.name}!`);
+      
+      // Reset draft
+      setOfflinePaymentDraft({
+        amount: String(selectedSchoolWorkspace.billing?.baseAmount || 300000),
+        reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
+        date: new Date().toISOString().slice(0, 10),
+        payerName: selectedSchoolWorkspace.name,
+        description: `Institutional Lab & Tuition Payment - ${selectedSchoolWorkspace.name}`,
+        notes: 'Direct Bank Settlement'
+      });
+
+      setSelectedSchoolWorkspace({
+        ...selectedSchoolWorkspace,
+        billing: updatedBilling
+      });
+
+      await load();
+    } catch (err: any) {
+      toast.error('Failed to record bank settlement: ' + err.message);
     } finally {
       setSaving('');
     }
@@ -725,16 +891,677 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
   // SUB-VIEW: Partner School Billings Page
   if (activeView === 'schools') {
+    // If a school is selected for full workspace management
+    if (selectedSchoolWorkspace) {
+      const sch = selectedSchoolWorkspace;
+      const schoolPrograms = Array.isArray(sch.programs) ? sch.programs : [];
+      
+      // Calculate Faculty Payouts for this school's programs
+      let totalFacultyPayout = 0;
+      schoolPrograms.forEach((p: any) => {
+        if (Array.isArray(p.tutorAssignments) && p.tutorAssignments.length > 0) {
+          p.tutorAssignments.forEach((ta: any) => {
+            totalFacultyPayout += Number(ta.payoutRate || 0);
+          });
+        } else if (p.tutorPayoutRate) {
+          totalFacultyPayout += Number(p.tutorPayoutRate || 0);
+        }
+      });
+
+      const invoicedFee = Number(schoolBillingConfig.baseAmount || sch.billing?.baseAmount || 300000);
+      const institutionalMargin = invoicedFee - totalFacultyPayout;
+
+      // Filter payments specific to this school
+      const schoolPayments = (data.payments || []).filter((p: any) => 
+        p.schoolId === sch.id || 
+        String(p.description || '').toLowerCase().includes(sch.name.toLowerCase()) ||
+        String(p.payerName || '').toLowerCase().includes(sch.name.toLowerCase())
+      );
+
+      return (
+        <div className="space-y-6">
+          <SEO title={`Billing Workspace: ${sch.name} | Admin`} description="School custom billing, faculty margin allocations, and offline settlements." noindex={true} />
+
+          {/* Top Bar: Back navigation & actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedSchoolWorkspace(null)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs self-start"
+            >
+              <ArrowLeft size={16} />
+              <span>Back to All Partner Schools</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={saving === `reminder-${sch.id}`}
+                onClick={() => void sendSchoolReminder(sch)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-slate-900 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                {saving === `reminder-${sch.id}` ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                <span>Send Payment Notice</span>
+              </button>
+            </div>
+          </div>
+
+          {/* School Banner Card */}
+          <div className="p-6 md:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400 flex items-center justify-center font-black text-xl shadow-xs">
+                <Building2 size={28} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
+                    {sch.name}
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                    {sch.status || 'Active Partner'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                  <span>Code: <strong className="font-mono text-slate-700 dark:text-slate-300">{sch.code || sch.id}</strong></span>
+                  {sch.contactEmail && <span>• Email: {sch.contactEmail}</span>}
+                  {sch.contactPhone && <span>• Phone: {sch.contactPhone}</span>}
+                  <span>• Active Tracks: <strong className="text-slate-700 dark:text-slate-300">{schoolPrograms.length}</strong></span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-right min-w-[150px]">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Current Invoiced Fee</div>
+                <div className="text-lg font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                  {formatNaira(invoicedFee)}
+                </div>
+                <div className="text-[10px] text-slate-500 capitalize">{schoolBillingConfig.cycle} • {schoolBillingConfig.mode.replace('_', ' ')}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <button
+              type="button"
+              onClick={() => setActiveSchoolTab('config')}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeSchoolTab === 'config'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Sliders size={14} />
+              <span>Billing &amp; Custom Fees</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSchoolTab('margin')}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeSchoolTab === 'margin'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <TrendingUp size={14} />
+              <span>Programmes &amp; Faculty Margin</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSchoolTab('record_payment')}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeSchoolTab === 'record_payment'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Plus size={14} />
+              <span>Record Bank Settlement</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveSchoolTab('invoices')}
+              className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeSchoolTab === 'invoices'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <FileText size={14} />
+              <span>Payment History &amp; Receipts ({schoolPayments.length})</span>
+            </button>
+          </div>
+
+          {/* TAB 1: Billing & Custom Fees Configuration */}
+          {activeSchoolTab === 'config' && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sliders size={18} className="text-sky-500" />
+                  <span>Institutional Fee &amp; Billing Cycle Settings</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Configure custom contract base fees, billing cadence, payment options, and termly discounts for {sch.name}.
+                </p>
+              </div>
+
+              <form onSubmit={saveSchoolFullBilling} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Base Invoiced Fee (₦ NGN) <span className="text-brand-red">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      step={5000}
+                      value={schoolBillingConfig.baseAmount}
+                      onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, baseAmount: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Contract base amount per billing cycle</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Billing Cycle Frequency
+                    </label>
+                    <select
+                      value={schoolBillingConfig.cycle}
+                      onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, cycle: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="termly">Termly (12 Weeks Academic Cycle)</option>
+                      <option value="monthly">Monthly (4 Weeks Cycle)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">Recurrence frequency for invoicing</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Default Payment Mode
+                    </label>
+                    <select
+                      value={schoolBillingConfig.mode}
+                      onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, mode: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="advance_termly">Advance Termly (Beginning of Term)</option>
+                      <option value="advance_monthly">Advance Monthly (Beginning of Month)</option>
+                      <option value="post_termly">Post Termly (End of Term)</option>
+                      <option value="post_monthly">Post Monthly (End of Month)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">Default payment timing structure</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Next Billing Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={schoolBillingConfig.nextDueDate}
+                      onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, nextDueDate: e.target.value })}
+                      className={inputClass}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Date when the next invoice must be settled</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Institutional Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={schoolBillingConfig.discountPercent}
+                      onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, discountPercent: Number(e.target.value) })}
+                      className={inputClass}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">Special concession or multi-campus discount</p>
+                  </div>
+                </div>
+
+                {/* Allowed Payment Modes Selection */}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <label className="block text-[11px] font-black uppercase text-slate-600 dark:text-slate-300">
+                    Allowed Payment Options for School Administrator
+                  </label>
+                  <p className="text-xs text-slate-500">
+                    Select which payment options are accessible on the School Administrator's portal checkout.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                    {[
+                      { key: 'advance_termly', label: 'Advance Termly' },
+                      { key: 'advance_monthly', label: 'Advance Monthly' },
+                      { key: 'post_termly', label: 'Post Termly' },
+                      { key: 'post_monthly', label: 'Post Monthly' }
+                    ].map(opt => {
+                      const isChecked = schoolBillingConfig.allowedModes.includes(opt.key);
+                      return (
+                        <label key={opt.key} className="flex items-center gap-2 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-sky-500 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSchoolBillingConfig({
+                                  ...schoolBillingConfig,
+                                  allowedModes: [...schoolBillingConfig.allowedModes, opt.key]
+                                });
+                              } else {
+                                setSchoolBillingConfig({
+                                  ...schoolBillingConfig,
+                                  allowedModes: schoolBillingConfig.allowedModes.filter(m => m !== opt.key)
+                                });
+                              }
+                            }}
+                            className="rounded text-sky-600 focus:ring-sky-500"
+                          />
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Billing Notes & Special Terms */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                    Contract Terms &amp; Billing Notes
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={schoolBillingConfig.notes}
+                    onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, notes: e.target.value })}
+                    placeholder="Enter contractual terms, lab equipment provisioning terms, or renewal conditions..."
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={saving === 'school-full'}
+                    className="min-h-11 px-6 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black inline-flex items-center gap-2 shadow-md shadow-sky-600/20"
+                  >
+                    {saving === 'school-full' ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    <span>Save Institutional Billing Settings</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 2: Programmes & Faculty Margin Breakdown */}
+          {activeSchoolTab === 'margin' && (
+            <div className="space-y-6">
+              {/* 4 Financial Margin Metric Blocks */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+                    <DollarSign size={16} className="text-sky-500" />
+                    <span>School Invoiced Fee</span>
+                  </div>
+                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-2">
+                    {formatNaira(invoicedFee)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Configured contract revenue</p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+                    <Users size={16} className="text-purple-500" />
+                    <span>Total Faculty Payout</span>
+                  </div>
+                  <div className="text-2xl font-black font-mono text-purple-600 dark:text-purple-400 mt-2">
+                    {formatNaira(totalFacultyPayout)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Assigned tutor compensation</p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+                    <TrendingUp size={16} className="text-emerald-500" />
+                    <span>Net Institutional Margin</span>
+                  </div>
+                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-2">
+                    {formatNaira(institutionalMargin)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {invoicedFee > 0 ? `${Math.round((institutionalMargin / invoicedFee) * 100)}% margin surplus` : '0% margin'}
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                  <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+                    <School size={16} className="text-brand-red" />
+                    <span>Active STEM Tracks</span>
+                  </div>
+                  <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-2">
+                    {schoolPrograms.length}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Undergoing lab programmes</p>
+                </div>
+              </div>
+
+              {/* Active Programmes & Faculty Allocation Table */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      Undergoing Programmes &amp; Assigned Instructors
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Review all STEM tracks deployed at {sch.name}, along with the faculty instructors and payout rates allocated.
+                    </p>
+                  </div>
+
+                  <Link
+                    to="/admin/schools"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <span>Manage in School Directory</span>
+                    <ExternalLink size={13} />
+                  </Link>
+                </div>
+
+                {schoolPrograms.length === 0 ? (
+                  <div className="p-10 text-center text-slate-400 text-xs">
+                    No active programmes currently registered for this school.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
+                          <th className="py-3 px-3">Programme Track</th>
+                          <th className="py-3 px-3">Assigned Faculty Tutors</th>
+                          <th className="py-3 px-3">Schedule / Delivery</th>
+                          <th className="py-3 px-3 text-right">Faculty Payout</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {schoolPrograms.map((p: any, idx: number) => {
+                          const tutorAssignments = Array.isArray(p.tutorAssignments) && p.tutorAssignments.length > 0
+                            ? p.tutorAssignments
+                            : p.tutorId ? [{ tutorId: p.tutorId, tutorName: p.tutorName || 'Primary Tutor', role: 'Lead Instructor', payoutRate: p.tutorPayoutRate || 0 }] : [];
+
+                          const programPayout = tutorAssignments.reduce((acc: number, item: any) => acc + Number(item.payoutRate || 0), 0);
+
+                          return (
+                            <tr key={p.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                              <td className="py-3.5 px-3">
+                                <div className="font-bold text-slate-900 dark:text-white">{p.name || 'STEM Programme Track'}</div>
+                                <div className="text-[11px] text-slate-400 font-mono">{p.code || `PROG-${idx + 1}`}</div>
+                              </td>
+                              <td className="py-3.5 px-3">
+                                {tutorAssignments.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {tutorAssignments.map((ta: any, tidx: number) => (
+                                      <span key={tidx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold text-[10px]">
+                                        <UserCheck size={10} />
+                                        {ta.tutorName}
+                                        <span className="text-[9px] text-purple-500 dark:text-purple-400 font-normal">({ta.role || 'Instructor'})</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="italic text-slate-400">No tutors assigned</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 capitalize">
+                                {p.schedule || p.mode || 'Weekly Physical Lab'}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-mono font-black text-purple-600 dark:text-purple-400">
+                                {formatNaira(programPayout)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: Record Direct / Offline Settlement */}
+          {activeSchoolTab === 'record_payment' && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard size={18} className="text-emerald-500" />
+                  <span>Record Direct Bank Settlement / Offline Payment</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Log a manual institutional wire transfer, cash settlement, or cheque received from {sch.name}. This will update the school billing status and generate an official receipt.
+                </p>
+              </div>
+
+              <form onSubmit={handleRecordSchoolOfflinePayment} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Amount Paid (₦ NGN) <span className="text-brand-red">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1000}
+                      step={1000}
+                      value={offlinePaymentDraft.amount}
+                      onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, amount: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 300000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Bank Transfer Reference / Cheque No. <span className="text-brand-red">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={offlinePaymentDraft.reference}
+                      onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, reference: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. GTB-NIP-993821039"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Payment Date
+                    </label>
+                    <input
+                      type="date"
+                      value={offlinePaymentDraft.date}
+                      onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, date: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Payer / Depositor Name
+                    </label>
+                    <input
+                      type="text"
+                      value={offlinePaymentDraft.payerName}
+                      onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, payerName: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. St. Gregory College Bursary"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                      Payment Purpose / Description
+                    </label>
+                    <input
+                      type="text"
+                      value={offlinePaymentDraft.description}
+                      onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, description: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. First Term 2026 STEM & Robotics Lab Subscription"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1.5">
+                    Internal Verification Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={offlinePaymentDraft.notes}
+                    onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, notes: e.target.value })}
+                    placeholder="Verified with Zenith Bank statement / Bursar confirmation..."
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={saving === 'record-offline'}
+                    className="min-h-11 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black inline-flex items-center gap-2 shadow-md shadow-emerald-600/20"
+                  >
+                    {saving === 'record-offline' ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                    <span>Record Payment &amp; Issue Receipt</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 4: Invoices & Payment History Ledger */}
+          {activeSchoolTab === 'invoices' && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    Institutional Payments &amp; Invoices Ledger
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Complete verifiable record of all payments, online receipts, and bank settlements logged for {sch.name}.
+                  </p>
+                </div>
+              </div>
+
+              {schoolPayments.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-xs">
+                  No payment records found for {sch.name}. You can record a payment in the "Record Bank Settlement" tab.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[750px]">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
+                        <th className="py-3 px-3">Date</th>
+                        <th className="py-3 px-3">Reference</th>
+                        <th className="py-3 px-3">Description</th>
+                        <th className="py-3 px-3">Method</th>
+                        <th className="py-3 px-3">Amount</th>
+                        <th className="py-3 px-3 text-right">Receipt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {schoolPayments.map((p: any) => {
+                        const receiptData: TransactionReceiptData = {
+                          id: p.id || p.reference || 'TX-INST',
+                          transactionNo: p.reference || p.id,
+                          reference: p.reference || p.id,
+                          type: 'inflow',
+                          description: p.description || `Tuition Payment - ${sch.name}`,
+                          category: 'school_tuition',
+                          amount: Number(p.amount || p.customerTotal || 0),
+                          customerTotal: Number(p.amount || p.customerTotal || 0),
+                          baseAmount: Number(p.amount || p.baseAmount || 0),
+                          status: p.status || 'PAID',
+                          paymentMethod: p.method || 'bank_transfer',
+                          payerName: p.payerName || sch.name,
+                          payerEmail: p.payerEmail || sch.contactEmail,
+                          schoolName: sch.name,
+                          paidAt: p.paidAt || p.createdAt || new Date().toISOString()
+                        };
+
+                        return (
+                          <tr key={p.id || p.reference} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="py-3.5 px-3 font-mono text-slate-500 whitespace-nowrap">
+                              {dateLabel(p.paidAt || p.date || p.createdAt)}
+                            </td>
+                            <td className="py-3.5 px-3 font-mono text-slate-700 dark:text-slate-300 font-bold">
+                              {p.reference || p.id}
+                            </td>
+                            <td className="py-3.5 px-3 text-slate-800 dark:text-slate-200">
+                              <div className="font-bold">{p.description || 'Institutional Tuition'}</div>
+                              <div className="text-[10px] text-slate-400">{p.payerName || sch.name}</div>
+                            </td>
+                            <td className="py-3.5 px-3 uppercase text-[10px] font-black text-slate-500">
+                              {p.method || p.channel || 'Bank Transfer'}
+                            </td>
+                            <td className="py-3.5 px-3 font-mono font-black text-emerald-600 dark:text-emerald-400">
+                              {money(p.amount || p.customerTotal)}
+                            </td>
+                            <td className="py-3.5 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => generatePdfReceipt(receiptData)}
+                                className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold transition-colors"
+                              >
+                                <Download size={12} />
+                                <span>PDF Receipt</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // MAIN PARTNER SCHOOLS LIST (When no school is selected for deep workspace)
+    const filteredSchools = schools.filter((sch: any) => {
+      const q = schoolSearchQuery.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        (sch.name && sch.name.toLowerCase().includes(q)) ||
+        (sch.code && sch.code.toLowerCase().includes(q)) ||
+        (sch.contactEmail && sch.contactEmail.toLowerCase().includes(q)) ||
+        (sch.email && sch.email.toLowerCase().includes(q))
+      );
+    });
+
+    const totalSchoolInvoicedVolume = schools.reduce((acc: number, sch: any) => {
+      return acc + Number(sch.billing?.baseAmount || 300000);
+    }, 0);
+
     return (
       <div className="space-y-6">
-        <SEO title="Partner School Billings | Admin" description="Manage school institutional subscriptions and renewal schedules." noindex={true} />
+        <SEO title="Partner School Billings &amp; Custom Fees | Admin" description="Manage school institutional subscriptions, custom fees, and renewal schedules." noindex={true} />
         
-        {/* Back Navigation */}
-        <div className="flex items-center justify-between">
+        {/* Back Navigation & Summary Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setActiveView('hub')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs self-start"
           >
             <ArrowLeft size={16} />
             <span>Back to Financial Operations</span>
@@ -745,127 +1572,89 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           </div>
         </div>
 
+        {/* 4 Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+              <School size={16} className="text-brand-red" />
+              <span>Partner Institutions</span>
+            </div>
+            <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-2">
+              {schools.length}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Active school subscriptions</p>
+          </div>
+
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+              <DollarSign size={16} className="text-emerald-500" />
+              <span>Institutional Billing Volume</span>
+            </div>
+            <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400 mt-2">
+              {formatNaira(totalSchoolInvoicedVolume)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Total contracted revenue base</p>
+          </div>
+
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+              <Layers size={16} className="text-sky-500" />
+              <span>Deployed STEM Tracks</span>
+            </div>
+            <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400 mt-2">
+              {schools.reduce((acc: number, s: any) => acc + (s.programs?.length || 0), 0)}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Active curriculum programmes</p>
+          </div>
+
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
+              <CheckCircle2 size={16} className="text-purple-500" />
+              <span>Verified Billing Contracts</span>
+            </div>
+            <div className="text-2xl font-black font-mono text-purple-600 dark:text-purple-400 mt-2">
+              {schools.filter((s: any) => s.billing?.baseAmount).length}
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">Schools with custom fee profile</p>
+          </div>
+        </div>
+
+        {/* Schools Table & Workspace Hub */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white">Partner School Custom Billing Management</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Set custom institutional fees (₦ NGN), payment cycles (Monthly / Termly), payment modes, and dispatch one-click renewal reminders.
+                Click on any school to configure custom institutional fees, manage billing frequencies, record bank settlements, and inspect faculty margins.
               </p>
             </div>
-          </div>
 
-          {/* Quick Edit Drawer / Form */}
-          {editingSchoolBilling && (
-            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border-2 border-sky-500/30 animate-in fade-in duration-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  Edit Billing Configuration for {editingSchoolBilling.name}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setEditingSchoolBilling(null)}
-                  className="text-xs font-bold text-slate-400 hover:text-slate-600"
-                >
-                  Close
-                </button>
-              </div>
-
-              <form onSubmit={saveSchoolQuickBilling} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Fee Amount (₦)</label>
-                  <input
-                    type="number"
-                    required
-                    value={editingSchoolBilling.billing?.baseAmount || 300000}
-                    onChange={e => setEditingSchoolBilling({
-                      ...editingSchoolBilling,
-                      billing: { ...(editingSchoolBilling.billing || {}), baseAmount: Number(e.target.value) }
-                    })}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Billing Cycle</label>
-                  <select
-                    value={editingSchoolBilling.billing?.cycle || 'termly'}
-                    onChange={e => setEditingSchoolBilling({
-                      ...editingSchoolBilling,
-                      billing: { ...(editingSchoolBilling.billing || {}), cycle: e.target.value }
-                    })}
-                    className={inputClass}
-                  >
-                    <option value="termly">Termly (12 Weeks)</option>
-                    <option value="monthly">Monthly (4 Weeks)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Default Mode</label>
-                  <select
-                    value={editingSchoolBilling.billing?.mode || 'advance_termly'}
-                    onChange={e => setEditingSchoolBilling({
-                      ...editingSchoolBilling,
-                      billing: { ...(editingSchoolBilling.billing || {}), mode: e.target.value }
-                    })}
-                    className={inputClass}
-                  >
-                    <option value="advance_termly">Advance Termly</option>
-                    <option value="advance_monthly">Advance Monthly</option>
-                    <option value="post_termly">Post Termly</option>
-                    <option value="post_monthly">Post Monthly</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Next Due Date</label>
-                  <input
-                    type="date"
-                    value={editingSchoolBilling.billing?.nextDueDate || ''}
-                    onChange={e => setEditingSchoolBilling({
-                      ...editingSchoolBilling,
-                      billing: { ...(editingSchoolBilling.billing || {}), nextDueDate: e.target.value }
-                    })}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className="sm:col-span-4 flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingSchoolBilling(null)}
-                    className="min-h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving === 'school-quick'}
-                    className="min-h-10 px-5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black inline-flex items-center gap-1.5"
-                  >
-                    {saving === 'school-quick' ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
-                    Save Billing Settings
-                  </button>
-                </div>
-              </form>
+            <div className="relative min-w-[240px]">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={schoolSearchQuery}
+                onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                placeholder="Search school name, code, email..."
+                className="w-full pl-9 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              />
             </div>
-          )}
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[850px]">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
-                  <th className="py-3 px-3">School Name</th>
+                  <th className="py-3 px-3">School Name &amp; Code</th>
                   <th className="py-3 px-3">Active Programmes</th>
                   <th className="py-3 px-3">Configured Fee (₦)</th>
-                  <th className="py-3 px-3">Cycle & Mode</th>
+                  <th className="py-3 px-3">Cycle &amp; Mode</th>
                   <th className="py-3 px-3">Next Due Date</th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {schools.map(sch => {
+                {filteredSchools.map(sch => {
                   const progCount = sch.programs?.length || 0;
                   const baseFee = sch.billing?.baseAmount || 300000;
                   const cycle = sch.billing?.cycle || 'termly';
@@ -876,7 +1665,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                     <tr key={sch.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                       <td className="py-3.5 px-3">
                         <div className="font-bold text-slate-900 dark:text-white">{sch.name}</div>
-                        <div className="text-[11px] text-slate-400">{sch.contactEmail || sch.email}</div>
+                        <div className="text-[11px] text-slate-400">{sch.contactEmail || sch.email} {sch.code ? `• ${sch.code}` : ''}</div>
                       </td>
                       <td className="py-3.5 px-3">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-50 text-sky-600 dark:bg-sky-950/40">
@@ -896,10 +1685,11 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setEditingSchoolBilling(sch)}
-                            className="min-h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-bold flex items-center gap-1"
+                            onClick={() => openSchoolWorkspace(sch)}
+                            className="min-h-8 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs"
                           >
-                            <Edit3 size={13} /> Edit
+                            <Sliders size={13} />
+                            <span>Manage Billing &amp; Fees</span>
                           </button>
                           <button
                             type="button"
@@ -908,7 +1698,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                             className="min-h-8 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-[11px] font-black inline-flex items-center gap-1"
                           >
                             {saving === `reminder-${sch.id}` ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />}
-                            Send Reminder
+                            <span>Send Notice</span>
                           </button>
                         </div>
                       </td>
@@ -1359,7 +2149,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
               <CheckCircle2 size={13} />
             </span>
             <span className="text-xs font-semibold text-slate-300">
-              Platform Treasury Available Balance
+              Available Balance
             </span>
             <button
               type="button"

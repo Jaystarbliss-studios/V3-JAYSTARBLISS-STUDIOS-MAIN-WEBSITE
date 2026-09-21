@@ -5,7 +5,9 @@ import {
   Coins, Box, School, FileText, CheckCircle2, 
   PieChart, X
 } from 'lucide-react';
-import { formatCurrency, formatReceiptDate, generatePdfReceipt, parseDate } from '../../lib/receiptGenerator';
+
+
+import { formatCurrency, formatReceiptDate, generatePdfReceipt, parseDate, getReceiptDetails } from '../../lib/receiptGenerator';
 import type { TransactionReceiptData } from '../../lib/receiptGenerator';
 import { FintechTransactionDetailsModal } from './FintechTransactionDetailsModal';
 import { useToast } from '../../contexts/ToastContext';
@@ -131,7 +133,8 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
       // Search Query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const searchPool = `${t.reference || ''} ${t.id || ''} ${t.description || ''} ${t.plan || ''} ${t.studentName || ''} ${t.payerName || ''} ${t.schoolName || ''}`.toLowerCase();
+        const details = getReceiptDetails(t);
+        const searchPool = `${t.reference || ''} ${t.id || ''} ${t.description || ''} ${t.plan || ''} ${details.displayTitle} ${details.programName} ${details.payerName} ${details.roleLabel} ${details.beneficiary} ${details.studentName} ${details.studentList.join(' ')} ${details.schoolName}`.toLowerCase();
         if (!searchPool.includes(q)) return false;
       }
 
@@ -166,7 +169,6 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
       toast.error('No transactions to download');
       return;
     }
-    // If one transaction, download receipt; if multiple, download the latest or alert
     generatePdfReceipt(filtered[0]);
     toast.success(`Generated official statement receipt (${filtered.length} total records on file)`);
   };
@@ -204,7 +206,6 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
         icon: <ArrowDownLeft size={18} />
       };
     }
-    // Default transfer / tuition outflow
     return {
       bg: 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30',
       icon: <ArrowUpRight size={18} />
@@ -214,6 +215,7 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
   const currentMonthLabel = selectedMonth === 'all' 
     ? (availableMonths[0]?.label || 'Sep 2026') 
     : (availableMonths.find(m => m.key === selectedMonth)?.label || 'All Months');
+
 
   return (
     <div className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden font-sans transition-colors">
@@ -427,7 +429,7 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
             const isSuccess = ['successful', 'success', 'paid', 'verified'].includes(status);
             const isPending = ['pending', 'processing'].includes(status);
 
-            const displayTitle = txn.description || txn.plan || (txn.studentName ? `Tuition - ${txn.studentName}` : 'Tuition & Academic Track');
+            const details = getReceiptDetails(txn);
 
             return (
               <div
@@ -442,12 +444,21 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
 
                 {/* Middle: Title & Date */}
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                    {displayTitle}
-                  </h4>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">
-                    {formattedDate}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                      {details.displayTitle}
+                    </h4>
+                    <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                      {details.roleLabel}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                    <span className="font-mono">{formattedDate}</span>
+                    <span>•</span>
+                    <span className="truncate text-slate-600 dark:text-slate-300">
+                      {details.beneficiary}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Right: Amount & Status underneath */}
@@ -468,6 +479,7 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
               </div>
             );
           })
+
         )}
       </div>
 

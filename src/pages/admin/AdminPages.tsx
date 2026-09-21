@@ -139,7 +139,7 @@ const AdminPages: React.FC = () => {
         <div>
           <h1 className="text-3xl font-extrabold text-brand-slate dark:text-white flex items-center gap-3">
             <Layers className="text-brand-red w-8 h-8" />
-            Website &amp; Pages CMS Command Center
+            Website &amp; Pages CMS
           </h1>
           <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
             Edit live page section text, hero headers, program curriculum, services catalog, portfolio, and news broadcasts.

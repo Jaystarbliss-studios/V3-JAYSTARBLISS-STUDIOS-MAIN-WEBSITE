@@ -341,9 +341,6 @@ const AdminInquiries: React.FC = () => {
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <div className="text-brand-red font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5">
-              <Filter size={13} /> CRM Operations & Lead Ingestion
-            </div>
             <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
               Inquiries & Leads
             </h1>

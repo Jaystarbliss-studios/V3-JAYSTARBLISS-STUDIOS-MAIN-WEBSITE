@@ -34,7 +34,8 @@ const ParentDashboard: React.FC = () => {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [studentName, setStudentName] = useState('');
   const [studentAge, setStudentAge] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('Weekend STEM & Coding Track');
+  const [availablePrograms, setAvailablePrograms] = useState<{ id: string; title: string }[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState('');
   const [preferredSubjects, setPreferredSubjects] = useState('Scratch, Python, Web Development');
   const [submitting, setSubmitting] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState('');
@@ -64,10 +65,18 @@ const ParentDashboard: React.FC = () => {
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
         setChildren(childList);
-        const [paymentResult, enrollmentResult] = await Promise.allSettled([
+        const [paymentResult, enrollmentResult, programsSnap] = await Promise.allSettled([
           getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50))),
           getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid), limit(25))),
+          getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs')))
         ]);
+        if (programsSnap.status === 'fulfilled') {
+          const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'STEM Programme') as string }));
+          setAvailablePrograms(progs);
+          if (progs.length > 0 && !selectedPlan) {
+            setSelectedPlan(progs[0].title);
+          }
+        }
         if (paymentResult.status === 'fulfilled') setPayments(paymentResult.value.docs.map(paymentDoc => ({ id: paymentDoc.id, ...paymentDoc.data() })).filter((payment: any) => payment.parentId === userUid || payment.parentId === userEmail || payment.parentEmail === userEmail));
         else { console.warn('Payment lookup failed:', paymentResult.reason); setPayments([]); }
         if (enrollmentResult.status === 'fulfilled') setEnrollments(enrollmentResult.value.docs.map(enrollmentDoc => ({ id: enrollmentDoc.id, ...enrollmentDoc.data() })));
@@ -129,7 +138,6 @@ const ParentDashboard: React.FC = () => {
       <SEO title="Parent Portal & Progress Dashboard" description="Monitor child progress, attendance, mentor assessments, and billing at Jaystarbliss Studios." noindex={true} />
       
       <DashboardGreeting
-        name="Parent & Guardian Console"
         role="Parent / Guardian"
         subtitle="Track your children, enrollment requests, learning progress, tuition records, and institute notices."
       />
@@ -461,9 +469,13 @@ const ParentDashboard: React.FC = () => {
               </Field>
               <Field label="Learning Track / Plan" htmlFor="parent-plan">
                 <select id="parent-plan" value={selectedPlan} onChange={event => setSelectedPlan(event.target.value)} className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900">
-                  <option>Weekend STEM & Coding Track</option>
-                  <option>1-on-1 Intensive Mentorship</option>
-                  <option>Smart Robotics & IoT Hardware Lab</option>
+                  {availablePrograms.length > 0 ? (
+                    availablePrograms.map(p => (
+                      <option key={p.id} value={p.title}>{p.title}</option>
+                    ))
+                  ) : (
+                    <option value="General STEM & Computing Track">General STEM & Computing Track</option>
+                  )}
                 </select>
               </Field>
               <Field label="Preferred Subjects" htmlFor="parent-subjects">

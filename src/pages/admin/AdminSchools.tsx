@@ -17,6 +17,16 @@ import {
 } from 'lucide-react';
 import { formatNaira, billingPost } from '../../lib/billing';
 
+export interface AssignedTutorAllocation {
+  tutorId: string;
+  tutorName: string;
+  tutorEmail?: string;
+  payoutRate: number; // in NGN
+  payoutType: 'per_student' | 'per_term' | 'per_month' | 'fixed_stipend';
+  role?: 'lead' | 'co_tutor' | 'assistant' | 'lab_engineer';
+  notes?: string;
+}
+
 export interface SchoolProgram {
   id: string;
   name: string;
@@ -24,6 +34,9 @@ export interface SchoolProgram {
   level?: string;
   schedule?: string;
   status: 'ACTIVE' | 'UPCOMING' | 'COMPLETED' | 'PAUSED';
+  assignedTutors?: AssignedTutorAllocation[];
+  baseFee?: number;
+  costPerStudent?: number;
 }
 
 export interface SchoolBillingConfig {
@@ -53,6 +66,7 @@ export interface SchoolData {
   icon?: string;
   studentCount?: number;
   programs?: SchoolProgram[];
+  assignedTutors?: AssignedTutorAllocation[];
   billing?: SchoolBillingConfig;
   createdAt?: any;
   updatedAt?: any;
@@ -96,24 +110,7 @@ interface CadetRecord {
   schoolId?: string;
 }
 
-const DEFAULT_PROGRAMS: SchoolProgram[] = [
-  {
-    id: 'prog-robotics',
-    name: 'Smart Robotics & IoT Hardware Lab',
-    description: 'Hands-on robotics prototyping, embedded sensors, Arduino/ESP32, and automated systems engineering.',
-    level: 'Primary 4 - SSS 3',
-    schedule: 'Mondays & Wednesdays, 10:00 AM - 12:00 PM',
-    status: 'ACTIVE'
-  },
-  {
-    id: 'prog-coding',
-    name: 'Full-Stack Web Development & Python AI',
-    description: 'Python programming, computational thinking, front-end web development, and foundational machine learning.',
-    level: 'JSS 1 - SSS 3',
-    schedule: 'Tuesdays & Thursdays, 1:00 PM - 3:00 PM',
-    status: 'ACTIVE'
-  }
-];
+const DEFAULT_PROGRAMS: SchoolProgram[] = [];
 
 const DEFAULT_SCHOOLS: SchoolData[] = [
   { 
@@ -125,7 +122,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Lagos',
     status: 'ACTIVE',
-    programs: DEFAULT_PROGRAMS,
+    programs: [],
     billing: {
       baseAmount: 350000,
       cycle: 'termly',
@@ -145,7 +142,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Lagos',
     status: 'ACTIVE',
-    programs: [DEFAULT_PROGRAMS[0]],
+    programs: [],
     billing: {
       baseAmount: 280000,
       cycle: 'termly',
@@ -164,7 +161,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Lagos',
     status: 'ACTIVE',
-    programs: DEFAULT_PROGRAMS,
+    programs: [],
     billing: {
       baseAmount: 320000,
       cycle: 'monthly',
@@ -183,7 +180,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Lagos',
     status: 'ACTIVE',
-    programs: [DEFAULT_PROGRAMS[1]],
+    programs: [],
     billing: {
       baseAmount: 250000,
       cycle: 'termly',
@@ -202,7 +199,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Ogun',
     status: 'ACTIVE',
-    programs: DEFAULT_PROGRAMS,
+    programs: [],
     billing: {
       baseAmount: 300000,
       cycle: 'termly',
@@ -220,7 +217,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     contactName: 'School Administrator', 
     state: 'Lagos',
     status: 'ACTIVE',
-    programs: [DEFAULT_PROGRAMS[0]],
+    programs: [],
     billing: {
       baseAmount: 260000,
       cycle: 'monthly',
@@ -242,7 +239,7 @@ const AdminSchools: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
-  const [activeSchoolTab, setActiveSchoolTab] = useState<'profile' | 'programs' | 'billing' | 'passcodes' | 'resources' | 'cadets' | 'raw'>('profile');
+  const [activeSchoolTab, setActiveSchoolTab] = useState<'profile' | 'programs' | 'tutors' | 'billing' | 'passcodes' | 'resources' | 'cadets' | 'raw'>('profile');
 
   // Sub-stores for selected school
   const [passcodes, setPasscodes] = useState<ExamPasscode[]>([]);
@@ -264,8 +261,8 @@ const AdminSchools: React.FC = () => {
     initialFee: '350000',
     cycle: 'termly' as 'monthly' | 'termly',
     mode: 'advance_termly' as any,
-    initialProgramName: 'Smart Robotics & STEM Computing Lab',
-    initialProgramDesc: 'Comprehensive institutional STEM curriculum, robotics hardware, and computational thinking.'
+    initialProgramName: '',
+    initialProgramDesc: ''
   });
 
   // Selected school edit forms
@@ -282,6 +279,8 @@ const AdminSchools: React.FC = () => {
   const [programsList, setProgramsList] = useState<SchoolProgram[]>([]);
   const [editingProgram, setEditingProgram] = useState<SchoolProgram | null>(null);
   const [isNewProgram, setIsNewProgram] = useState(false);
+  const [staffList, setStaffList] = useState<{ id: string; name: string; email: string; role?: string }[]>([]);
+  const [catalogPrograms, setCatalogPrograms] = useState<{ id: string; name: string; description: string; level?: string }[]>([]);
 
   // New Passcode Form
   const [passcodeForm, setPasscodeForm] = useState({
@@ -307,14 +306,52 @@ const AdminSchools: React.FC = () => {
   const [sendingReminder, setSendingReminder] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Load all schools
+  // Load all schools and faculty/catalog
   const loadSchools = useCallback(async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'schools'));
+      const [snap, usersSnap, progsSnap] = await Promise.all([
+        getDocs(collection(db, 'schools')),
+        getDocs(collection(db, 'users')).catch(() => null),
+        getDocs(collection(db, 'programs')).catch(() => null)
+      ]);
+
+      if (usersSnap && !usersSnap.empty) {
+        const staffUsers: { id: string; name: string; email: string; role?: string }[] = [];
+        usersSnap.docs.forEach(d => {
+          const u = d.data();
+          const r = String(u.role || '').toLowerCase();
+          if (['tutor', 'staff', 'instructor', 'faculty'].includes(r)) {
+            staffUsers.push({
+              id: d.id,
+              name: u.name || u.displayName || u.fullName || u.email || 'Faculty Instructor',
+              email: u.email || '',
+              role: r
+            });
+          }
+        });
+        if (staffUsers.length > 0) setStaffList(staffUsers);
+      }
+
+      if (progsSnap && !progsSnap.empty) {
+        const catProgs = progsSnap.docs.map(d => {
+          const p = d.data();
+          return {
+            id: d.id,
+            name: p.title || p.name || 'STEM Programme',
+            description: p.shortDescription || p.description || '',
+            level: p.targetAudience || p.level || p.grade || 'All Grades'
+          };
+        });
+        setCatalogPrograms(catProgs);
+      } else {
+        setCatalogPrograms([]);
+      }
+
       if (!snap.empty) {
         const firestoreSchools = snap.docs.map(d => ({
           id: d.id,
+          programs: [],
           ...(d.data() as Omit<SchoolData, 'id'>)
         }));
 
@@ -384,7 +421,7 @@ const AdminSchools: React.FC = () => {
       lastReminderSentAt: selectedSchool.billing?.lastReminderSentAt || ''
     });
 
-    setProgramsList(selectedSchool.programs && selectedSchool.programs.length > 0 ? selectedSchool.programs : DEFAULT_PROGRAMS);
+    setProgramsList(Array.isArray(selectedSchool.programs) ? selectedSchool.programs : []);
 
     // Fetch related records: passcodes, resources, cadets, payments
     const fetchSchoolDetails = async () => {
@@ -596,7 +633,7 @@ const AdminSchools: React.FC = () => {
     if (isNewProgram) {
       const newEntry: SchoolProgram = {
         ...editingProgram,
-        id: `prog-${Date.now()}`
+        id: editingProgram.id || `prog-${Date.now()}`
       };
       updated = [...programsList, newEntry];
     } else {
@@ -608,6 +645,9 @@ const AdminSchools: React.FC = () => {
 
   // Delete Program
   const handleDeleteProgram = (progId: string) => {
+    if (!window.confirm('Are you sure you want to delete this programme? It will be removed from this school.')) {
+      return;
+    }
     const updated = programsList.filter(p => p.id !== progId);
     void handleSavePrograms(updated);
   };
@@ -755,14 +795,16 @@ const AdminSchools: React.FC = () => {
         state: onboardForm.state.trim() || 'Lagos',
         address: onboardForm.address.trim(),
         status: 'ACTIVE',
-        programs: [
-          {
-            id: `prog-${Date.now()}`,
-            name: onboardForm.initialProgramName.trim(),
-            description: onboardForm.initialProgramDesc.trim(),
-            status: 'ACTIVE'
-          }
-        ],
+        programs: onboardForm.initialProgramName.trim()
+          ? [
+              {
+                id: `prog-${Date.now()}`,
+                name: onboardForm.initialProgramName.trim(),
+                description: onboardForm.initialProgramDesc.trim(),
+                status: 'ACTIVE'
+              }
+            ]
+          : [],
         billing: {
           baseAmount: Number(onboardForm.initialFee) || 350000,
           cycle: onboardForm.cycle,
@@ -853,6 +895,7 @@ const AdminSchools: React.FC = () => {
             {[
               { id: 'profile', label: 'Overview & Profile', icon: <School size={15} /> },
               { id: 'programs', label: `Undergoing Programmes (${programsList.length})`, icon: <BookOpen size={15} /> },
+              { id: 'tutors', label: `Assigned Tutors & Payouts`, icon: <Users size={15} /> },
               { id: 'billing', label: 'Billing & Custom Fees', icon: <CreditCard size={15} /> },
               { id: 'passcodes', label: `Exam Passcodes (${passcodes.length})`, icon: <Key size={15} /> },
               { id: 'resources', label: `Curriculum & Links (${resources.length})`, icon: <FileText size={15} /> },
@@ -1012,14 +1055,14 @@ const AdminSchools: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: Undergoing Programmes (Single or Multiple) */}
+          {/* TAB 2: Undergoing Programmes (Single or Multiple with Multi-Tutor Assignments & Rates) */}
           {activeSchoolTab === 'programs' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
                 <div>
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">Active Programmes Undergoing</h2>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">Active Programmes & Multi-Tutor Deployment</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Configure one or multiple programmes, laboratory scopes, and learning descriptions assigned to this school.
+                    Assign one or multiple STEM programmes, laboratory scopes, and assign multiple tutors with custom payout rates.
                   </p>
                 </div>
                 <button
@@ -1030,8 +1073,10 @@ const AdminSchools: React.FC = () => {
                       name: '',
                       description: '',
                       level: 'Primary 4 - SSS 3',
-                      schedule: 'Weekly STEM Lab',
-                      status: 'ACTIVE'
+                      schedule: 'Weekly STEM Lab (2 Sessions / Week)',
+                      status: 'ACTIVE',
+                      baseFee: 0,
+                      assignedTutors: []
                     });
                     setIsNewProgram(true);
                   }}
@@ -1043,11 +1088,14 @@ const AdminSchools: React.FC = () => {
 
               {/* Edit/Add Program Modal / Form */}
               {editingProgram && (
-                <div className="bg-slate-50 dark:bg-slate-950/60 border-2 border-brand-red/30 rounded-3xl p-6 animate-fadeIn">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                      {isNewProgram ? 'Add New Programme for this School' : 'Edit Programme Details'}
-                    </h3>
+                <div className="bg-slate-50 dark:bg-slate-950/60 border-2 border-brand-red/30 rounded-3xl p-6 animate-fadeIn space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isNewProgram ? 'Deploy New Programme & Assign Tutors' : 'Edit Programme & Tutor Allocations'}
+                      </h3>
+                      <p className="text-[11px] text-slate-500">Configure curriculum details and assign one or more instructors with their payment allocations.</p>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setEditingProgram(null)}
@@ -1057,7 +1105,39 @@ const AdminSchools: React.FC = () => {
                     </button>
                   </div>
 
-                  <form onSubmit={handleProgramSubmit} className="space-y-4">
+                  {/* Preset catalog picker */}
+                  {isNewProgram && catalogPrograms.length > 0 && (
+                    <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                      <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                        Quick Select From STEM Catalog:
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {catalogPrograms.map(cat => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setEditingProgram(prev => prev ? {
+                                ...prev,
+                                name: cat.name,
+                                description: cat.description,
+                                level: cat.level || 'All Grades'
+                              } : null);
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                              editingProgram.name === cat.name
+                                ? 'bg-brand-red text-white border-brand-red'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-red'
+                            }`}
+                          >
+                            {cat.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleProgramSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Programme Title</label>
@@ -1080,7 +1160,7 @@ const AdminSchools: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className={labelClass}>Lab Days & Time Schedule</label>
                         <input
@@ -1103,6 +1183,17 @@ const AdminSchools: React.FC = () => {
                           <option value="COMPLETED">Completed</option>
                         </select>
                       </div>
+                      <div>
+                        <label className={labelClass}>Program Specific Fee (Optional ₦)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={editingProgram.baseFee || ''}
+                          onChange={e => setEditingProgram(p => p ? { ...p, baseFee: Number(e.target.value) || 0 } : null)}
+                          placeholder="e.g. 150000"
+                          className={inputClass}
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -1115,6 +1206,161 @@ const AdminSchools: React.FC = () => {
                         placeholder="Comprehensive details on what the cadets will learn, technologies covered, and practical goals..."
                         className={inputClass}
                       />
+                    </div>
+
+                    {/* ASSIGNED TUTORS & MULTI-TUTOR ALLOCATION SECTION */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                            <Users size={14} className="text-brand-red" />
+                            Assigned Instructors & Tutors (Multi-Tutor Assignment)
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            You can assign two or more tutors to this program and define their individual payout amount.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultTutor = staffList[0] || { id: `staff-${Date.now()}`, name: '', email: '' };
+                            const newAlloc: AssignedTutorAllocation = {
+                              tutorId: defaultTutor.id,
+                              tutorName: defaultTutor.name,
+                              tutorEmail: defaultTutor.email,
+                              payoutRate: 45000,
+                              payoutType: 'per_term',
+                              role: (editingProgram.assignedTutors?.length || 0) === 0 ? 'lead' : 'co_tutor',
+                              notes: ''
+                            };
+                            setEditingProgram(p => p ? {
+                              ...p,
+                              assignedTutors: [...(p.assignedTutors || []), newAlloc]
+                            } : null);
+                          }}
+                          className="min-h-8 px-3 rounded-lg bg-red-50 hover:bg-red-100 text-brand-red dark:bg-red-950/40 text-xs font-black inline-flex items-center gap-1.5 transition-all"
+                        >
+                          <Plus size={13} /> + Add Another Tutor
+                        </button>
+                      </div>
+
+                      {(!editingProgram.assignedTutors || editingProgram.assignedTutors.length === 0) ? (
+                        <div className="p-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500">
+                          No tutors assigned yet to this program. Click <strong>"+ Add Another Tutor"</strong> above to assign instructors and set their payment rates.
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {editingProgram.assignedTutors.map((alloc, idx) => (
+                            <div
+                              key={idx}
+                              className="p-3.5 bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-xl grid grid-cols-1 md:grid-cols-12 gap-3 items-center"
+                            >
+                              <div className="md:col-span-4">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Tutor / Instructor</label>
+                                {staffList.length > 0 ? (
+                                  <select
+                                    value={alloc.tutorId}
+                                    onChange={e => {
+                                      const selected = staffList.find(s => s.id === e.target.value);
+                                      const updatedAlloc = [...(editingProgram.assignedTutors || [])];
+                                      updatedAlloc[idx] = {
+                                        ...alloc,
+                                        tutorId: e.target.value,
+                                        tutorName: selected?.name || alloc.tutorName,
+                                        tutorEmail: selected?.email || alloc.tutorEmail
+                                      };
+                                      setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                    }}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium"
+                                  >
+                                    {staffList.map(s => (
+                                      <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    value={alloc.tutorName}
+                                    onChange={e => {
+                                      const updatedAlloc = [...(editingProgram.assignedTutors || [])];
+                                      updatedAlloc[idx] = { ...alloc, tutorName: e.target.value };
+                                      setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                    }}
+                                    placeholder="Tutor Full Name"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium"
+                                  />
+                                )}
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Role</label>
+                                <select
+                                  value={alloc.role || 'lead'}
+                                  onChange={e => {
+                                    const updatedAlloc = [...(editingProgram.assignedTutors || [])];
+                                    updatedAlloc[idx] = { ...alloc, role: e.target.value as any };
+                                    setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium"
+                                >
+                                  <option value="lead">Lead Instructor</option>
+                                  <option value="co_tutor">Co-Tutor / Assistant</option>
+                                  <option value="lab_engineer">Lab Engineer</option>
+                                  <option value="assistant">Teaching Assistant</option>
+                                </select>
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Tutor Payment (₦ NGN)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1000"
+                                  value={alloc.payoutRate}
+                                  onChange={e => {
+                                    const updatedAlloc = [...(editingProgram.assignedTutors || [])];
+                                    updatedAlloc[idx] = { ...alloc, payoutRate: Number(e.target.value) || 0 };
+                                    setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                  }}
+                                  placeholder="e.g. 50000"
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-black text-emerald-600"
+                                />
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Payment Type</label>
+                                <select
+                                  value={alloc.payoutType || 'per_term'}
+                                  onChange={e => {
+                                    const updatedAlloc = [...(editingProgram.assignedTutors || [])];
+                                    updatedAlloc[idx] = { ...alloc, payoutType: e.target.value as any };
+                                    setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                  }}
+                                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium"
+                                >
+                                  <option value="per_term">Per Term</option>
+                                  <option value="per_month">Per Month</option>
+                                  <option value="per_student">Per Student</option>
+                                  <option value="fixed_stipend">Fixed Stipend</option>
+                                </select>
+                              </div>
+
+                              <div className="md:col-span-1 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updatedAlloc = (editingProgram.assignedTutors || []).filter((_, i) => i !== idx);
+                                    setEditingProgram(p => p ? { ...p, assignedTutors: updatedAlloc } : null);
+                                  }}
+                                  className="min-h-8 min-w-8 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg flex items-center justify-center transition-all"
+                                  title="Remove Tutor"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">
@@ -1131,65 +1377,247 @@ const AdminSchools: React.FC = () => {
                         className="min-h-10 px-5 rounded-xl bg-brand-red text-white text-xs font-black inline-flex items-center gap-2"
                       >
                         {savingAction ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
-                        Save Programme
+                        Save Programme & Tutor Assignments
                       </button>
                     </div>
                   </form>
                 </div>
               )}
 
-              {/* Programs List Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {programsList.map(prog => (
-                  <div
-                    key={prog.id}
-                    className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+              {/* Programs List Cards or Empty State */}
+              {programsList.length === 0 && !editingProgram ? (
+                <div className="text-center py-16 px-6 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-red-50 dark:bg-red-950/40 text-brand-red flex items-center justify-center mb-4">
+                    <BookOpen size={24} />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">No Active Programmes Assigned Yet</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                    This school currently has no active programmes. Click below to add a custom curriculum or STEM laboratory track.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProgram({
+                        id: '',
+                        name: '',
+                        description: '',
+                        level: 'Primary 4 - SSS 3',
+                        schedule: 'Weekly STEM Lab (2 Sessions / Week)',
+                        status: 'ACTIVE',
+                        baseFee: 0,
+                        assignedTutors: []
+                      });
+                      setIsNewProgram(true);
+                    }}
+                    className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs"
                   >
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-brand-red dark:bg-red-950/40">
-                            {prog.status}
-                          </span>
-                          <h3 className="text-base font-black text-slate-900 dark:text-white mt-2">
-                            {prog.name}
-                          </h3>
+                    <Plus size={14} />
+                    <span>Add New Programme</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {programsList.map(prog => (
+                    <div
+                      key={prog.id}
+                      className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-brand-red dark:bg-red-950/40">
+                                {prog.status}
+                              </span>
+                              {prog.baseFee ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40">
+                                  ₦{prog.baseFee.toLocaleString()}
+                                </span>
+                              ) : null}
+                            </div>
+                            <h3 className="text-base font-black text-slate-900 dark:text-white mt-2">
+                              {prog.name}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProgram(prog);
+                                setIsNewProgram(false);
+                              }}
+                              className="min-h-8 min-w-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all"
+                              title="Edit Programme & Tutors"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProgram(prog.id)}
+                              className="min-h-8 min-w-8 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition-all"
+                              title="Delete Programme"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingProgram(prog);
-                              setIsNewProgram(false);
-                            }}
-                            className="min-h-8 min-w-8 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all"
-                            title="Edit Programme"
-                          >
-                            <Edit3 size={15} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteProgram(prog.id)}
-                            className="min-h-8 min-w-8 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition-all"
-                            title="Delete Programme"
-                          >
-                            <Trash2 size={15} />
-                          </button>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 leading-relaxed">
+                          {prog.description}
+                        </p>
+
+                        {/* Render Assigned Tutors */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                              <Users size={12} className="text-brand-red" />
+                              Assigned Tutors ({prog.assignedTutors?.length || 0}):
+                            </span>
+                          </div>
+                          {(!prog.assignedTutors || prog.assignedTutors.length === 0) ? (
+                            <p className="text-[11px] text-slate-400 italic">No tutors assigned yet.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {prog.assignedTutors.map((t, idx) => (
+                                <div
+                                  key={idx}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-[11px] flex items-center gap-2"
+                                >
+                                  <span className="font-bold text-slate-900 dark:text-white">{t.tutorName}</span>
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-red-100 text-brand-red dark:bg-red-950/60">
+                                    {t.role || 'Tutor'}
+                                  </span>
+                                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                    ₦{Number(t.payoutRate || 0).toLocaleString()} <span className="text-[9px] text-slate-400">/{t.payoutType?.replace('per_', '') || 'term'}</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 leading-relaxed">
-                        {prog.description}
-                      </p>
+                      <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 flex flex-col gap-1.5">
+                        {prog.level && <div><strong className="text-slate-700 dark:text-slate-300">Target Cohort:</strong> {prog.level}</div>}
+                        {prog.schedule && <div><strong className="text-slate-700 dark:text-slate-300">Schedule:</strong> {prog.schedule}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: Assigned Tutors & Institutional Payout Overview */}
+          {activeSchoolTab === 'tutors' && (
+            <div className="space-y-6">
+              {/* Financial Commitment & Payout Margin Metrics */}
+              {(() => {
+                const allAssigned = programsList.flatMap(p => (p.assignedTutors || []).map(t => ({ ...t, programName: p.name })));
+                const totalTutorCommitment = allAssigned.reduce((sum, t) => sum + (Number(t.payoutRate) || 0), 0);
+                const schoolFee = Number(billingForm.baseAmount || 0);
+                const netMargin = Math.max(0, schoolFee - totalTutorCommitment);
+
+                return (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">Assigned Instructors</span>
+                        <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                          {allAssigned.length}
+                        </div>
+                        <span className="text-[11px] text-slate-500">Across {programsList.length} programs</span>
+                      </div>
+
+                      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">Total Faculty Payout</span>
+                        <div className="text-2xl font-black text-red-600 dark:text-red-400 mt-1 font-mono">
+                          ₦{totalTutorCommitment.toLocaleString()}
+                        </div>
+                        <span className="text-[11px] text-slate-500">Per billing cycle</span>
+                      </div>
+
+                      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">School Invoiced Fee</span>
+                        <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                          ₦{schoolFee.toLocaleString()}
+                        </div>
+                        <span className="text-[11px] text-slate-500">{billingForm.cycle} cycle</span>
+                      </div>
+
+                      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">Net Institutional Margin</span>
+                        <div className="text-2xl font-black text-brand-red mt-1 font-mono">
+                          ₦{netMargin.toLocaleString()}
+                        </div>
+                        <span className="text-[11px] text-slate-500">Platform operational surplus</span>
+                      </div>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-500 flex flex-col gap-1.5">
-                      {prog.level && <div><strong className="text-slate-700 dark:text-slate-300">Target Cohort:</strong> {prog.level}</div>}
-                      {prog.schedule && <div><strong className="text-slate-700 dark:text-slate-300">Schedule:</strong> {prog.schedule}</div>}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+                        <div>
+                          <h3 className="text-base font-black text-slate-900 dark:text-white">Assigned Faculty Directory & Payment Rates</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Instructors actively assigned to {selectedSchool.name} programmes and their contractual compensation.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSchoolTab('programs')}
+                          className="min-h-10 px-4 rounded-xl bg-brand-red hover:bg-red-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition-all"
+                        >
+                          <Edit3 size={14} /> Manage Programmes & Tutor Allocations
+                        </button>
+                      </div>
+
+                      {allAssigned.length === 0 ? (
+                        <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-500">
+                          No faculty assigned to {selectedSchool.name} yet. Switch to the <strong>Undergoing Programmes</strong> tab to assign tutors and define their payout rates.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400">
+                                <th className="py-3 px-4">Faculty / Tutor</th>
+                                <th className="py-3 px-4">Assigned Programme</th>
+                                <th className="py-3 px-4">Role</th>
+                                <th className="py-3 px-4">Assigned Payout Rate</th>
+                                <th className="py-3 px-4">Frequency</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                              {allAssigned.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                  <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                                    <div>{item.tutorName}</div>
+                                    {item.tutorEmail && <div className="text-[10px] text-slate-400 font-normal">{item.tutorEmail}</div>}
+                                  </td>
+                                  <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300">
+                                    {item.programName}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-red-50 text-brand-red dark:bg-red-950/40">
+                                      {item.role || 'Tutor'}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                    ₦{Number(item.payoutRate || 0).toLocaleString()}
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-500 capitalize">
+                                    {item.payoutType?.replace('per_', '') || 'Termly'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1830,11 +2258,8 @@ const AdminSchools: React.FC = () => {
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <div className="text-brand-red font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                  <ShieldCheck size={15} /> Affiliated Schools Directory
-                </div>
-                <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mt-1.5">
-                  Partner Schools & STEM Labs
+                <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
+                  Partner Schools
                 </h1>
                 <p className="text-xs md:text-sm text-slate-500 mt-1 max-w-2xl">
                   Click any affiliated school to manage its undergoing programmes, custom billing fees, payment plans, passcodes, and student roster.

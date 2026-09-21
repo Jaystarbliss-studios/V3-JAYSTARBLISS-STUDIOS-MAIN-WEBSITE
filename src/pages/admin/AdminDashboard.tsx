@@ -47,6 +47,7 @@ const AdminDashboard: React.FC = () => {
       const [
         usersSnap, 
         studentsSnap, 
+        indStudentsSnap,
         schoolsSnap,
         programsSnap, 
         inquiriesSnap, 
@@ -58,6 +59,7 @@ const AdminDashboard: React.FC = () => {
         activitySnap
       ] = await Promise.all([
         getDocs(collection(db, 'users')).catch(() => ({ size: 0, docs: [] })),
+        getDocs(collection(db, 'students')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'individualStudents')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'schools')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'programs')).catch(() => ({ size: 0, docs: [] })),
@@ -71,7 +73,22 @@ const AdminDashboard: React.FC = () => {
       ]);
 
       const usersList = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const studentsList = studentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Merge and deduplicate student records
+      const studentMap = new Map<string, any>();
+      studentsSnap.docs.forEach(doc => studentMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      indStudentsSnap.docs.forEach(doc => {
+        if (!studentMap.has(doc.id)) studentMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+      usersSnap.docs.forEach(doc => {
+        const data = doc.data();
+        const role = String(data.role || '').toUpperCase();
+        if (role === 'STUDENT' || role === 'CADET' || data.isStudent) {
+          if (!studentMap.has(doc.id)) studentMap.set(doc.id, { id: doc.id, ...data });
+        }
+      });
+      const studentsList = Array.from(studentMap.values());
+
       const inquiriesList = inquiriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const resourcesList = [
         ...resourcesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -85,7 +102,7 @@ const AdminDashboard: React.FC = () => {
 
       setMetrics({
         users: usersSnap.size,
-        students: studentsSnap.size,
+        students: studentsList.length,
         schools: schoolsSnap.size,
         programs: programsSnap.size,
         inquiries: inquiriesSnap.size,
@@ -203,14 +220,6 @@ const AdminDashboard: React.FC = () => {
       {/* Top Banner & Control Actions */}
       <div className="pro-surface rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" /> Super Admin Center
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              <CheckCircle2 size={12} className="text-emerald-500" /> Firestore Connected
-            </span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             Administrative Matrix
           </h1>

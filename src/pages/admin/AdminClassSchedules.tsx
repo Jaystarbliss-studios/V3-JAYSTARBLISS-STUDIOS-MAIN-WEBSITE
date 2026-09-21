@@ -76,7 +76,7 @@ const AdminClassSchedules:React.FC = () => {
   return <div className="space-y-6">
     <SEO title="Class Schedules | Admin" description="Manage recurring school class schedules and attendance history." noindex />
     <div className="pro-surface rounded-3xl p-6 md:p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div><div className="text-xs uppercase tracking-widest font-black text-brand-red">Academic Operations</div><h1 className="text-2xl md:text-3xl font-black mt-1 text-slate-900 dark:text-white">Class Schedules</h1><p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">Set weekly school classes once, keep a permanent occurrence history, and record what happened to every class date.</p></div>
+      <div><h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">Class Schedules</h1><p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">Set weekly school classes once, keep a permanent occurrence history, and record what happened to every class date.</p></div>
       <div className="flex gap-2"><button type="button" onClick={()=>void load()} className="min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 px-4 text-xs font-black inline-flex items-center gap-2"><RefreshCw size={15}/>Refresh</button><button type="button" onClick={()=>setShowForm(v=>!v)} className="min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2"><Plus size={15}/>New Schedule</button></div>
     </div>
 
