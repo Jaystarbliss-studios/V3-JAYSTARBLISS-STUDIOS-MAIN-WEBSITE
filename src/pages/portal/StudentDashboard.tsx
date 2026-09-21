@@ -23,7 +23,6 @@ import {
   getDocs,
   limit,
   query,
-  updateDoc,
   where,
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
@@ -32,6 +31,7 @@ import { AchievementBadgeGrid } from '../../components/ecosystem/AchievementBadg
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 import { StudentAnalyticsVisualizer } from '../../components/portal/StudentAnalyticsVisualizer';
 import { useToast } from '../../contexts/ToastContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import {
   generateModuleCertificatePdf,
   type ModuleCertificateData,
@@ -101,13 +101,6 @@ interface ExamItem {
   targetClass?: string;
   class?: string;
   passcodeProtected?: boolean;
-}
-
-interface NotificationItem {
-  id: string;
-  title: string;
-  message: string;
-  readBy?: string[];
 }
 
 const stableCredentialId = (studentKey: string, moduleId: string) => {
@@ -194,13 +187,13 @@ const CircularProgress: React.FC<{
 
 const StudentDashboard: React.FC = () => {
   const { toast } = useToast();
+  const { notifications, unreadCount, openDrawer, isNotificationRead } = useNotifications();
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [personalResources, setPersonalResources] = useState<ResourceItem[]>([]);
   const [personalLinks, setPersonalLinks] = useState<LinkItem[]>([]);
   const [generalResources, setGeneralResources] = useState<ResourceItem[]>([]);
   const [classResources, setClassResources] = useState<ResourceItem[]>([]);
   const [exams, setExams] = useState<ExamItem[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [modules, setModules] = useState<ProgramModule[]>([]);
   const [loading, setLoading] = useState(true);
   const [resourceFilter, setResourceFilter] = useState<'ALL' | 'CLASS' | 'GENERAL'>('ALL');
@@ -274,7 +267,6 @@ const StudentDashboard: React.FC = () => {
           setGeneralResources([]);
           setClassResources([]);
           setExams([]);
-          setNotifications([]);
           setModules([]);
           return;
         }
@@ -386,31 +378,6 @@ const StudentDashboard: React.FC = () => {
         setExams(examList);
 
         try {
-          const notificationQueries = [
-            ...(currentUid
-              ? [query(collection(db, 'notifications'), where('recipientId', '==', currentUid))]
-              : []),
-            query(collection(db, 'notifications'), where('recipientId', '==', currentStudentId)),
-            query(collection(db, 'notifications'), where('recipientId', '==', 'all')),
-            query(collection(db, 'notifications'), where('recipientId', '==', 'all_students')),
-          ];
-          const notificationSnapshots = await Promise.all(notificationQueries.map(getDocs));
-          const notificationMap = new Map<string, NotificationItem>();
-          notificationSnapshots.forEach((snap) => {
-            snap.forEach((notificationDoc) => {
-              notificationMap.set(notificationDoc.id, {
-                id: notificationDoc.id,
-                ...notificationDoc.data(),
-              } as NotificationItem);
-            });
-          });
-          setNotifications(Array.from(notificationMap.values()).slice(0, 10));
-        } catch (error) {
-          console.warn('Notification lookup failed:', error);
-          setNotifications([]);
-        }
-
-        try {
           const moduleQueries = [
             query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId)),
             ...(currentUid
@@ -460,26 +427,6 @@ const StudentDashboard: React.FC = () => {
       cancelled = true;
     };
   }, [toast]);
-
-  const markNotificationRead = async (notificationId: string) => {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    try {
-      await updateDoc(doc(db, 'notifications', notificationId), {
-        readBy: Array.from(new Set([...(notifications.find((item) => item.id === notificationId)?.readBy || []), uid])),
-      });
-      setNotifications((current) =>
-        current.map((item) =>
-          item.id === notificationId
-            ? { ...item, readBy: Array.from(new Set([...(item.readBy || []), uid])) }
-            : item
-        )
-      );
-    } catch (error) {
-      console.warn('Could not update notification state:', error);
-    }
-  };
 
   const courseProgressList = useMemo(() => {
     const byTrack = new Map<string, { total: number; completed: number }>();
@@ -610,49 +557,91 @@ const StudentDashboard: React.FC = () => {
           <DashboardGreeting
             name={`Cadet ${student.fullName || 'Student'}`}
             role="STEM Cadet"
-            subtitle="Track your enrolled courses, live classroom links, verified module certificates, assessments, and learning materials."
+            subtitle="Keep going. Your future is in progress."
           />
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="pro-surface rounded-2xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Overall Progress</p>
-              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{overallProgress}%</p>
-              <p className="mt-1 text-xs text-slate-500">{completedModulesCount} of {modules.length} modules completed</p>
+          {/* Hero Banner with Featured Track & Quick Continue */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-sm border border-slate-800">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="max-w-xl">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-red text-white">
+                  Active Enrollment
+                </span>
+                <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">
+                  {student.plan || 'STEM & Robotics Academy'}
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Assigned Class: <strong className="text-white">{student.class || student.grade || 'Junior Cadet'}</strong> • Current Focus: <span className="text-brand-red font-semibold">{currentModule?.title || 'Foundational Computing'}</span>
+                </p>
+
+                {/* Inline Progress Bar */}
+                <div className="mt-3.5 max-w-md">
+                  <div className="flex items-center justify-between text-[11px] mb-1 font-semibold text-slate-300">
+                    <span>Curriculum Completion</span>
+                    <span className="text-white font-bold">{overallProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-slate-700/80 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-brand-red rounded-full transition-all duration-500" 
+                      style={{ width: `${overallProgress}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <Link
+                  to="/portal/student/courses"
+                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-2"
+                >
+                  <span>Continue Learning</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
             </div>
-            <div className="pro-surface rounded-2xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Upcoming Assessments</p>
-              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{exams.length}</p>
-              <p className="mt-1 text-xs text-slate-500">Assessments currently available</p>
+          </div>
+
+          {/* Compact 4-Stat Metrics Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Overall Progress</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{overallProgress}%</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">{completedModulesCount} of {modules.length} milestones</p>
             </div>
-            <div className="pro-surface rounded-2xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Learning Resources</p>
-              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{personalResources.length + classResources.length + generalResources.length}</p>
-              <p className="mt-1 text-xs text-slate-500">Personal, class, and general materials</p>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assessments</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{exams.length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">{upcomingAssignments.length} with upcoming deadlines</p>
             </div>
-            <div className="pro-surface rounded-2xl p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Announcements</p>
-              <p className="mt-2 text-3xl font-black text-slate-900 dark:text-white">{notifications.length}</p>
-              <p className="mt-1 text-xs text-slate-500">Messages visible in your workspace</p>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Resources</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{personalResources.length + classResources.length + generalResources.length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Lesson notes & materials</p>
+            </div>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Announcements</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{notifications.length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Unread notifications</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <section className="pro-surface rounded-3xl p-6 lg:col-span-7 md:p-7">
-              <div className="mb-5 flex items-start justify-between gap-4">
+            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-7 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Course Progress</h2>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Verified module completion across active learning tracks.</p>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Course Progress</h2>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Verified module completion across active learning tracks.</p>
                 </div>
-                <span className="rounded-full border border-brand-red/20 bg-brand-red/10 px-2.5 py-1 text-[11px] font-bold text-brand-red">
-                  Current Enrollment
+                <span className="rounded-full border border-brand-red/20 bg-brand-red/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-red">
+                  Current Term
                 </span>
               </div>
 
               {courseProgressList.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
                   <BookOpenIcon />
-                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No enrolled modules recorded yet</p>
-                  <p className="mt-1 text-xs text-slate-500">Your learning progress will appear here after your curriculum is assigned.</p>
+                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No enrolled modules recorded yet</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Your learning progress will appear here after your curriculum is assigned.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -669,34 +658,34 @@ const StudentDashboard: React.FC = () => {
               )}
             </section>
 
-            <section className="pro-surface rounded-3xl p-6 lg:col-span-5 md:p-7">
-              <div className="mb-5 flex items-start justify-between gap-4">
+            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Upcoming Assessments</h2>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Deadlines already recorded in your portal.</p>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Upcoming Assessments</h2>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Deadlines and tests recorded in your portal.</p>
                 </div>
-                <Trophy size={18} className="text-brand-red" aria-hidden="true" />
+                <Trophy size={16} className="text-brand-red" aria-hidden="true" />
               </div>
               {upcomingAssignments.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
-                  <CheckCircle2 className="mx-auto text-slate-300 dark:text-slate-700" size={32} aria-hidden="true" />
-                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No dated assessments pending</p>
-                  <p className="mt-1 text-xs text-slate-500">Assessment dates will appear here when assigned.</p>
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                  <CheckCircle2 className="mx-auto text-slate-300 dark:text-slate-700" size={28} aria-hidden="true" />
+                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No pending assessments</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">Assessment dates will appear here when scheduled.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {upcomingAssignments.map((exam) => (
-                    <div key={exam.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/60">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
-                          <Code2 size={18} aria-hidden="true" />
+                    <div key={exam.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
+                          <Code2 size={15} aria-hidden="true" />
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{exam.title}</p>
-                          <p className="truncate text-xs text-slate-500">{exam.subject || 'Assessment'}</p>
+                          <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{exam.title}</p>
+                          <p className="truncate text-[10px] text-slate-500">{exam.subject || 'Assessment'}</p>
                         </div>
                       </div>
-                      <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-slate-600 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                      <span className="shrink-0 rounded-lg bg-white dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700">
                         {formatDate(exam.dueDate)}
                       </span>
                     </div>
@@ -721,30 +710,30 @@ const StudentDashboard: React.FC = () => {
           />
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <section className="pro-surface rounded-3xl p-6 lg:col-span-5 md:p-7">
-              <div className="mb-5 flex items-center justify-between gap-3">
+            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">Recent Activity</h2>
-                  <p className="mt-1 text-xs text-slate-500">Latest verified module completions.</p>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Recent Activity</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Latest verified module completions.</p>
                 </div>
-                <Activity size={17} className="text-brand-red" aria-hidden="true" />
+                <Activity size={16} className="text-brand-red" aria-hidden="true" />
               </div>
               {recentActivities.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center dark:border-slate-800 dark:bg-slate-950/50">
-                  <Activity className="mx-auto text-slate-300 dark:text-slate-700" size={30} aria-hidden="true" />
-                  <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No completed activities yet</p>
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                  <Activity className="mx-auto text-slate-300 dark:text-slate-700" size={26} aria-hidden="true" />
+                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No completed activities yet</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {recentActivities.map((module) => (
-                    <div key={module.id} className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/50">
-                      <div className="mt-0.5 rounded-lg bg-emerald-500/10 p-2 text-emerald-600">
-                        <Award size={15} aria-hidden="true" />
+                    <div key={module.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                      <div className="mt-0.5 rounded-lg bg-emerald-500/10 p-1.5 text-emerald-600">
+                        <Award size={14} aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold text-slate-900 dark:text-white">Completed Module</p>
                         <p className="truncate text-xs text-slate-500 dark:text-slate-400">{module.title}</p>
-                        <p className="mt-1 text-[10px] font-mono text-slate-400">{module.completionDate || 'Completion recorded'}</p>
+                        <p className="mt-0.5 text-[10px] font-mono text-slate-400">{module.completionDate || 'Completion recorded'}</p>
                       </div>
                     </div>
                   ))}
@@ -752,70 +741,70 @@ const StudentDashboard: React.FC = () => {
               )}
             </section>
 
-            <section className="pro-surface rounded-3xl p-6 lg:col-span-7 md:p-7">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
-                    <Trophy size={18} aria-hidden="true" />
+            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-7 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
+                    <Trophy size={16} aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Active Milestone Focus</h2>
-                    <p className="mt-1 text-xs text-slate-500">The next curriculum checkpoint from your recorded modules.</p>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Active Milestone Focus</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">The next curriculum checkpoint from your recorded modules.</p>
                   </div>
                 </div>
                 {currentModule && (
-                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
                     Stage {currentModule.stageNumber}
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Next Deliverable</p>
-                  <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Next Deliverable</p>
+                  <p className="mt-1 text-xs font-bold text-slate-900 dark:text-white">
                     {upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDate(upcomingAssignments[0]?.dueDate)}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-500">{formatDate(upcomingAssignments[0]?.dueDate)}</p>
                 </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/50">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Certificate Readiness</p>
-                  <p className="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400">{overallProgress}%</p>
-                  <p className="mt-1 text-xs text-slate-500">{completedModulesCount} of {modules.length} milestones verified</p>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Certificate Readiness</p>
+                  <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">{overallProgress}%</p>
+                  <p className="mt-0.5 text-[10px] text-slate-500">{completedModulesCount} of {modules.length} milestones verified</p>
                 </div>
               </div>
 
-              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs dark:border-slate-800">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
                 <span className="text-slate-500">Primary Track: <strong className="text-slate-800 dark:text-slate-200">{student.plan || 'STEM & Coding Academy'}</strong></span>
                 <span className="text-slate-500">Assigned Class: <strong className="text-slate-800 dark:text-slate-200">{student.class || student.grade || 'Not recorded'}</strong></span>
               </div>
             </section>
           </div>
 
-          <section className="pro-surface rounded-3xl p-6 md:p-8">
-            <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
+          <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+            <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
-                  <Award size={23} aria-hidden="true" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
+                  <Award size={18} aria-hidden="true" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Program Modules & Certificates</h2>
-                  <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">Generate certificates only for modules that have a verified completion record.</p>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Program Modules & Certificates</h2>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Generate certificates only for modules that have a verified completion record.</p>
                 </div>
               </div>
-              <span className="self-start rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <span className="self-start rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
                 {completedModulesCount} of {modules.length} Completed
               </span>
             </div>
 
             {modules.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
-                <Award className="mx-auto text-slate-300 dark:text-slate-700" size={32} aria-hidden="true" />
-                <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No program milestones assigned yet</p>
-                <p className="mt-1 text-xs text-slate-500">Your instructor will record your curriculum stages here.</p>
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                <Award className="mx-auto text-slate-300 dark:text-slate-700" size={28} aria-hidden="true" />
+                <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No program milestones assigned yet</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Your instructor will record your curriculum stages here.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {modules.map((module) => {
                   const credentialId = stableCredentialId(
                     student.username || student.accessCode || student.id || 'student',
@@ -824,35 +813,35 @@ const StudentDashboard: React.FC = () => {
                   return (
                     <article
                       key={module.id}
-                      className={`flex flex-col justify-between rounded-2xl border p-5 ${
+                      className={`flex flex-col justify-between rounded-xl border p-4 transition-all ${
                         module.completed
-                          ? 'border-brand-red/20 bg-brand-red/[0.03] dark:bg-brand-red/[0.05]'
-                          : 'border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-950/40'
+                          ? 'border-brand-red/20 bg-brand-red/[0.02] dark:bg-brand-red/[0.04]'
+                          : 'border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40'
                       }`}
                     >
                       <div>
-                        <div className="mb-3 flex items-start justify-between gap-2">
-                          <span className="rounded-md bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white dark:bg-slate-800">
+                        <div className="mb-2.5 flex items-start justify-between gap-2">
+                          <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-slate-800">
                             {module.stageName}
                           </span>
                           {module.completed ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                               <CheckCircle2 size={11} aria-hidden="true" /> Completed
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                               <Clock size={11} aria-hidden="true" /> In progress
                             </span>
                           )}
                         </div>
-                        <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white">{module.title}</h3>
-                        <p className="mt-1 text-xs font-semibold text-brand-red">{module.trackName}</p>
+                        <h3 className="text-sm font-bold leading-snug text-slate-900 dark:text-white">{module.title}</h3>
+                        <p className="mt-0.5 text-xs font-semibold text-brand-red">{module.trackName}</p>
                         {module.competencies.length > 0 && (
-                          <div className="mt-4">
-                            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Competencies</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {module.competencies.slice(0, 6).map((competency) => (
-                                <span key={competency} className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                          <div className="mt-3">
+                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Competencies</p>
+                            <div className="flex flex-wrap gap-1">
+                              {module.competencies.slice(0, 5).map((competency) => (
+                                <span key={competency} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                   {competency}
                                 </span>
                               ))}
@@ -861,8 +850,8 @@ const StudentDashboard: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
-                        <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+                        <div className="mb-2.5 flex items-center justify-between gap-3 text-[10px] text-slate-500">
                           <span>{module.completionDate ? `Verified ${formatDate(module.completionDate)}` : 'Verification pending'}</span>
                           <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{module.score || '—'}</span>
                         </div>
@@ -874,7 +863,7 @@ const StudentDashboard: React.FC = () => {
                                 setSelectedModuleForCert(module);
                                 setCertStudentName(student.fullName || '');
                               }}
-                              className="min-h-11 flex-1 rounded-xl bg-slate-900 px-3 py-2.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950"
+                              className="min-h-9 flex-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950"
                             >
                               Customize & Preview
                             </button>
@@ -884,21 +873,21 @@ const StudentDashboard: React.FC = () => {
                               disabled={generatingCert}
                               title="Download certificate PDF"
                               aria-label={`Download certificate for ${module.title}`}
-                              className="min-h-11 min-w-11 rounded-xl bg-brand-red px-3 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                              className="min-h-9 min-w-9 rounded-xl bg-brand-red px-2.5 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
                             >
-                              <Download size={15} className="mx-auto" aria-hidden="true" />
+                              <Download size={14} className="mx-auto" aria-hidden="true" />
                             </button>
                           </div>
                         ) : (
                           <button
                             type="button"
                             disabled
-                            className="min-h-11 w-full rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold text-slate-400 dark:bg-slate-800/60 dark:text-slate-500"
+                            className="min-h-9 w-full rounded-xl bg-slate-100 px-3 text-xs font-semibold text-slate-400 dark:bg-slate-800/60 dark:text-slate-500"
                           >
-                            Complete milestone to unlock certificate
+                            Milestone in progress
                           </button>
                         )}
-                        <p className="mt-2 text-[10px] font-mono text-slate-400">{credentialId}</p>
+                        <p className="mt-1.5 text-[9px] font-mono text-slate-400">{credentialId}</p>
                       </div>
                     </article>
                   );
@@ -915,44 +904,44 @@ const StudentDashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="space-y-6 lg:col-span-2">
-              <section className="pro-surface rounded-3xl p-6">
-                <div className="mb-5 flex items-center justify-between gap-3">
+              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
-                      <Video size={18} aria-hidden="true" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
+                      <Video size={16} aria-hidden="true" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-slate-900 dark:text-white">Live Classroom & Sessions</h2>
-                      <p className="mt-1 text-xs text-slate-500">Links published specifically for your student account.</p>
+                      <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Live Classroom & Sessions</h2>
+                      <p className="mt-0.5 text-xs text-slate-500">Links published specifically for your student account.</p>
                     </div>
                   </div>
                 </div>
 
                 {personalLinks.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
-                    <Video size={30} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
-                    <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No live classroom links yet</p>
-                    <p className="mt-1 text-xs text-slate-500">Your tutor will publish meeting links here before scheduled sessions.</p>
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                    <Video size={26} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
+                    <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No live classroom links yet</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">Your tutor will publish meeting links here before scheduled sessions.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {personalLinks.map((link) => (
-                      <article key={link.id} className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                      <article key={link.id} className="flex flex-col justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
                         <div>
                           <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold uppercase text-brand-red">{link.platform || 'Class Link'}</span>
+                            <span className="rounded-md bg-brand-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-red">{link.platform || 'Class Link'}</span>
                             {link.meetingTime && <span className="inline-flex items-center gap-1 text-[10px] text-slate-500"><Clock size={11} aria-hidden="true" />{link.meetingTime}</span>}
                           </div>
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{link.title}</h3>
-                          {link.description && <p className="mt-1 text-xs text-slate-500 line-clamp-2">{link.description}</p>}
+                          <h3 className="text-xs font-bold text-slate-900 dark:text-white">{link.title}</h3>
+                          {link.description && <p className="mt-1 text-[11px] text-slate-500 line-clamp-2">{link.description}</p>}
                         </div>
                         <a
                           href={link.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-red px-3 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
+                          className="mt-3.5 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-brand-red px-3 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
                         >
-                          Join Classroom <ExternalLink size={13} aria-hidden="true" />
+                          Join Classroom <ExternalLink size={12} aria-hidden="true" />
                         </a>
                       </article>
                     ))}
@@ -960,26 +949,26 @@ const StudentDashboard: React.FC = () => {
                 )}
               </section>
 
-              <section className="pro-surface rounded-3xl p-6">
-                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
-                      <FileText size={18} aria-hidden="true" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                      <FileText size={16} aria-hidden="true" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-slate-900 dark:text-white">Learning Materials</h2>
-                      <p className="mt-1 text-xs text-slate-500">Personal, class-specific, and general resources.</p>
+                      <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Learning Materials</h2>
+                      <p className="mt-0.5 text-xs text-slate-500">Personal, class-specific, and general resources.</p>
                     </div>
                   </div>
                   <Link
                     to="/portal/student/resources"
-                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold text-brand-red hover:bg-brand-red/5 focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold text-brand-red hover:bg-brand-red/5 focus:outline-none focus:ring-2 focus:ring-brand-red"
                   >
                     Full Resource Library <ArrowRight size={13} aria-hidden="true" />
                   </Link>
                 </div>
 
-                <div className="mb-4 flex gap-2 overflow-x-auto border-b border-slate-100 pb-2 dark:border-slate-800">
+                <div className="mb-3 flex gap-2 overflow-x-auto border-b border-slate-100 pb-2 dark:border-slate-800">
                   {([
                     ['ALL', `All (${personalResources.length + classResources.length + generalResources.length})`],
                     ['CLASS', `Class (${classResources.length})`],
@@ -990,7 +979,7 @@ const StudentDashboard: React.FC = () => {
                       type="button"
                       onClick={() => setResourceFilter(filter)}
                       aria-pressed={resourceFilter === filter}
-                      className={`min-h-11 shrink-0 rounded-xl px-3 text-xs font-bold ${
+                      className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-bold ${
                         resourceFilter === filter
                           ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -1002,28 +991,28 @@ const StudentDashboard: React.FC = () => {
                 </div>
 
                 {displayedResources.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-800 dark:bg-slate-950/50">
-                    <FileText size={30} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
-                    <p className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">No materials in this view</p>
-                    <p className="mt-1 text-xs text-slate-500">New learning resources will appear when they are published to your account.</p>
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
+                    <FileText size={26} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
+                    <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No materials in this view</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">New learning resources will appear when they are published to your account.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {displayedResources.slice(0, 8).map((resource) => (
-                      <div key={`${resource.isClassSpecific ? 'class' : 'resource'}-${resource.id}`} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="mt-0.5 rounded-xl bg-brand-red/10 p-2 text-brand-red">
-                            <FileText size={15} aria-hidden="true" />
+                      <div key={`${resource.isClassSpecific ? 'class' : 'resource'}-${resource.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/70">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          <div className="mt-0.5 rounded-lg bg-brand-red/10 p-1.5 text-brand-red">
+                            <FileText size={14} aria-hidden="true" />
                           </div>
                           <div className="min-w-0">
-                            <div className="mb-1 flex flex-wrap gap-1.5">
+                            <div className="mb-1 flex flex-wrap gap-1">
                               {resource.isClassSpecific && (
-                                <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold uppercase text-brand-red">Class Material</span>
+                                <span className="rounded-md bg-brand-red/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-red">Class Material</span>
                               )}
-                              {resource.type && <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">{resource.type}</span>}
+                              {resource.type && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">{resource.type}</span>}
                             </div>
-                            <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{resource.title}</p>
-                            {resource.description && <p className="truncate text-xs text-slate-500">{resource.description}</p>}
+                            <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{resource.title}</p>
+                            {resource.description && <p className="truncate text-[10px] text-slate-500">{resource.description}</p>}
                           </div>
                         </div>
                         {resource.url ? (
@@ -1031,9 +1020,9 @@ const StudentDashboard: React.FC = () => {
                             href={resource.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-slate-100 px-3 text-xs font-bold text-slate-700 hover:bg-brand-red hover:text-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-brand-red"
+                            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 text-xs font-bold text-slate-700 hover:bg-brand-red hover:text-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-brand-red"
                           >
-                            <Download size={13} aria-hidden="true" /> Access
+                            <Download size={12} aria-hidden="true" /> Access
                           </a>
                         ) : (
                           <span className="shrink-0 text-[10px] font-bold text-slate-400">No link</span>
@@ -1044,44 +1033,44 @@ const StudentDashboard: React.FC = () => {
                 )}
               </section>
 
-              <section className="pro-surface rounded-3xl p-6">
-                <div className="mb-5 flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                    <Trophy size={18} aria-hidden="true" />
+              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                <div className="mb-4 flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    <Trophy size={16} aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Active Assessments & Quizzes</h2>
-                    <p className="mt-1 text-xs text-slate-500">Exams and evaluation tests currently visible to your portal.</p>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Active Assessments & Quizzes</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">Exams and evaluation tests currently visible to your portal.</p>
                   </div>
                 </div>
                 {exams.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-7 text-center dark:border-slate-800 dark:bg-slate-950/50">
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
                     <p className="text-xs text-slate-500">No active assessments are currently recorded for your account.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {exams.slice(0, 6).map((exam) => (
-                      <article key={exam.id} className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                      <article key={exam.id} className="flex flex-col justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
                         <div>
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                            <span className="rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{exam.subject || 'Assessment'}</span>
-                            {(exam.targetClass || exam.class) && <span className="rounded-md bg-brand-red/10 px-2 py-1 text-[10px] font-bold text-brand-red">{exam.targetClass || exam.class}</span>}
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
+                            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{exam.subject || 'Assessment'}</span>
+                            {(exam.targetClass || exam.class) && <span className="rounded-md bg-brand-red/10 px-2 py-0.5 text-[10px] font-bold text-brand-red">{exam.targetClass || exam.class}</span>}
                           </div>
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white">{exam.title}</h3>
-                          {exam.duration && <p className="mt-1 text-xs text-slate-500">Duration: {exam.duration}</p>}
-                          {exam.passcodeProtected && <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden="true" /> Requires exam passcode</p>}
+                          <h3 className="text-xs font-bold text-slate-900 dark:text-white">{exam.title}</h3>
+                          {exam.duration && <p className="mt-0.5 text-[10px] text-slate-500">Duration: {exam.duration}</p>}
+                          {exam.passcodeProtected && <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300"><Lock size={11} aria-hidden="true" /> Passcode required</p>}
                         </div>
                         {exam.link || exam.url ? (
                           <a
                             href={exam.link || exam.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white hover:bg-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:focus:ring-offset-slate-950"
+                            className="mt-3.5 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white hover:bg-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:focus:ring-offset-slate-950"
                           >
-                            Start Test <ExternalLink size={12} aria-hidden="true" />
+                            Start Test <ExternalLink size={11} aria-hidden="true" />
                           </a>
                         ) : (
-                          <span className="mt-4 text-xs font-semibold text-slate-400">Assessment link not published</span>
+                          <span className="mt-3.5 text-xs font-semibold text-slate-400">Link not published</span>
                         )}
                       </article>
                     ))}
@@ -1091,9 +1080,9 @@ const StudentDashboard: React.FC = () => {
             </div>
 
             <aside className="space-y-6">
-              <section className="pro-surface rounded-3xl p-6">
-                <h2 className="text-base font-black text-slate-900 dark:text-white">Cadet Profile</h2>
-                <div className="mt-4 space-y-1 text-sm">
+              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Cadet Profile</h2>
+                <div className="mt-3 space-y-0.5 text-xs">
                   <ProfileRow label="Username" value={student.username || '—'} mono />
                   <ProfileRow label="Assigned Class" value={student.class || student.grade || '—'} />
                   <ProfileRow label="School Partner" value={student.schoolName || '—'} />
@@ -1101,41 +1090,50 @@ const StudentDashboard: React.FC = () => {
                   {(student.accessCode || student.passcode) && <ProfileRow label="Access Code" value={student.accessCode || student.passcode || '—'} mono highlight />}
                   <ProfileRow label="Status" value={student.status || 'Active Learner'} highlightSuccess />
                   {student.notes && (
-                    <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                    <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
                       <span className="font-bold">Mentor Remarks</span>
-                      <p className="mt-1">{student.notes}</p>
+                      <p className="mt-0.5 text-[11px]">{student.notes}</p>
                     </div>
                   )}
                 </div>
               </section>
 
-              <section className="pro-surface rounded-3xl p-6">
-                <div className="mb-4 flex items-center gap-2">
-                  <Bell size={18} className="text-brand-red" aria-hidden="true" />
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">Announcements</h2>
+              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Bell size={16} className="text-brand-red" aria-hidden="true" />
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Announcements</h2>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-brand-red text-white text-[10px] font-black">
+                      {unreadCount} Unread
+                    </span>
+                  )}
                 </div>
                 {notifications.length === 0 ? (
-                  <p className="text-xs text-slate-500">No announcements are currently visible.</p>
+                  <p className="text-xs text-slate-500">No announcements currently.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {notifications.map((notification) => {
-                      const isRead = Boolean(auth.currentUser?.uid && notification.readBy?.includes(auth.currentUser.uid));
+                  <div className="space-y-2.5">
+                    {notifications.slice(0, 5).map((notification) => {
+                      const isRead = isNotificationRead(notification);
                       return (
                         <button
                           type="button"
                           key={notification.id}
-                          onClick={() => markNotificationRead(notification.id)}
-                          className={`w-full rounded-2xl border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-brand-red ${
+                          onClick={() => openDrawer(notification.id)}
+                          className={`w-full rounded-xl border p-2.5 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-brand-red cursor-pointer ${
                             isRead
-                              ? 'border-slate-100 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950/50'
-                              : 'border-brand-red/20 bg-brand-red/[0.04] text-slate-900 dark:border-brand-red/20 dark:bg-brand-red/[0.08] dark:text-white'
+                              ? 'border-slate-100 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 hover:bg-slate-100/70 dark:hover:bg-slate-850'
+                              : 'border-brand-red/30 bg-brand-red/[0.04] text-slate-900 dark:border-brand-red/30 dark:bg-brand-red/[0.08] dark:text-white'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <span className="text-xs font-bold">{notification.title}</span>
-                            {!isRead && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-brand-red" aria-label="Unread" />}
+                            <span className={`text-xs font-bold ${!isRead ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                              {notification.title}
+                            </span>
+                            {!isRead && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-red" aria-label="Unread" />}
                           </div>
-                          <p className="mt-1 text-xs text-slate-600 line-clamp-3 dark:text-slate-300">{notification.message}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-2 dark:text-slate-400">{notification.message}</p>
                         </button>
                       );
                     })}

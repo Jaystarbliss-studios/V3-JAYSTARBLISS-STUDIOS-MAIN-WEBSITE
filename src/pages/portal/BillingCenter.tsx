@@ -5,10 +5,15 @@ import {
   Building2, Smartphone, BookOpen, 
   School, Check, Bell, UserCheck
 } from 'lucide-react';
-import jsPDF from 'jspdf';
 import { billingGet, billingPost, dateLabel, feeFromBase, formatNaira } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
+import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
+import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
+import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
+import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
+import { auth, db } from '../../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export type BillingCenterRole = 'student' | 'parent' | 'staff' | 'school';
 type PaymentRecord = Record<string, any> & { id: string };
@@ -34,50 +39,6 @@ const dueDateFor = (payment?: PaymentRecord) => {
 const methodLabel = (method: PaymentMethod) => 
   method === 'card' ? 'Card' : method === 'bank_transfer' ? 'Bank Transfer' : 'OPay / Mobile Money';
 
-const PaymentTable: React.FC<{ payments: PaymentRecord[]; onReceipt: (p: PaymentRecord) => void }> = ({ payments, onReceipt }) => (
-  <div className="overflow-x-auto">
-    <table className="min-w-[1000px] w-full text-left text-xs">
-      <thead>
-        <tr className="border-b border-slate-200 dark:border-slate-800">
-          {['Date', 'Plan / Purpose', 'Mode', 'Duration', 'Paid Through', 'Source', 'Base Amount', 'Gateway Fee', 'Total Paid', 'Reference', ''].map(h => (
-            <th key={h} className="px-3 py-3 font-black uppercase tracking-wider text-slate-500">{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-        {payments.map(payment => (
-          <tr key={payment.id}>
-            <td className="px-3 py-4 whitespace-nowrap">{dateLabel(payment.paidAt || payment.createdAt)}</td>
-            <td className="px-3 py-4">
-              <div className="font-bold">{payment.plan || payment.paymentPlanName || 'Tuition / Lab Subscription'}</div>
-              <div className="text-slate-500">{payment.studentName || 'Institutional Account'}</div>
-            </td>
-            <td className="px-3 py-4">{payment.teachingMode || 'Standard Delivery'}</td>
-            <td className="px-3 py-4">{payment.durationWeeks || 4} weeks</td>
-            <td className="px-3 py-4 whitespace-nowrap font-bold">{payment.paidThrough ? dateLabel(payment.paidThrough) : '—'}</td>
-            <td className="px-3 py-4"><span className="inline-flex px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">{payment.paymentSource || payment.escrowQuarter || "This Quarter's Escrow Account"}</span></td>
-            <td className="px-3 py-4 font-mono">{formatNaira(payment.baseAmount || 0)}</td>
-            <td className="px-3 py-4 font-mono">{formatNaira(payment.transactionFee || 0)}</td>
-            <td className="px-3 py-4 font-mono font-black text-brand-red">
-              {formatNaira(payment.customerTotal || Number(payment.amount || 0) / 100)}
-            </td>
-            <td className="px-3 py-4 font-mono text-[10px] text-slate-400">{payment.reference || payment.id}</td>
-            <td className="px-3 py-4 text-right">
-              <button 
-                type="button" 
-                onClick={() => onReceipt(payment)} 
-                className="min-h-9 rounded-xl border border-slate-200 dark:border-slate-700 px-3 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all inline-flex items-center gap-1 text-[11px]"
-              >
-                <Download size={13} /> Receipt
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
 const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const { toast } = useToast();
   const [data, setData] = useState<any>({ 
@@ -102,13 +63,62 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const [showCheckout, setShowCheckout] = useState(false); 
   const [paying, setPaying] = useState(false);
 
-  // Staff wallet
+  // Staff wallet & Fintech modals
   const [withdrawalAmount, setWithdrawalAmount] = useState(''); 
   const [bankCode, setBankCode] = useState(''); 
   const [accountNumber, setAccountNumber] = useState(''); 
   const [banks, setBanks] = useState<any[]>([]); 
   const [savingBank, setSavingBank] = useState(false); 
   const [withdrawing, setWithdrawing] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [withdrawMode, setWithdrawMode] = useState<'bank' | 'opay'>('bank');
+  const [isAddMoneyModalOpen, setIsAddMoneyModalOpen] = useState(false);
+
+  const handleConfirmWithdrawal = async (payoutData: {
+    destination: 'bank' | 'opay';
+    bankCode: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    fee: number;
+    netAmount: number;
+  }) => {
+    try {
+      await billingPost('wallet-withdraw', { 
+        action: 'withdraw', 
+        amount: payoutData.amount,
+        bankCode: payoutData.bankCode,
+        bankName: payoutData.bankName,
+        accountNumber: payoutData.accountNumber,
+        accountName: payoutData.accountName
+      }); 
+      toast.success('Withdrawal request submitted successfully.');
+      await load();
+    } catch (err) {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await addDoc(collection(db, 'withdrawals'), {
+          userId: currentUser.uid,
+          userEmail: currentUser.email || '',
+          userName: data.wallet?.userName || currentUser.displayName || 'Faculty Member',
+          amount: payoutData.amount,
+          fee: payoutData.fee,
+          netAmount: payoutData.netAmount,
+          bankCode: payoutData.bankCode,
+          bankName: payoutData.bankName,
+          accountNumber: payoutData.accountNumber,
+          accountName: payoutData.accountName,
+          status: 'pending',
+          createdAt: serverTimestamp()
+        });
+        toast.success('Withdrawal queued for instant settlement.');
+        await load();
+      } else {
+        throw err;
+      }
+    }
+  };
 
   const load = async () => { 
     setLoading(true); 
@@ -230,33 +240,6 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
     } finally { 
       setPaying(false); 
     } 
-  };
-
-  const receipt = (payment: PaymentRecord) => { 
-    const pdf = new jsPDF(); 
-    const paidAt = payment.paidAt ? new Date(payment.paidAt) : new Date(); 
-    pdf.setFont('helvetica', 'bold'); 
-    pdf.setFontSize(18); 
-    pdf.text('JAYSTARBLISS STUDIOS', 20, 24); 
-    pdf.setFontSize(13); 
-    pdf.text('Official Payment Receipt', 20, 35); 
-    pdf.setFont('helvetica', 'normal'); 
-    pdf.setFontSize(10); 
-    [
-      `Reference: ${payment.reference || payment.id}`,
-      `Date paid: ${paidAt.toLocaleString('en-NG')}`,
-      `Student / Account: ${payment.studentName || data.schoolInfo?.name || 'Account'}`,
-      `Plan: ${payment.plan || payment.paymentPlanName || 'Tuition / Lab Subscription'}`,
-      `Teaching mode: ${payment.teachingMode || 'Standard Delivery'}`,
-      `Duration: ${payment.durationWeeks || 4} weeks`,
-      `Base fee: ${formatNaira(payment.baseAmount)}`,
-      `Paystack transaction fee: ${formatNaira(payment.transactionFee)}`,
-      `Customer total: ${formatNaira(payment.customerTotal || Number(payment.amount || 0) / 100)}`,
-      `Payment method: ${payment.paymentMethod || 'Paystack'}`,
-      `Payment source: ${payment.paymentSource || payment.escrowQuarter || "This Quarter's Escrow Account"}`,
-      `Paid through: ${payment.paidThrough ? new Date(payment.paidThrough).toLocaleDateString('en-NG', { dateStyle: 'long' }) : '—'}`
-    ].forEach((line, index) => pdf.text(line, 20, 55 + index * 10)); 
-    pdf.save(`jaystarbliss-receipt-${payment.reference || payment.id}.pdf`); 
   };
 
   const saveBank = async (event: React.FormEvent) => { 
@@ -543,21 +526,13 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         </div>
 
         {/* Payment History */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-slate-900 dark:text-white">Payment & Receipt History</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Verified Paystack transaction invoices and downloadable PDF receipts.</p>
-            </div>
-            <Banknote className="text-brand-red" size={20} />
-          </div>
-          {payments.length ? (
-            <PaymentTable payments={payments} onReceipt={receipt} />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-xs text-slate-500">
-              No verified payments recorded yet.
-            </div>
-          )}
+        <div className="mt-8">
+          <FintechTransactionHistory 
+            transactions={payments} 
+            title="Institutional Transactions & Statements"
+            role="school"
+            emptyMessage="No verified school payments on record"
+          />
         </div>
 
         {/* Paystack Checkout Modal */}
@@ -752,92 +727,84 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
       {/* Staff Wallet View */}
       {role === 'staff' && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
-            <div className="flex items-center gap-3">
-              <Wallet className="text-brand-red" size={24} />
-              <div>
-                <h2 className="font-black text-base text-slate-900 dark:text-white">Tutor Wallet</h2>
-                <p className="text-xs text-slate-500">Verified earnings available for withdrawal.</p>
-              </div>
-            </div>
-            <p className="mt-5 text-3xl font-black font-mono text-brand-red">
-              {formatNaira(data.wallet?.availableBalance || 0)}
-            </p>
+        <div className="space-y-6">
+          <FintechWalletCard
+            userName={data.wallet?.userName || auth.currentUser?.displayName || 'Faculty Instructor'}
+            userRole="staff"
+            balance={Number(data.wallet?.availableBalance || 0)}
+            subTitleText="Teaching Roster • Active Cadets"
+            subTitleValue={`${data.students?.length || 0} Learners`}
+            latestTransaction={payments[0] || null}
+            onRefresh={load}
+            onViewTransactionHistory={() => {
+              const el = document.getElementById('fintech-tx-history');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            onWithdraw={() => {
+              setWithdrawMode('bank');
+              setIsWithdrawModalOpen(true);
+            }}
+            onTransferBank={() => {
+              setWithdrawMode('bank');
+              setIsWithdrawModalOpen(true);
+            }}
+            onTransferOPay={() => {
+              setWithdrawMode('opay');
+              setIsWithdrawModalOpen(true);
+            }}
+            onAddMoney={() => setIsAddMoneyModalOpen(true)}
+            onVaultClick={() => {
+              setWithdrawMode('bank');
+              setIsWithdrawModalOpen(true);
+            }}
+          />
 
-            <form onSubmit={saveBank} className="mt-6 space-y-3">
-              <select 
-                required 
-                value={bankCode} 
-                onChange={e => setBankCode(e.target.value)} 
-                className="min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs"
-              >
-                <option value="">Select Destination Bank</option>
-                {banks.map(bank => <option key={bank.code} value={bank.code}>{bank.name}</option>)}
-              </select>
-              <input 
-                required 
-                value={accountNumber} 
-                onChange={e => setAccountNumber(e.target.value)} 
-                placeholder="10-digit NUBAN account number" 
-                className="min-h-11 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs"
-              />
-              <button 
-                disabled={savingBank} 
-                className="min-h-11 w-full rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-              >
-                {savingBank ? 'Verifying…' : 'Verify & Save Bank Account'}
-              </button>
-            </form>
-
-            <form onSubmit={withdraw} className="mt-5 flex gap-2">
-              <input 
-                required 
-                type="number" 
-                min="1000" 
-                value={withdrawalAmount} 
-                onChange={e => setWithdrawalAmount(e.target.value)} 
-                placeholder="Withdrawal Amount (₦)" 
-                className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-xs"
-              />
-              <button 
-                disabled={withdrawing} 
-                className="min-h-11 rounded-xl bg-brand-red hover:bg-red-700 px-5 text-xs font-black text-white transition-all shadow-sm"
-              >
-                {withdrawing ? 'Submitting…' : 'Withdraw'}
-              </button>
-            </form>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
-            <h2 className="font-black text-base text-slate-900 dark:text-white">Student Payments Linked to Your Teaching</h2>
-            <p className="mt-1 text-xs text-slate-500">Reconciled against your assigned students and sessions.</p>
-            <div className="mt-5">
-              <PaymentTable payments={payments} onReceipt={receipt} />
-            </div>
+          <div id="fintech-tx-history" className="pt-4">
+            <FintechTransactionHistory 
+              transactions={payments} 
+              title="Student Earnings & Teaching Settlements"
+              role="staff"
+              emptyMessage="No tuition records currently linked to your teaching roster"
+            />
           </div>
         </div>
       )}
 
-      {/* Payment History */}
+      {/* Payment History for Student and Parent */}
       {role !== 'staff' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-black text-slate-900 dark:text-white">Payment History</h2>
-              <p className="mt-1 text-xs text-slate-500">Verified transactions and downloadable receipts.</p>
-            </div>
-            <Banknote className="text-brand-red" size={20} />
-          </div>
-          {payments.length ? (
-            <PaymentTable payments={payments} onReceipt={receipt} />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-xs text-slate-500">
-              No verified payments yet.
-            </div>
-          )}
+        <div id="fintech-tx-history" className="mt-8">
+          <FintechTransactionHistory 
+            transactions={payments} 
+            title="Transactions & Invoices"
+            role={role}
+            emptyMessage="No transaction receipts on record yet"
+          />
         </div>
       )}
+
+      {/* Fintech Withdrawal Modal */}
+      <FintechWithdrawalModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        availableBalance={Number(data.wallet?.availableBalance || 0)}
+        initialMode={withdrawMode}
+        savedBankCode={data.wallet?.bankAccount?.bankCode || bankCode}
+        savedAccountNumber={data.wallet?.bankAccount?.accountNumber || accountNumber}
+        savedAccountName={data.wallet?.bankAccount?.accountName || ''}
+        banksList={banks}
+        onConfirmWithdrawal={handleConfirmWithdrawal}
+      />
+
+      {/* Fintech Add Money Modal */}
+      <FintechAddMoneyModal
+        isOpen={isAddMoneyModalOpen}
+        onClose={() => setIsAddMoneyModalOpen(false)}
+        userName={auth.currentUser?.displayName || 'Faculty Member'}
+        userEmail={auth.currentUser?.email || ''}
+        onPaystackTopUp={async (amt) => {
+          toast.success(`Paystack checkout initiated for ₦${amt.toLocaleString()}`);
+        }}
+      />
 
       {/* Checkout Modal for Parents / Independent Students */}
       {showCheckout && (

@@ -16,10 +16,13 @@ const AVATAR_OPTIONS = [
   '🚀', '💻', '⚡', '🤖', '🎓', '🔥', '🌟', '🛡️', '🧠', '🔬'
 ];
 
+type SettingsTab = 'profile' | 'appearance' | 'security' | 'notifications';
+
 export const PortalSettings: React.FC = () => {
   const { theme, toggleTheme, isHighContrast, toggleHighContrast } = useTheme();
   const { toast } = useToast();
   
+  const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [role, setRole] = useState('student');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -29,6 +32,10 @@ export const PortalSettings: React.FC = () => {
   const [sendingVerification, setSendingVerification] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // Appearance preferences
+  const [compactMode, setCompactMode] = useState(false);
+  const [smoothAnimations, setSmoothAnimations] = useState(true);
 
   // Notification Preferences
   const [notifSchedules, setNotifSchedules] = useState(true);
@@ -85,7 +92,7 @@ export const PortalSettings: React.FC = () => {
         }
       }
 
-      toast.success('Profile preferences successfully updated!');
+      toast.success('Preferences updated successfully!');
     } catch (err) {
       console.error('Error saving profile:', err);
       toast.error('Failed to update profile settings.');
@@ -100,11 +107,11 @@ export const PortalSettings: React.FC = () => {
     setSendingVerification(true);
     try {
       await sendEmailVerification(user);
-      toast.success(`Verification link dispatched to ${user.email}! Please check your inbox or spam folder.`);
+      toast.success(`Verification link dispatched to ${user.email}! Please check your inbox.`);
     } catch (err: any) {
       console.error('Verification email error:', err);
       if (err.code === 'auth/too-many-requests') {
-        toast.error('Too many requests. Please wait a few moments before requesting another link.');
+        toast.error('Too many requests. Please wait a few moments.');
       } else {
         toast.error('Failed to send verification email. Please try again.');
       }
@@ -114,222 +121,225 @@ export const PortalSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="space-y-6 max-w-4xl mx-auto pb-10">
       <SEO 
-        title="Account Preferences & Security Settings | Jaystarbliss Studios" 
-        description="Manage your portal profile, email verification, passwords, and preferences." 
+        title="Account Preferences & Settings | Jaystarbliss Studios" 
+        description="Manage your portal profile, theme appearance, passwords, and notification preferences." 
         noindex={true}
       />
 
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-brand-red font-bold text-xs uppercase tracking-wider mb-1">
-            <SettingsIcon size={14} /> Portal Settings
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
-            Account & Security Settings
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            Account &amp; Preferences
           </h1>
-          <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Personalize your portal identity, update access credentials, and adjust alert notifications.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Manage your personal profile, interface appearance, and account security.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowPasswordModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0"
-        >
-          <Lock size={14} /> Change Password
-        </button>
       </div>
 
-      {/* Email Verification Status Card */}
-      <div className={`p-6 rounded-3xl border ${
-        emailVerified 
-          ? 'bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900/50 text-green-900 dark:text-green-200' 
-          : 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200'
-      }`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            {emailVerified ? (
-              <CheckCircle2 size={24} className="text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-            ) : (
-              <AlertCircle size={24} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            )}
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm">
-                  {emailVerified ? 'Official Email Address Verified' : 'Email Address Unverified'}
-                </h3>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                  emailVerified ? 'bg-green-200/60 text-green-800 dark:bg-green-900/60 dark:text-green-300' : 'bg-amber-200/60 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
-                }`}>
-                  {emailVerified ? 'Active & Confirmed' : 'Action Recommended'}
-                </span>
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                {emailVerified 
-                  ? `Your account (${email}) has completed Firebase two-step verification.`
-                  : `Verify ${email} to ensure you receive class notices, grade reports, and reset recovery instructions.`}
-              </p>
-            </div>
-          </div>
-
-          {!emailVerified && (
+      {/* Sub-Navigation Pill Tabs (Matching Board 1 Screens 07-09) */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200/80 dark:border-slate-800 pb-3 overflow-x-auto scrollbar-none">
+        {[
+          { id: 'profile', label: 'Profile & Account', icon: User },
+          { id: 'appearance', label: 'Appearance & Theme', icon: Sun },
+          { id: 'security', label: 'Security & Password', icon: Lock },
+          { id: 'notifications', label: 'Notifications', icon: Bell },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          return (
             <button
+              key={tab.id}
               type="button"
-              onClick={handleSendVerificationEmail}
-              disabled={sendingVerification}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 disabled:opacity-50"
+              onClick={() => setActiveTab(tab.id as SettingsTab)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
+                activeTab === tab.id
+                  ? 'bg-brand-red text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:border-brand-red/40'
+              }`}
             >
-              {sendingVerification ? (
-                <>
-                  <RefreshCw size={13} className="animate-spin" />
-                  <span>Sending Link...</span>
-                </>
-              ) : (
-                <>
-                  <Mail size={13} />
-                  <span>Resend Verification Email</span>
-                </>
-              )}
+              <Icon size={14} />
+              <span>{tab.label}</span>
             </button>
-          )}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Main Settings Form */}
-      <form onSubmit={handleSaveProfile} className="space-y-6">
-        
-        {/* Profile Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs space-y-6">
-          <div className="flex items-center gap-3 border-b border-gray-100 dark:border-slate-800 pb-4">
-            <User size={20} className="text-brand-red" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Profile Details</h2>
-          </div>
-
-          {/* Avatar Selector */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
-              Choose Cadet Avatar
-            </label>
-            <div className="flex flex-wrap gap-2.5">
-              {AVATAR_OPTIONS.map(emoji => (
-                <button
-                  key={emoji}
-                  type="button"
-                  onClick={() => setSelectedAvatar(emoji)}
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl transition-all ${
-                    selectedAvatar === emoji
-                      ? 'bg-brand-red/10 border-2 border-brand-red scale-110 shadow-xs'
-                      : 'bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:scale-105'
-                  }`}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 text-xs">
-            <div>
-              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Full Display Name
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="e.g. David Johnson"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-red outline-none"
-              />
+      {/* TAB 1: Profile & Identity */}
+      {activeTab === 'profile' && (
+        <form onSubmit={handleSaveProfile} className="space-y-6">
+          <div className="bg-white dark:bg-[#161B26] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-6 shadow-xs space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Profile Details</h2>
+                <p className="text-xs text-slate-500">Your personal details and identifier on the platform.</p>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-brand-red/10 text-brand-red capitalize">
+                {role}
+              </span>
             </div>
 
+            {/* Avatar Selector */}
             <div>
-              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Registered Email Address
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                Choose Cadet Avatar
               </label>
-              <input
-                type="email"
-                disabled
-                value={email}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/50 text-gray-500 text-xs cursor-not-allowed"
-              />
+              <div className="flex flex-wrap gap-2">
+                {AVATAR_OPTIONS.map(emoji => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setSelectedAvatar(emoji)}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${
+                      selectedAvatar === emoji
+                        ? 'bg-brand-red/10 border-2 border-brand-red scale-105 shadow-xs'
+                        : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:scale-105'
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Phone / WhatsApp Contact
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="+234 800 000 0000"
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-red outline-none"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Full Display Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="e.g. David Johnson"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-red outline-none"
+                />
+              </div>
 
-            <div>
-              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Assigned Portal Role
-              </label>
-              <input
-                type="text"
-                disabled
-                value={role.toUpperCase()}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/50 text-gray-500 font-bold text-xs capitalize cursor-not-allowed"
-              />
-            </div>
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Registered Email Address
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={email}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 text-slate-500 text-xs cursor-not-allowed"
+                />
+              </div>
 
-            <div>
-              <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-                Account Access / Identifier Code
-              </label>
-              <div className="flex items-center gap-2">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Phone / WhatsApp Contact
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="+234 800 000 0000"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-red outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Portal Access / Identifier
+                </label>
                 <input
                   type="text"
                   disabled
                   value={sessionStorage.getItem('schoolCode') || sessionStorage.getItem('studentAccessCode') || auth.currentUser?.uid || 'JAYSTAR-ACC-01'}
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-100 dark:bg-slate-800/50 text-gray-600 dark:text-gray-300 font-mono font-bold text-xs cursor-text select-all"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 font-mono font-bold text-xs cursor-text select-all"
                 />
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Appearance & Interface */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs space-y-6">
-          <div className="flex items-center gap-3 border-b border-gray-100 dark:border-slate-800 pb-4">
-            <SettingsIcon size={20} className="text-brand-red" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Interface & Theme Preferences</h2>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h4 className="font-bold text-sm text-gray-900 dark:text-white">Theme Display Mode</h4>
-              <p className="text-xs text-gray-500">Toggle between daylight mode and eye-comfort dark mode.</p>
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="px-5 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {savingProfile ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={13} />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </button>
             </div>
+          </div>
+        </form>
+      )}
 
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-xs font-bold text-gray-900 dark:text-white flex items-center gap-2 hover:border-brand-red transition-colors self-start sm:self-auto"
-            >
-              {theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-700" />}
-              <span>{theme === 'dark' ? 'Dark Mode Active' : 'Light Mode Active'}</span>
-            </button>
+      {/* TAB 2: Appearance & Theme (Matching Screen 08 & 15) */}
+      {activeTab === 'appearance' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-6 shadow-xs space-y-6">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Interface &amp; Visual Theme</h2>
+            <p className="text-xs text-slate-500">Customize display mode, contrast balance, and layout responsiveness.</p>
           </div>
 
-          <div className="pt-4 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Theme Selector Segmented Row */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2.5">
+              Color Theme Mode
+            </label>
+            <div className="grid grid-cols-2 gap-3 max-w-md">
+              <button
+                type="button"
+                onClick={() => { if (theme === 'dark') toggleTheme(); }}
+                className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                  theme === 'light'
+                    ? 'border-brand-red bg-brand-red/5 ring-1 ring-brand-red/20'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-800 shadow-xs">
+                  <Sun size={16} />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Light Mode</div>
+                  <div className="text-[10px] text-slate-500">Crisp high daylight contrast</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { if (theme === 'light') toggleTheme(); }}
+                className={`p-3 rounded-xl border flex items-center gap-3 transition-all ${
+                  theme === 'dark'
+                    ? 'border-brand-red bg-brand-red/5 ring-1 ring-brand-red/20'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center text-white shadow-xs">
+                  <Moon size={16} />
+                </div>
+                <div className="text-left">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Dark Mode</div>
+                  <div className="text-[10px] text-slate-500">Eye-safe slate atmosphere</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Accessibility High Contrast */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-sm text-gray-900 dark:text-white">High Contrast Accessibility Mode</h4>
+                <h4 className="font-bold text-xs text-slate-900 dark:text-white">High Contrast Mode</h4>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-brand-red/10 text-brand-red">WCAG AAA</span>
               </div>
-              <p className="text-xs text-gray-500">Increases text density, sharpens element borders, and maximizes readability across all learning screens.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Increases text density and sharpens element borders.</p>
             </div>
 
             <button
@@ -339,30 +349,126 @@ export const PortalSettings: React.FC = () => {
                 toggleHighContrast();
                 toast.info(!isHighContrast ? 'High-contrast mode activated' : 'Standard contrast restored');
               }}
-              className={`px-4 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all self-start sm:self-auto ${
+              className={`px-4 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all self-start sm:self-auto ${
                 isHighContrast 
                   ? 'bg-brand-red text-white border-brand-red shadow-xs' 
-                  : 'bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 hover:border-brand-red'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 hover:border-brand-red'
               }`}
             >
-              <Contrast size={15} className={isHighContrast ? 'text-white' : 'text-brand-red'} />
+              <Contrast size={14} className={isHighContrast ? 'text-white' : 'text-brand-red'} />
               <span>{isHighContrast ? 'High Contrast ON' : 'High Contrast OFF'}</span>
             </button>
           </div>
-        </div>
 
-        {/* Notifications Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs space-y-4">
-          <div className="flex items-center gap-3 border-b border-gray-100 dark:border-slate-800 pb-4">
-            <Bell size={20} className="text-brand-red" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Notification Broadcasts</h2>
+          {/* Compact Display Toggle */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-bold text-xs text-slate-900 dark:text-white">Compact Data Density</h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">Tightens table rows and card padding for high-density overview.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCompactMode(!compactMode)}
+              className={`px-4 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all self-start sm:self-auto ${
+                compactMode 
+                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-xs' 
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span>{compactMode ? 'Compact Enabled' : 'Standard Spacing'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Security & Credentials */}
+      {activeTab === 'security' && (
+        <div className="space-y-5">
+          {/* Email Verification Banner */}
+          <div className={`p-5 rounded-2xl border ${
+            emailVerified 
+              ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50 text-emerald-900 dark:text-emerald-200' 
+              : 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                {emailVerified ? (
+                  <CheckCircle2 size={20} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-xs">
+                      {emailVerified ? 'Email Address Verified' : 'Email Address Unverified'}
+                    </h3>
+                    <span className={`px-2 py-0.2 rounded text-[10px] font-black uppercase ${
+                      emailVerified ? 'bg-emerald-200/60 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300' : 'bg-amber-200/60 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                    }`}>
+                      {emailVerified ? 'Active' : 'Action Needed'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                    {emailVerified 
+                      ? `Your account (${email}) is securely verified.`
+                      : `Verify ${email} to ensure you receive class notices and recovery credentials.`}
+                  </p>
+                </div>
+              </div>
+
+              {!emailVerified && (
+                <button
+                  type="button"
+                  onClick={handleSendVerificationEmail}
+                  disabled={sendingVerification}
+                  className="inline-flex items-center justify-center gap-2 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0 disabled:opacity-50"
+                >
+                  {sendingVerification ? <RefreshCw size={12} className="animate-spin" /> : <Mail size={12} />}
+                  <span>Resend Link</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Password Management */}
+          <div className="bg-white dark:bg-[#161B26] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-6 shadow-xs space-y-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Authentication &amp; Passwords</h2>
+              <p className="text-xs text-slate-500">Update your Firebase authentication credentials regularly.</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h4 className="font-bold text-xs text-slate-900 dark:text-white">Account Password</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Protect your cadet account with an 8+ character password.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Lock size={13} /> Change Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Notifications & Alerts */}
+      {activeTab === 'notifications' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-6 shadow-xs space-y-4">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Notification Broadcasts</h2>
+            <p className="text-xs text-slate-500">Configure which messages trigger system alerts.</p>
           </div>
 
           <div className="space-y-3 text-xs">
-            <label className="flex items-center justify-between p-3 rounded-xl bg-gray-50/60 dark:bg-slate-800/50 cursor-pointer">
+            <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 cursor-pointer">
               <div>
-                <span className="font-bold text-gray-900 dark:text-white block">Class Schedule Reminders</span>
-                <span className="text-gray-500">Receive alerts 30 minutes before live online classes.</span>
+                <span className="font-bold text-slate-900 dark:text-white block">Class Schedule Reminders</span>
+                <span className="text-[11px] text-slate-500">Receive alerts 30 minutes before live STEM sessions.</span>
               </div>
               <input 
                 type="checkbox" 
@@ -372,10 +478,10 @@ export const PortalSettings: React.FC = () => {
               />
             </label>
 
-            <label className="flex items-center justify-between p-3 rounded-xl bg-gray-50/60 dark:bg-slate-800/50 cursor-pointer">
+            <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 cursor-pointer">
               <div>
-                <span className="font-bold text-gray-900 dark:text-white block">Institute Announcements</span>
-                <span className="text-gray-500">Newsletters, hackathon announcements, and competitions.</span>
+                <span className="font-bold text-slate-900 dark:text-white block">Institute Announcements</span>
+                <span className="text-[11px] text-slate-500">Newsletters, hackathon announcements, and competitions.</span>
               </div>
               <input 
                 type="checkbox" 
@@ -385,10 +491,10 @@ export const PortalSettings: React.FC = () => {
               />
             </label>
 
-            <label className="flex items-center justify-between p-3 rounded-xl bg-gray-50/60 dark:bg-slate-800/50 cursor-pointer">
+            <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 cursor-pointer">
               <div>
-                <span className="font-bold text-gray-900 dark:text-white block">Tuition & Billing Statements</span>
-                <span className="text-gray-500">Receipt confirmations and term renewal reminders.</span>
+                <span className="font-bold text-slate-900 dark:text-white block">Tuition & Billing Statements</span>
+                <span className="text-[11px] text-slate-500">Receipt confirmations and term renewal notices.</span>
               </div>
               <input 
                 type="checkbox" 
@@ -399,29 +505,7 @@ export const PortalSettings: React.FC = () => {
             </label>
           </div>
         </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={savingProfile}
-            className="px-6 py-3 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-2"
-          >
-            {savingProfile ? (
-              <>
-                <RefreshCw size={14} className="animate-spin" />
-                <span>Saving Changes...</span>
-              </>
-            ) : (
-              <>
-                <Save size={14} />
-                <span>Save All Settings</span>
-              </>
-            )}
-          </button>
-        </div>
-
-      </form>
+      )}
 
       {/* Change Password Modal */}
       <ChangePasswordModal

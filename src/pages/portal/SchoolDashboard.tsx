@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X } from 'lucide-react';
+import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
+import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -89,7 +90,6 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
         const studentsResult = await jsonFetch<{ count: number }>('/.netlify/functions/school-students');
         fetchedStudentCount = Number(studentsResult.count || 0);
       } catch {
-        // Fallback to direct client-side Firestore query
         const [studSnap, indivSnap] = await Promise.all([
           getDocs(query(collection(db, 'students'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
           getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] }))
@@ -145,30 +145,372 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   if (loading) return <div className="min-h-[360px] flex items-center justify-center gap-3 text-sm text-slate-500"><Loader2 className="animate-spin" size={22}/> Loading secure school operations…</div>;
   const schoolName = school?.name || 'School Portal';
 
-  return <div className="space-y-6 max-w-7xl mx-auto pb-12">
-    <SEO title={`School Operations | ${schoolName}`} description="Secure school operations workspace." noindex />
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <SEO title={`School Operations | ${schoolName}`} description="Secure school operations workspace." noindex />
 
-    {tab === 'overview' && <div className="grid grid-cols-1 md:grid-cols-3 gap-5"><div className="pro-surface rounded-3xl p-6"><Users className="text-brand-red" size={20}/><div className="text-3xl font-black mt-3">{studentCount}</div><div className="text-xs text-slate-500 mt-1">Learners linked to this school</div></div><div className="pro-surface rounded-3xl p-6"><Award className="text-brand-red" size={20}/><div className="text-3xl font-black mt-3">{exams.length}</div><div className="text-xs text-slate-500 mt-1">School assessments</div></div><div className="pro-surface rounded-3xl p-6"><Key className="text-brand-red" size={20}/><div className="text-3xl font-black mt-3">{passcodes.filter(p=>p.isActive).length}</div><div className="text-xs text-slate-500 mt-1">Active exam passcodes</div></div><div className="pro-surface rounded-3xl p-6 md:col-span-2"><h2 className="font-black">Quick actions</h2><div className="flex flex-wrap gap-2 mt-4"><button onClick={()=>changeTab('roster')} className="min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2"><Users size={15}/> View roster</button><button onClick={()=>changeTab('passcodes')} className="min-h-11 rounded-xl border px-4 text-xs font-black inline-flex items-center gap-2"><Key size={15}/> Manage passcodes</button><button onClick={()=>changeTab('exams')} className="min-h-11 rounded-xl border px-4 text-xs font-black inline-flex items-center gap-2"><Award size={15}/> Assessments</button></div></div><div className="pro-surface rounded-3xl p-6"><h2 className="font-black">Institution</h2><p className="text-sm text-slate-500 mt-2">{school?.plan || 'No plan recorded'}</p><p className="text-xs text-slate-500 mt-3">Coordinator: {school?.coordinator || 'Not assigned'}</p><p className="text-xs text-slate-500 mt-1">Lab schedule: {school?.labDays || 'Not scheduled'}</p></div></div>}
-    {tab === 'roster' && <div className="pro-surface rounded-3xl p-6"><h2 className="text-xl font-black">Student roster</h2><p className="text-sm text-slate-500 mt-2">Roster management has moved to the secure student operations page. Student portal credentials are never exposed in this workspace.</p><button onClick={()=>navigate('/portal/school/roster')} className="mt-5 min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2"><Users size={15}/> Open secure roster <ChevronRight size={15}/></button></div>}
-    {tab === 'exams' && <div className="pro-surface rounded-3xl p-6 md:p-8 space-y-5"><div><h2 className="text-xl font-black flex items-center gap-2"><Award size={20} className="text-brand-red"/> CBT assessments</h2><p className="text-sm text-slate-500 mt-1">Only assessments belonging to your linked school are loaded.</p></div><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search title, subject or class" className="w-full min-h-11 rounded-xl border pl-10 pr-3 text-sm bg-white dark:bg-slate-900"/></div>{filteredExams.length===0?<div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">No school assessments found.</div>:<div className="grid grid-cols-1 md:grid-cols-2 gap-4">{filteredExams.map(exam=>{const url=exam.link||exam.url||exam.fileUrl||'';return <div key={exam.id} className="rounded-2xl border p-5 space-y-4"><div className="flex justify-between gap-3"><span className="rounded-full px-2.5 py-1 text-[10px] font-black bg-slate-100 dark:bg-slate-800">{exam.status||'SCHEDULED'}</span><span className="text-xs text-slate-500">{exam.duration||'Duration not set'}</span></div><h3 className="font-black">{exam.title}</h3><div className="text-xs text-slate-500 space-y-1"><div>Subject: {exam.subject||'Not set'}</div><div>Class: {exam.targetClass||'All eligible learners'}</div><div>Term: {exam.term||'Not set'}</div></div><div className="flex gap-2">{url&&<button onClick={()=>openReader(url,exam.title)} className="min-h-10 rounded-xl border px-3 text-xs font-black inline-flex items-center gap-2"><Eye size={14}/> Preview</button>}<a href={url||undefined} target="_blank" rel="noopener noreferrer" className="min-h-10 flex-1 rounded-xl bg-brand-red text-white px-3 text-xs font-black inline-flex items-center justify-center gap-2"><ExternalLink size={14}/> Launch</a></div></div>})}</div>}</div>}
-    {tab === 'passcodes' && <div className="pro-surface rounded-3xl p-6 md:p-8 space-y-5"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><h2 className="text-xl font-black flex items-center gap-2"><Key size={20} className="text-brand-red"/> Exam passcodes</h2><p className="text-sm text-slate-500 mt-1">These are examination/invigilator keys, not student portal credentials.</p></div><button onClick={()=>setPasscodeForm({classLevel:'General',subject:'STEM & Coding',examTitle:'',passcode:generatePasscode(),isActive:true,validUntil:'End of Term'})} className="min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2"><Key size={15}/> New passcode</button></div>{passcodes.length===0?<div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">No exam passcodes configured.</div>:<div className="space-y-3">{passcodes.map(pc=><div key={pc.id} className="rounded-2xl border p-5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><div className="flex flex-wrap gap-2 items-center"><span className="text-[10px] uppercase font-black rounded-full px-2.5 py-1 bg-slate-100 dark:bg-slate-800">{pc.classLevel}</span><span className="text-xs font-bold">{pc.subject}</span><span className={`text-[10px] font-black rounded-full px-2.5 py-1 ${pc.isActive?'bg-emerald-50 text-emerald-700':'bg-slate-100 text-slate-500'}`}>{pc.isActive?'ACTIVE':'DISABLED'}</span></div><h3 className="font-black mt-2">{pc.examTitle}</h3><p className="text-xs text-slate-500 mt-1">Valid: {pc.validUntil||'Not set'} · Invigilator: {pc.invigilatorName||'School'}</p></div><div className="flex items-center gap-2"><code className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 font-mono font-black text-sm">{pc.passcode}</code><button onClick={()=>{navigator.clipboard.writeText(pc.passcode);toast.success('Exam passcode copied.');}} className="min-h-10 rounded-xl border px-3 text-xs font-black inline-flex items-center gap-2"><Copy size={14}/> Copy</button><button onClick={()=>void togglePasscode(pc)} className="min-h-10 rounded-xl border px-3 text-xs font-black">{pc.isActive?'Deactivate':'Activate'}</button></div></div>)}</div>}</div>}
-    {tab === 'resources' && <div className="pro-surface rounded-3xl p-6 md:p-8"><h2 className="text-xl font-black flex items-center gap-2"><BookOpen size={20} className="text-brand-red"/> School resources</h2><p className="text-sm text-slate-500 mt-2">Resource management and access-controlled delivery are handled in the shared Resource Library.</p><button onClick={()=>navigate('/portal/school/resources')} className="mt-5 min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2"><BookOpen size={15}/> Open Resource Library</button></div>}
-    {tab === 'links' && <div className="pro-surface rounded-3xl p-6 md:p-8 space-y-5"><div><h2 className="text-xl font-black flex items-center gap-2"><Link2 size={20} className="text-brand-red"/> School links</h2><p className="text-sm text-slate-500 mt-1">Links are restricted to your school record.</p></div><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search school links" className="w-full min-h-11 rounded-xl border pl-10 pr-3 text-sm bg-white dark:bg-slate-900"/></div>{filteredLinks.length===0?<div className="rounded-2xl border border-dashed p-8 text-center text-sm text-slate-500">No school links found.</div>:<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{filteredLinks.map(link=><div key={link.id} className="rounded-2xl border p-5 flex flex-col gap-4"><div><h3 className="font-black">{link.title}</h3><p className="text-xs text-slate-500 mt-1">{link.description||'Institutional resource link'}</p></div><div className="flex gap-2 mt-auto"><button onClick={()=>openReader(link.url,link.title)} className="min-h-10 rounded-xl border px-3 text-xs font-black inline-flex items-center gap-2"><Eye size={14}/> Preview</button><a href={link.url} target="_blank" rel="noopener noreferrer" className="min-h-10 flex-1 rounded-xl bg-brand-red text-white px-3 text-xs font-black inline-flex items-center justify-center gap-2"><ExternalLink size={14}/> Open</a></div></div>)}</div>}</div>}
-    {tab === 'schedules' && <div className="pro-surface rounded-3xl p-6 md:p-8">
-      <h2 className="text-xl font-black flex items-center gap-2"><Calendar size={20} className="text-brand-red"/> Class schedule & history</h2>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Your school’s recurring classes are published by the admin team. Each occurrence remains in the history with its recorded outcome.</p>
-      <div className="mt-5 space-y-3">
-        {classSchedules.length ? classSchedules.map(item => (
-          <div key={item.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-950/40 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div><div className="text-[11px] font-black uppercase tracking-wider text-brand-red">{item.classLevel} • {item.status}</div><h3 className="font-black text-slate-900 dark:text-white mt-1">{item.title}</h3><p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{new Date(item.date + 'T00:00:00').toLocaleDateString('en-NG',{dateStyle:'full'})} • {item.startTime}–{item.endTime}</p>{item.tutorName && <p className="text-xs text-slate-500 mt-1">Tutor: {item.tutorName}</p>}</div>
-            <span className="shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{item.status}</span>
+      <DashboardGreeting
+        name={schoolName}
+        role="Partner Institution"
+        subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
+      />
+
+      {tab === 'overview' && (
+        <div className="space-y-6">
+          {/* Top Banner / Program Status */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-xs border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-red text-white">
+                Active Partner Institution
+              </span>
+              <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">{schoolName}</h2>
+              <p className="text-xs text-slate-300 mt-1">
+                Program Plan: <strong className="text-white">{school?.plan || 'STEM Curriculum Standard'}</strong> • Coordinator: <span className="text-slate-200">{school?.coordinator || 'Academic Directorate'}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                onClick={() => changeTab('roster')}
+                className="px-4 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-2"
+              >
+                <span>Manage Roster</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
-        )) : <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-500">No class schedule has been published for this school yet.</div>}
-      </div>
-    </div>}
-    {tab === 'partnership' && <div className="pro-surface rounded-3xl p-6 md:p-8"><h2 className="text-xl font-black flex items-center gap-2"><CreditCard size={20} className="text-brand-red"/> Fees/Payments</h2><div className="mt-5 rounded-2xl bg-slate-900 text-white p-6"><div className="text-[10px] uppercase tracking-widest font-black text-slate-300">Current plan</div><h3 className="text-2xl font-black mt-2">{school?.plan || 'No plan recorded'}</h3><p className="text-sm text-slate-300 mt-2">Billing, receipts, escrow statements, and payment history are available from the School Fees & Payments tab.</p><button onClick={()=>navigate('/portal/school/payments')} className="mt-5 min-h-11 rounded-xl bg-white text-slate-900 px-4 text-xs font-black inline-flex items-center gap-2"><CreditCard size={15}/> Open Fees & Payments</button></div></div>}
-    {passcodeForm && <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4"><form onSubmit={savePasscode} className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 p-6 space-y-4"><div className="flex justify-between items-center"><h3 className="font-black text-lg">Create exam passcode</h3><button type="button" onClick={()=>setPasscodeForm(null)}><X size={18}/></button></div><input required value={passcodeForm.examTitle||''} onChange={e=>setPasscodeForm(p=>({...p,examTitle:e.target.value}))} placeholder="Assessment title" className="w-full min-h-11 rounded-xl border px-3 text-sm"/><input required value={passcodeForm.passcode||''} onChange={e=>setPasscodeForm(p=>({...p,passcode:e.target.value.toUpperCase()}))} placeholder="EXAM-123-456" className="w-full min-h-11 rounded-xl border px-3 text-sm font-mono"/><div className="grid grid-cols-2 gap-3"><input value={passcodeForm.classLevel||''} onChange={e=>setPasscodeForm(p=>({...p,classLevel:e.target.value}))} placeholder="Class level" className="w-full min-h-11 rounded-xl border px-3 text-sm"/><input value={passcodeForm.subject||''} onChange={e=>setPasscodeForm(p=>({...p,subject:e.target.value}))} placeholder="Subject" className="w-full min-h-11 rounded-xl border px-3 text-sm"/></div><div className="flex justify-end gap-2 pt-3"><button type="button" onClick={()=>setPasscodeForm(null)} className="min-h-11 rounded-xl border px-4 text-xs font-black">Cancel</button><button type="submit" className="min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black">Save passcode</button></div></form></div>}
-    {reader && <div className="fixed inset-0 z-50 bg-slate-950/80 p-3 md:p-6 flex items-center justify-center" onClick={e=>{if(e.target===e.currentTarget)setReader(null)}}><div className="w-full max-w-6xl h-[92vh] rounded-3xl bg-white dark:bg-slate-900 overflow-hidden flex flex-col"><div className="p-4 border-b flex items-center justify-between gap-3"><div className="min-w-0"><h3 className="font-black truncate">{reader.title}</h3><p className="text-xs text-slate-500">Secure school document preview</p></div><div className="flex gap-2"><a href={reader.url} target="_blank" rel="noopener noreferrer" className="min-h-10 rounded-xl border px-3 text-xs font-black inline-flex items-center gap-2"><ExternalLink size={14}/> Open</a><button onClick={()=>setReader(null)} className="min-h-10 rounded-xl border px-3"><X size={16}/></button></div></div><div className="relative flex-1 bg-slate-950">{readerLoading&&<div className="absolute inset-0 z-10 flex items-center justify-center text-white"><Loader2 className="animate-spin" size={24}/></div>}<iframe src={getEmbeddableUrl(reader.url)} title={reader.title} className="w-full h-full border-0 bg-white" onLoad={()=>setReaderLoading(false)}/></div></div></div>}
-  </div>;
+
+          {/* Compact 4-Stat Metrics Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Enrolled Cadets</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{studentCount}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Active school learners</p>
+            </div>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">CBT Exams</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{exams.length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Active test papers</p>
+            </div>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Passcodes</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{passcodes.filter(p=>p.isActive).length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Invigilation keys</p>
+            </div>
+            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class Schedules</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{classSchedules.length}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Lab sessions logged</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 md:col-span-2 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institutional Quick Actions</h2>
+                <span className="text-xs text-slate-500 font-medium">Fast navigation</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={() => changeTab('roster')}
+                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                >
+                  <Users className="text-brand-red mb-2" size={18} />
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Student Roster</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Manage learner accounts</div>
+                </button>
+                <button
+                  onClick={() => changeTab('passcodes')}
+                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                >
+                  <Key className="text-brand-red mb-2" size={18} />
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Exam Passcodes</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Generate invigilator keys</div>
+                </button>
+                <button
+                  onClick={() => changeTab('schedules')}
+                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                >
+                  <Calendar className="text-brand-red mb-2" size={18} />
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">Class Schedule</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Upcoming lab occurrences</div>
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institution Details</h2>
+              <div className="mt-3 space-y-2 text-xs">
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Plan Track</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{school?.plan || 'Active Curriculum'}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Coordinator</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{school?.coordinator || 'Assigned Lead'}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Lab Schedule</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{school?.labDays || 'Standard Schedule'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'roster' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Student Roster</h2>
+          <p className="text-xs text-slate-500 mt-1">Roster management has moved to the secure student operations page. Student portal credentials are never exposed in this workspace.</p>
+          <button onClick={() => navigate('/portal/school/roster')} className="mt-4 min-h-9 rounded-xl bg-brand-red text-white px-4 text-xs font-bold inline-flex items-center gap-2">
+            <Users size={14}/> Open secure roster <ChevronRight size={14}/>
+          </button>
+        </div>
+      )}
+
+      {tab === 'exams' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <Award size={18} className="text-brand-red"/> CBT Assessments
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Only assessments belonging to your linked school are loaded.</p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search title, subject..." className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 pl-9 pr-3 text-xs bg-white dark:bg-slate-900"/>
+            </div>
+          </div>
+
+          {filteredExams.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
+              No school assessments found.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {filteredExams.map(exam => {
+                const url = exam.link || exam.url || exam.fileUrl || '';
+                return (
+                  <div key={exam.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 bg-slate-50/50 dark:bg-slate-900/40">
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="rounded-md px-2 py-0.5 text-[10px] font-bold bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {exam.status || 'SCHEDULED'}
+                      </span>
+                      <span className="text-[11px] text-slate-500">{exam.duration || 'Duration not set'}</span>
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{exam.title}</h3>
+                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                      <div>Subject: {exam.subject || 'STEM & Coding'}</div>
+                      <div>Class: {exam.targetClass || 'All eligible learners'}</div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      {url && (
+                        <button onClick={() => openReader(url, exam.title)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-xs font-semibold inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                          <Eye size={13}/> Preview
+                        </button>
+                      )}
+                      <a href={url || undefined} target="_blank" rel="noopener noreferrer" className="min-h-8 flex-1 rounded-lg bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5">
+                        <ExternalLink size={13}/> Launch
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'passcodes' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <Key size={18} className="text-brand-red"/> Exam Passcodes
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Examination keys for CBT invigilation.</p>
+            </div>
+            <button onClick={() => setPasscodeForm({ classLevel: 'General', subject: 'STEM & Coding', examTitle: '', passcode: generatePasscode(), isActive: true, validUntil: 'End of Term' })} className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1.5">
+              <Key size={14}/> New passcode
+            </button>
+          </div>
+
+          {passcodes.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
+              No exam passcodes configured.
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {passcodes.map(pc => (
+                <div key={pc.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 p-3.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/40">
+                  <div>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[10px] uppercase font-bold rounded-md px-2 py-0.5 bg-slate-200 dark:bg-slate-800">{pc.classLevel}</span>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{pc.subject}</span>
+                      <span className={`text-[10px] font-bold rounded-md px-2 py-0.5 ${pc.isActive ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500'}`}>
+                        {pc.isActive ? 'ACTIVE' : 'DISABLED'}
+                      </span>
+                    </div>
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white mt-1.5">{pc.examTitle}</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Valid: {pc.validUntil || 'End of Term'} • Invigilator: {pc.invigilatorName || 'School'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-mono font-bold text-xs">{pc.passcode}</code>
+                    <button onClick={() => { navigator.clipboard.writeText(pc.passcode); toast.success('Exam passcode copied.'); }} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold inline-flex items-center gap-1">
+                      <Copy size={12}/> Copy
+                    </button>
+                    <button onClick={() => void togglePasscode(pc)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold">
+                      {pc.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'resources' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <BookOpen size={18} className="text-brand-red"/> School Resources
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Resource management and access-controlled delivery are handled in the shared Resource Library.</p>
+          <button onClick={() => navigate('/portal/school/resources')} className="mt-4 min-h-9 rounded-xl bg-brand-red text-white px-4 text-xs font-bold inline-flex items-center gap-2">
+            <BookOpen size={14}/> Open Resource Library
+          </button>
+        </div>
+      )}
+
+      {tab === 'links' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <Link2 size={18} className="text-brand-red"/> School Links
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Links restricted to your school record.</p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search links..." className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 pl-9 pr-3 text-xs bg-white dark:bg-slate-900"/>
+            </div>
+          </div>
+
+          {filteredLinks.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
+              No school links found.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {filteredLinks.map(link => (
+                <div key={link.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-900/40">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white">{link.title}</h3>
+                    <p className="text-[11px] text-slate-500 mt-1">{link.description || 'Institutional resource link'}</p>
+                  </div>
+                  <div className="flex gap-2 mt-auto pt-1">
+                    <button onClick={() => openReader(link.url, link.title)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold inline-flex items-center gap-1">
+                      <Eye size={12}/> Preview
+                    </button>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="min-h-8 flex-1 rounded-lg bg-brand-red text-white px-2.5 text-xs font-bold inline-flex items-center justify-center gap-1">
+                      <ExternalLink size={12}/> Open
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'schedules' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Calendar size={18} className="text-brand-red"/> Class Schedule & History
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Recurring classes and laboratory sessions published for this institution.</p>
+          <div className="space-y-2.5">
+            {classSchedules.length ? classSchedules.map(item => (
+              <div key={item.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-brand-red">{item.classLevel} • {item.status}</div>
+                  <h3 className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{item.title}</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{new Date(item.date + 'T00:00:00').toLocaleDateString('en-NG',{dateStyle:'full'})} • {item.startTime}–{item.endTime}</p>
+                  {item.tutorName && <p className="text-[10px] text-slate-500 mt-0.5">Tutor: {item.tutorName}</p>}
+                </div>
+                <span className="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{item.status}</span>
+              </div>
+            )) : (
+              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
+                No class schedule has been published for this school yet.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'partnership' && (
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <CreditCard size={18} className="text-brand-red"/> Fees & Billing Portal
+          </h2>
+          <div className="rounded-xl bg-slate-900 text-white p-5 border border-slate-800">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Current Program Plan</div>
+            <h3 className="text-lg font-bold mt-1">{school?.plan || 'Standard STEM Curriculum'}</h3>
+            <p className="text-xs text-slate-300 mt-1">Billing statements, invoices, and verified receipts are managed directly through the Fees & Payments section.</p>
+            <button onClick={() => navigate('/portal/school/payments')} className="mt-4 min-h-9 rounded-xl bg-white text-slate-900 px-4 text-xs font-bold inline-flex items-center gap-2">
+              <CreditCard size={14}/> Open Fees & Payments
+            </button>
+          </div>
+        </div>
+      )}
+
+      {passcodeForm && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
+          <form onSubmit={savePasscode} className="w-full max-w-md rounded-2xl bg-white dark:bg-[#161B26] p-5 space-y-3.5 border border-slate-200 dark:border-slate-800 shadow-xl">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Create Exam Passcode</h3>
+              <button type="button" onClick={() => setPasscodeForm(null)} className="text-slate-400 hover:text-slate-600"><X size={16}/></button>
+            </div>
+            <input required value={passcodeForm.examTitle||''} onChange={e=>setPasscodeForm(p=>({...p,examTitle:e.target.value}))} placeholder="Assessment title" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900"/>
+            <input required value={passcodeForm.passcode||''} onChange={e=>setPasscodeForm(p=>({...p,passcode:e.target.value.toUpperCase()}))} placeholder="EXAM-123-456" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs font-mono bg-white dark:bg-slate-900"/>
+            <div className="grid grid-cols-2 gap-2.5">
+              <input value={passcodeForm.classLevel||''} onChange={e=>setPasscodeForm(p=>({...p,classLevel:e.target.value}))} placeholder="Class level" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900"/>
+              <input value={passcodeForm.subject||''} onChange={e=>setPasscodeForm(p=>({...p,subject:e.target.value}))} placeholder="Subject" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900"/>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setPasscodeForm(null)} className="min-h-9 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-xs font-semibold text-slate-700 dark:text-slate-300">Cancel</button>
+              <button type="submit" className="min-h-9 rounded-xl bg-brand-red text-white px-4 text-xs font-bold">Save Passcode</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {reader && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 p-3 md:p-6 flex items-center justify-center" onClick={e => { if (e.target === e.currentTarget) setReader(null); }}>
+          <div className="w-full max-w-5xl h-[88vh] rounded-2xl bg-white dark:bg-[#161B26] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900">
+              <div className="min-w-0">
+                <h3 className="font-bold text-xs text-slate-900 dark:text-white truncate">{reader.title}</h3>
+                <p className="text-[10px] text-slate-500">Secure school document preview</p>
+              </div>
+              <div className="flex gap-2">
+                <a href={reader.url} target="_blank" rel="noopener noreferrer" className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <ExternalLink size={12}/> Open
+                </a>
+                <button onClick={() => setReader(null)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-slate-600 dark:text-slate-300"><X size={14}/></button>
+              </div>
+            </div>
+            <div className="relative flex-1 bg-slate-950">
+              {readerLoading && <div className="absolute inset-0 z-10 flex items-center justify-center text-white text-xs"><Loader2 className="animate-spin mr-2" size={18}/> Loading document...</div>}
+              <iframe src={getEmbeddableUrl(reader.url)} title={reader.title} className="w-full h-full border-0 bg-white" onLoad={() => setReaderLoading(false)}/>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 export default SchoolDashboard;

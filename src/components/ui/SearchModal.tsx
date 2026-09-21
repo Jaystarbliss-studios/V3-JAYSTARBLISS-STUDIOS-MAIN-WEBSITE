@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export type SearchCategory = 'ALL' | 'PROGRAMS' | 'RESOURCES' | 'BLOG' | 'SERVICES' | 'PORTFOLIO' | 'PAGES';
 
@@ -167,6 +167,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsContainerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Determine OS for shortcut badge text
   const isMac = typeof window !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -249,13 +250,14 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
       if (resourcesSnap) {
         resourcesSnap.forEach(doc => {
           const d = doc.data();
+          const directFile = d.fileUrl || d.downloadUrl || d.url;
           items.push({
             id: `db-res-${doc.id}`,
             type: 'RESOURCE',
             title: d.title || 'Curriculum Material',
             description: `${d.subject || 'STEM'} • ${d.classLevel || 'General'} — ${d.description || ''}`,
-            url: `/portal/student/resources`,
-            badge: d.docType || 'Document',
+            url: directFile || '/resources',
+            badge: d.docType || d.category || 'Resource',
             categoryName: 'Resources'
           });
         });
@@ -360,8 +362,38 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
 
   const handleSelect = (item: SearchItem) => {
     onClose();
+    if (item.type === 'RESOURCE') {
+      const pathname = location.pathname;
+      if (pathname.startsWith('/admin')) {
+        navigate(`/admin/resources${item.title ? `?q=${encodeURIComponent(item.title)}` : ''}`);
+        return;
+      }
+      if (pathname.startsWith('/portal/staff')) {
+        navigate('/portal/staff/resources');
+        return;
+      }
+      if (pathname.startsWith('/portal/school')) {
+        navigate('/portal/school/resources');
+        return;
+      }
+      if (pathname.startsWith('/portal/parent')) {
+        navigate('/portal/parent/resources');
+        return;
+      }
+      if (pathname.startsWith('/portal/student')) {
+        navigate('/portal/student/resources');
+        return;
+      }
+      if (item.url.startsWith('http')) {
+        window.open(item.url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      navigate(item.url || '/resources');
+      return;
+    }
+
     if (item.url.startsWith('http')) {
-      window.open(item.url, '_blank');
+      window.open(item.url, '_blank', 'noopener,noreferrer');
     } else {
       navigate(item.url);
     }

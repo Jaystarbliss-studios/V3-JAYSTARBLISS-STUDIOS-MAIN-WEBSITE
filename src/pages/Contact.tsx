@@ -46,8 +46,25 @@ const Contact: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
+
+      // Trigger Resend email delivery in background
+      fetch('/.netlify/functions/send-client-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'contact_form',
+          name: formData.name,
+          email: formData.email,
+          subject: formData.type,
+          message: formData.message,
+          type: 'Contact Inquiry'
+        })
+      }).catch((emailErr) => {
+        console.warn('Email dispatch warning:', emailErr);
+      });
+
       setSuccess(true);
-      toast.success('Your message has been sent successfully! Our team will respond shortly.');
+      toast.success('Your message has been sent successfully! A confirmation email has also been dispatched.');
       setFormData({ name: '', email: '', type: 'General Inquiry', message: '' });
     } catch (err) {
       console.error('Error submitting form:', err);

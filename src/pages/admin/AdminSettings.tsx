@@ -3,13 +3,18 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { 
   Loader2, Save, AlertCircle, CheckCircle2, 
-  Radio 
+  Radio, Mail, Send, Check, ShieldCheck, Sparkles 
 } from 'lucide-react';
 
 const AdminSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // Resend Email Test State
+  const [testEmailRecipient, setTestEmailRecipient] = useState('');
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
   
   const [settings, setSettings] = useState({
     companyName: 'Jaystarbliss Studios',
@@ -58,6 +63,10 @@ const AdminSettings: React.FC = () => {
         if (bannerSnap.exists()) {
           const bData = bannerSnap.data();
           setBanner(prev => ({ ...prev, ...bData }));
+        }
+
+        if (auth.currentUser?.email) {
+          setTestEmailRecipient(auth.currentUser.email);
         }
 
         // Also check if cloudinary specific settings exist
@@ -146,6 +155,43 @@ const AdminSettings: React.FC = () => {
       setMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testEmailRecipient || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmailRecipient)) {
+      setTestEmailResult({ success: false, message: 'Please enter a valid recipient email address for testing.' });
+      return;
+    }
+    setSendingTestEmail(true);
+    setTestEmailResult(null);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/.netlify/functions/send-client-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'test_email',
+          to: testEmailRecipient
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Test email delivery failed.');
+      setTestEmailResult({
+        success: true,
+        message: data.message || `Test email successfully dispatched to ${testEmailRecipient} via Resend!`
+      });
+    } catch (err: any) {
+      setTestEmailResult({
+        success: false,
+        message: err.message || 'Unable to dispatch test email.'
+      });
+    } finally {
+      setSendingTestEmail(false);
     }
   };
 
@@ -449,6 +495,111 @@ const AdminSettings: React.FC = () => {
                 className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
               />
             </div>
+          </div>
+        </section>
+
+        {/* Resend Email Configuration & Client Communication Gateway */}
+        <section className="bg-slate-900 text-white p-6 sm:p-7 rounded-2xl border border-slate-800 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                <Mail size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-white">Resend Email Gateway & Client Communications</h2>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-black border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    LIVE & CONFIGURED
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Transactional client communications, inquiry auto-responders, admissions confirmations & billing receipts.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+              <ShieldCheck size={14} className="text-emerald-400" />
+              <span>Resend API Integration</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Default Sender Identity</span>
+              <div className="font-mono text-sm font-bold text-white bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 truncate">
+                Jaystarbliss Studios &lt;onboarding@resend.dev&gt;
+              </div>
+              <p className="text-[11px] text-slate-400">
+                All client emails, parent receipts, and partnership notices are dispatched through this verified sender.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Active Capabilities</span>
+              <div className="space-y-1.5 text-slate-300">
+                <div className="flex items-center gap-2">
+                  <Check size={13} className="text-emerald-400 shrink-0" />
+                  <span>Website Contact & Inquiry Auto-Responders</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={13} className="text-emerald-400 shrink-0" />
+                  <span>Student Tuition & Paystack Payment Receipts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={13} className="text-emerald-400 shrink-0" />
+                  <span>School Partnership Portal Credentials & Approvals</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={13} className="text-emerald-400 shrink-0" />
+                  <span>Direct Admin-to-Client Communications</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Email Dispatcher */}
+          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-white">
+              <Sparkles size={16} className="text-amber-400" />
+              <span>Send Live Test Email via Resend</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              Verify your Resend email deliverability by sending a test message to any email address.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                value={testEmailRecipient}
+                onChange={(e) => setTestEmailRecipient(e.target.value)}
+                placeholder="Enter recipient email (e.g. your email)..."
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 font-mono"
+              />
+              <button
+                type="button"
+                onClick={handleSendTestEmail}
+                disabled={sendingTestEmail || !testEmailRecipient}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-black flex items-center justify-center gap-2 transition-all shrink-0 shadow-md shadow-rose-600/20"
+              >
+                {sendingTestEmail ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                <span>{sendingTestEmail ? 'Sending...' : 'Dispatch Test Email'}</span>
+              </button>
+            </div>
+
+            {testEmailResult && (
+              <div className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                testEmailResult.success 
+                  ? 'bg-emerald-950/60 border border-emerald-500/30 text-emerald-300' 
+                  : 'bg-rose-950/60 border border-rose-500/30 text-rose-300'
+              }`}>
+                {testEmailResult.success ? <CheckCircle2 size={16} className="shrink-0 text-emerald-400 mt-0.5" /> : <AlertCircle size={16} className="shrink-0 text-rose-400 mt-0.5" />}
+                <div>
+                  <p className="font-bold">{testEmailResult.success ? 'Delivery Success' : 'Delivery Notice'}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed opacity-90">{testEmailResult.message}</p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

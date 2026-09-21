@@ -4,7 +4,8 @@ import {
   Download, X, Search, Filter, Save, Database, 
   Copy, CheckCircle2, Building2, Loader2,
   GraduationCap, Briefcase, MessageSquare, ChevronDown, 
-  ChevronRight, Check, Sparkles, ExternalLink
+  ChevronRight, Check, Lightbulb, ExternalLink,
+  Mail, Send
 } from 'lucide-react';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
@@ -26,7 +27,7 @@ const CATEGORIES = [
   { id: 'SCHOOL_PARTNERSHIP_PROPOSAL', label: 'School Partnerships', icon: Building2 },
   { id: 'PARENT_ENQUIRY', label: 'Parent Admissions', icon: GraduationCap },
   { id: 'TUTOR_APPLICATION', label: 'Tutor Applications', icon: Briefcase },
-  { id: 'PROJECT_REQUEST', label: 'Project Requests', icon: Sparkles },
+  { id: 'PROJECT_REQUEST', label: 'Project Requests', icon: Lightbulb },
   { id: 'GENERAL', label: 'General Inquiries', icon: MessageSquare }
 ];
 
@@ -64,7 +65,7 @@ const AdminInquiries: React.FC = () => {
   const [copied, setCopied] = useState(false);
   
   // Accordion state inside lead drawer
-  const [openSection, setOpenSection] = useState<'details' | 'crm' | 'raw'>('details');
+  const [openSection, setOpenSection] = useState<'details' | 'crm' | 'email' | 'raw'>('details');
 
   const [draft, setDraft] = useState({ 
     status: 'NEW' as LeadStage, 
@@ -72,6 +73,15 @@ const AdminInquiries: React.FC = () => {
     nextFollowUp: '', 
     internalNotes: '' 
   });
+
+  // Resend Email Composer State
+  const [emailDraft, setEmailDraft] = useState({
+    subject: '',
+    message: '',
+    actionUrl: '',
+    actionText: ''
+  });
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'inquiries'), snap => { 
@@ -93,8 +103,69 @@ const AdminInquiries: React.FC = () => {
         nextFollowUp: selected.nextFollowUp || '', 
         internalNotes: selected.internalNotes || '' 
       }); 
+
+      const subjectName = selected.inquirySubject || selected.subject || selected.type || 'Inquiry';
+      setEmailDraft({
+        subject: `Re: ${subjectName} — Jaystarbliss Studios`,
+        message: `Hello ${selected.name || selected.contactName || 'there'},\n\nThank you for reaching out to Jaystarbliss Studios. We have reviewed your request regarding "${subjectName}" and would love to assist you.\n\nPlease feel free to reply directly to this email if you have any additional questions or specific scheduling requirements.\n\nWarm regards,\nJaystarbliss Admissions & Academic Team\nhttps://jaystarbliss.com`,
+        actionUrl: 'https://jaystarbliss.com/portal',
+        actionText: 'Access Student/Staff Portal'
+      });
     }
   }, [selected]);
+
+  const handleSendClientEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected?.email) {
+      toast.error('This lead does not have a valid email address.');
+      return;
+    }
+    if (!emailDraft.subject.trim() || !emailDraft.message.trim()) {
+      toast.error('Please provide both subject and message body.');
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch('/.netlify/functions/send-client-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          action: 'direct_email',
+          to: selected.email,
+          recipientName: selected.name || selected.contactName || 'Valued Client',
+          subject: emailDraft.subject.trim(),
+          message: emailDraft.message.trim(),
+          actionUrl: emailDraft.actionUrl.trim() || undefined,
+          actionText: emailDraft.actionText.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to deliver email.');
+
+      // Update lead stage to CONTACTED if it was NEW
+      if (selected.status === 'NEW') {
+        const docRef = doc(db, 'inquiries', selected.id);
+        await updateDoc(docRef, {
+          status: 'CONTACTED',
+          updatedAt: serverTimestamp()
+        }).catch(() => undefined);
+        setSelected((prev: any) => ({ ...prev, status: 'CONTACTED' }));
+      }
+
+      toast.success(`Email dispatched successfully to ${selected.email} via Resend!`);
+    } catch (err: any) {
+      console.error('Email sending error:', err);
+      toast.error(err.message || 'Could not send email.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   // Counts by stage
   const stageCounts = useMemo(() => {
@@ -257,7 +328,7 @@ const AdminInquiries: React.FC = () => {
       return { label: 'Tutor Application', color: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Briefcase };
     }
     if (type.includes('PROJECT')) {
-      return { label: 'Project Request', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300', icon: Sparkles };
+      return { label: 'Project Request', color: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300', icon: Lightbulb };
     }
     return { label: 'General Inquiry', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', icon: MessageSquare };
   };
@@ -620,9 +691,10 @@ const AdminInquiries: React.FC = () => {
               )}
 
               {/* Navigation Tabs inside Drawer */}
-              <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-1 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto">
                 {[
                   { id: 'details', label: 'Captured Data' },
+                  { id: 'email', label: '✉️ Send Email (Resend)' },
                   { id: 'crm', label: 'Pipeline & Notes' },
                   { id: 'raw', label: 'All Fields' }
                 ].map(tab => (
@@ -630,7 +702,7 @@ const AdminInquiries: React.FC = () => {
                     key={tab.id}
                     type="button"
                     onClick={() => setOpenSection(tab.id as any)}
-                    className={`min-h-8 px-3 rounded-lg text-xs font-bold transition-all ${
+                    className={`min-h-8 px-3 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                       openSection === tab.id
                         ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
                         : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -690,6 +762,91 @@ const AdminInquiries: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* TAB: Send Email via Resend */}
+              {openSection === 'email' && (
+                <form onSubmit={handleSendClientEmail} className="space-y-3">
+                  <div className="p-3.5 rounded-2xl bg-slate-900 text-white border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mail size={15} className="text-rose-400" />
+                        <span className="font-bold text-xs">Direct Email to Client</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                        Resend API
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <span>Recipient:</span>
+                      <span className="font-mono text-white font-bold">{selected.email || 'No email on file'}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                      Email Subject
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={emailDraft.subject}
+                      onChange={e => setEmailDraft({ ...emailDraft, subject: e.target.value })}
+                      placeholder="e.g. Follow up on your STEM Inquiry"
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                      Message Body (Branded HTML Template)
+                    </label>
+                    <textarea
+                      rows={6}
+                      required
+                      value={emailDraft.message}
+                      onChange={e => setEmailDraft({ ...emailDraft, message: e.target.value })}
+                      placeholder="Type your message to the client..."
+                      className={`${inputClass} leading-relaxed`}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                        Action Button URL (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        value={emailDraft.actionUrl}
+                        onChange={e => setEmailDraft({ ...emailDraft, actionUrl: e.target.value })}
+                        placeholder="https://jaystarbliss.com/..."
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                        Button Label (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={emailDraft.actionText}
+                        onChange={e => setEmailDraft({ ...emailDraft, actionText: e.target.value })}
+                        placeholder="e.g. View Portal / Schedule Call"
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={sendingEmail || !selected.email}
+                    className="w-full min-h-10 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-black text-xs inline-flex items-center justify-center gap-2 shadow-sm transition-all"
+                  >
+                    {sendingEmail ? <Loader2 className="animate-spin" size={14} /> : <Send size={14} />}
+                    <span>{sendingEmail ? 'Dispatching Email via Resend...' : `Send Email to ${selected.name || 'Client'}`}</span>
+                  </button>
+                </form>
               )}
 
               {/* TAB 2: CRM & Notes */}

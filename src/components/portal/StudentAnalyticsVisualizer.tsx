@@ -9,7 +9,6 @@ import {
   LineChart as LineChartIcon,
   Layers,
   ArrowUpRight,
-  Sparkles,
   BookOpen,
   Filter,
   CheckSquare
@@ -164,7 +163,7 @@ export const StudentAnalyticsVisualizer: React.FC<StudentAnalyticsProps> = ({
                 Academic Analytics & Progress Visualizer
               </h2>
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400 text-[11px] font-bold border border-red-200/60 dark:border-red-500/20">
-                <Sparkles size={11} /> Real-Time Recharts
+                Live Analytics
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">

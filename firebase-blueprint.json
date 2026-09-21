@@ -265,6 +265,26 @@
     "activityLogs/{logId}": {
       "schema": { "$ref": "#/entities/SiteSettings" },
       "description": "System audit and security event trail."
+    },
+    "calendarEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Timetable and calendar scheduled events."
+    },
+    "walletWithdrawals/{withdrawalId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Staff and tutor withdrawal payout records."
+    },
+    "payment_config/{configId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Fee policies and plan structures."
+    },
+    "courseProgress/{docId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Student lesson and course tracking progress."
+    },
+    "studentProgress/{docId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Student lesson and course milestone progress."
     }
   }
 }

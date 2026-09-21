@@ -4,10 +4,10 @@ import {
   ArrowRight, FileText
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import jsPDF from 'jspdf';
 import { collection, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
+import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
 
 interface PaymentRecord {
   id: string;
@@ -86,59 +86,6 @@ export const PortalPayments: React.FC = () => {
 
     fetchPaymentHistory();
   }, []);
-
-  const handleDownloadReceipt = (payment: PaymentRecord) => {
-    try {
-      const pdf = new jsPDF();
-      const reference = payment.reference || payment.id;
-      const rawDate = payment.createdAt;
-      const date = rawDate instanceof Date
-        ? rawDate
-        : typeof rawDate === 'string'
-          ? new Date(rawDate)
-          : rawDate && typeof rawDate.toDate === 'function'
-            ? rawDate.toDate()
-            : new Date();
-
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('JAYSTARBLISS STUDIOS', 20, 25);
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Official Payment Receipt', 20, 33);
-      pdf.line(20, 38, 190, 38);
-
-      pdf.setFontSize(10);
-      pdf.text('Transaction reference:', 20, 52);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(reference, 75, 52);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Date:', 20, 62);
-      pdf.text(date.toLocaleDateString(), 75, 62);
-      pdf.text('Description:', 20, 72);
-      pdf.text(String(payment.plan || payment.description || 'Tuition Renewal'), 75, 72);
-      pdf.text('Payment method:', 20, 82);
-      pdf.text(String(payment.paymentMethod || 'Online Paystack'), 75, 82);
-      pdf.text('Status:', 20, 92);
-      pdf.text(String(payment.status || 'Verified'), 75, 92);
-
-      pdf.line(20, 105, 190, 105);
-      pdf.setFontSize(15);
-      pdf.setFont('helvetica', 'bold');
-      const amount = typeof payment.amount === 'number' ? payment.amount.toLocaleString() : String(payment.amount ?? '0');
-      pdf.text(`Amount paid: NGN ${amount}`, 20, 118);
-
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Keep this receipt for your academic and financial records.', 20, 135);
-      pdf.text('Jaystarbliss Studios • Learn. Build. Create. Grow.', 20, 145);
-      pdf.save(`jaystarbliss-receipt-${reference}.pdf`);
-      toast.success('Payment receipt downloaded successfully.');
-    } catch (err) {
-      console.error('Receipt generation error:', err);
-      toast.error('Unable to generate this receipt right now.');
-    }
-  };
 
   useEffect(() => {
     const reference = new URLSearchParams(window.location.search).get('reference');
@@ -263,9 +210,13 @@ export const PortalPayments: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-gray-200/80 dark:border-slate-800 p-6 md:p-8 shadow-xs">
-        <div className="flex items-center justify-between mb-6"><div><h3 className="text-lg font-bold text-gray-900 dark:text-white">Payment Receipts & Invoices</h3><p className="text-xs text-gray-500">Official proof of payment for tax and institutional records.</p></div><span className="text-xs font-bold text-gray-500 bg-gray-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl">{payments.length} Recorded Statements</span></div>
-        {loading ? <div className="py-8 text-center text-xs text-gray-500">Loading billing transactions...</div> : payments.length === 0 ? <div className="text-center py-10 border border-dashed border-gray-200 dark:border-slate-800 rounded-2xl"><FileText className="w-10 h-10 mx-auto text-gray-300 mb-2" /><p className="font-bold text-gray-700 dark:text-gray-300 text-sm">No transaction records on file</p><p className="text-xs text-gray-500 mt-0.5">When you renew or make tuition settlements, your receipts will appear here.</p></div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-gray-200 dark:border-slate-800"><th className="px-3 py-3 font-bold text-gray-500 uppercase tracking-wider">Date</th><th className="px-3 py-3 font-bold text-gray-500 uppercase tracking-wider">Description</th><th className="px-3 py-3 font-bold text-gray-500 uppercase tracking-wider">Reference</th><th className="px-3 py-3 font-bold text-gray-500 uppercase tracking-wider">Amount</th><th className="px-3 py-3 font-bold text-gray-500 uppercase tracking-wider">Status</th><th className="px-3 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Receipt</th></tr></thead><tbody>{payments.map(payment => { const raw = payment.createdAt; const date = raw instanceof Date ? raw : typeof raw === 'string' ? new Date(raw) : raw && typeof raw.toDate === 'function' ? raw.toDate() : null; return <tr key={payment.id} className="border-b border-gray-100 dark:border-slate-800/80"><td className="px-3 py-3 text-gray-500 whitespace-nowrap">{date ? date.toLocaleDateString('en-NG') : '—'}</td><td className="px-3 py-3 font-semibold text-gray-900 dark:text-white">{payment.plan || payment.description || 'Tuition Renewal'}</td><td className="px-3 py-3 font-mono text-gray-500">{payment.reference || payment.id}</td><td className="px-3 py-3 font-mono font-bold text-gray-900 dark:text-white">₦{typeof payment.amount === 'number' ? payment.amount.toLocaleString('en-NG') : payment.amount || '0'}</td><td className="px-3 py-3"><span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 text-[10px] font-bold uppercase">{payment.status || 'verified'}</span></td><td className="px-3 py-3 text-right"><button type="button" onClick={() => handleDownloadReceipt(payment)} className="min-h-11 inline-flex items-center gap-1.5 px-3 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 text-xs font-bold hover:bg-brand-red hover:text-white"><Download size={13} /> Download</button></td></tr> })}</tbody></table></div>}
+      <div className="mt-8">
+        <FintechTransactionHistory 
+          transactions={payments} 
+          title="Payment Receipts & Invoices"
+          role={role}
+          emptyMessage="No transaction records on file"
+        />
       </div>
 
       {renewalSuccess && <div className="fixed bottom-5 right-5 z-50 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800 shadow-lg dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"><div className="flex items-center gap-2"><CheckCircle2 size={18} /> Payment verified successfully.</div></div>}

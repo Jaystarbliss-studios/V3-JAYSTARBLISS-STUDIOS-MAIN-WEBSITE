@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { 
   collection, deleteDoc, doc, getDocs, setDoc, addDoc, updateDoc, 
   serverTimestamp 
@@ -8,7 +8,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { 
   Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, 
   Trash2, Send, RefreshCw, ShieldCheck, X, School, 
-  GraduationCap, UserCheck, Download, Link as LinkIcon 
+  GraduationCap, UserCheck, Download, Link as LinkIcon,
+  Filter, ChevronDown
 } from 'lucide-react';
 
 export interface UnifiedStudent {
@@ -86,6 +87,20 @@ const AdminStudents: React.FC = () => {
   const [schoolFilter, setSchoolFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [tutorFilter, setTutorFilter] = useState('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isFilterOpen]);
 
   // Modals & Drawers
   const [showCreate, setShowCreate] = useState(false);
@@ -658,115 +673,158 @@ const AdminStudents: React.FC = () => {
         </div>
       </div>
 
-      {/* Category Pills & Interactive Filters */}
-      <div className="pro-surface space-y-4 rounded-3xl border border-slate-200/80 p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900/80">
-        {/* Category Pill Tabs */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => setTypeFilter('all')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-              typeFilter === 'all'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-            }`}
-          >
-            <Users size={14} />
-            All Cadets ({stats.total})
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => setTypeFilter('personal')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-              typeFilter === 'personal'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300'
-            }`}
-          >
-            <UserCheck size={14} />
-            Personal / Independent ({stats.personal})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTypeFilter('parent')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-              typeFilter === 'parent'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-300'
-            }`}
-          >
-            <Users size={14} />
-            Parent Enrolled ({stats.parent})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTypeFilter('school')}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition-all ${
-              typeFilter === 'school'
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300'
-            }`}
-          >
-            <School size={14} />
-            School Affiliated ({stats.school})
-          </button>
+      {/* Search & Unified Filter Popover Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={15} aria-hidden="true" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search cadet, username, school, parent..."
+            className="w-full min-h-10 pl-9 pr-9 rounded-xl border border-slate-200/90 bg-white text-xs font-medium text-slate-900 placeholder-slate-400 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white shadow-2xs"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
-        {/* Filter Controls Grid */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-3 text-slate-400" size={16} aria-hidden="true" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search cadet, username, school, parent..."
-              className="w-full rounded-xl border border-slate-200/80 bg-white/70 pl-10 pr-3.5 py-2.5 text-xs font-medium text-slate-900 placeholder-slate-400 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-950/70 dark:text-white"
-            />
-          </div>
+        {/* Filter Dropdown Popover */}
+        <div className="relative shrink-0" ref={filterMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsFilterOpen(prev => !prev)}
+            aria-expanded={isFilterOpen}
+            className={`min-h-10 px-3.5 rounded-xl border text-xs font-bold inline-flex items-center gap-2 transition-all cursor-pointer ${
+              typeFilter !== 'all' || schoolFilter !== 'all' || tutorFilter !== 'all' || statusFilter !== 'all'
+                ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 shadow-2xs'
+            }`}
+          >
+            <Filter size={14} className={typeFilter !== 'all' || schoolFilter !== 'all' || tutorFilter !== 'all' || statusFilter !== 'all' ? 'text-white' : 'text-slate-400'} />
+            <span>
+              {typeFilter === 'all' && schoolFilter === 'all' && tutorFilter === 'all' && statusFilter === 'all'
+                ? 'All Filters'
+                : typeFilter !== 'all'
+                  ? typeFilter === 'personal' ? 'Personal' : typeFilter === 'parent' ? 'Parent' : 'School'
+                  : 'Filtered'}
+            </span>
+            {(typeFilter !== 'all' || schoolFilter !== 'all' || tutorFilter !== 'all' || statusFilter !== 'all') && (
+              <span className="px-1.5 py-0.2 bg-white/20 rounded-full text-[10px] font-mono">
+                {filteredStudents.length}
+              </span>
+            )}
+            <ChevronDown size={14} className={`transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+          </button>
 
-          <div>
-            <select
-              value={schoolFilter}
-              onChange={e => setSchoolFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-950/70 dark:text-white"
-            >
-              <option value="all">All Schools &amp; Direct</option>
-              {schools.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
+          {isFilterOpen && (
+            <div className="absolute right-0 sm:left-auto top-full mt-1.5 w-72 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-3 z-40 animate-fadeIn space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Filter Scholars</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeFilter('all');
+                    setSchoolFilter('all');
+                    setTutorFilter('all');
+                    setStatusFilter('all');
+                    setIsFilterOpen(false);
+                  }}
+                  className="text-[10px] font-bold text-brand-red hover:underline"
+                >
+                  Reset All
+                </button>
+              </div>
 
-          <div>
-            <select
-              value={tutorFilter}
-              onChange={e => setTutorFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-950/70 dark:text-white"
-            >
-              <option value="all">All Mentor Assignments</option>
-              <option value="assigned">Assigned to Mentor</option>
-              <option value="unassigned">Unassigned</option>
-              {tutors.map(t => (
-                <option key={t.id} value={t.id}>{t.name} (Mentor)</option>
-              ))}
-            </select>
-          </div>
+              {/* Student Category */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Enrolment Category
+                </label>
+                <div className="grid grid-cols-2 gap-1 text-[11px]">
+                  {[
+                    { id: 'all', label: 'All Cadets', count: stats.total },
+                    { id: 'personal', label: 'Personal', count: stats.personal },
+                    { id: 'parent', label: 'Parent Enrolled', count: stats.parent },
+                    { id: 'school', label: 'School Affiliated', count: stats.school },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setTypeFilter(tab.id as any)}
+                      className={`px-2 py-1.5 rounded-lg font-bold text-left transition-all text-xs flex items-center justify-between ${
+                        typeFilter === tab.id
+                          ? 'bg-brand-red text-white'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span className="truncate">{tab.label}</span>
+                      <span className="text-[9px] opacity-70 font-mono ml-1">({tab.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/80 bg-white/70 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-950/70 dark:text-white"
-            >
-              <option value="all">All Account Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="suspended">Suspended / Inactive</option>
-            </select>
-          </div>
+              {/* School Affiliation */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Partner School
+                </label>
+                <select
+                  value={schoolFilter}
+                  onChange={e => setSchoolFilter(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-red cursor-pointer"
+                >
+                  <option value="all">All Schools &amp; Direct</option>
+                  {schools.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mentor Assignment */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Mentor Assignment
+                </label>
+                <select
+                  value={tutorFilter}
+                  onChange={e => setTutorFilter(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-red cursor-pointer"
+                >
+                  <option value="all">All Mentor Assignments</option>
+                  <option value="assigned">Assigned to Mentor</option>
+                  <option value="unassigned">Unassigned</option>
+                  {tutors.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} (Mentor)</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Account Status */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Account Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-red cursor-pointer"
+                >
+                  <option value="all">All Account Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="suspended">Suspended / Inactive</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

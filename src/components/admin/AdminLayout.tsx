@@ -105,7 +105,7 @@ const AdminLayout: React.FC = () => {
       items: [
         { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Student, tutor & enrollment approvals" },
         { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
-        { name: "Parents & Payments", href: "/admin/parents", icon: CreditCard, desc: "Tuition transactions & family plans" },
+        { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
         { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
@@ -367,13 +367,10 @@ const AdminLayout: React.FC = () => {
 
             <div className="h-6 w-px bg-slate-200/80 dark:bg-slate-800"></div>
             
-            <Tooltip content="Administrator Terminal Session" placement="bottom">
-              <div className="flex items-center gap-2.5 py-1 px-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+            <Tooltip content="Administrator Profile" placement="bottom">
+              <div className="flex items-center gap-2.5 py-1.5 px-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                 <div className="text-right hidden sm:block">
                   <div className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">Admin Officer</div>
-                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center justify-end gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Session
-                  </div>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
                   JD

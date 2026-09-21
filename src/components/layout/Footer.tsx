@@ -22,17 +22,20 @@ const Footer: React.FC = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
     const fetchSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'settings', 'global'));
-        if (docSnap.exists()) {
+        if (docSnap.exists() && isMounted) {
           setSettings(prev => ({ ...prev, ...docSnap.data() }));
         }
       } catch (error) {
-        console.error("Error fetching settings:", error);
+        // Fallback safely to default company & contact info
+        console.warn("Notice: Using default settings configuration:", error);
       }
     };
     fetchSettings();
+    return () => { isMounted = false; };
   }, []);
 
   const handleSubscribe = (e: React.FormEvent) => {

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Sunset, Moon } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 
 interface DashboardGreetingProps {
   name?: string;
   role?: string;
   subtitle?: string;
+  action?: React.ReactNode;
 }
 
 // Extract a friendly first name or clean display title
@@ -44,60 +45,61 @@ function getFriendlyFirstName(rawName?: string): string {
 
 export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
   name,
-  subtitle
+  role,
+  subtitle,
+  action
 }) => {
   const [headline, setHeadline] = useState('');
-  const [greetingIcon, setGreetingIcon] = useState<React.ReactNode>(<Sun size={20} className="text-amber-400" />);
+  const [formattedDate, setFormattedDate] = useState('');
 
   const firstName = getFriendlyFirstName(name);
 
   useEffect(() => {
-    const updateGreeting = () => {
-      const now = new Date();
-      const hours = now.getHours();
+    const now = new Date();
+    const hours = now.getHours();
 
-      let prefix = 'Hello';
-      let icon: React.ReactNode = <Sun size={20} className="text-amber-400" />;
+    let prefix = 'Good morning';
+    if (hours >= 12 && hours < 17) {
+      prefix = 'Good afternoon';
+    } else if (hours >= 17) {
+      prefix = 'Good evening';
+    }
 
-      if (hours >= 5 && hours < 12) {
-        prefix = 'Good morning';
-        icon = <Sun size={20} className="text-amber-400" />;
-      } else if (hours >= 12 && hours < 17) {
-        prefix = 'Good afternoon';
-        icon = <Sun size={20} className="text-amber-500" />;
-      } else if (hours >= 17 && hours < 22) {
-        prefix = 'Good evening';
-        icon = <Sunset size={20} className="text-amber-600" />;
-      } else {
-        // Late night
-        prefix = 'Good evening';
-        icon = <Moon size={20} className="text-slate-300" />;
-      }
-
-      // Greeting ALWAYS ends with the first name of the user
-      setHeadline(`${prefix}, ${firstName}.`);
-      setGreetingIcon(icon);
-    };
-
-    updateGreeting();
+    setHeadline(`${prefix}, ${firstName}`);
+    setFormattedDate(
+      now.toLocaleDateString('en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      })
+    );
   }, [firstName]);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-1">
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-amber-500/10 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-          {greetingIcon}
-        </div>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             {headline}
           </h1>
-          {subtitle && (
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 max-w-xl">
-              {subtitle}
-            </p>
+          {role && (
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 capitalize">
+              {role}
+            </span>
           )}
         </div>
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          {subtitle || 'Keep going. Your future is in progress.'}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-xs">
+          <Calendar size={13} className="text-brand-red" />
+          <span>{formattedDate}</span>
+        </div>
+        {action}
       </div>
     </div>
   );
