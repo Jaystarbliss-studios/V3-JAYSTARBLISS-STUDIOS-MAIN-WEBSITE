@@ -79,7 +79,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     reference: '',
     date: new Date().toISOString().slice(0, 10),
     payerName: '',
-    description: 'Termly STEM & Robotics Lab Institutional Tuition',
+    description: 'Termly Technology & Hardware & Electronics workspace Institutional Tuition',
     notes: 'Direct Bank Settlement'
   });
 
@@ -331,7 +331,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         type: isTransferToTutor ? 'outflow' : (p.type || 'inflow'),
         category: isTransferToTutor ? 'transfer_to' : (isSchoolTuition ? 'school_tuition' : (p.category || 'parent_tuition')),
         description: p.description || p.plan || (isSchoolTuition ? `Partner School - ${p.schoolName || 'Tuition'}` : (p.studentName ? `Tuition - ${p.studentName}` : 'Tuition Settlement')),
-        plan: p.plan || p.paymentPlanName || p.programName || 'STEM Curriculum',
+        plan: p.plan || p.paymentPlanName || p.programName || 'Technology Curriculum',
         programName: p.programName || p.plan || p.paymentPlanName || '',
         payerName: p.payerName || p.customerName || p.schoolName || p.studentName || 'Guardian',
         payerEmail: p.payerEmail || p.customerEmail || '',
@@ -506,7 +506,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString().slice(0, 10),
       payerName: school.name || '',
-      description: `Institutional Lab & Tuition Payment - ${school.name}`,
+      description: `Institutional workspace & Tuition Payment - ${school.name}`,
       notes: 'Direct Bank Settlement'
     });
   };
@@ -609,7 +609,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
         date: new Date().toISOString().slice(0, 10),
         payerName: selectedSchoolWorkspace.name,
-        description: `Institutional Lab & Tuition Payment - ${selectedSchoolWorkspace.name}`,
+        description: `Institutional workspace & Tuition Payment - ${selectedSchoolWorkspace.name}`,
         notes: 'Direct Bank Settlement'
       });
 
@@ -659,7 +659,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         email: school.contactEmail || school.email,
         amount: school.billing?.baseAmount || 300000,
         nextDueDate: school.billing?.nextDueDate,
-        title: `Tuition & Lab Subscription Due - ${school.name}`
+        title: `Tuition & workspace Subscription Due - ${school.name}`
       });
       toast.success(`Payment reminder issued to ${school.name}`);
       await load();
@@ -1042,7 +1042,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Sliders size={18} className="text-sky-500" />
-                  <span>Institutional Fee &amp; Billing Cycle Settings</span>
+                  <span>school fee &amp; Billing Cycle Settings</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Configure custom contract base fees, billing cadence, payment options, and termly discounts for {sch.name}.
@@ -1180,7 +1180,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                     rows={3}
                     value={schoolBillingConfig.notes}
                     onChange={e => setSchoolBillingConfig({ ...schoolBillingConfig, notes: e.target.value })}
-                    placeholder="Enter contractual terms, lab equipment provisioning terms, or renewal conditions..."
+                    placeholder="Enter contractual terms, workspace equipment provisioning terms, or renewal conditions..."
                     className={inputClass}
                   />
                 </div>
@@ -1242,12 +1242,12 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                 <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
                   <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
                     <School size={16} className="text-brand-red" />
-                    <span>Active STEM Tracks</span>
+                    <span>Active Technology Tracks</span>
                   </div>
                   <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-2">
                     {schoolPrograms.length}
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Undergoing lab programmes</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Undergoing workspace programmes</p>
                 </div>
               </div>
 
@@ -1259,7 +1259,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                       Undergoing Programmes &amp; Assigned Instructors
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Review all STEM tracks deployed at {sch.name}, along with the faculty instructors and payout rates allocated.
+                      Review all Technology tracks deployed at {sch.name}, along with the faculty instructors and payout rates allocated.
                     </p>
                   </div>
 
@@ -1298,7 +1298,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                           return (
                             <tr key={p.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                               <td className="py-3.5 px-3">
-                                <div className="font-bold text-slate-900 dark:text-white">{p.name || 'STEM Programme Track'}</div>
+                                <div className="font-bold text-slate-900 dark:text-white">{p.name || 'Technology Programme Track'}</div>
                                 <div className="text-[11px] text-slate-400 font-mono">{p.code || `PROG-${idx + 1}`}</div>
                               </td>
                               <td className="py-3.5 px-3">
@@ -1317,7 +1317,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                                 )}
                               </td>
                               <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 capitalize">
-                                {p.schedule || p.mode || 'Weekly Physical Lab'}
+                                {p.schedule || p.mode || 'Weekly Physical workspace'}
                               </td>
                               <td className="py-3.5 px-3 text-right font-mono font-black text-purple-600 dark:text-purple-400">
                                 {formatNaira(programPayout)}
@@ -1412,7 +1412,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                       value={offlinePaymentDraft.description}
                       onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, description: e.target.value })}
                       className={inputClass}
-                      placeholder="e.g. First Term 2026 STEM & Robotics Lab Subscription"
+                      placeholder="e.g. First Term 2026 Technology & Hardware & Electronics workspace Subscription"
                     />
                   </div>
                 </div>
@@ -1599,7 +1599,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
               <Layers size={16} className="text-sky-500" />
-              <span>Deployed STEM Tracks</span>
+              <span>Deployed Technology Tracks</span>
             </div>
             <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400 mt-2">
               {schools.reduce((acc: number, s: any) => acc + (s.programs?.length || 0), 0)}
@@ -1625,7 +1625,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white">Partner School Custom Billing Management</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Click on any school to configure custom institutional fees, manage billing frequencies, record bank settlements, and inspect faculty margins.
+                Click on any school to configure custom school fees, manage billing frequencies, record bank settlements, and inspect faculty margins.
               </p>
             </div>
 
@@ -2083,7 +2083,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                         </td>
                         <td className="p-3.5">
                           <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                            {enr.plan || enr.courseName || enr.program || 'Standard STEM Track'}
+                            {enr.plan || enr.courseName || enr.program || 'Standard Technology Track'}
                           </span>
                           <span className="text-[10px] text-slate-400 capitalize">
                             {enr.teachingMode || enr.mode || 'Online 1-on-1'}
