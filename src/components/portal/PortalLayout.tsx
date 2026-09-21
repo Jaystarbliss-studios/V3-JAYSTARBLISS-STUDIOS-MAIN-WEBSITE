@@ -120,18 +120,18 @@ const PortalLayout: React.FC = () => {
     ];
     if (role === 'student') {
       base.push({ name: 'Learning', path: '/portal/student/courses', icon: <Book size={18} />, desc: 'Curriculum & Tracks' });
-      base.push({ name: 'Calendar', path: '/portal/student/calendar', icon: <Calendar size={18} />, desc: 'Schedules & Labs' });
+      base.push({ name: 'Calendar', path: '/portal/student/calendar', icon: <Calendar size={18} />, desc: 'Schedules & Classes' });
       base.push({ name: 'Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson Notes & PDFs' });
       base.push({ name: 'Payments', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Tuition & Statements' });
     } else if (role === 'staff') {
       base.push({ name: 'Live Classes', path: '/portal/staff/classes', icon: <Video size={18} />, desc: 'Teaching Roster' });
       base.push({ name: 'Student Access', path: '/portal/staff/credentials', icon: <Key size={18} />, desc: 'Access Credentials' });
-      base.push({ name: 'Resources', path: '/portal/staff/resources', icon: <BookOpen size={18} />, desc: 'Lesson Materials' });
+      base.push({ name: 'Resources', path: '/portal/staff/resources', icon: <BookOpen size={18} />, desc: 'Lesson Materials' }); base.push({ name: 'Subjects I Teach', path: '/portal/staff/subjects', icon: <BookOpen size={18} />, desc: 'Teaching Subjects & Approvals' });
       base.push({ name: 'Calendar', path: '/portal/staff/calendar', icon: <Calendar size={18} />, desc: 'Teaching Timetable' });
       base.push({ name: 'Billing / Fees', path: '/portal/staff/payments', icon: <CreditCard size={18} />, desc: 'Tutor Ledger & Payouts' });
     } else if (role === 'parent') {
       base.push({ name: 'Calendar', path: '/portal/parent/calendar', icon: <Calendar size={18} />, desc: 'Class Timetable' });
-      base.push({ name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Syllabi & Materials' });
+      base.push({ name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Learning Materials' });
       base.push({ name: 'Payments & Fees', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & Statements' });
     } else if (role === 'school') {
       base.push({ name: 'Learners Roster', path: '/portal/school/roster', icon: <Building2 size={18} />, desc: 'Student Records' });
@@ -139,8 +139,8 @@ const PortalLayout: React.FC = () => {
       base.push({ name: 'Class Schedules', path: '/portal/school/schedules', icon: <Calendar size={18} />, desc: 'Classes & Attendance' });
       base.push({ name: 'Exam Passcodes', path: '/portal/school/passcodes', icon: <Key size={18} />, desc: 'Active Assessment Keys' });
       base.push({ name: 'CBT Assessments', path: '/portal/school/exams', icon: <Award size={18} />, desc: 'Student Exams' });
-      base.push({ name: 'Resources', path: '/portal/school/resources', icon: <BookOpen size={18} />, desc: 'Lab Materials' });
-      base.push({ name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'Institutional Fees' });
+      base.push({ name: 'Resources', path: '/portal/school/resources', icon: <BookOpen size={18} />, desc: 'School Learning Materials' });
+      base.push({ name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'School Fees & Payments' });
     }
     base.push({ name: 'Settings', path: `/portal/${role}/settings`, icon: <Settings size={18} />, desc: 'Account Preferences' });
     return base;
