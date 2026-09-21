@@ -444,7 +444,7 @@ const AdminStaff: React.FC = () => {
   const allAvailableSubjects = useMemo(() => {
     const set = new Set<string>();
     // Pre-seed core curriculum subjects
-    ['Music', 'Mathematics', 'Robotics & AI', 'Coding & Python', 'Web Development', 'Science & STEM', 'English & Phonics', 'Chess', 'Game Development'].forEach(s => set.add(s));
+    ['Music', 'Mathematics', 'Hardware & Electronics & AI', 'Coding & Python', 'Web Development', 'Science & Technology', 'English & Phonics', 'Chess', 'Game Development'].forEach(s => set.add(s));
     staffList.forEach(st => {
       st.subjects.forEach(sub => {
         if (sub && sub.length > 1) set.add(sub);
@@ -992,7 +992,7 @@ const AdminStaff: React.FC = () => {
                                 </span>
                               ))
                             ) : (
-                              <span className="text-[10px] text-slate-400 italic">General STEM</span>
+                              <span className="text-[10px] text-slate-400 italic">General Technology</span>
                             )}
                             {staff.subjects.length > 3 && (
                               <span className="text-[10px] font-bold text-slate-400">
