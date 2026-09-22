@@ -2479,7 +2479,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         availableBalance={calculatedAvailableBalance}
-        initialMode={withdrawMode}
+        initialMode="bank"
         onConfirmWithdrawal={handleTreasuryDisbursal}
       />
 
