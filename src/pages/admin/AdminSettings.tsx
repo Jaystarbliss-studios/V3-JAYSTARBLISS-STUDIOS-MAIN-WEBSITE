@@ -4,7 +4,7 @@ import { db, auth } from '../../lib/firebase';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
   Loader2, Save, AlertCircle, CheckCircle2, 
-  Radio, Mail, Send, Check, ShieldCheck, Sparkles, Sun, Moon 
+  Radio, Mail, Send, Check, ShieldCheck, Sun, Moon 
 } from 'lucide-react';
 
 const AdminSettings: React.FC = () => {
@@ -569,30 +569,6 @@ const AdminSettings: React.FC = () => {
               />
               <p className="text-[11px] text-slate-400 mt-1">Created in Cloudinary Settings &gt; Upload &gt; Upload Presets (set to Unsigned).</p>
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cloudinary API Key (Optional / Private)</label>
-              <input
-                type="text"
-                name="cloudinaryApiKey"
-                value={settings.cloudinaryApiKey}
-                onChange={handleChange}
-                placeholder="e.g. 123456789012345"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Cloudinary API Secret (Optional)</label>
-              <input
-                type="password"
-                name="cloudinaryApiSecret"
-                value={settings.cloudinaryApiSecret}
-                onChange={handleChange}
-                placeholder="••••••••••••••••"
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red font-mono text-sm"
-              />
-            </div>
           </div>
         </section>
 
@@ -659,7 +635,7 @@ const AdminSettings: React.FC = () => {
           {/* Test Email Dispatcher */}
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3">
             <div className="flex items-center gap-2 text-sm font-bold text-white">
-              <Sparkles size={16} className="text-amber-400" />
+              <Mail size={16} className="text-amber-400" />
               <span>Send Live Test Email via Resend</span>
             </div>
             <p className="text-xs text-slate-400">

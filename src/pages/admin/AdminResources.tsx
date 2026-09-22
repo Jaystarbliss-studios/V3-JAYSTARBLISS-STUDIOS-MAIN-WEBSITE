@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  collection, getDocs, addDoc, deleteDoc, doc, 
+  collection, getDocs, addDoc, deleteDoc, doc, updateDoc,
   query, orderBy, serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -8,14 +8,39 @@ import { useToast } from '../../contexts/ToastContext';
 import { ResourceListView } from '../../components/portal/ResourceListView';
 import { 
   FolderOpen, Link as LinkIcon, Plus, Trash2, 
-  ExternalLink, Search, FileText, BookOpen
+  ExternalLink, Search, FileText, BookOpen, Edit3,
+  X, Check, Save, Layers, School
 } from 'lucide-react';
+
+const AVAILABLE_CLASSES = [
+  'All Classes',
+  'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+  'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+  'JSS 1', 'JSS 2', 'JSS 3',
+  'SSS 1', 'SSS 2', 'SSS 3',
+  'Coding & Robotics Club', 'Creative Tech & Media'
+];
 
 const AdminResources: React.FC = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'resources' | 'links' | 'exams'>('resources');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Editing state for Resources, Links, Exams
+  const [editingItem, setEditingItem] = useState<{
+    id: string;
+    type: 'resources' | 'links' | 'exams';
+    title: string;
+    category: string;
+    subject?: string;
+    classLevel?: string;
+    assignedClasses?: string[];
+    description?: string;
+    fileUrl?: string;
+    url?: string;
+  } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Resources state
   const [resources, setResources] = useState<any[]>([]);
@@ -166,6 +191,51 @@ const AdminResources: React.FC = () => {
       toast.error('Error posting exam: ' + err.message);
     } finally {
       setExamSubmitting(false);
+    }
+  };
+
+  // Save edited resource/link/exam
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    if (!editingItem.title.trim()) {
+      toast.error('Please provide a title.');
+      return;
+    }
+    const targetUrl = editingItem.fileUrl || editingItem.url || '';
+    if (!targetUrl.trim()) {
+      toast.error('Please provide a valid URL or file link.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const docRef = doc(db, editingItem.type, editingItem.id);
+      const updates: any = {
+        title: editingItem.title.trim(),
+        category: editingItem.category,
+        description: (editingItem.description || '').trim(),
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingItem.type === 'resources') {
+        updates.subject = editingItem.subject || 'Computer Science & ICT';
+        updates.classLevel = editingItem.classLevel || 'All Classes';
+        updates.assignedClasses = editingItem.assignedClasses || [updates.classLevel];
+        updates.fileUrl = targetUrl.trim();
+      } else {
+        updates.url = targetUrl.trim();
+      }
+
+      await updateDoc(docRef, updates);
+      toast.success(`"${editingItem.title}" updated successfully!`);
+      setEditingItem(null);
+      fetchData();
+    } catch (err: any) {
+      console.error('Error updating resource:', err);
+      toast.error('Failed to update: ' + err.message);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -394,7 +464,19 @@ const AdminResources: React.FC = () => {
               resources={resources}
               role="admin"
               title="Published Resources"
+              showEditButton={true}
               showDeleteButton={true}
+              onEdit={(item) => setEditingItem({
+                id: item.id,
+                type: 'resources',
+                title: item.title,
+                category: item.category || 'both',
+                subject: item.subject || 'Computer Science & ICT',
+                classLevel: item.classLevel || 'All Classes',
+                assignedClasses: item.assignedClasses || [item.classLevel || 'All Classes'],
+                description: item.description || '',
+                fileUrl: item.fileUrl || item.url || ''
+              })}
               onDelete={(item) => handleDelete(item.id, 'resources', item.title)}
               onPreview={(item) => {
                 const url = item.fileUrl || item.url;
@@ -528,13 +610,29 @@ const AdminResources: React.FC = () => {
                         <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
                           {fmtCategory(item.category)}
                         </span>
-                        <button
-                          onClick={() => handleDelete(item.id, 'links', item.title)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete Link"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingItem({
+                              id: item.id,
+                              type: 'links',
+                              title: item.title,
+                              category: item.category || 'both',
+                              description: item.description || '',
+                              url: item.url
+                            })}
+                            className="text-gray-400 hover:text-sky-500 transition-colors p-1"
+                            title="Edit Link"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id, 'links', item.title)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Delete Link"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
 
                       <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
@@ -673,13 +771,29 @@ const AdminResources: React.FC = () => {
                         <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
                           {fmtCategory(item.category)}
                         </span>
-                        <button
-                          onClick={() => handleDelete(item.id, 'exams', item.title)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete Exam"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingItem({
+                              id: item.id,
+                              type: 'exams',
+                              title: item.title,
+                              category: item.category || 'both',
+                              description: item.description || '',
+                              url: item.url
+                            })}
+                            className="text-gray-400 hover:text-emerald-500 transition-colors p-1"
+                            title="Edit Exam"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id, 'exams', item.title)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                            title="Delete Exam"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
 
                       <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
@@ -707,6 +821,185 @@ const AdminResources: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ══ EDIT MODAL ══ */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 p-6 sm:p-7 shadow-2xl border border-gray-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto space-y-5">
+            <div className="flex items-center justify-between pb-4 border-b border-gray-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center">
+                  <Edit3 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                    Edit {editingItem.type === 'resources' ? 'Learning Resource' : editingItem.type === 'links' ? 'Platform Link' : 'Examination'}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Update titles, access links, audience and class reassignments
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingItem.title}
+                  onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                    Category
+                  </label>
+                  <select
+                    value={editingItem.category}
+                    onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  >
+                    <option value="both">Both (School & Private Students)</option>
+                    <option value="school">School Lectures</option>
+                    <option value="private">Private / Individual Students</option>
+                    <option value="coding">Coding & Software</option>
+                    <option value="math">Mathematics</option>
+                    <option value="science">Science & Robotics</option>
+                  </select>
+                </div>
+
+                {editingItem.type === 'resources' && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                      Subject
+                    </label>
+                    <input
+                      type="text"
+                      value={editingItem.subject || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, subject: e.target.value })}
+                      placeholder="e.g. Computer Science"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Class Reassignment for Resources */}
+              {editingItem.type === 'resources' && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                    Class Assignment / Target Classes
+                  </label>
+                  <div className="p-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-850 space-y-2.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {AVAILABLE_CLASSES.map((cls) => {
+                        const isSelected = (editingItem.assignedClasses || []).includes(cls) || editingItem.classLevel === cls;
+                        return (
+                          <button
+                            type="button"
+                            key={cls}
+                            onClick={() => {
+                              let nextClasses: string[];
+                              if (cls === 'All Classes') {
+                                nextClasses = ['All Classes'];
+                              } else {
+                                const current = (editingItem.assignedClasses || []).filter(c => c !== 'All Classes');
+                                if (current.includes(cls)) {
+                                  nextClasses = current.filter(c => c !== cls);
+                                  if (nextClasses.length === 0) nextClasses = ['All Classes'];
+                                } else {
+                                  nextClasses = [...current, cls];
+                                }
+                              }
+                              setEditingItem({
+                                ...editingItem,
+                                classLevel: nextClasses[0] || 'All Classes',
+                                assignedClasses: nextClasses
+                              });
+                            }}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all ${
+                              isSelected
+                                ? 'bg-brand-red text-white shadow-xs'
+                                : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 hover:border-brand-red'
+                            }`}
+                          >
+                            {cls}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Select specific classes (e.g. Grade 1, Primary 3) so only students in those classes see this resource, or select "All Classes" for universal visibility.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  {editingItem.type === 'resources' ? 'File Download URL / Google Drive link *' : 'Web URL *'}
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={editingItem.fileUrl || editingItem.url || ''}
+                  onChange={(e) => setEditingItem({
+                    ...editingItem,
+                    fileUrl: e.target.value,
+                    url: e.target.value
+                  })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  Description & Instructions
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingItem.description || ''}
+                  onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingItem(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold inline-flex items-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  <Save size={15} />
+                  <span>{savingEdit ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

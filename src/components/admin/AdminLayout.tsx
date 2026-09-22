@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { signOut } from 'firebase/auth';
@@ -59,13 +59,21 @@ const AdminLayout: React.FC = () => {
     return localStorage.getItem('admin_sidebar_collapsed') === 'true';
   });
 
-  // Collapsible Section Accordion State - starts all tabs collapsed on page load/refresh
+  // Collapsible Section Accordion State - Persists user choice and keeps active section open
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('admin_expanded_nav_sections');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('Error reading admin expanded nav sections:', e);
+    }
     return {
-      "Overview & Operations": false,
-      "Website & Pages CMS": false,
-      "Portals & Academic Hub": false,
-      "System & Management": false,
+      "Overview & Operations": true,
+      "Website & Pages CMS": true,
+      "Portals & Academic Hub": true,
+      "System & Management": true,
     };
   });
 
@@ -139,11 +147,41 @@ const AdminLayout: React.FC = () => {
     }
   ];
 
+  // Auto-expand section containing current active route on route changes if not explicitly tracked
+  useEffect(() => {
+    navigationGroups.forEach(group => {
+      const hasActive = group.items.some(
+        item => location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
+      );
+      if (hasActive) {
+        setExpandedSections(prev => {
+          if (prev[group.sectionTitle] === false) return prev; // User explicitly collapsed it
+          if (prev[group.sectionTitle] === true) return prev;
+          const next = { ...prev, [group.sectionTitle]: true };
+          try {
+            localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
+          } catch (e) {
+            console.warn('Could not save expanded nav sections:', e);
+          }
+          return next;
+        });
+      }
+    });
+  }, [location.pathname]);
+
   const toggleSection = (sectionTitle: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionTitle]: !prev[sectionTitle]
-    }));
+    setExpandedSections(prev => {
+      const next = {
+        ...prev,
+        [sectionTitle]: !prev[sectionTitle]
+      };
+      try {
+        localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save expanded nav sections:', e);
+      }
+      return next;
+    });
   };
 
   const areAllSectionsExpanded = navigationGroups.every(g => expandedSections[g.sectionTitle] === true);
@@ -155,6 +193,11 @@ const AdminLayout: React.FC = () => {
       navigationGroups.forEach(g => {
         next[g.sectionTitle] = nextState;
       });
+      try {
+        localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save expanded nav sections:', e);
+      }
       return next;
     });
   };

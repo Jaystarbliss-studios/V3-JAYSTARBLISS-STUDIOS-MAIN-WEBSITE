@@ -13,7 +13,7 @@ import {
   Settings, X, Copy, School, GraduationCap,
   Search, Filter, AlertTriangle, ArrowRight,
   ShieldAlert, RefreshCw, Award, BookMarked,
-  Sparkles, Layers, RotateCcw
+  Layers, RotateCcw
 } from 'lucide-react';
 
 export interface EnrichedStaff {
@@ -1000,7 +1000,7 @@ const AdminStaff: React.FC = () => {
                                   key={idx}
                                   className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                 >
-                                  <Sparkles size={9} className="text-purple-500" />
+                                  <BookOpen size={9} className="text-purple-500" />
                                   {sub}
                                 </span>
                               ))
@@ -1132,7 +1132,7 @@ const AdminStaff: React.FC = () => {
                       key={idx}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs"
                     >
-                      <Sparkles size={11} className="text-purple-500" />
+                      <BookOpen size={11} className="text-purple-500" />
                       {sub}
                     </span>
                   ))

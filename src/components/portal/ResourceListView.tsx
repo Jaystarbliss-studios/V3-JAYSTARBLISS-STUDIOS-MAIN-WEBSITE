@@ -2,8 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   FileText, Download, Eye, ExternalLink, Calendar, Search, 
   Filter, X, Users, CheckCircle2, Bookmark, Trash2, 
-  School, Sparkles, BookOpen, Clock, Tag, Mail, MailOpen,
-  ArrowUpDown, SlidersHorizontal, Check, RefreshCw
+  School, BookOpen, Clock, Tag, Mail, MailOpen,
+  ArrowUpDown, SlidersHorizontal, Check, RefreshCw, Edit3
 } from 'lucide-react';
 import { useResourceReadTracker, matchesDateFilter, type DateFilterType } from '../../utils/resourceTracking';
 
@@ -38,10 +38,12 @@ export interface ResourceListViewProps {
   studentClass?: string;
   onPreview?: (resource: ResourceItem) => void;
   onAssign?: (resource: ResourceItem) => void;
+  onEdit?: (resource: ResourceItem) => void;
   onDelete?: (resource: ResourceItem) => void;
   onBookmark?: (resourceId: string, e?: React.MouseEvent) => void;
   bookmarkedIds?: string[];
   showAssignButton?: boolean;
+  showEditButton?: boolean;
   showDeleteButton?: boolean;
   emptyMessage?: string;
   customUserId?: string;
@@ -72,10 +74,12 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
   studentClass,
   onPreview,
   onAssign,
+  onEdit,
   onDelete,
   onBookmark,
   bookmarkedIds = [],
   showAssignButton = false,
+  showEditButton = false,
   showDeleteButton = false,
   emptyMessage,
   customUserId,
@@ -538,13 +542,6 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
 
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                        {/* Gmail-style Unread Badge */}
-                        {unread && (
-                          <span className="px-2 py-0.5 rounded-full bg-brand-red text-white text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs">
-                            <Sparkles size={10} /> NEW
-                          </span>
-                        )}
-
                         {item.schoolName && (
                           <span className="px-1.5 py-0.5 rounded-md bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-[10px] font-bold border border-sky-200/60 dark:border-sky-800/40 inline-flex items-center gap-1">
                             <School size={10} />
@@ -559,18 +556,20 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
                         )}
                       </div>
 
-                      {/* Title: Bold if unread (Gmail style!) */}
+                      {/* Title: Bold if unread, normal font if read */}
                       <h4 className={`text-xs sm:text-sm leading-snug line-clamp-1 ${
                         unread
                           ? 'font-black text-slate-900 dark:text-white'
-                          : 'font-semibold text-slate-700 dark:text-slate-300'
+                          : 'font-normal text-slate-600 dark:text-slate-400'
                       }`}>
                         {item.title}
                       </h4>
 
                       {/* Snippet / Description */}
                       {item.description && (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                        <p className={`text-[11px] line-clamp-1 mt-0.5 ${
+                          unread ? 'font-medium text-slate-700 dark:text-slate-300' : 'text-slate-500 dark:text-slate-400'
+                        }`}>
                           {item.description}
                         </p>
                       )}
@@ -656,6 +655,18 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
                         }`}
                       >
                         <Bookmark size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
+
+                    {/* Edit Resource Button */}
+                    {(showEditButton || onEdit) && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit && onEdit(item)}
+                        title="Edit resource links, details & classes"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 dark:text-slate-400 dark:hover:text-sky-300 transition-colors cursor-pointer"
+                      >
+                        <Edit3 size={15} />
                       </button>
                     )}
 

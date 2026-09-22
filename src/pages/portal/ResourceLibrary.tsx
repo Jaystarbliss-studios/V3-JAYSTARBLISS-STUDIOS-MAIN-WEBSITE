@@ -3,7 +3,7 @@ import {
   BookOpen, Search, Download, Bookmark, 
   Eye, CheckCircle2, Copy, Printer, 
   X, Terminal, Loader2, Zap, Users,
-  Plus, Check, Sparkles, School, GraduationCap,
+  Plus, Check, School, GraduationCap,
   FileText, ExternalLink, HelpCircle, Layers,
   ChevronRight, AlertCircle, Calendar, Mail
 } from 'lucide-react';
@@ -1042,7 +1042,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
               {previewDoc.classInstructions && (
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 space-y-1">
                   <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                    <Sparkles size={14} /> Class Instructions from School
+                    <BookOpen size={14} /> Class Instructions from School
                   </div>
                   <p className="text-xs leading-relaxed">{previewDoc.classInstructions}</p>
                 </div>

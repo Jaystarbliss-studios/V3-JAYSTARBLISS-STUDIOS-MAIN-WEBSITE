@@ -330,15 +330,27 @@ const StudentDashboard: React.FC = () => {
         const classList: ResourceItem[] = [];
         const generalList: ResourceItem[] = [];
 
+        const isUniversalResource = (item: any) => {
+          const itemClasses: string[] = Array.isArray(item.assignedClasses) 
+            ? item.assignedClasses 
+            : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
+          const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
+          const category = (item.category || '').toLowerCase().trim();
+
+          if (category === 'both' || category === 'universal' || category === 'general' || category === 'all') return true;
+          if (itemClasses.some(c => ['all classes', 'all', 'general', 'universal'].includes(c.toLowerCase().trim()))) return true;
+          if (cl === 'all classes' || cl === 'all' || cl === 'general' || cl === 'universal' || (!cl && itemClasses.length === 0)) return true;
+          return false;
+        };
+
         const isItemForClass = (item: any) => {
-          if (!assignedClass) return true;
+          if (!assignedClass) return false;
           const target = assignedClass.toLowerCase().trim();
           const itemClasses: string[] = Array.isArray(item.assignedClasses) 
             ? item.assignedClasses 
             : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
           
           if (itemClasses.length > 0) {
-            if (itemClasses.some(c => c.toLowerCase() === 'all classes' || c.toLowerCase() === 'all' || c.toLowerCase() === 'general')) return true;
             return itemClasses.some(c => {
               const lc = c.toLowerCase().trim();
               return lc === target || lc.includes(target) || target.includes(lc);
@@ -346,19 +358,18 @@ const StudentDashboard: React.FC = () => {
           }
 
           const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
-          if (cl) {
-            if (cl === 'all classes' || cl === 'all' || cl === 'general') return true;
-            return cl.includes(target) || target.includes(cl);
+          if (cl && cl !== 'all classes' && cl !== 'all' && cl !== 'general') {
+            return cl === target || cl.includes(target) || target.includes(cl);
           }
 
-          return true;
+          return false;
         };
 
         resourceSnapshot.forEach((resourceDoc) => {
           const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
           if (isItemForClass(item)) {
             classList.push({ ...item, isClassSpecific: true });
-          } else {
+          } else if (isUniversalResource(item)) {
             generalList.push({ ...item, isClassSpecific: false });
           }
         });
@@ -376,9 +387,15 @@ const StudentDashboard: React.FC = () => {
             const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
             if (!activeSchoolId || !item.schoolId || item.schoolId === activeSchoolId || item.schoolName === studentRecord.schoolName || item.school === studentRecord.school) {
               const isMatch = isItemForClass(item);
-              const destination = isMatch ? classList : generalList;
-              if (!destination.some((resource) => resource.id === item.id)) {
-                destination.push({ ...item, isClassSpecific: isMatch });
+              const isUniv = isUniversalResource(item);
+              if (isMatch) {
+                if (!classList.some((resource) => resource.id === item.id)) {
+                  classList.push({ ...item, isClassSpecific: true });
+                }
+              } else if (isUniv) {
+                if (!generalList.some((resource) => resource.id === item.id)) {
+                  generalList.push({ ...item, isClassSpecific: false });
+                }
               }
             }
           });

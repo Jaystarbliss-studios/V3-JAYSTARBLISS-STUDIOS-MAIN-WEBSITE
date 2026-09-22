@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Building2, CreditCard, Copy, Check, X, 
-  ShieldCheck, Loader2, Sparkles
+  ShieldCheck, Loader2
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/receiptGenerator';
 import { useToast } from '../../contexts/ToastContext';
@@ -131,7 +131,7 @@ export const FintechAddMoneyModal: React.FC<FintechAddMoneyModalProps> = ({
           <div className="mt-5 space-y-4">
             <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                <Sparkles size={16} className="text-emerald-600" />
+                <ShieldCheck size={16} className="text-emerald-600" />
                 <span>Dedicated Virtual Account for Instant Top-up</span>
               </div>
               <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400 mt-1">
