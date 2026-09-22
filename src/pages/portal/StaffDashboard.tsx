@@ -40,7 +40,7 @@ const StaffDashboard: React.FC = () => {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [banksList, setBanksList] = useState<any[]>([]);
   const [savedBankCode, setSavedBankCode] = useState('');
-  const [savedAccountNumber, setSavedAccountNumber] = useState('');
+  const [savedAccountLast4, setSavedAccountLast4] = useState('');
   const [savedAccountName, setSavedAccountName] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'students' | 'wallet' | 'guides'>('all');
 
@@ -97,7 +97,7 @@ const StaffDashboard: React.FC = () => {
         const wallet = billingRes?.wallet || null;
         setWalletBalance(Number(wallet?.availableBalance ?? 0));
         setSavedBankCode(String(wallet?.bankCode || ''));
-        setSavedAccountNumber(String(wallet?.bankAccountNumber || ''));
+        setSavedAccountLast4(String(wallet?.bankAccountLast4 || ''));
         setSavedAccountName(String(wallet?.bankAccountName || ''));
         if (Array.isArray(billingRes?.payments)) {
           setPayments(billingRes.payments);
@@ -111,7 +111,7 @@ const StaffDashboard: React.FC = () => {
         console.warn('Billing fetch failed:', err);
         setWalletBalance(0);
         setSavedBankCode('');
-        setSavedAccountNumber('');
+        setSavedAccountLast4('');
         setSavedAccountName('');
         setPayments([]);
       }
@@ -471,7 +471,7 @@ const StaffDashboard: React.FC = () => {
         availableBalance={walletBalance}
         initialMode="bank"
         savedBankCode={savedBankCode}
-        savedAccountNumber={savedAccountNumber}
+        savedAccountLast4={savedAccountLast4}
         savedAccountName={savedAccountName}
         banksList={banksList}
         onConfirmWithdrawal={handleConfirmWithdrawal}
