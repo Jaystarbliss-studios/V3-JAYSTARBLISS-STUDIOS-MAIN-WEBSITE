@@ -407,7 +407,7 @@ const AdminUsers: React.FC = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-950">
         <table className="min-w-[900px] w-full divide-y divide-gray-200 dark:divide-slate-800">
           <thead className="bg-gray-50/80 dark:bg-slate-950">
             <tr>
@@ -423,11 +423,11 @@ const AdminUsers: React.FC = () => {
               const status = String(user.accountStatus || 'ACTIVE').toUpperCase();
               const role = String(user.role || 'user').toUpperCase();
               return (
-                <tr key={user.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-5 py-3.5"><div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-gray-500 dark:bg-slate-800 text-xs font-bold">{role.includes('ADMIN') ? <Shield size={16} className="text-brand-red" /> : <User size={16} />}</div><div><div className="font-bold text-gray-900 dark:text-white">{user.name || user.displayName || 'Cadet / User'}</div><div className="text-[11px] text-gray-500 dark:text-gray-400">{user.email || 'No email'}</div></div></div></td>
+                <tr key={user.id} className="bg-white dark:bg-slate-950 hover:bg-gray-50 dark:hover:bg-slate-900/80 transition-colors">
+                  <td className="px-5 py-3.5"><div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-gray-500 dark:bg-slate-800 text-xs font-bold">{role.includes('ADMIN') ? <Shield size={16} className="text-brand-red" /> : <User size={16} />}</div><div><div className="font-bold text-gray-900 dark:text-white">{user.name || user.displayName || 'Cadet / User'}</div><div className="text-[11px] text-gray-600 dark:text-slate-300">{user.email || 'No email'}</div></div></div></td>
                   <td className="px-5 py-3.5"><span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-slate-800 dark:text-gray-300">{role}</span></td>
                   <td className="px-5 py-3.5"><button onClick={() => handleToggleForcePasswordReset(user.id, user.forcePasswordReset === true)} className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${user.forcePasswordReset ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}><span className="inline-flex items-center gap-1.5"><KeyRound size={12} /> {user.forcePasswordReset ? 'Reset Required' : 'Password Active'}</span></button></td>
-                  <td className="px-5 py-3.5"><select value={role} onChange={(e) => void handleRoleChange(user.id, e.target.value)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
+                  <td className="px-5 py-3.5"><select value={role} onChange={(e) => void handleRoleChange(user.id, e.target.value)} className="rounded-xl border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
                   <td className="px-5 py-3.5"><button onClick={() => void handleAccountStatus(user.id, status)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold ${status === 'SUSPENDED' ? 'border-amber-200 bg-amber-100 text-amber-800' : 'border-emerald-200 bg-emerald-100 text-emerald-800'}`}>{status === 'SUSPENDED' ? 'Suspended — Restore' : 'Active — Suspend'}</button></td>
                   <td className="px-5 py-3.5">
                     <button
