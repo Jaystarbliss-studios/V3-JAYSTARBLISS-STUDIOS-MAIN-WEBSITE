@@ -193,7 +193,7 @@ const StaffDashboard: React.FC = () => {
       fetchStaffData();
     } catch (err) {
       throw err;
-
+    }
   };
 
   return (
@@ -477,15 +477,6 @@ const StaffDashboard: React.FC = () => {
         onConfirmWithdrawal={handleConfirmWithdrawal}
       />
 
-      {/* Fintech Add Money Modal */}
-      <FintechAddMoneyModal
-        onClose={() => setIsAddMoneyModalOpen(false)}
-        userName={auth.currentUser?.displayName || 'Faculty Member'}
-        userEmail={auth.currentUser?.email || ''}
-        onPaystackTopUp={async (amt) => {
-          toast.success(`Paystack top-up initiated for ₦${amt.toLocaleString()}`);
-        }}
-      />
     </div>
   );
 };
