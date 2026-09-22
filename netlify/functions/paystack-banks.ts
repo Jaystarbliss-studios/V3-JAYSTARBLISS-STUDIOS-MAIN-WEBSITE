@@ -15,13 +15,29 @@ export const handler: Handler = async (event) => {
     const decoded = await adminAuth.verifyIdToken(token);
     const user = await getUserRecord(decoded.uid);
     if (!isStaffRole(normaliseRole(user.role))) return { statusCode: 403, body: JSON.stringify({ error: "Bank lookup is available to staff accounts only." }) };
-    const response = await fetch("https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100", {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY || ""}` }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.status) return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
-    const banks = (Array.isArray(data.data) ? data.data : []).map((bank: any) => ({ name: String(bank.name || ""), code: String(bank.code || "") })).filter((bank: any) => bank.name && bank.code);
-    return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ banks }) };
+    if (!process.env.PAYSTACK_SECRET_KEY) {
+      return { statusCode: 503, body: JSON.stringify({ error: "Payment gateway is not configured." }) };
+    }
+
+    const banks: Array<{ name: string; code: string }> = [];
+    for (let page = 1; page <= 10; page += 1) {
+      const response = await fetch(`https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=${page}`, {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
+      });
+      const data = await response.json();
+      if (!response.ok || !data.status) {
+        return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
+      }
+      const pageBanks = (Array.isArray(data.data) ? data.data : [])
+        .map((bank: any) => ({ name: String(bank.name || "").trim(), code: String(bank.code || "").trim() }))
+        .filter((bank: any) => bank.name && bank.code);
+      banks.push(...pageBanks);
+      if (pageBanks.length < 100) break;
+    }
+
+    const uniqueBanks = Array.from(new Map(banks.map(bank => [bank.code + ":" + bank.name, bank])).values())
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { statusCode: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify({ banks: uniqueBanks }) };
   } catch (error) {
     console.error("Paystack bank lookup failed:", error);
     return { statusCode: 500, body: JSON.stringify({ error: "Unable to load bank list." }) };
