@@ -2,15 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { MessageCircle, X } from 'lucide-react';
 
 export const FloatingWhatsApp: React.FC = () => {
   const location = useLocation();
   const [phoneNumber, setPhoneNumber] = useState('2349136518194');
-  const [isOpen, setIsOpen] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(true);
 
-  // Hide on admin and portal full dashboards if necessary, or show everywhere
+  // Hide on admin and portal dashboards
   const isPortalOrAdmin = location.pathname.startsWith('/portal/') || location.pathname.startsWith('/admin');
 
   useEffect(() => {
@@ -39,46 +36,17 @@ export const FloatingWhatsApp: React.FC = () => {
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${defaultMsg}`;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end pointer-events-auto">
-      {/* Tooltip / Greeting bubble */}
-      {showTooltip && (
-        <div className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-xl max-w-xs text-xs animate-in fade-in slide-in-from-bottom-2 duration-300 relative">
-          <button
-            onClick={() => setShowTooltip(false)}
-            className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            aria-label="Close message"
-          >
-            <X size={13} />
-          </button>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-bold text-slate-900 dark:text-white text-[11px]">Chat with Admissions</span>
-          </div>
-          <p className="text-slate-600 dark:text-slate-300 leading-snug text-[11px]">
-            Have questions about student enrollment or partnerships? Chat with us live!
-          </p>
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] transition-colors"
-          >
-            <MessageCircle size={12} />
-            <span>Open WhatsApp</span>
-          </a>
-        </div>
-      )}
-
-      {/* Floating Button */}
+    <div className="fixed bottom-6 right-6 z-40 flex items-center justify-center pointer-events-auto">
       <a
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat with us on WhatsApp"
-        className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40"
+        title="Chat with us on WhatsApp"
+        className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 group"
       >
         <svg
-          className="w-7 h-7 fill-current"
+          className="w-7 h-7 fill-current transition-transform group-hover:scale-105"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
         >

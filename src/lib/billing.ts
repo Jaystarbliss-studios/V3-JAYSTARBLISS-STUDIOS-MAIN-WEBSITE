@@ -19,10 +19,10 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   withdrawalFeePolicy: { ...defaultWithdrawalFeePolicy },
   minimumWithdrawalAmount: 10000,
   plans: {
-    plan_weekend: { id: 'plan_weekend', name: 'Weekend STEM & Coding Track', role: 'student', baseAmount: 45000, durationWeeks: 4, teachingModes: ['Weekend group class', 'Hybrid support'], description: 'Structured weekend STEM, coding and project-based learning.', active: true },
+    plan_weekend: { id: 'plan_weekend', name: 'Weekend Coding & Tech Track', role: 'student', baseAmount: 45000, durationWeeks: 4, teachingModes: ['Weekend group class', 'Hybrid support'], description: 'Structured weekend coding, software engineering and project-based learning.', active: true },
     plan_mentorship: { id: 'plan_mentorship', name: '1-on-1 Intensive Mentorship', role: 'student', baseAmount: 120000, durationWeeks: 4, teachingModes: ['1-on-1 intensive', 'Private scheduled sessions'], description: 'Dedicated mentor support with a personalised 4-week learning cycle.', active: true },
     plan_robotics: { id: 'plan_robotics', name: 'Smart Robotics & IoT Hardware Lab', role: 'student', baseAmount: 85000, durationWeeks: 4, teachingModes: ['Hands-on lab', 'Hybrid robotics lab'], description: 'Robotics, electronics and IoT practical laboratory learning.', active: true },
-    school_standard: { id: 'school_standard', name: 'Institutional STEM Lab Partner', role: 'school', baseAmount: 350000, durationWeeks: 12, teachingModes: ['On-site school delivery', 'Hybrid school delivery'], description: 'Institutional STEM curriculum and tutor dispatch for partner schools.', active: true },
+    school_standard: { id: 'school_standard', name: 'Institutional Technology Partner', role: 'school', baseAmount: 350000, durationWeeks: 12, teachingModes: ['On-site school delivery', 'Hybrid school delivery'], description: 'Institutional coding curriculum and tutor dispatch for partner schools.', active: true },
     school_cbt: { id: 'school_cbt', name: 'CBT Exam Portal & Lab Suite', role: 'school', baseAmount: 600000, durationWeeks: 52, teachingModes: ['School laboratory', 'Hybrid CBT programme'], description: 'School-wide CBT, laboratory and teacher enablement suite.', active: true }
   }
 };

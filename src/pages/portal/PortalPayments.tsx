@@ -139,7 +139,7 @@ export const PortalPayments: React.FC = () => {
             price: `₦${Number(p.baseAmount || 0).toLocaleString()}`,
             period: isSchool ? '/ Term' : '/ Term',
             popular: p.id.includes('mentorship') || p.id.includes('cbt'),
-            features: p.teachingModes?.length ? p.teachingModes : [p.description || 'Institutional STEM track']
+            features: p.teachingModes?.length ? p.teachingModes : [p.description || 'Institutional technology track']
           }));
 
         if (!cancelled) {

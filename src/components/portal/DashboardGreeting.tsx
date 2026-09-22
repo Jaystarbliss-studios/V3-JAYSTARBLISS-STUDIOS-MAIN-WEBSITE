@@ -23,7 +23,7 @@ const GENERIC_TITLES = new Set([
   'staff',
   'staff console',
   'staff teaching console',
-  'stem cadet',
+  'technology cadet',
   'student',
   'scholar',
   'cadet',

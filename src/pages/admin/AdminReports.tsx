@@ -281,7 +281,7 @@ const AdminReports: React.FC = () => {
           <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h2 className="text-sm font-black text-slate-900 dark:text-white">Academic Community</h2>
-              <p className="text-[11px] text-slate-500">Cadets, parents, and certified STEM faculty.</p>
+              <p className="text-[11px] text-slate-500">Cadets, parents, and certified faculty mentors.</p>
             </div>
             <ClipboardList size={14} className="text-brand-red" />
           </div>

@@ -79,7 +79,7 @@ const ParentDashboard: React.FC = () => {
           getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs')))
         ]);
         if (programsSnap.status === 'fulfilled') {
-          const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'STEM Programme') as string }));
+          const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'Technology Programme') as string }));
           setAvailablePrograms(progs);
           if (progs.length > 0 && !selectedPlan) {
             setSelectedPlan(progs[0].title);
@@ -172,7 +172,7 @@ const ParentDashboard: React.FC = () => {
           </span>
           <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">Parent & Guardian Hub</h2>
           <p className="text-xs text-slate-300 mt-1">
-            Stay aligned with your cadet's coding journey, STEM projects, and tuition schedules.
+            Stay aligned with your cadet's coding journey, tech projects, and tuition schedules.
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
@@ -482,7 +482,7 @@ const ParentDashboard: React.FC = () => {
                       <option key={p.id} value={p.title}>{p.title}</option>
                     ))
                   ) : (
-                    <option value="General STEM & Computing Track">General STEM & Computing Track</option>
+                    <option value="General Coding & Computing Track">General Coding & Computing Track</option>
                   )}
                 </select>
               </Field>

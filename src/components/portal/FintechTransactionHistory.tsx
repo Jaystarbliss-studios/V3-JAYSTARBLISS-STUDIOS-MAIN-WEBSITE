@@ -112,7 +112,7 @@ export const FintechTransactionHistory: React.FC<FintechTransactionHistoryProps>
         if (selectedCategory === 'deposit' && !catStr.includes('deposit') && !catStr.includes('top-up') && !catStr.includes('topup')) return false;
         if (selectedCategory === 'payout' && !catStr.includes('payout') && !catStr.includes('withdraw') && !catStr.includes('disburs')) return false;
         if (selectedCategory === 'school_tuition' && !catStr.includes('school') && !catStr.includes('partner') && !catStr.includes('institutional')) return false;
-        if (selectedCategory === 'parent_tuition' && !catStr.includes('parent') && !catStr.includes('cadet') && !catStr.includes('student') && !catStr.includes('mentorship') && !catStr.includes('stem')) return false;
+        if (selectedCategory === 'parent_tuition' && !catStr.includes('parent') && !catStr.includes('cadet') && !catStr.includes('student') && !catStr.includes('mentorship') && !catStr.includes('coding')) return false;
       }
 
       // Status filter

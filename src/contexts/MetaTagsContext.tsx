@@ -23,7 +23,7 @@ const BRAND_NAME = 'Jaystarbliss Studios';
 const BASE_PRODUCTION_URL = 'https://jaystarbliss-studios.name.ng';
 const DEFAULT_IMAGE = `${BASE_PRODUCTION_URL}/favicon.png`;
 const DEFAULT_DESCRIPTION = 'Jaystarbliss Studios is a modern technology, creative and educational studio in Lagos, Nigeria. We teach practical skills, build scalable software, and engineer digital solutions.';
-const DEFAULT_KEYWORDS = 'Jaystarbliss Studios, coding for kids Lagos, tech education Nigeria, web development Lagos, STEM education Nigeria, robotics for kids, software development, creative digital solutions, coding academy Nigeria';
+const DEFAULT_KEYWORDS = 'Jaystarbliss Studios, coding for kids Lagos, tech education Nigeria, web development Lagos, programming courses Nigeria, robotics for kids, software development, creative digital solutions, coding academy Nigeria';
 
 // Comprehensive default route metadata map
 const ROUTE_META_MAP: Record<string, MetaData> = {
@@ -36,18 +36,18 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
   '/about': {
     title: `${BRAND_NAME} | About Us & Mission`,
     description: 'Learn about Jaystarbliss Studios, our journey, visionary leadership, and commitment to transforming tech education and enterprise solutions across Africa.',
-    keywords: 'about Jaystarbliss Studios, tech education mission, Lagos coding academy, STEM Nigeria team',
+    keywords: 'about Jaystarbliss Studios, tech education mission, Lagos coding academy, technology educators Nigeria',
     type: 'website'
   },
   '/programs': {
-    title: `${BRAND_NAME} | Tech, Coding & STEM Programs`,
-    description: 'Explore comprehensive STEM, coding, robotics, creative arts, and academic excellence courses for kids, teens, and young professionals in Lagos.',
+    title: `${BRAND_NAME} | Tech, Coding & Robotics Programs`,
+    description: 'Explore comprehensive coding, robotics, creative arts, and academic excellence courses for kids, teens, and young professionals in Lagos.',
     keywords: 'coding courses kids Lagos, Python classes, Scratch programming, robotics workshop, web development curriculum',
     type: 'website'
   },
   '/services': {
     title: `${BRAND_NAME} | Digital Solutions & IT Services`,
-    description: 'Bespoke web development, school STEM lab setup, enterprise software engineering, and corporate tech training tailored for schools and businesses.',
+    description: 'Bespoke web development, school coding lab setup, enterprise software engineering, and corporate tech training tailored for schools and businesses.',
     keywords: 'software development Lagos, school portal developer, website design Lagos, corporate IT training Nigeria',
     type: 'website'
   },
@@ -72,25 +72,25 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
   '/resources': {
     title: `${BRAND_NAME} | Curriculum & Resource Library`,
     description: 'Access curated termly syllabi, lesson notes, code cheatsheets, CBT practice exams, and hands-on worksheets for students and educators.',
-    keywords: 'STEM curriculum download, coding lesson notes, Python cheatsheet, Scratch guides, school worksheets',
+    keywords: 'curriculum download, coding lesson notes, Python cheatsheet, Scratch guides, school worksheets',
     type: 'website'
   },
   '/blog': {
     title: `${BRAND_NAME} | Tech Insights, News & Tutorials`,
     description: 'Read the latest technology tutorials, studio news, coding tips, and educational thought leadership from Jaystarbliss Studios.',
-    keywords: 'tech blog Lagos, coding tutorials, STEM education articles, Jaystarbliss news',
+    keywords: 'tech blog Lagos, coding tutorials, technology education articles, Jaystarbliss news',
     type: 'website'
   },
   '/faq': {
     title: `${BRAND_NAME} | FAQ & Help Center`,
-    description: 'Find clear answers regarding student admissions, class schedules, pricing, school STEM partnerships, and digital service deliveries.',
-    keywords: 'Jaystarbliss FAQ, coding class admission questions, STEM school partnership costs',
+    description: 'Find clear answers regarding student admissions, class schedules, pricing, school technology partnerships, and digital service deliveries.',
+    keywords: 'Jaystarbliss FAQ, coding class admission questions, school partnership costs',
     type: 'website'
   },
   '/contact': {
     title: `${BRAND_NAME} | Contact Us & Studio Location`,
     description: 'Get in touch with Jaystarbliss Studios. Book a consultation, visit our studio in Lagos, or reach out via WhatsApp, phone, or email.',
-    keywords: 'contact Jaystarbliss, tech studio Lagos address, coding school phone number, STEM consultation',
+    keywords: 'contact Jaystarbliss, tech studio Lagos address, coding school phone number, technology consultation',
     type: 'website'
   },
   '/project-request': {
@@ -100,9 +100,9 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
     type: 'website'
   },
   '/school-partnership': {
-    title: `${BRAND_NAME} | Partner School STEM & Coding Clubs`,
-    description: 'Empower your school with modern ICT & STEM curricula, hands-on robotics workshops, and dedicated certified coding tutors.',
-    keywords: 'school STEM partnership Lagos, school coding club setup, curriculum integration Nigeria',
+    title: `${BRAND_NAME} | Partner School Coding & Tech Clubs`,
+    description: 'Empower your school with modern ICT & coding curricula, hands-on robotics workshops, and dedicated certified coding tutors.',
+    keywords: 'school coding partnership Lagos, school coding club setup, curriculum integration Nigeria',
     type: 'website'
   },
   '/tutors': {
@@ -119,8 +119,8 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
   },
   '/tutor-application': {
     title: `${BRAND_NAME} | Apply to Become an Instructor`,
-    description: 'Join the Jaystarbliss Studios teaching team as a certified STEM instructor, coding mentor, or academic tutor.',
-    keywords: 'teach coding Lagos, tutor job openings, STEM instructor vacancies',
+    description: 'Join the Jaystarbliss Studios teaching team as a certified technology instructor, coding mentor, or academic tutor.',
+    keywords: 'teach coding Lagos, tutor job openings, coding instructor vacancies',
     type: 'website'
   },
   '/portal': {
@@ -132,7 +132,7 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
   },
   '/register': {
     title: `${BRAND_NAME} | Enroll in Programs`,
-    description: 'Enroll in cutting-edge coding, STEM, and creative technology programs at Jaystarbliss Studios today.',
+    description: 'Enroll in cutting-edge coding, software engineering, and creative technology programs at Jaystarbliss Studios today.',
     keywords: 'register coding class, enroll tech bootcamp Lagos, student registration',
     type: 'website'
   },
@@ -178,7 +178,7 @@ const ROUTE_META_MAP: Record<string, MetaData> = {
   },
   '/portal/school': {
     title: `${BRAND_NAME} | Partner School Admin Portal`,
-    description: 'Administer enrolled school students, termly STEM curriculum, and class schedules.',
+    description: 'Administer enrolled school students, termly curriculum, and class schedules.',
     noindex: true
   },
   '/admin': {

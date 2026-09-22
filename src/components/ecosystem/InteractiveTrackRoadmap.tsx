@@ -791,7 +791,7 @@ const ROADMAP_TRACKS: LearningTrack[] = [
   {
     id: 'young-creators',
     title: 'Early Explorers & Young Creators (Ages 4–7)',
-    category: 'Early Childhood STEM',
+    category: 'Early Childhood Coding & Logic',
     ageRange: 'Ages 4–7 (Kindergarten & Early Primary)',
     icon: Star,
     accentColor: '#F59E0B',
@@ -887,8 +887,8 @@ const ROADMAP_TRACKS: LearningTrack[] = [
           'Introduction to Scratch 3.0 interface (Sprites, Stage, Blocks palette)',
           'Transitioning from tablet drag-and-drop to desktop mouse control'
         ],
-        capstoneProject: 'Graduation Project Presentation with Certificate of Young STEM Brilliant Achievement.',
-        skillsUnlocked: ['Presentation confidence', 'Scratch 3.0 readiness', 'STEM milestone celebration'],
+        capstoneProject: 'Graduation Project Presentation with Certificate of Young Creator Brilliant Achievement.',
+        skillsUnlocked: ['Presentation confidence', 'Scratch 3.0 readiness', 'Young Creator milestone celebration'],
         toolsUsed: ['Scratch 3.0 Web', 'Digital Certificate Vault']
       }
     ]

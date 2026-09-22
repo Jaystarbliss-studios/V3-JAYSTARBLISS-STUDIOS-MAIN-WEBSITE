@@ -433,7 +433,7 @@ export const LEARNING_SCHOOLS: LearningSchool[] = [
     bgGradient: 'from-cyan-600/20 to-sky-500/10',
     shortDescription: 'Integrated rotations across Coding, Music, Art, Chess, AI, and Logic to discover individual passions.',
     longDescription: 'Rather than forcing young children into narrow specializations, the Young Creators Program provides an enriching guided rotation. Children explore coding stories, keyboard tunes, digital drawings, chess pieces, and mini science experiments to discover what truly lights them up.',
-    disciplines: ['Creative Coding & ScratchJr', 'Piano & Rhythm Exploration', 'Digital Art & Painting', 'Chess Discovery & Logic', 'AI Story Playground', 'Junior STEM Experiments'],
+    disciplines: ['Creative Coding & ScratchJr', 'Piano & Rhythm Exploration', 'Digital Art & Painting', 'Chess Discovery & Logic', 'AI Story Playground', 'Junior Science & Logic Fun'],
     stagesFramework: {
       discover: ['Playful exploration of computer, keyboard, musical notes & chess pieces', 'Discovering shapes, colors, sounds, and patterns'],
       build: ['Creating simple digital animations', 'Playing 5-finger tunes on the piano', 'Drawing characters & story scenes', 'Moving chess pieces safely'],
@@ -451,7 +451,7 @@ export const LEARNING_SCHOOLS: LearningSchool[] = [
           { level: 'Term 1', title: 'Logic, Coding & Play', topics: ['Mouse/Touch dexterity', 'Sequencing & ScratchJr animations', 'Directional mazes & logic puzzles', 'Digital storytelling'] },
           { level: 'Term 2', title: 'Music & Sound Adventures', topics: ['Keyboard geography & high/low pitches', 'Rhythm clapping & percussion games', 'Playing first familiar nursery tunes', 'Singing & pitch matching'] },
           { level: 'Term 3', title: 'Digital Art & Creativity', topics: ['Creative painting with digital brushes', 'Color mixing & character sketching', 'Designing greeting cards & storybooks', 'Pattern making'] },
-          { level: 'Term 4', title: 'Strategy & Mini STEM Showcase', topics: ['Chess piece movements & treasure hunts', 'Simple science fun (density, magnets, light)', 'AI picture stories', 'End-of-Year Young Creator Showcase'] }
+          { level: 'Term 4', title: 'Strategy & Mini Tech Showcase', topics: ['Chess piece movements & treasure hunts', 'Simple science fun (density, magnets, light)', 'AI picture stories', 'End-of-Year Young Creator Showcase'] }
         ]
       }
     ]
@@ -517,7 +517,7 @@ export const SCHOOL_DELIVERY_TIERS: SchoolDeliveryTier[] = [
     frequency: '1 day per week (4 sessions / month)',
     duration: '1–2 hours per session',
     maxDailyHours: '2 hours max',
-    targetAudience: 'Schools introducing STEM, clubs, or enrichment activities',
+    targetAudience: 'Schools introducing Coding, clubs, or enrichment activities',
     description: 'The ideal entry point for schools looking to establish high-impact weekly clubs in Coding, Music, Chess, Creative Arts, or Computer Literacy without disrupting regular timetables.',
     idealFor: [
       'After-school coding & robotics clubs',
@@ -548,7 +548,7 @@ export const SCHOOL_DELIVERY_TIERS: SchoolDeliveryTier[] = [
     targetAudience: 'Schools aiming for structured curriculum progression across multiple disciplines',
     description: 'Designed for institutions wanting solid continuity and repetition. Allows schools to pair complementary disciplines (e.g. Coding on Monday + Digital Literacy on Wednesday, or Keyboard on Tuesday + Recorder on Thursday).',
     idealFor: [
-      'Dual-track STEM & Digital Literacy curriculum',
+      'Dual-track Coding & Digital Literacy curriculum',
       'Instrumental music ensembles (Keyboard + Violin/Recorder)',
       'Creative design & web development tracks',
       'Accelerated academic support clinics'
@@ -573,10 +573,10 @@ export const SCHOOL_DELIVERY_TIERS: SchoolDeliveryTier[] = [
     frequency: '3 days per week (12 sessions / month)',
     duration: '2–4 hours per session',
     maxDailyHours: '4 hours max instructional time',
-    targetAudience: 'Premier institutional partnerships, STEM labs, and whole-school tech transformation',
+    targetAudience: 'Premier institutional partnerships, Tech labs, and whole-school tech transformation',
     description: 'Our most comprehensive institutional delivery model. Transforms your school into a regional hub for digital innovation, creative arts, and academic excellence with deep instructional immersion.',
     idealFor: [
-      'Full school STEM & ICT curriculum handover',
+      'Full school Computer & ICT curriculum handover',
       'Dedicated multi-school competitive coding & chess teams',
       'Music academy integration with orchestra & choir leadership',
       'Comprehensive exam preparation clinics'
@@ -587,9 +587,9 @@ export const SCHOOL_DELIVERY_TIERS: SchoolDeliveryTier[] = [
     },
     features: [
       'Full Jaystarbliss instructional team on-site with backup instructors',
-      'Turnkey STEM laboratory setup guidance & hardware recommendations',
+      'Turnkey computer laboratory setup guidance & hardware recommendations',
       'Custom school branding on all learning materials and digital portals',
-      'National & international competition coaching (STEM Olympiads, Hackathons, Chess Championships)',
+      'National & international competition coaching (Coding Olympiads, Hackathons, Chess Championships)',
       'School administrator analytics dashboard with real-time attendance and assessment scores'
     ]
   }
@@ -621,7 +621,7 @@ export const VERIFIED_TUTORS: VerifiedTutor[] = [
     rating: 4.98,
     reviewCount: 142,
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    bio: 'Software engineer and experienced STEM educator passionate about helping students move from passive screen consumers to active creators and algorithmic thinkers.',
+    bio: 'Software engineer and experienced technology educator passionate about helping students move from passive screen consumers to active creators and algorithmic thinkers.',
     specializations: ['Primary & Junior Mathematics', 'Scratch & Python Programming', 'Digital Literacy & Office Suite', 'AI Playground'],
     subjects: ['Mathematics', 'Coding', 'Python', 'Scratch', 'Digital Literacy', 'AI Tools'],
     ageGroups: ['5–7 years', '8–11 years', '12–16 years'],

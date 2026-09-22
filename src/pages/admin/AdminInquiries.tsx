@@ -789,7 +789,7 @@ const AdminInquiries: React.FC = () => {
                       required
                       value={emailDraft.subject}
                       onChange={e => setEmailDraft({ ...emailDraft, subject: e.target.value })}
-                      placeholder="e.g. Follow up on your STEM Inquiry"
+                      placeholder="e.g. Follow up on your Coding & Tech Inquiry"
                       className={inputClass}
                     />
                   </div>

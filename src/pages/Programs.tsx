@@ -444,7 +444,7 @@ const Programs: React.FC = () => {
                 Bringing the Ecosystem to Your School?
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-                Explore our Tier 1 (1 day/wk), Tier 2 (2 days/wk), and Tier 3 (3 days/wk) school STEM, Coding, Music, and Chess delivery models.
+                Explore our Tier 1 (1 day/wk), Tier 2 (2 days/wk), and Tier 3 (3 days/wk) school Coding, Robotics, Music, and Chess delivery models.
               </p>
             </div>
             <Button

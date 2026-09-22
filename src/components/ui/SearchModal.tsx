@@ -50,7 +50,7 @@ const STATIC_NAV_PAGES: SearchItem[] = [
     id: 'page-programs',
     type: 'PROGRAM',
     title: 'Programs & Curriculum Catalog',
-    description: 'Explore all STEM, coding, robotics, digital literacy, and academic tracks.',
+    description: 'Explore all coding, robotics, digital literacy, and academic tracks.',
     url: '/programs',
     badge: 'Courses',
     categoryName: 'Programs'
@@ -86,7 +86,7 @@ const STATIC_NAV_PAGES: SearchItem[] = [
     id: 'page-services',
     type: 'SERVICE',
     title: 'Digital Solutions & Enterprise Services',
-    description: 'Custom web development, school STEM lab setup, and corporate IT training.',
+    description: 'Custom web development, school coding lab setup, and corporate IT training.',
     url: '/services',
     badge: 'Services',
     categoryName: 'Services'
@@ -94,7 +94,7 @@ const STATIC_NAV_PAGES: SearchItem[] = [
   {
     id: 'page-school',
     type: 'SERVICE',
-    title: 'Partner School STEM Clubs & Labs',
+    title: 'Partner School Coding & Tech Clubs',
     description: 'Curriculum integration, teacher training, and weekly coding workshops.',
     url: '/school-partnership',
     badge: 'Schools',
@@ -255,7 +255,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
             id: `db-res-${doc.id}`,
             type: 'RESOURCE',
             title: d.title || 'Curriculum Material',
-            description: `${d.subject || 'STEM'} • ${d.classLevel || 'General'} — ${d.description || ''}`,
+            description: `${d.subject || 'Coding & Tech'} • ${d.classLevel || 'General'} — ${d.description || ''}`,
             url: directFile || '/resources',
             badge: d.docType || d.category || 'Resource',
             categoryName: 'Resources'

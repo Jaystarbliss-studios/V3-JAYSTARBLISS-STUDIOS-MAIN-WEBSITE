@@ -328,7 +328,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
             Institutional & Family Sponsorship
           </h1>
           <p className="text-xs md:text-sm text-slate-500 mt-1 max-w-2xl">
-            Your laboratory access, CBT assessments, and STEM curriculum are fully covered by your institution or parent.
+            Your laboratory access, CBT assessments, and technology curriculum are fully covered by your institution or parent.
           </p>
         </div>
 

@@ -157,7 +157,7 @@ const SchoolPartnership: React.FC = () => {
     <MainLayout>
       <SEO 
         title="School Partnerships & Institutional Tiers" 
-        description="Integrate Jaystarbliss STEM, Coding, Music, Digital Literacy, and Chess clubs into your school curriculum." 
+        description="Integrate Jaystarbliss Coding, Robotics, Music, Digital Literacy, and Chess clubs into your school curriculum." 
       />
 
       {/* Header Banner */}

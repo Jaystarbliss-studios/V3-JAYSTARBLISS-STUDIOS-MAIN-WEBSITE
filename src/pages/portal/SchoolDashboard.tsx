@@ -201,7 +201,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     event.preventDefault();
     if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
     const id = passcodeForm.id || `pc-${Date.now()}`;
-    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'STEM & Coding', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
     try {
       await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
       const next = { id, ...payload } as Passcode;
@@ -404,7 +404,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">{exam.title}</h3>
                     <div className="text-[11px] text-slate-500 space-y-0.5">
-                      <div>Subject: {exam.subject || 'STEM & Coding'}</div>
+                      <div>Subject: {exam.subject || 'Coding & Tech'}</div>
                       <div>Class: {exam.targetClass || 'All eligible learners'}</div>
                     </div>
                     <div className="flex gap-2 pt-1">
@@ -434,7 +434,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">Examination keys for CBT invigilation.</p>
             </div>
-            <button onClick={() => setPasscodeForm({ classLevel: 'General', subject: 'STEM & Coding', examTitle: '', passcode: generatePasscode(), isActive: true, validUntil: 'End of Term' })} className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1.5">
+            <button onClick={() => setPasscodeForm({ classLevel: 'General', subject: 'Coding & Tech', examTitle: '', passcode: generatePasscode(), isActive: true, validUntil: 'End of Term' })} className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1.5">
               <Key size={14}/> New passcode
             </button>
           </div>
@@ -560,7 +560,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           </h2>
           <div className="rounded-xl bg-slate-900 text-white p-5 border border-slate-800">
             <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Current Program Plan</div>
-            <h3 className="text-lg font-bold mt-1">{school?.plan || 'Standard STEM Curriculum'}</h3>
+            <h3 className="text-lg font-bold mt-1">{school?.plan || 'Standard Technology Curriculum'}</h3>
             <p className="text-xs text-slate-300 mt-1">Billing statements, invoices, and verified receipts are managed directly through the Fees & Payments section.</p>
             <button onClick={() => navigate('/portal/school/payments')} className="mt-4 min-h-9 rounded-xl bg-white text-slate-900 px-4 text-xs font-bold inline-flex items-center gap-2">
               <CreditCard size={14}/> Open Fees & Payments

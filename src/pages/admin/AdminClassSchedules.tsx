@@ -20,7 +20,7 @@ const AdminClassSchedules:React.FC = () => {
   const [filterSchool,setFilterSchool] = useState("");
   const [showForm,setShowForm] = useState(false);
   const [form,setForm] = useState({
-    schoolId:"", classLevel:"Year 1", title:"STEM Class", tutorName:"",
+    schoolId:"", classLevel:"Year 1", title:"Coding Class", tutorName:"",
     startDate:new Date().toISOString().slice(0,10), startTime:"09:00", endTime:"11:00",
     recurring:true, weeks:"52"
   });
@@ -90,7 +90,7 @@ const AdminClassSchedules:React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Field label="School"><select value={form.schoolId} onChange={e=>setForm({...form,schoolId:e.target.value})} className={inputClass}><option value="">Select school</option>{schools.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Class"><select value={form.classLevel} onChange={e=>setForm({...form,classLevel:e.target.value})} className={inputClass}>{CLASS_OPTIONS.map(c=><option key={c}>{c}</option>)}</select></Field>
-        <Field label="Class / programme title"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={inputClass} placeholder="e.g. STEM & Coding"/></Field>
+        <Field label="Class / programme title"><input value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={inputClass} placeholder="e.g. Coding & Tech"/></Field>
         <Field label="Tutor / instructor"><input value={form.tutorName} onChange={e=>setForm({...form,tutorName:e.target.value})} className={inputClass} placeholder="Assigned tutor"/></Field>
         <Field label="First class date"><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className={inputClass}/></Field>
         <Field label="Start time"><input type="time" value={form.startTime} onChange={e=>setForm({...form,startTime:e.target.value})} className={inputClass}/></Field>

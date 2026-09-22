@@ -663,7 +663,7 @@ const StudentDashboard: React.FC = () => {
         <>
           <DashboardGreeting
             name={student.fullName || undefined}
-            role="STEM Cadet"
+            role="Technology Cadet"
             subtitle="Keep going. Your future is in progress."
           />
 
@@ -675,7 +675,7 @@ const StudentDashboard: React.FC = () => {
                   Active Enrollment
                 </span>
                 <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">
-                  {student.plan || 'STEM & Robotics Academy'}
+                  {student.plan || 'Coding & Robotics Academy'}
                 </h2>
                 <p className="text-xs text-slate-300 mt-1">
                   Assigned Class: <strong className="text-white">{student.class || student.grade || 'Junior Cadet'}</strong> • Current Focus: <span className="text-brand-red font-semibold">{currentModule?.title || 'Foundational Computing'}</span>
@@ -882,7 +882,7 @@ const StudentDashboard: React.FC = () => {
               </div>
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
-                <span className="text-slate-500">Primary Track: <strong className="text-slate-800 dark:text-slate-200">{student.plan || 'STEM & Coding Academy'}</strong></span>
+                <span className="text-slate-500">Primary Track: <strong className="text-slate-800 dark:text-slate-200">{student.plan || 'Coding & Tech Academy'}</strong></span>
                 <span className="text-slate-500">Assigned Class: <strong className="text-slate-800 dark:text-slate-200">{student.class || student.grade || 'Not recorded'}</strong></span>
               </div>
             </section>

@@ -443,7 +443,7 @@ const AdminNotifications: React.FC = () => {
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Schedule Update: STEM Robotics Hackathon"
+                placeholder="e.g. Schedule Update: Robotics & Coding Hackathon"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-red"
               />
             </div>

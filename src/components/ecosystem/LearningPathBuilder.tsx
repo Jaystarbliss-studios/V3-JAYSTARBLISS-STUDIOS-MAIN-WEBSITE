@@ -463,7 +463,7 @@ export const LearningPathBuilder: React.FC<LearningPathBuilderProps> = ({ onSucc
                     {[
                       { id: '1-on-1 Private', title: '1-on-1 Dedicated Mentorship', desc: '100% personalized pacing & focus' },
                       { id: 'Micro-Group', title: 'Micro-Group (2–4 Peers)', desc: 'Collaborative dynamic with friends or siblings' },
-                      { id: 'School Partnership', title: 'School STEM / Music Club', desc: 'Institutional curriculum delivery' }
+                      { id: 'School Partnership', title: 'School Coding / Tech Club', desc: 'Institutional curriculum delivery' }
                     ].map((type) => (
                       <button
                         key={type.id}

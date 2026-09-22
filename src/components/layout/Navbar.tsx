@@ -232,7 +232,7 @@ const Navbar: React.FC = () => {
                           <School size={16} />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-brand-red">School STEM Clubs</div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-brand-red">School Coding &amp; Tech Clubs</div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400">Custom coding and robotics labs for partner schools</div>
                         </div>
                       </Link>
@@ -597,7 +597,7 @@ const Navbar: React.FC = () => {
                       <Music size={15} className="text-brand-red" /> Music & Performing Arts
                     </Link>
                     <Link to="/school-partnership" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-brand-red">
-                      <School size={15} className="text-brand-red" /> School STEM Clubs
+                      <School size={15} className="text-brand-red" /> School Coding &amp; Tech Clubs
                     </Link>
                   </div>
                 )}

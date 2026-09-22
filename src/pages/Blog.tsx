@@ -257,7 +257,7 @@ const Blog: React.FC = () => {
                       Jaystarbliss News Corner
                     </h3>
                     <p className="text-slate-400 text-xs sm:text-sm max-w-2xl leading-relaxed">
-                      Stay updated with the latest happenings at our Lagos hub, student hackathons, bootcamp milestones, and STEM workshops.
+                      Stay updated with the latest happenings at our Lagos hub, student hackathons, bootcamp milestones, and practical technology workshops.
                     </p>
                   </div>
 

@@ -190,7 +190,7 @@ const AdminPortfolioForm: React.FC = () => {
               required
               value={formData.title}
               onChange={handleChange}
-              placeholder={isKidsCorner ? "e.g. Funfinity, Dino Run..." : "e.g. Lagos STEM Portal..."}
+              placeholder={isKidsCorner ? "e.g. Funfinity, Dino Run..." : "e.g. School Innovation Portal..."}
               className="w-full px-4 py-2.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl focus:ring-2 focus:ring-brand-red"
             />
           </div>

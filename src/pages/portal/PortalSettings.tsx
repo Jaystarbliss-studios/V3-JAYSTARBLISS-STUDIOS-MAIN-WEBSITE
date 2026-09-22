@@ -517,7 +517,7 @@ export const PortalSettings: React.FC = () => {
             <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 cursor-pointer">
               <div>
                 <span className="font-bold text-slate-900 dark:text-white block">Class Schedule Reminders</span>
-                <span className="text-[11px] text-slate-500">Receive alerts 30 minutes before live STEM sessions.</span>
+                <span className="text-[11px] text-slate-500">Receive alerts 30 minutes before live class sessions.</span>
               </div>
               <input 
                 type="checkbox" 
