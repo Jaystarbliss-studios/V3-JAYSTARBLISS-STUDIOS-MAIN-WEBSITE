@@ -30,6 +30,7 @@ import SEO from '../../components/ui/SEO';
 import { AchievementBadgeGrid } from '../../components/ecosystem/AchievementBadge';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 import { StudentAnalyticsVisualizer } from '../../components/portal/StudentAnalyticsVisualizer';
+import { ResourceListView } from '../../components/portal/ResourceListView';
 import { useToast } from '../../contexts/ToastContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import {
@@ -49,6 +50,7 @@ interface StudentInfo {
   schoolId?: string;
   schoolName?: string;
   schoolCode?: string;
+  school?: string;
   plan?: string;
   subjects?: string[];
   schedule?: string;
@@ -73,12 +75,21 @@ interface ResourceItem {
   id: string;
   title: string;
   url?: string;
+  fileUrl?: string;
   type?: string;
+  docType?: string;
   description?: string;
   subject?: string;
   targetClass?: string;
   class?: string;
+  classLevel?: string;
+  assignedClasses?: string[];
+  schoolId?: string;
+  schoolName?: string;
+  school?: string;
   isClassSpecific?: boolean;
+  dateAdded?: string;
+  createdAt?: string;
 }
 
 interface LinkItem {
@@ -320,14 +331,14 @@ const StudentDashboard: React.FC = () => {
         const generalList: ResourceItem[] = [];
 
         const isItemForClass = (item: any) => {
-          if (!assignedClass) return false;
+          if (!assignedClass) return true;
           const target = assignedClass.toLowerCase().trim();
           const itemClasses: string[] = Array.isArray(item.assignedClasses) 
             ? item.assignedClasses 
             : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
           
           if (itemClasses.length > 0) {
-            if (itemClasses.some(c => c.toLowerCase() === 'all classes' || c.toLowerCase() === 'all')) return true;
+            if (itemClasses.some(c => c.toLowerCase() === 'all classes' || c.toLowerCase() === 'all' || c.toLowerCase() === 'general')) return true;
             return itemClasses.some(c => {
               const lc = c.toLowerCase().trim();
               return lc === target || lc.includes(target) || target.includes(lc);
@@ -336,11 +347,11 @@ const StudentDashboard: React.FC = () => {
 
           const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
           if (cl) {
-            if (cl === 'all classes' || cl === 'all') return true;
+            if (cl === 'all classes' || cl === 'all' || cl === 'general') return true;
             return cl.includes(target) || target.includes(cl);
           }
 
-          return false;
+          return true;
         };
 
         resourceSnapshot.forEach((resourceDoc) => {
@@ -352,23 +363,27 @@ const StudentDashboard: React.FC = () => {
           }
         });
 
-        const activeSchoolId = studentRecord.schoolId || sessionStorage.getItem('schoolId');
-        if (activeSchoolId) {
-          try {
-            const schoolResourceSnap = await getDocs(
-              query(collection(db, 'schoolResources'), where('schoolId', '==', activeSchoolId), limit(40))
-            );
-            schoolResourceSnap.forEach((resourceDoc) => {
-              const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+        // Ensure school students see all their school resources and assigned lessons
+        const activeSchoolId = studentRecord.schoolId || sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_school_id') || studentRecord.school;
+        try {
+          const schoolResourceSnap = await getDocs(
+            activeSchoolId
+              ? query(collection(db, 'schoolResources'), where('schoolId', '==', activeSchoolId), limit(50))
+              : query(collection(db, 'schoolResources'), limit(50))
+          ).catch(() => getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] })));
+
+          schoolResourceSnap.docs?.forEach((resourceDoc: any) => {
+            const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+            if (!activeSchoolId || !item.schoolId || item.schoolId === activeSchoolId || item.schoolName === studentRecord.schoolName || item.school === studentRecord.school) {
               const isMatch = isItemForClass(item);
               const destination = isMatch ? classList : generalList;
               if (!destination.some((resource) => resource.id === item.id)) {
                 destination.push({ ...item, isClassSpecific: isMatch });
               }
-            });
-          } catch (error) {
-            console.warn('School resource lookup failed:', error);
-          }
+            }
+          });
+        } catch (error) {
+          console.warn('School resource lookup failed:', error);
         }
 
         setClassResources(classList);
@@ -495,6 +510,16 @@ const StudentDashboard: React.FC = () => {
     if (resourceFilter === 'GENERAL') return generalResources;
     return [...personalResources, ...classResources, ...generalResources];
   }, [classResources, generalResources, personalResources, resourceFilter]);
+
+  const allStudentResources = useMemo(() => {
+    const map = new Map<string, ResourceItem>();
+    [...personalResources, ...classResources, ...generalResources].forEach((item) => {
+      if (!map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    });
+    return Array.from(map.values());
+  }, [personalResources, classResources, generalResources]);
 
   const completedModulesCount = completedModules.length;
   const overallProgress = modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0;
@@ -970,7 +995,7 @@ const StudentDashboard: React.FC = () => {
                 )}
               </section>
 
-              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+              <section id="student-learning-materials" className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
@@ -978,7 +1003,7 @@ const StudentDashboard: React.FC = () => {
                     </div>
                     <div>
                       <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Learning Materials</h2>
-                      <p className="mt-0.5 text-xs text-slate-500">Personal, class-specific, and general resources.</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Personal, class-specific, and school-assigned curriculum resources.</p>
                     </div>
                   </div>
                   <Link
@@ -989,69 +1014,16 @@ const StudentDashboard: React.FC = () => {
                   </Link>
                 </div>
 
-                <div className="mb-3 flex gap-2 overflow-x-auto border-b border-slate-100 pb-2 dark:border-slate-800">
-                  {([
-                    ['ALL', `All (${personalResources.length + classResources.length + generalResources.length})`],
-                    ['CLASS', `Class (${classResources.length})`],
-                    ['GENERAL', `General (${generalResources.length})`],
-                  ] as const).map(([filter, label]) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      onClick={() => setResourceFilter(filter)}
-                      aria-pressed={resourceFilter === filter}
-                      className={`min-h-9 shrink-0 rounded-lg px-3 text-xs font-bold ${
-                        resourceFilter === filter
-                          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                {displayedResources.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                    <FileText size={26} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
-                    <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No materials in this view</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">New learning resources will appear when they are published to your account.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {displayedResources.slice(0, 8).map((resource) => (
-                      <div key={`${resource.isClassSpecific ? 'class' : 'resource'}-${resource.id}`} className="flex items-center justify-between gap-4 rounded-xl border border-slate-100 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/70">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <div className="mt-0.5 rounded-lg bg-brand-red/10 p-1.5 text-brand-red">
-                            <FileText size={14} aria-hidden="true" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="mb-1 flex flex-wrap gap-1">
-                              {resource.isClassSpecific && (
-                                <span className="rounded-md bg-brand-red/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-red">Class Material</span>
-                              )}
-                              {resource.type && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">{resource.type}</span>}
-                            </div>
-                            <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{resource.title}</p>
-                            {resource.description && <p className="truncate text-[10px] text-slate-500">{resource.description}</p>}
-                          </div>
-                        </div>
-                        {resource.url ? (
-                          <a
-                            href={resource.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 text-xs font-bold text-slate-700 hover:bg-brand-red hover:text-white dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-brand-red"
-                          >
-                            <Download size={12} aria-hidden="true" /> Access
-                          </a>
-                        ) : (
-                          <span className="shrink-0 text-[10px] font-bold text-slate-400">No link</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ResourceListView
+                  resources={allStudentResources}
+                  role="student"
+                  studentClass={student?.class || student?.grade}
+                  onPreview={(item) => {
+                    const url = item.url || item.fileUrl;
+                    if (url) window.open(url, '_blank');
+                  }}
+                  emptyMessage="No learning materials recorded yet. Resources assigned to your class or school will appear here."
+                />
               </section>
 
               <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">

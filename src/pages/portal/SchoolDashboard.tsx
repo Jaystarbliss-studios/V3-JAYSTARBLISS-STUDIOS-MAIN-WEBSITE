@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where
 import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import DashboardGreeting from '../../components/portal/DashboardGreeting';
+import ResourceLibrary from './ResourceLibrary';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -372,25 +373,19 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       )}
 
       {tab === 'resources' && (
-        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <BookOpen size={18} className="text-brand-red"/> School Resources
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">Resource management and access-controlled delivery are handled in the shared Resource Library.</p>
-          <button onClick={() => navigate('/portal/school/resources')} className="mt-4 min-h-9 rounded-xl bg-brand-red text-white px-4 text-xs font-bold inline-flex items-center gap-2">
-            <BookOpen size={14}/> Open Resource Library
-          </button>
+        <div id="school-resources-workspace" className="space-y-4">
+          <ResourceLibrary role="school" />
         </div>
       )}
 
       {tab === 'links' && (
-        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+        <div id="school-links-section" className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <Link2 size={18} className="text-brand-red"/> School Links
+                <Link2 size={18} className="text-brand-red"/> School Links & Educational Portals
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Links restricted to your school record.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Quick access to institutional platforms, portals, and materials restricted to your school.</p>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
@@ -400,21 +395,26 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
           {filteredLinks.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
-              No school links found.
+              No school links found matching your search.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/80 bg-white dark:bg-slate-900/40">
               {filteredLinks.map(link => (
-                <div key={link.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-900/40">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white">{link.title}</h3>
-                    <p className="text-[11px] text-slate-500 mt-1">{link.description || 'Institutional resource link'}</p>
+                <div key={link.id} className="p-3.5 sm:p-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-brand-red/10 text-brand-red flex items-center justify-center shrink-0">
+                      <Link2 size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">{link.title}</h3>
+                      <p className="text-[11px] text-slate-500 truncate max-w-xl">{link.description || link.url}</p>
+                    </div>
                   </div>
-                  <div className="flex gap-2 mt-auto pt-1">
-                    <button onClick={() => openReader(link.url, link.title)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 text-xs font-semibold inline-flex items-center gap-1">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <button onClick={() => openReader(link.url, link.title)} className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                       <Eye size={12}/> Preview
                     </button>
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="min-h-8 flex-1 rounded-lg bg-brand-red text-white px-2.5 text-xs font-bold inline-flex items-center justify-center gap-1">
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="min-h-8 rounded-lg bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center justify-center gap-1.5 hover:bg-brand-red/90 transition-colors">
                       <ExternalLink size={12}/> Open
                     </a>
                   </div>

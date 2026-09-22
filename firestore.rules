@@ -122,7 +122,19 @@ service cloud.firestore {
     }
     match /tutor_applications/{appId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
     match /tutors/{tutorId} { allow read: if true; allow write: if isAnyAdmin() || (isAuth() && request.auth.uid == tutorId); }
-    match /notifications/{notificationId} { allow read: if isAnyAdmin() || (isAuth() && (resource.data.recipientId == request.auth.uid || resource.data.recipientId == 'all' || (resource.data.recipientId == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['PARENT','parent']) || (resource.data.recipientId == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STUDENT','student']) || (resource.data.recipientId == 'all_staff' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor']))); allow create, delete: if isAnyAdmin() || isAuth(); allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy); }
+    match /notifications/{notificationId} { 
+      allow read: if isAnyAdmin() || (isAuth() && (
+        resource.data.recipientId == request.auth.uid || 
+        resource.data.recipientId == 'all' || 
+        (resource.data.schoolId != null && resource.data.schoolId == userSchoolId()) ||
+        (resource.data.recipientId == 'all_schools' && isSchoolUser()) ||
+        (resource.data.recipientId == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['PARENT','parent']) || 
+        (resource.data.recipientId == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STUDENT','student']) || 
+        (resource.data.recipientId == 'all_staff' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['STAFF','staff','TUTOR','tutor','INSTRUCTOR','instructor'])
+      )); 
+      allow create, delete: if isAnyAdmin() || isAuth(); 
+      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy); 
+    }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin() || isAuth(); }
     match /treasuryLogs/{logId} { allow read, write: if isAnyAdmin(); }
     match /contact_messages/{msgId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }

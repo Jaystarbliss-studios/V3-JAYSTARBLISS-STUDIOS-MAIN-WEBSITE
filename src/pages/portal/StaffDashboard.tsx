@@ -13,6 +13,7 @@ import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
 import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
+import { ResourceListView } from '../../components/portal/ResourceListView';
 import { billingGet, billingPost } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -51,8 +52,19 @@ const StaffDashboard: React.FC = () => {
 
       // 1. Fetch Curriculum Resources
       try {
-        const resSnap = await getDocs(collection(db, 'staffGeneralResources'));
-        setResources(resSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const [staffResSnap, generalResSnap, schoolResSnap] = await Promise.all([
+          getDocs(collection(db, 'staffGeneralResources')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'resources')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] }))
+        ]);
+        const combined = [
+          ...staffResSnap.docs.map(d => ({ id: d.id, ...d.data(), type: d.data().type || 'Curriculum' })),
+          ...generalResSnap.docs.map(d => ({ id: d.id, ...d.data(), type: d.data().type || 'Resource' })),
+          ...schoolResSnap.docs.map(d => ({ id: d.id, ...d.data(), type: d.data().type || 'School Material' }))
+        ];
+        // Deduplicate by ID
+        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        setResources(unique);
       } catch (e) {
         console.warn('staffGeneralResources error:', e);
       }
@@ -436,40 +448,18 @@ const StaffDashboard: React.FC = () => {
         />
       </div>
 
-      {/* 4. Curriculum Guides & Teaching Documents */}
-      <div className="pro-surface rounded-3xl p-6 md:p-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mb-4">
-          Staff Curriculum & Teaching Documents
-        </h2>
-        {resources.length === 0 ? (
-          <div className="text-xs text-slate-500 py-6">No teaching documents currently uploaded.</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {resources.map(res => (
-              <a 
-                key={res.id} 
-                href={res.url || '#'} 
-                target="_blank" 
-                rel="noreferrer" 
-                className="group border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 hover:border-brand-red transition-all bg-slate-50/50 dark:bg-slate-950/60 flex items-start gap-3.5 shadow-2xs"
-              >
-                <div className="p-2.5 rounded-xl bg-brand-red/10 text-brand-red shrink-0 group-hover:scale-105 transition-transform">
-                  <FileText size={20} />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-black text-slate-900 dark:text-white text-xs sm:text-sm mb-1 group-hover:text-brand-red transition-colors truncate">
-                    {res.title || 'Curriculum Guide'}
-                  </h3>
-                  {res.description && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                      {res.description}
-                    </p>
-                  )}
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
+      {/* 4. Curriculum Guides & Teaching Documents (List Format) */}
+      <div id="staff-curriculum-resources" className="pt-2">
+        <ResourceListView
+          resources={resources}
+          role="staff"
+          title="Staff Curriculum & Teaching Documents"
+          onPreview={(item) => {
+            const url = item.url || item.fileUrl;
+            if (url) window.open(url, '_blank');
+          }}
+          emptyMessage="No teaching documents currently uploaded."
+        />
       </div>
 
       {/* Broadcast Live Class Link Modal */}

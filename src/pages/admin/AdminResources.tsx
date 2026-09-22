@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { ResourceListView } from '../../components/portal/ResourceListView';
 import { 
   FolderOpen, Link as LinkIcon, Plus, Trash2, 
   ExternalLink, Search, FileText, BookOpen
@@ -387,73 +388,22 @@ const AdminResources: React.FC = () => {
             </form>
           </div>
 
-          {/* List of Published Resources */}
+          {/* List of Published Resources (List Format with Filters & Unread Indicators) */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-gray-900 dark:text-white">
-                Published Resources ({filteredResources.length})
-              </h2>
-            </div>
-
-            {loading ? (
-              <div className="py-12 text-center text-gray-400 font-mono text-xs">Loading resources...</div>
-            ) : filteredResources.length === 0 ? (
-              <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 text-gray-400 text-sm">
-                No resources found matching your search.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredResources.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-gray-300 dark:hover:border-slate-700 transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-brand-red">
-                            {fmtCategory(item.category)}
-                          </span>
-                          {(item.classLevel || item.assignedClasses) && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                              {item.assignedClasses?.join(', ') || item.classLevel}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleDelete(item.id, 'resources', item.title)}
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                          title="Delete Resource"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-
-                      <h3 className="font-black text-gray-900 dark:text-white text-base leading-snug mb-1">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3 mb-4 leading-relaxed">
-                        {item.description || 'No description provided.'}
-                      </p>
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
-                      <a
-                        href={item.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline"
-                      >
-                        <ExternalLink size={14} /> Open File Link
-                      </a>
-                      <span className="text-[11px] text-gray-400 font-mono">
-                        {item.timestamp?.toDate ? item.timestamp.toDate().toLocaleDateString() : 'Active'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <ResourceListView
+              resources={resources}
+              role="admin"
+              title="Published Resources"
+              showDeleteButton={true}
+              onDelete={(item) => handleDelete(item.id, 'resources', item.title)}
+              onPreview={(item) => {
+                const url = item.fileUrl || item.url;
+                if (url) {
+                  window.open(url, '_blank');
+                }
+              }}
+              emptyMessage={loading ? "Loading resources..." : "No resources found matching your filters."}
+            />
           </div>
         </div>
       )}

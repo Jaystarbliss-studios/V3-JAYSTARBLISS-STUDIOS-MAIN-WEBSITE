@@ -5,12 +5,14 @@ import {
   X, Terminal, Loader2, Zap, Users,
   Plus, Check, Sparkles, School, GraduationCap,
   FileText, ExternalLink, HelpCircle, Layers,
-  ChevronRight, AlertCircle, Calendar
+  ChevronRight, AlertCircle, Calendar, Mail
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, addDoc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
+import { ResourceListView } from '../../components/portal/ResourceListView';
+import { triggerResourceNotification } from '../../utils/resourceTracking';
 
 export interface ResourceDocument {
   id: string;
@@ -41,19 +43,6 @@ export interface ResourceDocument {
   dateAdded?: string;
   isFeatured?: boolean;
 }
-
-// Recency Helper Function
-const isResourceRecent = (dateAdded?: string): boolean => {
-  if (!dateAdded) return false;
-  try {
-    const time = new Date(dateAdded).getTime();
-    if (isNaN(time)) return false;
-    const diffMs = Date.now() - time;
-    return diffMs >= -300000 && diffMs <= 48 * 3600 * 1000;
-  } catch {
-    return false;
-  }
-};
 
 interface ResourceLibraryProps {
   role?: 'student' | 'school' | 'staff' | 'parent' | 'all';
@@ -149,16 +138,27 @@ const checkClassMatch = (targetClass: string, assignedClasses?: string[], classL
   return true;
 };
 
+const getDocTypeBadge = (type?: string) => {
+  switch (type) {
+    case 'Syllabus':
+      return 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+    case 'Lesson Note':
+      return 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+    case 'Practical Worksheet':
+      return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+    case 'Cheatsheet':
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+    case 'Past Exam':
+      return 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+    default:
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+  }
+};
+
 export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }) => {
   const { toast } = useToast();
   const [resources, setResources] = useState<ResourceDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClass, setSelectedClass] = useState('All Classes');
-  const [selectedSubject, setSelectedSubject] = useState('All Subjects');
-  const [selectedDocType, setSelectedDocType] = useState('All Types');
-  const [activeTab, setActiveTab] = useState<'all' | 'myClass' | 'school' | 'recent' | 'saved' | 'syllabi' | 'notes' | 'worksheets'>('all');
-  const [sortBy, setSortBy] = useState<'auto' | 'newest' | 'popular' | 'title-asc'>('auto');
 
   // Student Session Context
   const [studentInfo, setStudentInfo] = useState<{
@@ -508,6 +508,19 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
 
       await setDoc(schoolResRef, payload, { merge: true });
 
+      // Automatically dispatch notification to assigned students & classes
+      void triggerResourceNotification({
+        title: assignModalDoc.title,
+        description: assignInstructions.trim() || assignModalDoc.description,
+        subject: assignModalDoc.subject,
+        assignedClasses: assignSelectedClasses,
+        docType: assignModalDoc.docType,
+        schoolId: activeSchoolId,
+        schoolName: activeSchoolName,
+        uploaderName: auth.currentUser?.email || 'School Administrator',
+        targetRole: 'student'
+      });
+
       // Optimistically update local state
       setResources(prev => prev.map(item => {
         if (item.id === assignModalDoc.id) {
@@ -563,6 +576,20 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
 
       await addDoc(collection(db, 'schoolResources'), newDoc);
 
+      // Automatically dispatch notification to school students
+      void triggerResourceNotification({
+        title: uploadForm.title.trim(),
+        description: uploadForm.description.trim() || uploadForm.classInstructions.trim(),
+        subject: uploadForm.subject,
+        classLevel: uploadForm.classLevel,
+        assignedClasses: uploadForm.assignedClasses,
+        docType: uploadForm.docType,
+        schoolId: activeSchoolId,
+        schoolName: activeSchoolName,
+        uploaderName: auth.currentUser?.email || 'School Administrator',
+        targetRole: 'student'
+      });
+
       toast.success(`Lesson "${uploadForm.title}" uploaded & assigned successfully!`);
       setIsUploadModalOpen(false);
       setUploadForm({
@@ -583,114 +610,6 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
       toast.error('Failed to upload lesson: ' + (err?.message || 'Error occurred'));
     } finally {
       setUploadSubmitting(false);
-    }
-  };
-
-  // Filtered resources list
-  const filteredResources = useMemo(() => {
-    const list = resources.filter(item => {
-      // Tab filter
-      if (activeTab === 'recent') {
-        if (!isResourceRecent(item.dateAdded)) return false;
-      } else if (activeTab === 'saved') {
-        if (!bookmarkedIds.includes(item.id)) return false;
-      } else if (activeTab === 'myClass') {
-        if (studentInfo.studentClass) {
-          if (!checkClassMatch(studentInfo.studentClass, item.assignedClasses, item.classLevel)) return false;
-        }
-      } else if (activeTab === 'school') {
-        if (!item.schoolId && item.category !== 'school') return false;
-      } else if (activeTab === 'syllabi') {
-        if (item.docType !== 'Syllabus') return false;
-      } else if (activeTab === 'notes') {
-        if (item.docType !== 'Lesson Note') return false;
-      } else if (activeTab === 'worksheets') {
-        if (item.docType !== 'Practical Worksheet' && item.docType !== 'Cheatsheet' && item.docType !== 'Past Exam') return false;
-      }
-
-      // Class dropdown filter
-      if (selectedClass !== 'All Classes') {
-        const matchesClass = checkClassMatch(selectedClass, item.assignedClasses, item.classLevel);
-        if (!matchesClass) return false;
-      }
-
-      // Subject Filter
-      if (selectedSubject !== 'All Subjects' && item.subject !== selectedSubject) {
-        return false;
-      }
-
-      // Doc Type Filter
-      if (selectedDocType !== 'All Types' && item.docType !== selectedDocType) {
-        return false;
-      }
-
-      // Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const titleMatch = item.title.toLowerCase().includes(q);
-        const descMatch = item.description.toLowerCase().includes(q);
-        const subjectMatch = item.subject.toLowerCase().includes(q);
-        const classMatch = item.assignedClasses?.some(c => c.toLowerCase().includes(q)) || item.classLevel.toLowerCase().includes(q);
-        const tagMatch = item.tags?.some(t => t.toLowerCase().includes(q));
-        if (!titleMatch && !descMatch && !subjectMatch && !classMatch && !tagMatch) return false;
-      }
-
-      return true;
-    });
-
-    // Sorting
-    return list.sort((a, b) => {
-      if (sortBy === 'auto') {
-        const aRecent = isResourceRecent(a.dateAdded);
-        const bRecent = isResourceRecent(b.dateAdded);
-        if (aRecent && !bRecent) return -1;
-        if (!aRecent && bRecent) return 1;
-        const timeA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
-        const timeB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
-        return timeB - timeA;
-      } else if (sortBy === 'newest') {
-        const timeA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
-        const timeB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
-        return timeB - timeA;
-      } else if (sortBy === 'popular') {
-        const popA = (a.isFeatured ? 50 : 10) + (bookmarkedIds.includes(a.id) ? 25 : 0);
-        const popB = (b.isFeatured ? 50 : 10) + (bookmarkedIds.includes(b.id) ? 25 : 0);
-        return popB - popA;
-      } else if (sortBy === 'title-asc') {
-        return a.title.localeCompare(b.title);
-      }
-      return 0;
-    });
-  }, [resources, activeTab, studentInfo.studentClass, selectedClass, selectedSubject, selectedDocType, searchQuery, bookmarkedIds, sortBy]);
-
-  // Compute stats
-  const recentCount = useMemo(() => resources.filter(item => isResourceRecent(item.dateAdded)).length, [resources]);
-  const myClassCount = useMemo(() => {
-    if (!studentInfo.studentClass) return 0;
-    return resources.filter(item => checkClassMatch(studentInfo.studentClass, item.assignedClasses, item.classLevel)).length;
-  }, [resources, studentInfo.studentClass]);
-
-  const copyDocLink = (docItem: ResourceDocument, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const shareUrl = `${window.location.origin}/portal/${role}/resources?doc=${docItem.id}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast.success('Resource link copied to clipboard!');
-  };
-
-  const getDocTypeBadge = (type: string) => {
-    switch (type) {
-      case 'Syllabus':
-        return 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800';
-      case 'Lesson Note':
-        return 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800';
-      case 'Practical Worksheet':
-        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-      case 'Cheatsheet':
-        return 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-      case 'Past Exam':
-        return 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800';
-      default:
-        return 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-300 border-gray-200 dark:border-slate-700';
     }
   };
 
@@ -746,299 +665,30 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
         </div>
       </div>
 
-      {/* Top Search & Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-gray-200/80 dark:border-slate-800 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by topic, keyword, Python, Scratch, Hardware & Electronics, JSS, HTML..."
-              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-hidden focus:border-brand-red"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 custom-scrollbar">
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
-                activeTab === 'all' 
-                  ? 'bg-brand-red text-white shadow-xs' 
-                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              All Resources ({resources.length})
-            </button>
-
-            {role === 'student' && studentInfo.studentClass && (
-              <button
-                onClick={() => setActiveTab('myClass')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
-                  activeTab === 'myClass' 
-                    ? 'bg-emerald-600 text-white shadow-xs' 
-                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200/60 dark:border-emerald-800/60'
-                }`}
-              >
-                <GraduationCap size={13} />
-                <span>My Class Lessons ({myClassCount})</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('recent')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'recent' 
-                  ? 'bg-amber-500 text-white shadow-xs' 
-                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Zap size={13} />
-              <span>48h Recent ({recentCount})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('saved')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'saved' 
-                  ? 'bg-brand-slate text-white shadow-xs' 
-                  : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Bookmark size={13} />
-              <span>Bookmarked ({bookmarkedIds.length})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Dropdowns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-gray-100 dark:border-slate-800">
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Class / Grade Target</label>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 outline-hidden focus:border-brand-red"
-            >
-              {STANDARD_SCHOOL_CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Subject Track</label>
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 outline-hidden focus:border-brand-red"
-            >
-              {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Doc Format</label>
-            <select
-              value={selectedDocType}
-              onChange={(e) => setSelectedDocType(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 outline-hidden focus:border-brand-red"
-            >
-              {DOC_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Sort By</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-200 outline-hidden focus:border-brand-red"
-            >
-              <option value="auto">⚡ Auto (Recent 48h First)</option>
-              <option value="newest">🕒 Newest Uploads</option>
-              <option value="popular">🔥 Most Popular / Saved</option>
-              <option value="title-asc">🔤 Title (A - Z)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Results Container */}
+      {/* Main Results Container (List Format with Filters, Recency & Unread Indicators) */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-center">
           <Loader2 className="animate-spin text-brand-red mb-3" size={32} />
           <p className="text-xs text-gray-500 font-medium">Syncing curriculum and school class assignments from Firestore...</p>
         </div>
-      ) : filteredResources.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-300 dark:border-slate-800 p-12 text-center">
-          <div className="w-14 h-14 bg-gray-100 dark:bg-slate-800 text-gray-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <BookOpen size={24} />
-          </div>
-          <h3 className="text-base font-black text-gray-900 dark:text-white">
-            {resources.length === 0 ? 'No curriculum resources uploaded yet' : 'No matching resources found'}
-          </h3>
-          <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 leading-relaxed">
-            {resources.length === 0 
-              ? 'Curriculum syllabi, lesson notes, and practical worksheets uploaded by educators in the Admin Panel will appear here automatically.'
-              : 'Try resetting your search query, class grade, or document format filters.'}
-          </p>
-          {resources.length > 0 && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedClass('All Classes');
-                setSelectedSubject('All Subjects');
-                setSelectedDocType('All Types');
-                setActiveTab('all');
-              }}
-              className="mt-4 px-4 py-2 bg-brand-slate hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-            >
-              Reset Filters
-            </button>
-          )}
-        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredResources.map(item => {
-            const isBookmarked = bookmarkedIds.includes(item.id);
-            const isRecent = isResourceRecent(item.dateAdded);
-            const isAssignedToStudent = role === 'student' && studentInfo.studentClass && checkClassMatch(studentInfo.studentClass, item.assignedClasses, item.classLevel);
-
-            return (
-              <div
-                key={item.id}
-                onClick={() => setPreviewDoc(item)}
-                className="group bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md hover:border-brand-red/40 transition-all flex flex-col justify-between cursor-pointer relative overflow-hidden"
-              >
-                <div>
-                  {/* Top Badges */}
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${getDocTypeBadge(item.docType)}`}>
-                        {item.docType}
-                      </span>
-
-                      {item.schoolId && (
-                        <span className="px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] font-bold border border-sky-200 dark:border-sky-800 flex items-center gap-1">
-                          <School size={10} />
-                          <span>School Resource</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isRecent && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center gap-1 shadow-2xs">
-                          <Zap size={10} /> 48h
-                        </span>
-                      )}
-                      <button
-                        onClick={(e) => toggleBookmark(item.id, e)}
-                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                          isBookmarked ? 'text-brand-red bg-red-50 dark:bg-red-950/40' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                        }`}
-                        title={isBookmarked ? 'Remove Bookmark' : 'Bookmark Resource'}
-                      >
-                        <Bookmark size={15} fill={isBookmarked ? 'currentColor' : 'none'} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Title & Description */}
-                  <h3 className="font-black text-sm text-gray-900 dark:text-white group-hover:text-brand-red transition-colors line-clamp-2 mb-2">
-                    {item.title}
-                  </h3>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed mb-3">
-                    {item.description}
-                  </p>
-
-                  {/* Class Assignment Badge for Students & Admins */}
-                  <div className="mb-3 space-y-1.5">
-                    {isAssignedToStudent && (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800/60">
-                        <GraduationCap size={13} className="text-emerald-600 shrink-0" />
-                        <span>Assigned to your Class ({studentInfo.studentClass})</span>
-                      </div>
-                    )}
-
-                    {item.assignedClasses && item.assignedClasses.length > 0 && !isAssignedToStudent && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400">
-                        <Users size={12} className="text-brand-red shrink-0" />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">
-                          Classes: {item.assignedClasses.join(', ')}
-                        </span>
-                      </div>
-                    )}
-
-                    {item.classInstructions && (
-                      <div className="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300 line-clamp-2">
-                        <span className="font-bold">Instructions: </span>
-                        <span>{item.classInstructions}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Footer & Action Buttons */}
-                <div className="pt-3 border-t border-gray-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-gray-500 gap-2">
-                  <span className="font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[130px]">
-                    {item.subject}
-                  </span>
-
-                  <div className="flex items-center gap-1.5">
-                    {/* School Administrator "Assign to Class" Action */}
-                    {(role === 'school' || role === 'staff' || role === 'all') && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleOpenAssignModal(item, e)}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-brand-red hover:text-white dark:hover:bg-brand-red text-slate-700 dark:text-slate-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Assign to specific classes"
-                      >
-                        <Users size={12} />
-                        <span>Assign</span>
-                      </button>
-                    )}
-
-                    {item.fileUrl ? (
-                      <a
-                        href={item.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-brand-red hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                        title="Download Document"
-                      >
-                        <Download size={14} />
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => copyDocLink(item, e)}
-                        className="p-1.5 rounded-lg text-gray-500 hover:text-brand-red hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Copy Link"
-                      >
-                        <Copy size={14} />
-                      </button>
-                    )}
-
-                    <span className="font-bold text-brand-red flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                      Read <Eye size={12} />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ResourceListView
+          resources={resources}
+          role={role}
+          studentClass={studentInfo.studentClass}
+          bookmarkedIds={bookmarkedIds}
+          onBookmark={(resId, e) => toggleBookmark(resId, e)}
+          onAssign={(res) => {
+            const docItem = resources.find(r => r.id === res.id);
+            if (docItem) handleOpenAssignModal(docItem);
+          }}
+          onPreview={(res) => {
+            const docItem = resources.find(r => r.id === res.id);
+            if (docItem) setPreviewDoc(docItem);
+          }}
+          showAssignButton={role === 'school' || role === 'staff' || role === 'all'}
+          emptyMessage="No curriculum resources found. Lessons and study notes uploaded by educators will appear here."
+        />
       )}
 
       {/* ══ ASSIGN RESOURCE TO CLASS MODAL (FOR SCHOOL ADMINISTRATORS) ══ */}
