@@ -886,7 +886,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         availableBalance={Number(data.wallet?.availableBalance || 0)}
-        initialMode={withdrawMode}
+        initialMode="bank"
         savedBankCode={data.wallet?.bankAccount?.bankCode || bankCode}
         savedAccountNumber={data.wallet?.bankAccount?.accountNumber || accountNumber}
         savedAccountName={data.wallet?.bankAccount?.accountName || ''}
