@@ -12,7 +12,7 @@ import { getEffectiveAuth } from '../../utils/impersonation';
 export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
 export interface SchoolDashboardProps { initialTab?: SchoolDashboardTab; }
 type SchoolRecord = { id: string; name?: string; plan?: string; coordinator?: string; labDays?: string; email?: string; status?: string; };
-type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedStudentsCount?: number; };
+type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedCadetsCount?: number; };
 type Exam = { id: string; title: string; subject?: string; term?: string; duration?: string; link?: string; url?: string; fileUrl?: string; status?: string; date?: string; targetClass?: string; description?: string; passcodeProtected?: boolean; };
 type SchoolLink = { id: string; title: string; url: string; description?: string; };
 type ClassSchedule = { id:string; date:string; startTime:string; endTime:string; classLevel:string; title:string; tutorName?:string; status:string; };
@@ -201,7 +201,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     event.preventDefault();
     if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
     const id = passcodeForm.id || `pc-${Date.now()}`;
-    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedStudentsCount: passcodeForm.allocatedStudentsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
     try {
       await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
       const next = { id, ...payload } as Passcode;
