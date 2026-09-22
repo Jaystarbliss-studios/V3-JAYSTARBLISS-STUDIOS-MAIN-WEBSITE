@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Building2, ArrowDownToLine, X, CheckCircle2, ArrowRight, Loader2, Search, ShieldCheck
+  ArrowDownToLine, X, CheckCircle2, ArrowRight, Loader2, Search, ShieldCheck
 } from 'lucide-react';
 import { formatCurrency } from '../../lib/receiptGenerator';
 import { useToast } from '../../contexts/ToastContext';
