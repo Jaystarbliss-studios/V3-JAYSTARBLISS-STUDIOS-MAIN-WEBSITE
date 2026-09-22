@@ -77,7 +77,7 @@ export const billingGet = async <T>(path: string): Promise<T> => {
   try {
     const token = await user.getIdToken();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const response = await fetch(`/.netlify/functions/${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal
@@ -86,7 +86,7 @@ export const billingGet = async <T>(path: string): Promise<T> => {
 
     if (response && response.ok) {
       const data = await response.json().catch(() => null);
-      if (data && data.status !== 'dev_mock_success' && (data.config || data.schoolBilling || data.payments || data.schools)) {
+      if (data && data.status !== 'dev_mock_success' && (data.config || data.schoolBilling || data.payments || data.schools || data.banks)) {
         return data as T;
       }
     }
