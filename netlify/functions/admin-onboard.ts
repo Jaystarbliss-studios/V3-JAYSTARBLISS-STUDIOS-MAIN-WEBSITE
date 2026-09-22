@@ -2,11 +2,14 @@ import type { Handler } from "@netlify/functions";
 import { randomBytes } from "node:crypto";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
-const ADMIN_ROLES = new Set(["super_admin", "content_admin", "education_admin", "services_admin"]);
+const ADMIN_ROLES = new Set(["super_admin", "cms_admin", "academic_admin", "finance_admin", "content_admin", "education_admin", "services_admin"]);
 const ROLE_ALIASES: Record<string, string> = {
   SUPER_ADMIN: "super_admin",
-  CONTENT_ADMIN: "content_admin",
-  EDUCATION_ADMIN: "education_admin",
+  CMS_ADMIN: "cms_admin",
+  ACADEMIC_ADMIN: "academic_admin",
+  FINANCE_ADMIN: "finance_admin",
+  CONTENT_ADMIN: "cms_admin",
+  EDUCATION_ADMIN: "academic_admin",
   SERVICES_ADMIN: "services_admin",
   STUDENT: "student",
   PARENT: "parent",

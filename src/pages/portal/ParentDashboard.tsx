@@ -8,6 +8,7 @@ import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { FintechTransactionDetailsModal } from '../../components/portal/FintechTransactionDetailsModal';
 import type { TransactionReceiptData } from '../../lib/receiptGenerator';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 interface ChildRecord {
   id: string;
@@ -48,10 +49,11 @@ const ParentDashboard: React.FC = () => {
       setLoading(true);
       setEnrollError('');
       try {
+        const effective = getEffectiveAuth();
         const user = auth.currentUser;
-        if (!user) return;
-        const userEmail = user.email?.toLowerCase() || '';
-        const userUid = user.uid;
+        if (!user && !effective.isMasquerading) return;
+        const userEmail = (effective.effectiveEmail || user?.email || '').toLowerCase();
+        const userUid = effective.effectiveUid || user?.uid || '';
         const allStudentsMap = new Map<string, ChildRecord>();
         const collectChildren = (snap: any) => {
           snap.forEach((studentDoc: any) => {
@@ -60,8 +62,14 @@ const ParentDashboard: React.FC = () => {
             if (matchesParent) allStudentsMap.set(studentDoc.id, { id: studentDoc.id, ...data } as ChildRecord);
           });
         };
-        try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)))); } catch (error) { console.warn('individualStudents parent lookup failed:', error); }
-        try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)))); } catch (error) { console.warn('students parent lookup failed:', error); }
+        if (userUid) {
+          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)))); } catch (error) { console.warn('individualStudents parent lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)))); } catch (error) { console.warn('students parent lookup failed:', error); }
+        }
+        if (userEmail) {
+          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }
+        }
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
         setChildren(childList);

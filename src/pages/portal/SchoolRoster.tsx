@@ -5,33 +5,47 @@ import { collection, doc, getDoc, getDocs, query as fsQuery, where } from 'fireb
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 type Student = { id:string; collection:string; fullName:string; username:string; email:string|null; class:string; track:string; parentId:string|null; tutorId:string|null; staffId:string|null; portalAccessEnabled:boolean; accountStatus:string; source:string; };
 const SchoolRoster: React.FC = () => {
  const {toast}=useToast(); const [students,setStudents]=useState<Student[]>([]); const [loading,setLoading]=useState(true); const [query,setQuery]=useState(''); const [refreshing,setRefreshing]=useState(false);
  const load=useCallback(async(silent=false)=>{
-   if(!auth.currentUser){setLoading(false);return;} 
+   const effective = getEffectiveAuth();
+   if(!auth.currentUser && !effective.isMasquerading){setLoading(false);return;} 
    if(silent){setRefreshing(true);}else{setLoading(true);} 
    try {
      let roster: Student[] = [];
-     try {
-       const token=await auth.currentUser.getIdToken();
-       const response=await fetch('/.netlify/functions/school-students',{headers:{Authorization:`Bearer ${token}`}});
-       const result=await response.json().catch(()=>({}));
-       if (response.ok && Array.isArray(result.students)) {
-         roster = result.students;
-       } else {
-         throw new Error(result.error || 'Endpoint unavailable');
+     const sId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || (effective.effectiveRole === 'school' ? effective.effectiveUid : '');
+     
+     if (!effective.isMasquerading && auth.currentUser) {
+       try {
+         const token=await auth.currentUser.getIdToken();
+         const response=await fetch('/.netlify/functions/school-students',{headers:{Authorization:`Bearer ${token}`}});
+         const result=await response.json().catch(()=>({}));
+         if (response.ok && Array.isArray(result.students)) {
+           roster = result.students;
+         } else {
+           throw new Error(result.error || 'Endpoint unavailable');
+         }
+       } catch {
+         // Proceed to Firestore fallback
        }
-     } catch (fetchErr) {
-       // Fallback to direct client-side Firestore query for the school
-       const uSnap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-       const uData = uSnap.data() || {};
-       const sId = uData.schoolId;
-       if (sId) {
+     }
+
+     if (roster.length === 0) {
+       // Direct client-side Firestore query for the school
+       let targetSchoolId = sId;
+       if (!targetSchoolId && effective.effectiveUid) {
+         const uSnap = await getDoc(doc(db, 'users', effective.effectiveUid)).catch(() => null);
+         const uData = uSnap?.data() || {};
+         targetSchoolId = uData.schoolId || '';
+       }
+
+       if (targetSchoolId) {
          const [sSnap, iSnap] = await Promise.all([
-           getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', sId))).catch(() => ({ docs: [] })),
-           getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', sId))).catch(() => ({ docs: [] }))
+           getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })),
+           getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] }))
          ]);
          const list: Student[] = [];
          sSnap.docs.forEach((d: any) => {

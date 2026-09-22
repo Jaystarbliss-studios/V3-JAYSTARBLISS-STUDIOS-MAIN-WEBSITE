@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   collection, deleteDoc, doc, getDocs, setDoc, addDoc, updateDoc, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { startImpersonation } from '../../utils/impersonation';
 import { 
   Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, 
   Trash2, Send, RefreshCw, ShieldCheck, X, School, 
   GraduationCap, UserCheck, Download, Link as LinkIcon,
-  Filter, ChevronDown, Plus, Settings
+  Filter, ChevronDown, Plus, Settings, ArrowRight
 } from 'lucide-react';
 
 export interface AssignedStudentTutor {
@@ -79,6 +81,7 @@ const STATIC_SCHOOLS = [
 ];
 
 const AdminStudents: React.FC = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   // Data State
@@ -1171,8 +1174,33 @@ const AdminStudents: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right: Gear Settings / Management Button */}
-                  <div className="shrink-0">
+                  {/* Right: Actions */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast.info(`Directly viewing cadet dashboard for ${student.fullName}...`);
+                        startImpersonation({
+                          id: student.id,
+                          uid: student.firebaseUid || student.id,
+                          name: student.fullName,
+                          email: student.email || student.parentEmail,
+                          role: 'STUDENT',
+                          schoolId: student.schoolId,
+                          schoolName: student.schoolName,
+                          studentDocId: student.id,
+                          class: student.class || student.grade,
+                          classLevel: student.class || student.grade,
+                          phone: student.parentPhone
+                        }, navigate);
+                      }}
+                      className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3 py-2 text-xs font-bold text-white shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                      title={`Directly log into ${student.fullName}'s student dashboard`}
+                    >
+                      <UserCheck size={14} />
+                      <span className="hidden sm:inline">Log In As</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setManagingStudent(student)}

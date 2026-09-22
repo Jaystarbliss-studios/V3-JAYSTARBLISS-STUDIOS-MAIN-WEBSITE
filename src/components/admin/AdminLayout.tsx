@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { signOut } from 'firebase/auth';
@@ -10,6 +10,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { JaystarblissIcon } from '../common/JaystarblissLogo';
 import SEO from '../ui/SEO';
 import NotificationBell from '../common/NotificationBell';
+import ImpersonateUserModal from './ImpersonateUserModal';
 import adminBgWallpaper from '../../assets/jdi login bg.png';
 import { 
   LayoutDashboard, 
@@ -55,6 +56,7 @@ interface NavGroup {
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('admin_sidebar_collapsed') === 'true';
   });
@@ -104,7 +106,9 @@ const AdminLayout: React.FC = () => {
     });
   };
 
-  const navigationGroups: NavGroup[] = [
+  const currentRole = (sessionStorage.getItem('userRole') || 'super_admin').toUpperCase();
+
+  const allNavigationGroups: NavGroup[] = [
     {
       sectionTitle: "Overview & Operations",
       items: [
@@ -146,6 +150,104 @@ const AdminLayout: React.FC = () => {
       ]
     }
   ];
+
+  const navigationGroups: NavGroup[] = useMemo(() => {
+    if (currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN' || auth.currentUser?.email === 'johnrufai242@gmail.com') {
+      return allNavigationGroups;
+    }
+
+    if (currentRole === 'CMS_ADMIN' || currentRole === 'CONTENT_ADMIN') {
+      return [
+        {
+          sectionTitle: "Overview & Operations",
+          items: [
+            { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
+            { name: "Inquiries & Leads", href: "/admin/inquiries", icon: MessageSquare, desc: "Public inquiries & contact requests" },
+          ]
+        },
+        {
+          sectionTitle: "Website & Pages CMS",
+          items: [
+            { name: "Pages & Section CMS", href: "/admin/pages", icon: Layers, desc: "Live content & visual sections editor" },
+            { name: "Programs & Courses", href: "/admin/programs", icon: BookOpen, desc: "Curriculum tracks, stages & syllabi" },
+            { name: "Services Catalog", href: "/admin/services", icon: Briefcase, desc: "Custom software & institutional solutions" },
+            { name: "Portfolio Showcase", href: "/admin/portfolio", icon: FolderOpen, desc: "Client deliverables & case studies" },
+            { name: "Kids Zone Builds", href: "/admin/kids-projects", icon: Gamepad2, desc: "Scholars gaming & app showcase" },
+            { name: "News Corner & Blog", href: "/admin/blog", icon: FileText, desc: "Articles, announcements & press" },
+          ]
+        },
+        {
+          sectionTitle: "System & Management",
+          items: [
+            { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
+          ]
+        }
+      ];
+    }
+
+    if (currentRole === 'ACADEMIC_ADMIN' || currentRole === 'EDUCATION_ADMIN') {
+      return [
+        {
+          sectionTitle: "Overview & Operations",
+          items: [
+            { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
+            { name: "Inquiries & Leads", href: "/admin/inquiries", icon: MessageSquare, desc: "Public inquiries & contact requests" },
+          ]
+        },
+        {
+          sectionTitle: "Portals & Academic Hub",
+          items: [
+            { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Student, tutor & enrollment approvals" },
+            { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
+            { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
+            { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: BookOpen, desc: "Approve subjects & find matching tutors" },
+            { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
+            { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
+            { name: "Learning Resources", href: "/admin/resources", icon: FolderOpen, desc: "General downloads, links & tests" },
+          ]
+        },
+        {
+          sectionTitle: "Website & Pages CMS",
+          items: [
+            { name: "Programs & Courses", href: "/admin/programs", icon: BookOpen, desc: "Curriculum tracks, stages & syllabi" },
+          ]
+        },
+        {
+          sectionTitle: "System & Management",
+          items: [
+            { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
+          ]
+        }
+      ];
+    }
+
+    if (currentRole === 'FINANCE_ADMIN') {
+      return [
+        {
+          sectionTitle: "Overview & Operations",
+          items: [
+            { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
+            { name: "Activity Logs", href: "/admin/activity", icon: Activity, desc: "Real-time authentication & operation audit" },
+          ]
+        },
+        {
+          sectionTitle: "Portals & Academic Hub",
+          items: [
+            { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
+            { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Payment approvals & fee adjustments" },
+          ]
+        },
+        {
+          sectionTitle: "System & Management",
+          items: [
+            { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
+          ]
+        }
+      ];
+    }
+
+    return allNavigationGroups;
+  }, [currentRole]);
 
   // Auto-expand section containing current active route on route changes if not explicitly tracked
   useEffect(() => {
@@ -548,7 +650,20 @@ const AdminLayout: React.FC = () => {
             </span>
           </div>
           
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick User Impersonator Button */}
+            <Tooltip content="Direct Dashboard Login & User Search" placement="bottom">
+              <button
+                type="button"
+                onClick={() => setImpersonateModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-xs transition-colors"
+                aria-label="Direct Dashboard Login"
+              >
+                <UserCheck size={15} />
+                <span className="hidden sm:inline">Log in as User</span>
+              </button>
+            </Tooltip>
+
             <Tooltip content="Search admin workspace" placement="bottom">
               <button 
                 onClick={() => setSearchOpen(true)}
@@ -610,6 +725,7 @@ const AdminLayout: React.FC = () => {
       </div>
 
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ImpersonateUserModal isOpen={impersonateModalOpen} onClose={() => setImpersonateModalOpen(false)} />
     </div>
   );
 };

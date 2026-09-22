@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 
-const ADMIN_ROLES = new Set(["super_admin", "content_admin", "education_admin", "services_admin"]);
+const ADMIN_ROLES = new Set(["super_admin", "cms_admin", "academic_admin", "finance_admin", "content_admin", "education_admin", "services_admin"]);
 const ROLE_ALIASES: Record<string, string> = {
   USER: "user",
   STUDENT: "student",
@@ -10,8 +10,11 @@ const ROLE_ALIASES: Record<string, string> = {
   STAFF: "staff",
   INSTRUCTOR: "staff",
   SCHOOL: "school",
-  CONTENT_ADMIN: "content_admin",
-  EDUCATION_ADMIN: "education_admin",
+  CMS_ADMIN: "cms_admin",
+  ACADEMIC_ADMIN: "academic_admin",
+  FINANCE_ADMIN: "finance_admin",
+  CONTENT_ADMIN: "cms_admin",
+  EDUCATION_ADMIN: "academic_admin",
   SERVICES_ADMIN: "services_admin",
   SUPER_ADMIN: "super_admin"
 };
@@ -57,7 +60,7 @@ export const handler: Handler = async (event) => {
     if ((role === "super_admin" || targetRole === "super_admin") && callerRole !== "super_admin") {
       return json(403, { error: "Only a Super Admin can create or modify Super Admin access." });
     }
-    if (["content_admin", "education_admin", "services_admin"].includes(role) && callerRole !== "super_admin") {
+    if (["cms_admin", "academic_admin", "finance_admin", "content_admin", "education_admin", "services_admin"].includes(role) && callerRole !== "super_admin") {
       return json(403, { error: "Only a Super Admin can assign administrative roles." });
     }
 

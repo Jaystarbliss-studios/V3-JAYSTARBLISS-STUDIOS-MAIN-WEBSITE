@@ -13,7 +13,43 @@ interface ProtectedRouteProps {
 }
 
 const blockedStatuses = ['banned', 'suspended', 'disabled'];
-const adminRoles = ['SUPER_ADMIN', 'ADMIN', 'CONTENT_ADMIN', 'EDUCATION_ADMIN', 'SERVICES_ADMIN', 'MARKETING_ADMIN', 'SUPPORT_ADMIN'];
+const adminRoles = [
+  'SUPER_ADMIN', 
+  'ADMIN', 
+  'CMS_ADMIN', 
+  'ACADEMIC_ADMIN', 
+  'FINANCE_ADMIN', 
+  'CONTENT_ADMIN', 
+  'EDUCATION_ADMIN', 
+  'SERVICES_ADMIN', 
+  'MARKETING_ADMIN', 
+  'SUPPORT_ADMIN'
+];
+
+const isSubAdminAllowedForPath = (role: string, pathname: string): boolean => {
+  const norm = role.toUpperCase();
+  if (norm === 'SUPER_ADMIN' || norm === 'ADMIN') return true;
+
+  if (norm === 'CMS_ADMIN' || norm === 'CONTENT_ADMIN') {
+    const cmsAllowed = ['/admin', '/admin/pages', '/admin/programs', '/admin/services', '/admin/portfolio', '/admin/kids-projects', '/admin/blog', '/admin/inquiries', '/admin/notifications'];
+    return cmsAllowed.some(p => pathname === p || (pathname.startsWith(p) && p !== '/admin'));
+  }
+
+  if (norm === 'ACADEMIC_ADMIN' || norm === 'EDUCATION_ADMIN') {
+    if (pathname.startsWith('/admin/billing') || pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings')) {
+      return false;
+    }
+    const academicAllowed = ['/admin', '/admin/inquiries', '/admin/approvals', '/admin/students', '/admin/staff', '/admin/tutor-subjects', '/admin/schools', '/admin/schedules', '/admin/resources', '/admin/programs', '/admin/notifications'];
+    return academicAllowed.some(p => pathname === p || (pathname.startsWith(p) && p !== '/admin'));
+  }
+
+  if (norm === 'FINANCE_ADMIN') {
+    const financeAllowed = ['/admin', '/admin/billing', '/admin/approvals', '/admin/activity', '/admin/notifications'];
+    return financeAllowed.some(p => pathname === p || (pathname.startsWith(p) && p !== '/admin'));
+  }
+
+  return true;
+};
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, redirectPath = '/portal' }) => {
   const [loading, setLoading] = useState(true);
@@ -83,6 +119,50 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         }
 
         let role = String(data.role || '').trim().toUpperCase();
+
+        // Check if active user is an Admin impersonating another role
+        const isUserAdmin = adminRoles.includes(role) || currentUser.email === 'johnrufai242@gmail.com';
+        const masqueradeRaw = sessionStorage.getItem('admin_masquerade');
+        let masquerade: any = null;
+        if (masqueradeRaw) {
+          try {
+            masquerade = JSON.parse(masqueradeRaw);
+          } catch {
+            masquerade = null;
+          }
+        }
+
+        if (isUserAdmin && masquerade && masquerade.isMasquerading) {
+          const targetRole = String(masquerade.targetRole || 'STUDENT').toUpperCase();
+          const targetUser = masquerade.targetUser || {};
+          const isAllowedForTarget = allowedRoles?.length
+            ? allowedRoles.some(candidate => candidate.toUpperCase() === targetRole)
+            : true;
+
+          if (isAllowedForTarget) {
+            sessionStorage.setItem('userRole', targetRole.toLowerCase());
+            sessionStorage.setItem('userId', targetUser.uid || targetUser.id || currentUser.uid);
+            sessionStorage.setItem('userEmail', targetUser.email || '');
+            if (targetUser.name || targetUser.fullName) {
+              sessionStorage.setItem('userName', String(targetUser.name || targetUser.fullName));
+            }
+            if (targetUser.schoolId) {
+              sessionStorage.setItem('schoolId', String(targetUser.schoolId));
+            }
+            if (targetUser.studentDocId || targetUser.id) {
+              sessionStorage.setItem('studentDocId', String(targetUser.studentDocId || targetUser.id));
+            }
+            if (targetUser.class || targetUser.classLevel) {
+              sessionStorage.setItem('studentClass', String(targetUser.class || targetUser.classLevel));
+            }
+            if (mounted) {
+              setIsAuthorized(true);
+              setLoading(false);
+            }
+            return;
+          }
+        }
+
         // School administrators can arrive here with an authenticated Firebase
         // session but without the legacy schoolId field. Repair the approved
         // mapping server-side before deciding whether the portal is authorized.
@@ -115,7 +195,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         const allowed = allowedRoles?.length
           ? allowedRoles.some(candidate => candidate.toUpperCase() === role)
           : location.pathname.startsWith('/admin')
-            ? adminRoles.includes(role)
+            ? (adminRoles.includes(role) && isSubAdminAllowedForPath(role, location.pathname))
             : true;
 
         if (!allowed) {

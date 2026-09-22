@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   CreditCard, ShieldCheck, CheckCircle2, Download, 
-  ArrowRight, FileText
+  ArrowRight, FileText, AlertCircle
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { collection, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
@@ -9,6 +9,7 @@ import { getClientPaymentConfig } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
+import { getEffectiveAuth, isMasqueradingActive } from '../../utils/impersonation';
 
 interface PaymentRecord {
   id: string;
@@ -35,7 +36,8 @@ export const PortalPayments: React.FC = () => {
   const [, setEnrollmentContext] = useState<{ studentName: string; planId: string } | null>(null);
 
   useEffect(() => {
-    const userRole = (sessionStorage.getItem('userRole') || 'student').toLowerCase();
+    const effective = getEffectiveAuth();
+    const userRole = effective.effectiveRole;
     setRole(userRole);
 
     const requestId = new URLSearchParams(window.location.search).get('enrollmentRequestId') || '';
@@ -44,23 +46,28 @@ export const PortalPayments: React.FC = () => {
     const fetchPaymentHistory = async () => {
       setLoading(true);
       try {
-        const user = auth.currentUser;
-        const userUid = user?.uid;
+        const userUid = effective.effectiveUid || auth.currentUser?.uid;
+        const schoolId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || '';
+        const userEmail = effective.effectiveEmail || auth.currentUser?.email || '';
 
-        if (!userUid) {
-          setPayments([]);
-          return;
+        const ownedQueries = [];
+        if (userUid) {
+          ownedQueries.push(query(collection(db, 'payments'), where('userId', '==', userUid), limit(50)));
+          ownedQueries.push(query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50)));
+          ownedQueries.push(query(collection(db, 'payments'), where('schoolId', '==', userUid), limit(50)));
+        }
+        if (schoolId && schoolId !== userUid) {
+          ownedQueries.push(query(collection(db, 'payments'), where('schoolId', '==', schoolId), limit(50)));
+        }
+        if (userEmail) {
+          ownedQueries.push(query(collection(db, 'payments'), where('email', '==', userEmail), limit(50)));
+          ownedQueries.push(query(collection(db, 'payments'), where('parentEmail', '==', userEmail), limit(50)));
         }
 
-        const ownedQueries = [
-          query(collection(db, 'payments'), where('userId', '==', userUid), limit(50)),
-          query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50)),
-          query(collection(db, 'payments'), where('schoolId', '==', userUid), limit(50))
-        ];
-        const snapshots = await Promise.all(ownedQueries.map(getDocs));
+        const snapshots = await Promise.all(ownedQueries.map(q => getDocs(q).catch(() => ({ forEach: () => {} } as any))));
         const list: PaymentRecord[] = [];
         const seen = new Set<string>();
-        snapshots.forEach(snap => snap.forEach(d => {
+        snapshots.forEach((snap: any) => snap.forEach((d: any) => {
           if (!seen.has(d.id)) {
             seen.add(d.id);
             list.push({ id: d.id, ...d.data() });
@@ -163,12 +170,20 @@ export const PortalPayments: React.FC = () => {
   }, [enrollmentRequestId, role, plans]);
 
   const handleInitiateRenewal = (planName: string) => {
+    if (isMasqueradingActive()) {
+      toast.error('Payment checkout is restricted in Admin Impersonation mode. Payments must be processed directly by the client or school.');
+      return;
+    }
     setSelectedPlan(planName);
     setShowCheckoutModal(true);
   };
 
   const handleProcessPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isMasqueradingActive()) {
+      toast.error('Payment checkout is restricted in Admin Impersonation mode.');
+      return;
+    }
     const user = auth.currentUser;
     if (!user || !selectedPlan) {
       toast.error('Please sign in before starting payment.');

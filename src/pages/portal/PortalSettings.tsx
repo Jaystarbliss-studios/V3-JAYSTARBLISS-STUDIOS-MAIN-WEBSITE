@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, User, Lock, Moon, Sun, 
   Mail, CheckCircle2, AlertCircle, RefreshCw,
-  Bell, Save, Contrast
+  Bell, Save, Contrast, KeyRound, ShieldCheck
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import { sendEmailVerification, updateProfile } from 'firebase/auth';
+import { sendEmailVerification, updateProfile, updateEmail } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -76,26 +76,61 @@ export const PortalSettings: React.FC = () => {
     setSavingProfile(true);
     try {
       const user = auth.currentUser;
-      if (user) {
-        await updateProfile(user, { displayName: fullName });
-        sessionStorage.setItem('userName', fullName);
+      const cleanEmail = email.trim();
+      const schoolId = sessionStorage.getItem('schoolId') || (role === 'school' ? user?.uid : null);
 
+      if (user) {
+        if (fullName.trim()) {
+          await updateProfile(user, { displayName: fullName.trim() });
+          sessionStorage.setItem('userName', fullName.trim());
+        }
+
+        // Try updating auth email if changed
+        if (cleanEmail && cleanEmail !== user.email) {
+          try {
+            await updateEmail(user, cleanEmail);
+            toast.success(`Authentication login email updated to ${cleanEmail}`);
+          } catch (authErr: any) {
+            console.warn('Auth email update notice:', authErr);
+            if (authErr.code === 'auth/requires-recent-login') {
+              toast.info('Display & profile email updated in database. (Firebase Auth login change requires recent login)');
+            }
+          }
+        }
+
+        // Update User profile in Firestore
         try {
           await updateDoc(doc(db, 'users', user.uid), {
-            name: fullName,
-            phone: phone,
+            name: fullName.trim(),
+            email: cleanEmail,
+            phone: phone.trim(),
             avatar: selectedAvatar,
             updatedAt: new Date().toISOString()
           });
         } catch (err) {
-          console.warn('Non-fatal firestore update:', err);
+          console.warn('Non-fatal firestore user doc update:', err);
+        }
+
+        // If school admin, also sync the school document
+        if (schoolId) {
+          try {
+            await updateDoc(doc(db, 'schools', schoolId), {
+              contactEmail: cleanEmail,
+              email: cleanEmail,
+              contactName: fullName.trim(),
+              phone: phone.trim(),
+              updatedAt: new Date().toISOString()
+            });
+          } catch (err) {
+            console.warn('Non-fatal firestore school doc update:', err);
+          }
         }
       }
 
-      toast.success('Preferences updated successfully!');
-    } catch (err) {
+      toast.success('Account profile and preferences updated successfully!');
+    } catch (err: any) {
       console.error('Error saving profile:', err);
-      toast.error('Failed to update profile settings.');
+      toast.error('Failed to update profile settings: ' + (err.message || 'Please try again.'));
     } finally {
       setSavingProfile(false);
     }
@@ -221,14 +256,19 @@ export const PortalSettings: React.FC = () => {
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Registered Email Address
+                  Contact / Institutional Email
                 </label>
                 <input
                   type="email"
-                  disabled
+                  required
                   value={email}
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50 text-slate-500 text-xs cursor-not-allowed"
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="admin@school.com"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-brand-red outline-none"
                 />
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Displayed on your portal records and institutional reports.
+                </span>
               </div>
 
               <div>
@@ -257,11 +297,20 @@ export const PortalSettings: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(true)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <KeyRound size={13} className="text-brand-red" />
+                <span>Change Account Password</span>
+              </button>
+
               <button
                 type="submit"
                 disabled={savingProfile}
-                className="px-5 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="px-5 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 {savingProfile ? (
                   <>
@@ -434,22 +483,22 @@ export const PortalSettings: React.FC = () => {
           {/* Password Management */}
           <div className="bg-white dark:bg-[#161B26] rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-6 shadow-xs space-y-4">
             <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Authentication &amp; Passwords</h2>
-              <p className="text-xs text-slate-500">Update your Firebase authentication credentials regularly.</p>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Authentication &amp; Direct Password Change</h2>
+              <p className="text-xs text-slate-500">Update your login password directly without needing to wait for an external reset email link.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h4 className="font-bold text-xs text-slate-900 dark:text-white">Account Password</h4>
-                <p className="text-[11px] text-slate-500 mt-0.5">Protect your cadet account with an 8+ character password.</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Directly update and secure your portal credentials (minimum 8 characters).</p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowPasswordModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors shrink-0"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-red hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 shrink-0 cursor-pointer"
               >
-                <Lock size={13} /> Change Password
+                <KeyRound size={14} /> Change Password Now
               </button>
             </div>
           </div>

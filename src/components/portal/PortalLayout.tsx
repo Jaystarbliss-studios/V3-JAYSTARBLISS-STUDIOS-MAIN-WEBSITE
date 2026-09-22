@@ -357,6 +357,41 @@ const PortalLayout: React.FC = () => {
 
       {/* Main Content Workspace */}
       <main className="flex-1 h-full max-h-screen flex flex-col min-w-0 bg-[#F8FAFC] dark:bg-[#0B0F17] overflow-y-auto custom-scrollbar pb-16 md:pb-0">
+        {/* Admin Masquerade Mode Active Indicator */}
+        {(() => {
+          const masqueradeRaw = sessionStorage.getItem('admin_masquerade');
+          let masquerade: any = null;
+          if (masqueradeRaw) {
+            try { masquerade = JSON.parse(masqueradeRaw); } catch {}
+          }
+          if (!masquerade?.isMasquerading) return null;
+
+          return (
+            <div className="bg-gradient-to-r from-amber-600 via-brand-red to-red-700 text-white px-4 sm:px-6 py-2.5 shadow-md flex flex-wrap items-center justify-between gap-3 text-xs font-bold sticky top-0 z-30 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded bg-white/20 uppercase tracking-wider text-[10px] font-black">
+                  Admin Impersonation Mode
+                </span>
+                <span>
+                  Viewing {masquerade.targetRole} dashboard as: <strong className="underline decoration-white/60">{masquerade.targetUser?.name || masquerade.targetUser?.fullName || masquerade.targetUser?.email || 'User'}</strong> {masquerade.targetUser?.email ? `(${masquerade.targetUser.email})` : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  sessionStorage.removeItem('admin_masquerade');
+                  sessionStorage.setItem('userRole', 'admin');
+                  navigate('/admin');
+                }}
+                className="px-3.5 py-1.5 bg-white text-gray-900 rounded-xl font-extrabold text-xs hover:bg-amber-100 shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+              >
+                <span>Exit View-As &amp; Return to Admin</span>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          );
+        })()}
+
         {!isEmailVerified && userEmail && !isStudentAccessCodeOnly && (
           <div className="bg-amber-500 text-slate-950 px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-bold shadow-xs shrink-0">
             <div className="flex items-center gap-2">

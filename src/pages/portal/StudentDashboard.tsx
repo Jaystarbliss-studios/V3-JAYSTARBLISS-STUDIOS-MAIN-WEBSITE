@@ -33,6 +33,7 @@ import { StudentAnalyticsVisualizer } from '../../components/portal/StudentAnaly
 import { ResourceListView } from '../../components/portal/ResourceListView';
 import { useToast } from '../../contexts/ToastContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
 import {
   generateModuleCertificatePdf,
   type ModuleCertificateData,
@@ -218,51 +219,84 @@ const StudentDashboard: React.FC = () => {
     const fetchStudentData = async () => {
       setLoading(true);
       try {
+        const effective = getEffectiveAuth();
         const currentUser = auth.currentUser;
-        const studentDocId = sessionStorage.getItem('studentDocId');
+        const studentDocId = effective.effectiveStudentDocId || sessionStorage.getItem('studentDocId');
         const studentUsername = sessionStorage.getItem('studentUsername');
-        const cachedClass = sessionStorage.getItem('studentClass');
+        const cachedClass = effective.effectiveClass || sessionStorage.getItem('studentClass');
 
         let studentRecord: StudentInfo | null = null;
         let studentId = studentDocId || '';
 
+        // 1. Direct doc ID lookup in individualStudents or students
         if (studentId) {
           try {
             const snap = await getDoc(doc(db, 'individualStudents', studentId));
             if (snap.exists()) {
               studentRecord = { id: snap.id, ...snap.data() } as StudentInfo;
+            } else {
+              const sSnap = await getDoc(doc(db, 'students', studentId));
+              if (sSnap.exists()) {
+                studentRecord = { id: sSnap.id, ...sSnap.data() } as StudentInfo;
+              }
             }
           } catch (error) {
             console.warn('Direct student lookup failed:', error);
           }
         }
 
-        if (!studentRecord && currentUser) {
+        // 2. Lookup by effective UID
+        const lookupUid = effective.effectiveUid || currentUser?.uid;
+        if (!studentRecord && lookupUid) {
           try {
-            const snap = await getDocs(
-              query(collection(db, 'individualStudents'), where('firebaseUid', '==', currentUser.uid), limit(1))
-            );
-            if (!snap.empty) {
-              studentId = snap.docs[0].id;
-              studentRecord = { id: snap.docs[0].id, ...snap.docs[0].data() } as StudentInfo;
+            const [indivSnap, studSnap] = await Promise.all([
+              getDocs(query(collection(db, 'individualStudents'), where('firebaseUid', '==', lookupUid), limit(1))).catch(() => ({ empty: true, docs: [] })),
+              getDocs(query(collection(db, 'students'), where('firebaseUid', '==', lookupUid), limit(1))).catch(() => ({ empty: true, docs: [] }))
+            ]);
+            if (!indivSnap.empty) {
+              studentId = indivSnap.docs[0].id;
+              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
+            } else if (!studSnap.empty) {
+              studentId = studSnap.docs[0].id;
+              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
             }
           } catch (error) {
             console.warn('Firebase UID lookup failed:', error);
           }
         }
 
+        // 3. Lookup by email
+        if (!studentRecord && effective.effectiveEmail) {
+          try {
+            const [indivSnap, studSnap] = await Promise.all([
+              getDocs(query(collection(db, 'individualStudents'), where('email', '==', effective.effectiveEmail.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] })),
+              getDocs(query(collection(db, 'students'), where('email', '==', effective.effectiveEmail.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] }))
+            ]);
+            if (!indivSnap.empty) {
+              studentId = indivSnap.docs[0].id;
+              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
+            } else if (!studSnap.empty) {
+              studentId = studSnap.docs[0].id;
+              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
+            }
+          } catch (error) {
+            console.warn('Email student lookup failed:', error);
+          }
+        }
+
+        // 4. Lookup by username
         if (!studentRecord && studentUsername) {
           try {
-            const snap = await getDocs(
-              query(
-                collection(db, 'individualStudents'),
-                where('username', '==', studentUsername.toLowerCase()),
-                limit(1)
-              )
-            );
-            if (!snap.empty) {
-              studentId = snap.docs[0].id;
-              studentRecord = { id: snap.docs[0].id, ...snap.docs[0].data() } as StudentInfo;
+            const [indivSnap, studSnap] = await Promise.all([
+              getDocs(query(collection(db, 'individualStudents'), where('username', '==', studentUsername.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] })),
+              getDocs(query(collection(db, 'students'), where('username', '==', studentUsername.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] }))
+            ]);
+            if (!indivSnap.empty) {
+              studentId = indivSnap.docs[0].id;
+              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
+            } else if (!studSnap.empty) {
+              studentId = studSnap.docs[0].id;
+              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
             }
           } catch (error) {
             console.warn('Username lookup failed:', error);
@@ -272,14 +306,24 @@ const StudentDashboard: React.FC = () => {
         if (cancelled) return;
 
         if (!studentRecord) {
-          setStudent(null);
-          setPersonalResources([]);
-          setPersonalLinks([]);
-          setGeneralResources([]);
-          setClassResources([]);
-          setExams([]);
-          setModules([]);
-          return;
+          if (effective.isMasquerading) {
+            studentRecord = {
+              id: effective.effectiveUid || 'student-masquerade',
+              fullName: effective.effectiveName || 'Impersonated Student',
+              email: effective.effectiveEmail,
+              class: cachedClass || 'Junior Secondary',
+              schoolId: effective.effectiveSchoolId
+            };
+          } else {
+            setStudent(null);
+            setPersonalResources([]);
+            setPersonalLinks([]);
+            setGeneralResources([]);
+            setClassResources([]);
+            setExams([]);
+            setModules([]);
+            return;
+          }
         }
 
         if (!studentRecord.class && cachedClass) {

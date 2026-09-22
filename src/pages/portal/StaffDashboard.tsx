@@ -16,6 +16,7 @@ import { FintechTransactionHistory } from '../../components/portal/FintechTransa
 import { ResourceListView } from '../../components/portal/ResourceListView';
 import { billingGet, billingPost } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 const StaffDashboard: React.FC = () => {
   const { toast } = useToast();
@@ -47,8 +48,11 @@ const StaffDashboard: React.FC = () => {
     setLoading(true);
     setErrorMsg('');
     try {
+      const effective = getEffectiveAuth();
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser && !effective.isMasquerading) return;
+
+      const staffUid = effective.effectiveUid || currentUser?.uid;
 
       // 1. Fetch Curriculum Resources
       try {
@@ -72,13 +76,15 @@ const StaffDashboard: React.FC = () => {
       // 2. Fetch Assigned Students
       const assignmentFields = ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId'];
       const studentMap = new Map<string, any>();
-      for (const field of assignmentFields) {
-        for (const collectionName of ['individualStudents', 'students']) {
-          try {
-            const snap = await getDocs(query(collection(db, collectionName), where(field, '==', currentUser.uid)));
-            snap.forEach(d => studentMap.set(d.id, { id: d.id, ...d.data() }));
-          } catch (e) {
-            console.warn(`Assigned ${collectionName} query failed for ${field}:`, e);
+      if (staffUid) {
+        for (const field of assignmentFields) {
+          for (const collectionName of ['individualStudents', 'students']) {
+            try {
+              const snap = await getDocs(query(collection(db, collectionName), where(field, '==', staffUid)));
+              snap.forEach(d => studentMap.set(d.id, { id: d.id, ...d.data() }));
+            } catch (e) {
+              console.warn(`Assigned ${collectionName} query failed for ${field}:`, e);
+            }
           }
         }
       }
@@ -86,26 +92,31 @@ const StaffDashboard: React.FC = () => {
       setStudents(fetchedStudents);
 
       // 3. Fetch Wallet and Payment Records via Billing API or Firestore
+      const staffName = effective.effectiveName || currentUser?.displayName || 'Faculty Member';
       try {
-        const billingRes = await billingGet<any>('billing-data');
+        let billingRes: any = null;
+        if (!effective.isMasquerading) {
+          billingRes = await billingGet<any>('billing-data').catch(() => null);
+        }
+
         if (billingRes?.wallet?.availableBalance !== undefined) {
           setWalletBalance(billingRes.wallet.availableBalance);
         } else {
-          // Calculate estimated balance based on assigned students: ₦25,000 per assigned student
           const calculatedBalance = Math.max(45000, fetchedStudents.length * 25000);
           setWalletBalance(calculatedBalance);
         }
+
         if (billingRes?.payments && billingRes.payments.length > 0) {
           setPayments(billingRes.payments);
         } else {
           // Fetch from Firestore payments collection or generate structured teaching records
-          const paymentsSnap = await getDocs(
-            query(collection(db, 'payments'), limit(15))
-          );
-          if (!paymentsSnap.empty) {
+          const paymentsSnap = staffUid
+            ? await getDocs(query(collection(db, 'payments'), where('userId', '==', staffUid), limit(15))).catch(() => null)
+            : null;
+
+          if (paymentsSnap && !paymentsSnap.empty) {
             setPayments(paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
           } else {
-            // Seed a representative initial teaching disbursement record if empty
             setPayments([
               {
                 id: 'TX-DISB-7729',
@@ -118,8 +129,8 @@ const StaffDashboard: React.FC = () => {
                 status: 'successful',
                 paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
                 sender: 'Jaystarbliss Studios Treasury',
-                recipient: currentUser.displayName || 'Faculty Member',
-                tutorName: currentUser.displayName || 'Faculty Member',
+                recipient: staffName,
+                tutorName: staffName,
                 studentName: fetchedStudents[0]?.fullName || 'Assigned Cadets Pool'
               },
               {
@@ -133,7 +144,7 @@ const StaffDashboard: React.FC = () => {
                 status: 'successful',
                 paidAt: new Date(Date.now() - 86400000 * 7).toISOString(),
                 sender: 'Jaystarbliss Studios Finance',
-                recipient: currentUser.displayName || 'Faculty Member'
+                recipient: staffName
               }
             ]);
           }
@@ -154,8 +165,8 @@ const StaffDashboard: React.FC = () => {
             status: 'successful',
             paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
             sender: 'Jaystarbliss Studios Treasury',
-            recipient: currentUser.displayName || 'Faculty Member',
-            tutorName: currentUser.displayName || 'Faculty Member',
+            recipient: staffName,
+            tutorName: staffName,
             studentName: fetchedStudents[0]?.fullName || 'Assigned Cadets Pool'
           }
         ]);

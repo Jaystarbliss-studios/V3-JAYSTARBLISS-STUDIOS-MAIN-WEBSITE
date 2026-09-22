@@ -7,10 +7,11 @@ import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import ResourceLibrary from './ResourceLibrary';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
 export interface SchoolDashboardProps { initialTab?: SchoolDashboardTab; }
-type SchoolRecord = { id: string; name?: string; plan?: string; coordinator?: string; labDays?: string; };
+type SchoolRecord = { id: string; name?: string; plan?: string; coordinator?: string; labDays?: string; email?: string; status?: string; };
 type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedCadetsCount?: number; };
 type Exam = { id: string; title: string; subject?: string; term?: string; duration?: string; link?: string; url?: string; fileUrl?: string; status?: string; date?: string; targetClass?: string; description?: string; passcodeProtected?: boolean; };
 type SchoolLink = { id: string; title: string; url: string; description?: string; };
@@ -75,40 +76,110 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Authentication required.');
-      const userSnap = await getDoc(doc(db, 'users', user.uid));
-      if (!userSnap.exists()) throw new Error('School profile not found.');
-      const userData = userSnap.data();
-      if (String(userData.role || '').toLowerCase() !== 'school') throw new Error('Only school accounts can access this workspace.');
-      const schoolId = String(userData.schoolId || '').trim();
-      if (!schoolId) throw new Error('Your school account is not linked to a school.');
-      const schoolSnap = await getDoc(doc(db, 'schools', schoolId));
-      if (!schoolSnap.exists()) throw new Error('Linked school record not found.');
-      setSchool({ ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id });
+      const effective = getEffectiveAuth();
+      if (!auth.currentUser && !effective.isMasquerading) throw new Error('Authentication required.');
+
+      let schoolId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || '';
+      let schoolRecordData: SchoolRecord | null = null;
+
+      // 1. If we have a direct schoolId, check schools collection
+      if (schoolId) {
+        try {
+          const schoolSnap = await getDoc(doc(db, 'schools', schoolId));
+          if (schoolSnap.exists()) {
+            schoolRecordData = { ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id };
+          }
+        } catch (e) {
+          console.warn('Direct school lookup error:', e);
+        }
+      }
+
+      // 2. If not found, check by effective UID in users collection
+      if (!schoolRecordData && effective.effectiveUid) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', effective.effectiveUid));
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            const sId = String(uData.schoolId || '').trim();
+            if (sId) {
+              schoolId = sId;
+              const schoolSnap = await getDoc(doc(db, 'schools', sId));
+              if (schoolSnap.exists()) {
+                schoolRecordData = { ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id };
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('User profile school lookup error:', e);
+        }
+      }
+
+      // 3. If still not found, find in schools collection by matching ID or email or adminUid
+      if (!schoolRecordData) {
+        try {
+          const schoolsSnap = await getDocs(collection(db, 'schools'));
+          const found = schoolsSnap.docs.find(d => 
+            d.id === schoolId || 
+            d.id === effective.effectiveUid ||
+            d.data().email?.toLowerCase() === effective.effectiveEmail?.toLowerCase() ||
+            d.data().firebaseUid === effective.effectiveUid ||
+            d.data().adminUid === effective.effectiveUid
+          );
+          if (found) {
+            schoolId = found.id;
+            schoolRecordData = { ...(found.data() as Omit<SchoolRecord, 'id'>), id: found.id };
+          }
+        } catch (e) {
+          console.warn('Schools collection lookup error:', e);
+        }
+      }
+
+      if (!schoolRecordData) {
+        // Fallback default record if masquerading or previewing
+        schoolRecordData = {
+          id: schoolId || 'school-default',
+          name: effective.effectiveName || 'Partner School Institution',
+          plan: 'Institutional Partner Plan',
+          coordinator: 'School Administrator',
+          labDays: 'Mon - Fri'
+        };
+      }
+
+      setSchool(schoolRecordData);
+      const activeSchoolId = schoolRecordData.id;
+
       let fetchedStudentCount = 0;
       try {
-        const studentsResult = await jsonFetch<{ count: number }>('/.netlify/functions/school-students');
-        fetchedStudentCount = Number(studentsResult.count || 0);
+        if (!effective.isMasquerading) {
+          const studentsResult = await jsonFetch<{ count: number }>('/.netlify/functions/school-students');
+          fetchedStudentCount = Number(studentsResult.count || 0);
+        } else {
+          throw new Error('Impersonation mode using client-side Firestore query');
+        }
       } catch {
         const [studSnap, indivSnap] = await Promise.all([
-          getDocs(query(collection(db, 'students'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
-          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] }))
+          getDocs(query(collection(db, 'students'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] }))
         ]);
         fetchedStudentCount = (studSnap.docs?.length || 0) + (indivSnap.docs?.length || 0);
       }
 
       try {
-        const scheduleResult = await jsonFetch<{ schedules: ClassSchedule[] }>('/.netlify/functions/class-schedules');
-        setClassSchedules(Array.isArray(scheduleResult.schedules) ? scheduleResult.schedules : []);
+        if (!effective.isMasquerading) {
+          const scheduleResult = await jsonFetch<{ schedules: ClassSchedule[] }>('/.netlify/functions/class-schedules');
+          setClassSchedules(Array.isArray(scheduleResult.schedules) ? scheduleResult.schedules : []);
+        } else {
+          throw new Error('Impersonation fallback for schedules');
+        }
       } catch {
-        setClassSchedules([]);
+        const schedSnap = await getDocs(query(collection(db, 'classSchedules'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] }));
+        setClassSchedules(schedSnap.docs.map(d => ({ id: d.id, ...d.data() } as ClassSchedule)));
       }
 
       const [examSnap, linkSnap, passSnap] = await Promise.all([
-        getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
-        getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
-        getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', schoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
       ]);
       setStudentCount(fetchedStudentCount);
       setExams(examSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Exam,'id'>) })));

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   collection, getDocs, addDoc, deleteDoc, doc, setDoc,
   query, where, orderBy, serverTimestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { startImpersonation } from '../../utils/impersonation';
 import StaffSchoolAssignments from './StaffSchoolAssignments';
 import { 
   UserCheck, Users, Key, Plus, Trash2, 
@@ -84,6 +86,7 @@ const normalizeSubjects = (raw: any): string[] => {
 };
 
 const AdminStaff: React.FC = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'manage' | 'resources' | 'schoolAccess'>('manage');
   const [loading, setLoading] = useState(true);
@@ -1036,8 +1039,28 @@ const AdminStaff: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Right: Gear Settings / Manage Button */}
-                      <div className="shrink-0">
+                      {/* Right: Actions */}
+                      <div className="shrink-0 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toast.info(`Directly opening instructor portal for ${staff.fullName}...`);
+                            startImpersonation({
+                              id: staff.id,
+                              uid: staff.id,
+                              name: staff.fullName,
+                              email: staff.email,
+                              role: staff.role || 'TUTOR',
+                              phone: staff.phone
+                            }, navigate);
+                          }}
+                          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3 py-2 text-xs font-bold text-white shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                          title={`Directly log into ${staff.fullName}'s tutor portal`}
+                        >
+                          <UserCheck size={14} />
+                          <span className="hidden sm:inline">Log In As</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setManagingStaff(staff)}

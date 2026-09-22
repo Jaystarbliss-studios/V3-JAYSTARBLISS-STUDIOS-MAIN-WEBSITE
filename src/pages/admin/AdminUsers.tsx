@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { Shield, User, Download, Plus, X, KeyRound, Copy, Check, Search, Filter, ChevronDown } from 'lucide-react';
+import { Shield, User, Download, Plus, X, KeyRound, Copy, Check, Search, Filter, ChevronDown, UserCheck, ArrowRight } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { startImpersonation } from '../../utils/impersonation';
 
 const ROLE_OPTIONS = [
   ['USER', 'User (Default)'],
@@ -11,15 +13,16 @@ const ROLE_OPTIONS = [
   ['TUTOR', 'Tutor'],
   ['STAFF', 'Staff'],
   ['SCHOOL', 'School Admin'],
-  ['CONTENT_ADMIN', 'Content Admin'],
-  ['EDUCATION_ADMIN', 'Education Admin'],
-  ['SERVICES_ADMIN', 'Services Admin'],
-  ['SUPER_ADMIN', 'Super Admin']
+  ['CMS_ADMIN', 'Website & CMS Sub-Admin'],
+  ['ACADEMIC_ADMIN', 'Academic Hub & Portals Sub-Admin'],
+  ['FINANCE_ADMIN', 'Finance & Billing Sub-Admin'],
+  ['SUPER_ADMIN', 'Super Admin (Full Access)']
 ] as const;
 
 type RoleCategory = 'ALL' | 'STUDENT' | 'PARENT' | 'STAFF' | 'ADMIN';
 
 const AdminUsers: React.FC = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -408,14 +411,14 @@ const AdminUsers: React.FC = () => {
         <table className="min-w-[900px] w-full divide-y divide-gray-200 dark:divide-slate-800">
           <thead className="bg-gray-50/80 dark:bg-slate-950">
             <tr>
-              {['User Profile', 'Account Type', 'Security State', 'Portal Role', 'Account Access'].map((heading) => <th key={heading} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{heading}</th>)}
+              {['User Profile', 'Account Type', 'Security State', 'Portal Role', 'Account Access', 'Live Dashboard'].map((heading) => <th key={heading} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{heading}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 text-xs dark:divide-slate-800">
             {loading ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Loading user records…</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Loading user records…</td></tr>
             ) : filteredUsers.length === 0 ? (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">No matching user records found.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No matching user records found.</td></tr>
             ) : filteredUsers.map((user) => {
               const status = String(user.accountStatus || 'ACTIVE').toUpperCase();
               const role = String(user.role || 'user').toUpperCase();
@@ -426,6 +429,29 @@ const AdminUsers: React.FC = () => {
                   <td className="px-5 py-3.5"><button onClick={() => handleToggleForcePasswordReset(user.id, user.forcePasswordReset === true)} className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${user.forcePasswordReset ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}><span className="inline-flex items-center gap-1.5"><KeyRound size={12} /> {user.forcePasswordReset ? 'Reset Required' : 'Password Active'}</span></button></td>
                   <td className="px-5 py-3.5"><select value={role} onChange={(e) => void handleRoleChange(user.id, e.target.value)} className="rounded-xl border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
                   <td className="px-5 py-3.5"><button onClick={() => void handleAccountStatus(user.id, status)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold ${status === 'SUSPENDED' ? 'border-amber-200 bg-amber-100 text-amber-800' : 'border-emerald-200 bg-emerald-100 text-emerald-800'}`}>{status === 'SUSPENDED' ? 'Suspended — Restore' : 'Active — Suspend'}</button></td>
+                  <td className="px-5 py-3.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toast.info(`Directly opening dashboard for ${user.name || user.email}...`);
+                        startImpersonation({
+                          id: user.id,
+                          uid: user.id,
+                          name: user.name || user.displayName,
+                          email: user.email,
+                          role: role,
+                          schoolId: user.schoolId,
+                          studentDocId: user.studentDocId || user.id,
+                          class: user.class || user.classLevel,
+                          phone: user.phone
+                        }, navigate);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                    >
+                      <UserCheck size={13} />
+                      <span>Log In As</span>
+                    </button>
+                  </td>
                 </tr>
               );
             })}
