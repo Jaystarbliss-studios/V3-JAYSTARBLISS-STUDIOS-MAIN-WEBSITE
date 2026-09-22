@@ -12,7 +12,7 @@ import { getEffectiveAuth } from '../../utils/impersonation';
 export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
 export interface SchoolDashboardProps { initialTab?: SchoolDashboardTab; }
 type SchoolRecord = { id: string; name?: string; plan?: string; coordinator?: string; labDays?: string; email?: string; status?: string; };
-type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedCadetsCount?: number; };
+type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedStudentsCount?: number; };
 type Exam = { id: string; title: string; subject?: string; term?: string; duration?: string; link?: string; url?: string; fileUrl?: string; status?: string; date?: string; targetClass?: string; description?: string; passcodeProtected?: boolean; };
 type SchoolLink = { id: string; title: string; url: string; description?: string; };
 type ClassSchedule = { id:string; date:string; startTime:string; endTime:string; classLevel:string; title:string; tutorName?:string; status:string; };
@@ -201,7 +201,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     event.preventDefault();
     if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
     const id = passcodeForm.id || `pc-${Date.now()}`;
-    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedStudentsCount: passcodeForm.allocatedStudentsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
     try {
       await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
       const next = { id, ...payload } as Passcode;
@@ -254,7 +254,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           {/* Compact 4-Stat Metrics Row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Enrolled Cadets</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Enrolled Students</p>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{studentCount}</p>
               <p className="mt-0.5 text-[10px] text-slate-500">Active school learners</p>
             </div>
@@ -344,7 +344,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">Current Term</span>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{school?.plan || 'Full-Stack Web & Logic Masterclass'}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Module 2: Database Schema Design & Real-Time Logic • {studentCount} Enrolled Cadets</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Module 2: Database Schema Design & Real-Time Logic • {studentCount} Enrolled Students</p>
                 </div>
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">In Progress (Term 1)</span>
               </div>
