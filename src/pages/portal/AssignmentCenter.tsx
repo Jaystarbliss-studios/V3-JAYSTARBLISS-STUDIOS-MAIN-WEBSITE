@@ -97,7 +97,13 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
 
   return <div className="dashboard-interface space-y-6">
     <SEO title={`${title} | Jaystarbliss Studios`} description={subtitle} noindex={true} />
-    <DashboardGreeting name={title} role={role === 'staff' ? 'Teaching Workspace' : role === 'parent' ? 'Parent Learning View' : role === 'school' ? 'School Learning View' : 'Learner Workspace'} subtitle={subtitle} />
+    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-brand-red">
+        <ClipboardList size={15} /> {role === 'staff' ? 'Teaching Workspace' : role === 'parent' ? 'Parent Learning View' : role === 'school' ? 'School Learning View' : 'Learner Workspace'}
+      </div>
+      <h1 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{title}</h1>
+      <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+    </div>
     {success && <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 size={18} />{success}<button className="ml-auto" onClick={() => setSuccess('')} aria-label="Dismiss"><X size={16} /></button></div>}
     {error && <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><AlertCircle size={18} />{error}<button className="ml-auto" onClick={() => setError('')} aria-label="Dismiss"><X size={16} /></button></div>}
 

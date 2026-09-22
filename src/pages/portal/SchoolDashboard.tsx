@@ -221,14 +221,14 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <SEO title={`School Operations | ${schoolName}`} description="Secure school operations workspace." noindex />
 
-      <DashboardGreeting
-        name={schoolName}
-        role="Partner Institution"
-        subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
-      />
-
       {tab === 'overview' && (
         <div className="space-y-6">
+          <DashboardGreeting
+            name={schoolName}
+            role="Partner Institution"
+            subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
+          />
+
           {/* Top Banner / Program Status */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-xs border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -237,7 +237,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               </span>
               <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">{schoolName}</h2>
               <p className="text-xs text-slate-300 mt-1">
-                Program Plan: <strong className="text-white">{school?.plan || 'STEM Curriculum Standard'}</strong> • Coordinator: <span className="text-slate-200">{school?.coordinator || 'Academic Directorate'}</span>
+                Program Track: <strong className="text-white">{school?.plan || 'Standard Coding & Technology Curriculum'}</strong> • Coordinator: <span className="text-slate-200">{school?.coordinator || 'Academic Directorate'}</span>
               </p>
             </div>
             <div className="flex items-center gap-2.5 shrink-0">
@@ -271,7 +271,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
             <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
               <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class Schedules</p>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{classSchedules.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Lab sessions logged</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Active sessions logged</p>
             </div>
           </div>
 
@@ -304,7 +304,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                 >
                   <Calendar className="text-brand-red mb-2" size={18} />
                   <div className="text-xs font-bold text-slate-900 dark:text-white">Class Schedule</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Upcoming lab occurrences</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Upcoming class occurrences</div>
                 </button>
               </div>
             </div>
@@ -321,9 +321,40 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                   <span className="font-semibold text-slate-900 dark:text-white">{school?.coordinator || 'Assigned Lead'}</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Lab Schedule</span>
+                  <span className="text-slate-500">Class Schedule</span>
                   <span className="font-semibold text-slate-900 dark:text-white">{school?.labDays || 'Standard Schedule'}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Program History & Completed Milestones */}
+          <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <Award size={18} className="text-brand-red" />
+                  Program History & Completed Milestones
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">Review completed academic terms, modules, and institutional milestones.</p>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">Current Term</span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{school?.plan || 'Full-Stack Web & Logic Masterclass'}</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Module 2: Database Schema Design & Real-Time Logic • {studentCount} Enrolled Cadets</p>
+                </div>
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">In Progress (Term 1)</span>
+              </div>
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">Completed Prior Term</span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">Foundation Computing, Algorithms & Scratch</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">100% Practical Milestones & CBT Final Assessments Completed</p>
+                </div>
+                <span className="text-xs font-bold text-emerald-600">Completed &amp; Certified</span>
               </div>
             </div>
           </div>

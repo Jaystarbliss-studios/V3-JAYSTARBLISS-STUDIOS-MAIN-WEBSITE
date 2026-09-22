@@ -9,6 +9,10 @@ export interface TransactionReceiptData {
   baseAmount?: number | string;
   transactionFee?: number | string;
   customerTotal?: number | string;
+  fullProgramFee?: number | string;
+  paymentPercentage?: number | string;
+  remainingBalance?: number | string;
+  selectedPrograms?: string;
   plan?: string;
   description?: string;
   paymentPlanName?: string;
@@ -291,6 +295,14 @@ export const generatePdfReceipt = (data: TransactionReceiptData) => {
     ['Payment Reference', reference],
     ['Transaction Date', formattedDate],
     ['Programme / Fee Name', details.programName],
+    ...(data.selectedPrograms ? [
+      ['Selected Program Tracks', String(data.selectedPrograms)] as [string, string]
+    ] : []),
+    ...(data.paymentPercentage && Number(data.paymentPercentage) < 100 ? [
+      ['Payment Mode / Percentage', `${data.paymentPercentage}% Installment Settlement`] as [string, string],
+      ['Full Invoice Amount', formatCurrency(data.fullProgramFee || data.amount)] as [string, string],
+      ['Remaining Balance Due', formatCurrency(data.remainingBalance || 0)] as [string, string],
+    ] : []),
     ['Paid By (Payer Name)', details.payerName],
     ['Payer Portal Role', `${details.roleLabel} (${details.payerRole})`],
     ['Beneficiary / Cadet(s)', details.beneficiary],

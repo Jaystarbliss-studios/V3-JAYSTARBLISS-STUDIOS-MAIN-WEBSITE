@@ -58,6 +58,8 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const [selectedStudentId, setSelectedStudentId] = useState(''); 
   const [selectedPlanId, setSelectedPlanId] = useState(''); 
   const [selectedMode, setSelectedMode] = useState('advance_termly');
+  const [paymentPercentage, setPaymentPercentage] = useState<number>(100);
+  const [selectedProgramIds, setSelectedProgramIds] = useState<string[]>([]);
   const [teachingMode, setTeachingMode] = useState(''); 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card'); 
   const [showCheckout, setShowCheckout] = useState(false); 
@@ -166,9 +168,36 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   // Active School custom billing
   const schoolBilling = data.schoolBilling;
   const schoolPrograms = data.schoolPrograms || data.schoolInfo?.programs || [];
-  const schoolFee = Number(schoolBilling?.baseAmount || 350000);
+  const configuredFee = Number(schoolBilling?.baseAmount || 350000);
   const schoolCycle = schoolBilling?.cycle || 'termly';
   const allowedSchoolModes = schoolBilling?.allowedModes || ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'];
+
+  // Calculate fee based on selected programs or default fee
+  const activeProgramsList = useMemo(() => {
+    if (!schoolPrograms.length) {
+      return [{ id: 'core_prog', name: 'Standard Coding & Technology Track', fee: configuredFee, status: 'ACTIVE' }];
+    }
+    return schoolPrograms.map((p: any, idx: number) => ({
+      id: p.id || `prog_${idx}`,
+      name: p.name || `Program Track ${idx + 1}`,
+      fee: Number(p.fee || p.amount || Math.round(configuredFee / schoolPrograms.length)),
+      status: p.status || 'ACTIVE',
+      description: p.description || ''
+    }));
+  }, [schoolPrograms, configuredFee]);
+
+  const selectedPrograms = useMemo(() => {
+    if (!selectedProgramIds.length) return activeProgramsList;
+    return activeProgramsList.filter((p: any) => selectedProgramIds.includes(p.id));
+  }, [activeProgramsList, selectedProgramIds]);
+
+  const baseTotalForPrograms = useMemo(() => {
+    if (!selectedPrograms.length) return configuredFee;
+    return selectedPrograms.reduce((acc: number, p: any) => acc + (p.fee || 0), 0);
+  }, [selectedPrograms, configuredFee]);
+
+  const schoolFee = Math.round(baseTotalForPrograms * (paymentPercentage / 100));
+  const remainingBalance = baseTotalForPrograms - schoolFee;
 
   // Payments
   const payments = useMemo(() => {
@@ -183,7 +212,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const startCheckout = (opts?: { plan?: Plan; studentId?: string; planName?: string }) => {
     if (role === 'school') {
       setSelectedPlanId('custom_school_billing');
-      setTeachingMode('Standard Institutional Lab Delivery');
+      setTeachingMode('Standard Institutional Curriculum Delivery');
     } else {
       const targetPlan = opts?.plan || standardPlans[0];
       if (!targetPlan) return;
@@ -210,9 +239,15 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
       };
 
       if (role === 'school') {
+        const progNames = selectedPrograms.map((p: any) => p.name).join(', ');
         checkoutPayload.amount = schoolFee;
+        checkoutPayload.baseAmount = schoolFee;
+        checkoutPayload.fullProgramFee = baseTotalForPrograms;
+        checkoutPayload.paymentPercentage = paymentPercentage;
+        checkoutPayload.remainingBalance = remainingBalance;
+        checkoutPayload.selectedPrograms = progNames;
         checkoutPayload.planId = 'school_custom_fee';
-        checkoutPayload.planName = `Institutional Lab Fee - ${data.schoolInfo?.name || 'Partner School'}`;
+        checkoutPayload.planName = `Institutional Subscription (${paymentPercentage}% Paid - ${progNames})`;
         checkoutPayload.cycle = schoolCycle;
         checkoutPayload.paymentMode = selectedMode;
         checkoutPayload.durationWeeks = schoolCycle === 'monthly' ? 4 : 12;
@@ -340,7 +375,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
     return (
       <section className="space-y-6" aria-label="School billing center">
-        <SEO title="School Lab & Tuition Billing | Jaystarbliss Studios" description="Institutional STEM lab billing." noindex={true} />
+        <SEO title="Institutional Subscription | Jaystarbliss Studios" description="Institutional subscription and billing portal." noindex={true} />
 
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -349,7 +384,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
                 <School size={15} /> Partner School Billing Portal
               </div>
               <h1 className="mt-1.5 text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-                Institutional Subscription & Lab Fees
+                Institutional Subscription
               </h1>
               <p className="mt-1 text-xs md:text-sm text-slate-500">
                 Transparent pricing configured directly by Jaystarbliss Studios administration.
@@ -372,57 +407,77 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
             <div>
               <strong className="font-black text-sm block">Payment Renewal Notice</strong>
               <span className="mt-1 block leading-relaxed">
-                Your institutional lab subscription is scheduled for renewal. 
+                Your institutional subscription is scheduled for renewal. 
                 {schoolBilling?.nextDueDate && ` Scheduled Due Date: ${new Date(schoolBilling.nextDueDate).toLocaleDateString('en-NG', { dateStyle: 'long' })}.`}
               </span>
             </div>
           </div>
         )}
 
-        {/* Undergoing Programmes Card */}
+        {/* Undergoing Programmes Card with multi-select */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-black text-slate-900 dark:text-white">
-                Undergoing Programmes & Laboratory Scope
+                Undergoing Programmes &amp; Tracks
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Active STEM curriculum and hands-on tracks undergoing at your institution.
+                Active curriculum and practical tracks. Select programs to include in this invoice settlement.
               </p>
             </div>
             <BookOpen className="text-brand-red" size={20} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {schoolPrograms.length ? (
-              schoolPrograms.map((prog: any) => (
+            {activeProgramsList.map((prog: any) => {
+              const isSelected = selectedProgramIds.length === 0 || selectedProgramIds.includes(prog.id);
+              return (
                 <div 
-                  key={prog.id || prog.name} 
-                  className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col justify-between"
+                  key={prog.id} 
+                  onClick={() => {
+                    if (selectedProgramIds.length === 0) {
+                      // Currently all selected, switch to just this one unselected
+                      setSelectedProgramIds(activeProgramsList.filter((p: any) => p.id !== prog.id).map((p: any) => p.id));
+                    } else if (selectedProgramIds.includes(prog.id)) {
+                      const next = selectedProgramIds.filter((id: string) => id !== prog.id);
+                      setSelectedProgramIds(next.length ? next : activeProgramsList.map((p: any) => p.id));
+                    } else {
+                      setSelectedProgramIds([...selectedProgramIds, prog.id]);
+                    }
+                  }}
+                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                    isSelected 
+                      ? 'border-brand-red bg-red-50/40 dark:bg-red-950/20 shadow-xs' 
+                      : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 opacity-70'
+                  }`}
                 >
                   <div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-brand-red dark:bg-red-950/40">
-                      {prog.status || 'ACTIVE'}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-brand-red dark:bg-red-950/40">
+                        {prog.status || 'ACTIVE'}
+                      </span>
+                      <span className="text-xs font-mono font-black text-slate-900 dark:text-white">
+                        {formatNaira(prog.fee)}
+                      </span>
+                    </div>
                     <h3 className="font-black text-sm text-slate-900 dark:text-white mt-2">
                       {prog.name}
                     </h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-                      {prog.description}
-                    </p>
+                    {prog.description && (
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                        {prog.description}
+                      </p>
+                    )}
                   </div>
-                  {prog.schedule && (
-                    <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-500">
-                      <strong>Schedule:</strong> {prog.schedule}
-                    </div>
-                  )}
+                  <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Click to toggle invoice selection</span>
+                    <span className={`font-bold ${isSelected ? 'text-brand-red' : 'text-slate-400'}`}>
+                      {isSelected ? '✓ Included' : '+ Excluded'}
+                    </span>
+                  </div>
                 </div>
-              ))
-            ) : (
-              <div className="col-span-2 text-xs text-slate-400 py-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                No individual programs itemized. Standard STEM curriculum active.
-              </div>
-            )}
+              );
+            })}
           </div>
         </div>
 
@@ -435,13 +490,57 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
                   Admin-Configured Institutional Fee
                 </span>
                 <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
-                  {formatNaira(schoolFee)} <span className="text-xs text-slate-400 font-normal">/ {schoolCycle === 'monthly' ? 'Month (4 Weeks)' : 'Term (12 Weeks)'}</span>
+                  {formatNaira(schoolFee)} <span className="text-xs text-slate-400 font-normal">({paymentPercentage}% of {formatNaira(baseTotalForPrograms)} full fee) / {schoolCycle === 'monthly' ? 'Month (4 Weeks)' : 'Term (12 Weeks)'}</span>
                 </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Active programs in this invoice: <strong className="text-slate-700 dark:text-slate-300">{selectedPrograms.map((p: any) => p.name).join(', ')}</strong>
+                </p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 {schoolCycle === 'monthly' ? '4 Weeks Cycle' : '12 Weeks Term'}
               </span>
             </div>
+
+            {/* Percentage Payment Selector */}
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                Select Upfront Payment Percentage
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                {[
+                  { pct: 100, label: '100% Full Payment', desc: 'Pay total fee in full' },
+                  { pct: 70, label: '70% Termly Upfront', desc: '30% deferred balance' },
+                  { pct: 50, label: '50% Half Termly', desc: '50% deferred balance' }
+                ].map(opt => (
+                  <button
+                    key={opt.pct}
+                    type="button"
+                    onClick={() => setPaymentPercentage(opt.pct)}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                      paymentPercentage === opt.pct
+                        ? 'border-brand-red bg-red-50/50 dark:bg-red-950/20 text-slate-900 dark:text-white font-black'
+                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="text-xs font-bold">{opt.label}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Partial Payment Notice */}
+            {paymentPercentage < 100 && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200">
+                <div className="font-bold flex items-center gap-1.5">
+                  <Bell size={14} className="text-amber-600" />
+                  <span>Upfront Installment Mode Active ({paymentPercentage}%)</span>
+                </div>
+                <p className="mt-1 leading-relaxed">
+                  You are paying <strong>{formatNaira(schoolFee)}</strong> now. A remaining balance of <strong className="font-black text-brand-red">{formatNaira(remainingBalance)}</strong> will be scheduled to be settled before the end of the term.
+                </p>
+              </div>
+            )}
 
             {/* Mode of Payment Selector */}
             <div>
@@ -451,7 +550,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {[
                   { id: 'advance_termly', label: 'Advance Termly', desc: 'Pay upfront for the entire 12-week term.' },
-                  { id: 'advance_monthly', label: 'Advance Monthly', desc: 'Pay upfront for 4 weeks of STEM lab access.' },
+                  { id: 'advance_monthly', label: 'Advance Monthly', desc: 'Pay upfront for 4 weeks of curriculum access.' },
                   { id: 'post_termly', label: 'Post Termly', desc: 'Settle institutional invoice at end of term.' },
                   { id: 'post_monthly', label: 'Post Monthly', desc: 'Settle institutional invoice at end of month.' }
                 ]
@@ -479,7 +578,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
             {/* Price breakdown */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 grid grid-cols-3 gap-2 text-xs">
               <div>
-                <span className="block text-slate-400 text-[10px] uppercase font-bold">Base Fee</span>
+                <span className="block text-slate-400 text-[10px] uppercase font-bold">Payable Base</span>
                 <strong className="text-slate-900 dark:text-white font-mono">{formatNaira(schoolFee)}</strong>
               </div>
               <div>
