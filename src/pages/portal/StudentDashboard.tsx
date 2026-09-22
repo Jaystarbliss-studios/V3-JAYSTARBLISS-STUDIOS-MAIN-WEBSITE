@@ -318,31 +318,52 @@ const StudentDashboard: React.FC = () => {
 
         const classList: ResourceItem[] = [];
         const generalList: ResourceItem[] = [];
+
+        const isItemForClass = (item: any) => {
+          if (!assignedClass) return false;
+          const target = assignedClass.toLowerCase().trim();
+          const itemClasses: string[] = Array.isArray(item.assignedClasses) 
+            ? item.assignedClasses 
+            : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
+          
+          if (itemClasses.length > 0) {
+            if (itemClasses.some(c => c.toLowerCase() === 'all classes' || c.toLowerCase() === 'all')) return true;
+            return itemClasses.some(c => {
+              const lc = c.toLowerCase().trim();
+              return lc === target || lc.includes(target) || target.includes(lc);
+            });
+          }
+
+          const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
+          if (cl) {
+            if (cl === 'all classes' || cl === 'all') return true;
+            return cl.includes(target) || target.includes(cl);
+          }
+
+          return false;
+        };
+
         resourceSnapshot.forEach((resourceDoc) => {
           const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
-          const itemClass = (item.targetClass || item.class || '').trim().toLowerCase();
-          const target = assignedClass.toLowerCase();
-          if (itemClass && target && (itemClass === target || itemClass.includes(target) || target.includes(itemClass))) {
+          if (isItemForClass(item)) {
             classList.push({ ...item, isClassSpecific: true });
           } else {
             generalList.push({ ...item, isClassSpecific: false });
           }
         });
 
-        if (studentRecord.schoolId) {
+        const activeSchoolId = studentRecord.schoolId || sessionStorage.getItem('schoolId');
+        if (activeSchoolId) {
           try {
             const schoolResourceSnap = await getDocs(
-              query(collection(db, 'schoolResources'), where('schoolId', '==', studentRecord.schoolId), limit(20))
+              query(collection(db, 'schoolResources'), where('schoolId', '==', activeSchoolId), limit(40))
             );
             schoolResourceSnap.forEach((resourceDoc) => {
               const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
-              const itemClass = (item.targetClass || item.class || '').trim().toLowerCase();
-              const target = assignedClass.toLowerCase();
-              const destination = itemClass && target && (itemClass === target || itemClass.includes(target) || target.includes(itemClass))
-                ? classList
-                : generalList;
+              const isMatch = isItemForClass(item);
+              const destination = isMatch ? classList : generalList;
               if (!destination.some((resource) => resource.id === item.id)) {
-                destination.push({ ...item, isClassSpecific: destination === classList });
+                destination.push({ ...item, isClassSpecific: isMatch });
               }
             });
           } catch (error) {

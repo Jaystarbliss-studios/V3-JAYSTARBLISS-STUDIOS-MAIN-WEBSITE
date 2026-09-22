@@ -21,6 +21,9 @@ const AdminResources: React.FC = () => {
   const [resForm, setResForm] = useState({
     title: '',
     category: 'both',
+    subject: 'Computer Science & ICT',
+    classLevel: 'All Classes',
+    assignedClasses: ['All Classes'],
     description: '',
     fileUrl: ''
   });
@@ -84,12 +87,23 @@ const AdminResources: React.FC = () => {
       await addDoc(collection(db, 'resources'), {
         title: resForm.title.trim(),
         category: resForm.category,
+        subject: resForm.subject || 'Computer Science & ICT',
+        classLevel: resForm.classLevel || 'All Classes',
+        assignedClasses: resForm.assignedClasses || ['All Classes'],
         description: resForm.description.trim(),
         fileUrl: resForm.fileUrl.trim(),
         timestamp: serverTimestamp()
       });
       toast.success(`Resource "${resForm.title}" uploaded and published successfully!`);
-      setResForm({ title: '', category: 'both', description: '', fileUrl: '' });
+      setResForm({ 
+        title: '', 
+        category: 'both', 
+        subject: 'Computer Science & ICT', 
+        classLevel: 'All Classes', 
+        assignedClasses: ['All Classes'], 
+        description: '', 
+        fileUrl: '' 
+      });
       fetchData();
     } catch (err: any) {
       console.error(err);
@@ -303,6 +317,41 @@ const AdminResources: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
+                  Target Class / Grade
+                </label>
+                <select
+                  value={resForm.classLevel}
+                  onChange={(e) => setResForm({ 
+                    ...resForm, 
+                    classLevel: e.target.value,
+                    assignedClasses: [e.target.value]
+                  })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                >
+                  <option value="All Classes">All Classes (Universal Delivery)</option>
+                  <option value="Primary 1">Primary 1</option>
+                  <option value="Primary 2">Primary 2</option>
+                  <option value="Primary 3">Primary 3</option>
+                  <option value="Primary 4">Primary 4</option>
+                  <option value="Primary 5">Primary 5</option>
+                  <option value="Primary 6">Primary 6</option>
+                  <option value="JSS 1">JSS 1</option>
+                  <option value="JSS 2">JSS 2</option>
+                  <option value="JSS 3">JSS 3</option>
+                  <option value="SSS 1">SSS 1</option>
+                  <option value="SSS 2">SSS 2</option>
+                  <option value="SSS 3">SSS 3</option>
+                  <option value="Grade 1">Grade 1</option>
+                  <option value="Grade 2">Grade 2</option>
+                  <option value="Grade 3">Grade 3</option>
+                  <option value="Grade 4">Grade 4</option>
+                  <option value="Grade 5">Grade 5</option>
+                  <option value="Grade 6">Grade 6</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
                   File Download URL *
                 </label>
                 <input
@@ -361,9 +410,16 @@ const AdminResources: React.FC = () => {
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-brand-red">
-                          {fmtCategory(item.category)}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-brand-red">
+                            {fmtCategory(item.category)}
+                          </span>
+                          {(item.classLevel || item.assignedClasses) && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                              {item.assignedClasses?.join(', ') || item.classLevel}
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleDelete(item.id, 'resources', item.title)}
                           className="text-gray-400 hover:text-red-500 transition-colors p-1"

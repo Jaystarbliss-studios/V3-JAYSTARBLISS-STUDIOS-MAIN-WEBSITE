@@ -74,8 +74,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
     }
 
     setCoords({
-      top: top + scrollY,
-      left: left + scrollX,
+      top: top,
+      left: left,
       arrowPlacement: computedPlacement
     });
   }, [placement]);
@@ -169,10 +169,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.12, ease: 'easeOut' }}
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 top: `${coords.top}px`,
                 left: `${coords.left}px`,
-                zIndex: 99999,
+                zIndex: 999999,
               }}
               className={`px-2.5 py-1.5 text-xs font-semibold text-white bg-slate-950 dark:bg-slate-900 border border-slate-700/80 rounded-lg shadow-2xl shadow-black/40 whitespace-nowrap pointer-events-none ${getTransformClass()}`}
             >
