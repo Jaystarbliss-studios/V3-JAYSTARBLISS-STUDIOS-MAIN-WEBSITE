@@ -18,6 +18,7 @@ export interface FintechWithdrawalModalProps {
   initialMode?: 'bank';
   savedBankCode?: string;
   savedAccountNumber?: string;
+  savedAccountLast4?: string;
   savedAccountName?: string;
   banksList?: BankOption[];
   onConfirmWithdrawal: (data: {
@@ -40,12 +41,13 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
   availableBalance = 0,
   savedBankCode = '',
   savedAccountNumber = '',
+  savedAccountLast4 = '',
   savedAccountName = '',
   banksList = [],
   onConfirmWithdrawal
 }) => {
   const { toast } = useToast();
-  const hasSavedAccount = Boolean(savedBankCode && savedAccountNumber && savedAccountName);
+  const hasSavedAccount = Boolean(savedBankCode && (savedAccountLast4 || savedAccountNumber) && savedAccountName);
   const [step, setStep] = useState<Step>('form');
   const [bankCode, setBankCode] = useState(savedBankCode);
   const [bankSearch, setBankSearch] = useState('');
@@ -58,7 +60,7 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    const saved = Boolean(savedBankCode && savedAccountNumber && savedAccountName);
+    const saved = Boolean(savedBankCode && (savedAccountLast4 || savedAccountNumber) && savedAccountName);
     setStep(saved ? 'saved-choice' : 'form');
     setBankCode(savedBankCode || '');
     setAccountNumber(savedAccountNumber || '');
@@ -67,7 +69,7 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
     setBankSearch('');
     setAmount('');
     setSubmitting(false);
-  }, [isOpen, savedBankCode, savedAccountNumber, savedAccountName]);
+  }, [isOpen, savedBankCode, savedAccountNumber, savedAccountLast4, savedAccountName]);
 
   const availableBanks = useMemo(
     () => [...banksList].sort((a, b) => a.name.localeCompare(b.name)),
@@ -210,7 +212,7 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
               <div className="mt-4 rounded-xl bg-white/80 dark:bg-slate-900/70 border border-emerald-100 dark:border-emerald-900/50 p-3">
                 <p className="text-xs font-black text-slate-900 dark:text-white">{savedAccountName}</p>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  {(availableBanks.find(bank => bank.code === savedBankCode)?.name || 'Verified Nigerian bank') + ' •••• ' + savedAccountNumber.slice(-4)}
+                  {(availableBanks.find(bank => bank.code === savedBankCode)?.name || 'Verified Nigerian bank') + ' •••• ' + (savedAccountLast4 || savedAccountNumber.slice(-4))}
                 </p>
               </div>
             </div>
