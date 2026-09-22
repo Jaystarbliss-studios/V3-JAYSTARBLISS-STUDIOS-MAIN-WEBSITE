@@ -20,36 +20,32 @@ export const handler: Handler = async (event) => {
     }
 
     const banks: Array<{ name: string; code: string }> = [];
-    const firstResponse = await fetch("https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=1", {
-      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
-    });
-    const firstData = await firstResponse.json();
-    if (!firstResponse.ok || !firstData.status) {
-      console.error("Paystack bank directory error:", firstData);
-      return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
-    }
-
     const extractBanks = (data: any) => (Array.isArray(data?.data) ? data.data : [])
       .map((bank: any) => ({ name: String(bank.name || "").trim(), code: String(bank.code || "").trim() }))
       .filter((bank: any) => bank.name && bank.code);
 
-    banks.push(...extractBanks(firstData));
+    let nextCursor = "";
+    for (let requestCount = 0; requestCount < 10; requestCount += 1) {
+      const url = new URL("https://api.paystack.co/bank");
+      url.searchParams.set("country", "nigeria");
+      url.searchParams.set("currency", "NGN");
+      url.searchParams.set("perPage", "100");
+      url.searchParams.set("use_cursor", "true");
+      if (nextCursor) url.searchParams.set("next", nextCursor);
 
-    const pageCount = Math.min(Number(firstData?.meta?.pageCount || 1), 10);
-    if (pageCount > 1) {
-      const remainingPages = await Promise.all(
-        Array.from({ length: pageCount - 1 }, (_, index) => index + 2).map(async (page) => {
-          const response = await fetch(`https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=${page}`, {
-            headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
-          });
-          const data = await response.json();
-          if (!response.ok || !data.status) {
-            throw new Error(`Paystack bank page ${page} failed`);
-          }
-          return extractBanks(data);
-        })
-      );
-      remainingPages.forEach(pageBanks => banks.push(...pageBanks));
+      const response = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
+      });
+      const data = await response.json();
+      if (!response.ok || !data.status) {
+        console.error("Paystack bank directory error:", data);
+        return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
+      }
+
+      banks.push(...extractBanks(data));
+      const cursor = String(data?.meta?.next || "").trim();
+      if (!cursor || cursor === nextCursor || extractBanks(data).length === 0) break;
+      nextCursor = cursor;
     }
 
     const uniqueBanks = Array.from(new Map(banks.map(bank => [bank.code + ":" + bank.name, bank])).values())
