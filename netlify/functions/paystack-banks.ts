@@ -20,19 +20,36 @@ export const handler: Handler = async (event) => {
     }
 
     const banks: Array<{ name: string; code: string }> = [];
-    for (let page = 1; page <= 10; page += 1) {
-      const response = await fetch(`https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=${page}`, {
-        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
-      });
-      const data = await response.json();
-      if (!response.ok || !data.status) {
-        return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
-      }
-      const pageBanks = (Array.isArray(data.data) ? data.data : [])
-        .map((bank: any) => ({ name: String(bank.name || "").trim(), code: String(bank.code || "").trim() }))
-        .filter((bank: any) => bank.name && bank.code);
-      banks.push(...pageBanks);
-      if (pageBanks.length < 100) break;
+    const firstResponse = await fetch("https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=1", {
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
+    });
+    const firstData = await firstResponse.json();
+    if (!firstResponse.ok || !firstData.status) {
+      console.error("Paystack bank directory error:", firstData);
+      return { statusCode: 502, body: JSON.stringify({ error: "Unable to load supported banks." }) };
+    }
+
+    const extractBanks = (data: any) => (Array.isArray(data?.data) ? data.data : [])
+      .map((bank: any) => ({ name: String(bank.name || "").trim(), code: String(bank.code || "").trim() }))
+      .filter((bank: any) => bank.name && bank.code);
+
+    banks.push(...extractBanks(firstData));
+
+    const pageCount = Math.min(Number(firstData?.meta?.pageCount || 1), 10);
+    if (pageCount > 1) {
+      const remainingPages = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, index) => index + 2).map(async (page) => {
+          const response = await fetch(`https://api.paystack.co/bank?country=nigeria&currency=NGN&perPage=100&page=${page}`, {
+            headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` }
+          });
+          const data = await response.json();
+          if (!response.ok || !data.status) {
+            throw new Error(`Paystack bank page ${page} failed`);
+          }
+          return extractBanks(data);
+        })
+      );
+      remainingPages.forEach(pageBanks => banks.push(...pageBanks));
     }
 
     const uniqueBanks = Array.from(new Map(banks.map(bank => [bank.code + ":" + bank.name, bank])).values())
