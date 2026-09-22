@@ -423,6 +423,10 @@ export const billingPost = async <T>(path: string, body: Record<string, unknown>
   // Direct Firestore handlers for when Netlify functions are not hosted in the dev environment
   const action = String(body.action || '').toLowerCase();
 
+  if (path === 'wallet-withdraw') {
+    throw new Error('The wallet payout service is unavailable. Please try again when the payout service is online.');
+  }
+
   if (action === 'set_school_billing') {
     const schoolId = String(body.schoolId || '').trim();
     if (!schoolId) throw new Error('School ID is required.');
