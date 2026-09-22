@@ -172,7 +172,7 @@ const ParentDashboard: React.FC = () => {
           </span>
           <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">Parent & Guardian Hub</h2>
           <p className="text-xs text-slate-300 mt-1">
-            Stay aligned with your cadet's coding journey, tech projects, and tuition schedules.
+            Stay aligned with your student's coding journey, tech projects, and tuition schedules.
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
@@ -206,11 +206,11 @@ const ParentDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Enrolled Cadets Section */}
+      {/* Enrolled Students Section */}
       <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Enrolled Cadets</h2>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Enrolled Students</h2>
             <p className="text-xs text-slate-500">Only student records linked to your parent account are displayed.</p>
           </div>
           <button
@@ -241,8 +241,8 @@ const ParentDashboard: React.FC = () => {
                           {(child.fullName || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <h3 className="truncate text-xs font-bold text-slate-900 dark:text-white">{child.fullName || 'Cadet'}</h3>
-                          <p className="truncate text-[11px] text-slate-500">@{child.username || 'cadet'}</p>
+                          <h3 className="truncate text-xs font-bold text-slate-900 dark:text-white">{child.fullName || 'Student'}</h3>
+                          <p className="truncate text-[11px] text-slate-500">@{child.username || 'student'}</p>
                         </div>
                       </div>
                       <span className="shrink-0 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
