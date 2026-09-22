@@ -11,7 +11,6 @@ import SEO from '../../components/ui/SEO';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
 import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
-import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
 import { ResourceListView } from '../../components/portal/ResourceListView';
 import { billingGet, billingPost } from '../../lib/billing';
@@ -39,10 +38,11 @@ const StaffDashboard: React.FC = () => {
 
   // Fintech Modals
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
-  const [withdrawMode, setWithdrawMode] = useState<'bank' | 'opay'>('bank');
-  const [isAddMoneyModalOpen, setIsAddMoneyModalOpen] = useState(false);
   const [banksList, setBanksList] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'cadets' | 'wallet' | 'guides'>('all');
+  const [savedBankCode, setSavedBankCode] = useState('');
+  const [savedAccountNumber, setSavedAccountNumber] = useState('');
+  const [savedAccountName, setSavedAccountName] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'students' | 'wallet' | 'guides'>('all');
 
   const fetchStaffData = async () => {
     setLoading(true);
@@ -91,85 +91,29 @@ const StaffDashboard: React.FC = () => {
       const fetchedStudents = Array.from(studentMap.values());
       setStudents(fetchedStudents);
 
-      // 3. Fetch Wallet and Payment Records via Billing API or Firestore
-      const staffName = effective.effectiveName || currentUser?.displayName || 'Faculty Member';
+      // 3. Fetch Wallet and Payment Records from Firebase
       try {
-        let billingRes: any = null;
-        if (!effective.isMasquerading) {
-          billingRes = await billingGet<any>('billing-data').catch(() => null);
-        }
-
-        if (billingRes?.wallet?.availableBalance !== undefined) {
-          setWalletBalance(billingRes.wallet.availableBalance);
-        } else {
-          const calculatedBalance = Math.max(45000, fetchedStudents.length * 25000);
-          setWalletBalance(calculatedBalance);
-        }
-
-        if (billingRes?.payments && billingRes.payments.length > 0) {
+        const billingRes = !effective.isMasquerading ? await billingGet<any>('billing-data').catch(() => null) : null;
+        const wallet = billingRes?.wallet || null;
+        setWalletBalance(Number(wallet?.availableBalance ?? 0));
+        setSavedBankCode(String(wallet?.bankCode || ''));
+        setSavedAccountNumber(String(wallet?.bankAccountNumber || ''));
+        setSavedAccountName(String(wallet?.bankAccountName || ''));
+        if (Array.isArray(billingRes?.payments)) {
           setPayments(billingRes.payments);
         } else {
-          // Fetch from Firestore payments collection or generate structured teaching records
           const paymentsSnap = staffUid
-            ? await getDocs(query(collection(db, 'payments'), where('userId', '==', staffUid), limit(15))).catch(() => null)
+            ? await getDocs(query(collection(db, 'payments'), where('userId', '==', staffUid), limit(100))).catch(() => null)
             : null;
-
-          if (paymentsSnap && !paymentsSnap.empty) {
-            setPayments(paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-          } else {
-            setPayments([
-              {
-                id: 'TX-DISB-7729',
-                reference: 'REF-STF-09210',
-                amount: 75000,
-                type: 'credit',
-                category: 'Tutor Allocation',
-                description: 'Curriculum Delivery Stipend • Term 1 Batch',
-                channel: 'OPay / Bank Settlement',
-                status: 'successful',
-                paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-                sender: 'Jaystarbliss Studios Treasury',
-                recipient: staffName,
-                tutorName: staffName,
-                studentName: fetchedStudents[0]?.fullName || 'Assigned Cadets Pool'
-              },
-              {
-                id: 'TX-DISB-4412',
-                reference: 'REF-STF-08103',
-                amount: 35000,
-                type: 'credit',
-                category: 'Mentorship Bonus',
-                description: 'Practical Coding & Assessment Honorarium',
-                channel: 'Bank Transfer (GTBank)',
-                status: 'successful',
-                paidAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-                sender: 'Jaystarbliss Studios Finance',
-                recipient: staffName
-              }
-            ]);
-          }
+          setPayments(paymentsSnap ? paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
         }
       } catch (err) {
-        console.warn('Billing fetch fallback:', err);
-        const calculatedBalance = Math.max(45000, fetchedStudents.length * 25000);
-        setWalletBalance(calculatedBalance);
-        setPayments([
-          {
-            id: 'TX-DISB-7729',
-            reference: 'REF-STF-09210',
-            amount: 75000,
-            type: 'credit',
-            category: 'Tutor Allocation',
-            description: 'Curriculum Delivery Stipend • Term 1 Batch',
-            channel: 'OPay / Bank Settlement',
-            status: 'successful',
-            paidAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-            sender: 'Jaystarbliss Studios Treasury',
-            recipient: staffName,
-            tutorName: staffName,
-            studentName: fetchedStudents[0]?.fullName || 'Assigned Cadets Pool'
-          }
-        ]);
+        console.warn('Billing fetch failed:', err);
+        setWalletBalance(0);
+        setSavedBankCode('');
+        setSavedAccountNumber('');
+        setSavedAccountName('');
+        setPayments([]);
       }
 
       // Fetch banks
@@ -227,7 +171,7 @@ const StaffDashboard: React.FC = () => {
   };
 
   const handleConfirmWithdrawal = async (payoutData: {
-    destination: 'bank' | 'opay';
+    destination: 'bank';
     bankCode: string;
     bankName: string;
     accountNumber: string;
@@ -236,7 +180,6 @@ const StaffDashboard: React.FC = () => {
     fee: number;
     netAmount: number;
   }) => {
-    const currentUser = auth.currentUser;
     try {
       await billingPost('wallet-withdraw', {
         action: 'withdraw',
@@ -246,32 +189,11 @@ const StaffDashboard: React.FC = () => {
         accountNumber: payoutData.accountNumber,
         accountName: payoutData.accountName
       });
-      setWalletBalance(prev => Math.max(0, prev - payoutData.amount));
-      toast.success('Withdrawal processed successfully!');
+      toast.success('Withdrawal submitted successfully.');
       fetchStaffData();
     } catch (err) {
-      if (currentUser) {
-        await addDoc(collection(db, 'withdrawals'), {
-          userId: currentUser.uid,
-          userEmail: currentUser.email || '',
-          userName: currentUser.displayName || 'Faculty Member',
-          amount: payoutData.amount,
-          fee: payoutData.fee,
-          netAmount: payoutData.netAmount,
-          bankCode: payoutData.bankCode,
-          bankName: payoutData.bankName,
-          accountNumber: payoutData.accountNumber,
-          accountName: payoutData.accountName,
-          status: 'pending',
-          createdAt: serverTimestamp()
-        });
-        setWalletBalance(prev => Math.max(0, prev - payoutData.amount));
-        toast.success('Withdrawal queued for instant settlement.');
-        fetchStaffData();
-      } else {
-        throw err;
-      }
-    }
+      throw err;
+
   };
 
   return (
@@ -307,7 +229,7 @@ const StaffDashboard: React.FC = () => {
           userName={auth.currentUser?.displayName || 'Faculty Member'}
           userRole="staff"
           balance={walletBalance}
-          subTitleText="Teaching Roster • Active Cadets"
+          subTitleText="Teaching Roster • Active students"
           subTitleValue={`${students.length} Learners`}
           latestTransaction={payments[0] || null}
           onRefresh={fetchStaffData}
@@ -315,23 +237,7 @@ const StaffDashboard: React.FC = () => {
             const el = document.getElementById('staff-tx-history');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           }}
-          onWithdraw={() => {
-            setWithdrawMode('bank');
-            setIsWithdrawModalOpen(true);
-          }}
-          onTransferBank={() => {
-            setWithdrawMode('bank');
-            setIsWithdrawModalOpen(true);
-          }}
-          onTransferOPay={() => {
-            setWithdrawMode('opay');
-            setIsWithdrawModalOpen(true);
-          }}
-          onAddMoney={() => setIsAddMoneyModalOpen(true)}
-          onVaultClick={() => {
-            setWithdrawMode('bank');
-            setIsWithdrawModalOpen(true);
-          }}
+          onWithdraw={() => setIsWithdrawModalOpen(true)}
         />
       </section>
 
@@ -342,7 +248,7 @@ const StaffDashboard: React.FC = () => {
             <Users size={22} />
           </div>
           <div>
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Assigned Cadets</p>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Assigned Students</p>
             <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{students.length}</p>
           </div>
         </div>
@@ -357,25 +263,15 @@ const StaffDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs sm:col-span-2 lg:col-span-1">
-          <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shrink-0">
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Settlement Status</p>
-            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
-              <CheckCircle2 size={13} /> Instant Payout Active
-            </p>
-          </div>
-        </div>
+
       </div>
 
-      {/* 2. Assigned Cadets Management */}
+      {/* 2. Assigned Students Management */}
       <div className="pro-surface rounded-3xl p-6 md:p-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              My Assigned Cadets
+              My Assigned Students
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Only learners assigned to your mentor profile appear in your workspace.
@@ -393,7 +289,7 @@ const StaffDashboard: React.FC = () => {
             <Users className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-700 mb-3" />
             <p className="text-sm font-bold text-slate-900 dark:text-white">No students assigned yet</p>
             <p className="text-xs text-slate-500 mt-1">
-              An administrator will link cadets to your staff account for active mentoring.
+              An administrator will link students to your staff account for active mentoring.
             </p>
           </div>
         ) : (
@@ -406,14 +302,14 @@ const StaffDashboard: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-2 gap-2">
                     <h3 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate">
-                      {st.fullName || st.studentName || 'Cadet'}
+                      {st.fullName || st.studentName || 'Student'}
                     </h3>
                     <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
                       Active
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                    @{st.username || 'cadet'} • {st.email || 'No email'}
+                    @{st.username || 'Student'} • {st.email || 'No email'}
                   </p>
                   <div className="mt-3 text-xs">
                     <span className="text-slate-400 block mb-0.5 text-[10px] uppercase font-bold">Track / Track Plan:</span>
@@ -485,7 +381,7 @@ const StaffDashboard: React.FC = () => {
             </p>
             <form onSubmit={handlePostLink} className="space-y-4 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Cadet</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Student</label>
                 <select 
                   required 
                   value={targetStudentId} 
@@ -573,14 +469,16 @@ const StaffDashboard: React.FC = () => {
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         availableBalance={walletBalance}
-        initialMode={withdrawMode}
+        initialMode="bank"
+        savedBankCode={savedBankCode}
+        savedAccountNumber={savedAccountNumber}
+        savedAccountName={savedAccountName}
         banksList={banksList}
         onConfirmWithdrawal={handleConfirmWithdrawal}
       />
 
       {/* Fintech Add Money Modal */}
       <FintechAddMoneyModal
-        isOpen={isAddMoneyModalOpen}
         onClose={() => setIsAddMoneyModalOpen(false)}
         userName={auth.currentUser?.displayName || 'Faculty Member'}
         userEmail={auth.currentUser?.email || ''}
