@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
+import { getEffectiveAuth } from '../../utils/impersonation';
 import { doc, getDoc } from 'firebase/firestore';
 
 interface DashboardGreetingProps {
@@ -98,7 +99,17 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         }
       }
 
-      // 2. Check current authenticated user
+      // 2. Respect the active impersonated dashboard identity.
+      const effective = getEffectiveAuth();
+      if (effective.isMasquerading && effective.effectiveName) {
+        const cleaned = cleanFirstName(effective.effectiveName);
+        if (cleaned) {
+          if (isMounted) setResolvedName(cleaned);
+          return;
+        }
+      }
+
+      // 3. Check current authenticated user
       const currentUser = auth.currentUser;
       if (currentUser?.displayName) {
         const cleaned = cleanFirstName(currentUser.displayName);
@@ -108,7 +119,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         }
       }
 
-      // 3. Check session/local storage cached name
+      // 4. Check session/local storage cached name
       const cached = sessionStorage.getItem('userName') || localStorage.getItem('jaystar_cached_user_name');
       if (cached && !GENERIC_TITLES.has(cached.trim().toLowerCase())) {
         const cleaned = cleanFirstName(cached);
@@ -118,7 +129,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         }
       }
 
-      // 4. Try fetching from Firestore users collection
+      // 5. Try fetching from Firestore users collection
       if (currentUser?.uid) {
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
@@ -138,7 +149,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         }
       }
 
-      // 5. Fallback to email handle
+      // 6. Fallback to email handle
       if (currentUser?.email) {
         const emailHandle = currentUser.email.split('@')[0];
         const cleaned = cleanFirstName(emailHandle);
