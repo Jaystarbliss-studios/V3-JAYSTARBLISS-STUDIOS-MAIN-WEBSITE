@@ -356,7 +356,7 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
 
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               <div className="p-3 flex justify-between gap-4"><span className="text-slate-500">Destination Bank</span><strong className="text-right text-slate-900 dark:text-white">{selectedBank.name}</strong></div>
-              <div className="p-3 flex justify-between gap-4"><span className="text-slate-500">Account Number</span><strong className="font-mono text-slate-900 dark:text-white">{accountNumber}</strong></div>
+              <div className="p-3 flex justify-between gap-4"><span className="text-slate-500">Account Number</span><strong className="font-mono text-slate-900 dark:text-white">{accountNumber || ('••••••' + (savedAccountLast4 || ''))}</strong></div>
               <div className="p-3 flex justify-between gap-4"><span className="text-slate-500">Beneficiary Name</span><strong className="text-right text-slate-900 dark:text-white">{accountName}</strong></div>
             </div>
 
