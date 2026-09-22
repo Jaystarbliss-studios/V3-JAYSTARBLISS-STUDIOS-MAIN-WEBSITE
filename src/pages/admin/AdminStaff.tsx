@@ -1286,7 +1286,7 @@ const AdminStaff: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <GraduationCap size={16} className="text-purple-600 dark:text-purple-400" />
                   <h3 className="text-xs font-black uppercase tracking-wider text-purple-900 dark:text-purple-200">
-                    Assigned Student Cadets ({managingStaff.assignedStudents.length})
+                    Assigned Students ({managingStaff.assignedStudents.length})
                   </h3>
                 </div>
                 <a
@@ -1320,7 +1320,7 @@ const AdminStaff: React.FC = () => {
                 </div>
               ) : (
                 <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                  No student cadets currently assigned to this mentor. You can assign students to faculty in the Students directory.
+                  No students currently assigned to this mentor. You can assign students to faculty in the Students directory.
                 </p>
               )}
             </div>
