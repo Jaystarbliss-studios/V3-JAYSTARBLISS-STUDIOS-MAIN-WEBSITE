@@ -158,7 +158,7 @@ const AdminDashboard: React.FC = () => {
 
   const stats = [
     { 
-      name: 'Enrolled Cadets', 
+      name: 'Enrolled Students', 
       value: metrics.students, 
       icon: Users, 
       color: 'from-sky-500 to-blue-600', 
@@ -293,7 +293,7 @@ const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Pending Approvals', href: '/admin/approvals', icon: ShieldCheck, badge: 'Schools' },
-          { label: 'Student Cadets', href: '/admin/students', icon: Users, badge: 'Registry' },
+          { label: 'Students', href: '/admin/students', icon: Users, badge: 'Registry' },
           { label: 'Curriculum & CBT', href: '/admin/resources', icon: BookOpen, badge: 'Library' },
           { label: 'Public Inquiries', href: '/admin/inquiries', icon: MessageSquare, badge: 'Admissions' },
         ].map((action, idx) => {
