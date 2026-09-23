@@ -151,7 +151,7 @@ export function useResourceReadTracker(customUserId?: string) {
 export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';
 
 export function matchesDateFilter(dateVal: any, filter: DateFilterType): boolean {
-  if (filter === 'all' || filter === 'oldest') return true;
+  if (filter === 'all' || filter === 'recent' || filter === 'oldest') return true;
 
   if (!dateVal) return false;
   let timeMs = 0;
@@ -170,8 +170,8 @@ export function matchesDateFilter(dateVal: any, filter: DateFilterType): boolean
   const diffMs = now - timeMs;
 
   switch (filter) {
-    case 'recent': // 48 hours
-      return diffMs <= 48 * 60 * 60 * 1000;
+    case 'recent': // Most recent: filtering is handled by newest-first sorting in the resource list.
+      return true;
     case 'last_week': // 7 days
       return diffMs <= 7 * 24 * 60 * 60 * 1000;
     case 'last_month': // 30 days
