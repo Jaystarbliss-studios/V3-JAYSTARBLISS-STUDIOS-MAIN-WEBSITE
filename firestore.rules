@@ -47,8 +47,9 @@ service cloud.firestore {
     match /exams/{examId} { allow read: if isActiveUserRecord() || true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /schoolResources/{resourceId} { 
       allow read: if true; 
-      allow create, update: if isAuth(); 
-      allow delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); 
+      allow create: if isAnyAdmin() || isSameSchool(request.resource.data.schoolId);
+      allow update: if isAnyAdmin() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isAnyAdmin() || isSameSchool(resource.data.schoolId);
     }
     match /schoolLinks/{linkId} { 
       allow read: if true; 
