@@ -19,7 +19,7 @@ const response = (statusCode: number, body: Record<string, unknown>) => ({
 
 const isSuperAdmin = (email: string, role: string) =>
   email === "johnrufai242@gmail.com" ||
-  ["superadmin", "super_admin"].includes(role);
+  ["superadmin", "super_admin", "admin"].includes(role);
 
 const SCHOOL_SCOPED_COLLECTIONS = [
   "users",
