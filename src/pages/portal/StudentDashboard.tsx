@@ -639,7 +639,7 @@ const StudentDashboard: React.FC = () => {
     <div className="dashboard-interface space-y-6 md:space-y-8">
       <SEO
         title="Student Workspace Dashboard"
-        description="Access student classes, mentor feedback, assignments, module certificates, and learning resources."
+        description="A focused overview of your learning progress, programme assignment and class analytics."
         noindex={true}
       />
 
@@ -652,10 +652,7 @@ const StudentDashboard: React.FC = () => {
           <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500 dark:text-slate-400">
             Your portal session is active, but a student record could not be located. Please sign in again or contact an administrator.
           </p>
-          <Link
-            to="/portal"
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
-          >
+          <Link to="/portal" className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-red px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700">
             Return to Portal <ArrowRight size={15} aria-hidden="true" />
           </Link>
         </section>
@@ -663,606 +660,134 @@ const StudentDashboard: React.FC = () => {
         <>
           <DashboardGreeting
             name={student.fullName || undefined}
-            role="Technology Cadet"
-            subtitle="Keep going. Your future is in progress."
+            role="Student"
+            subtitle="Your learning overview, kept focused on the things that matter most."
           />
 
-          {/* Hero Banner with Featured Track & Quick Continue */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-sm border border-slate-800">
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-              <div className="max-w-xl">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-red text-white">
-                  Active Enrollment
-                </span>
-                <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">
-                  {student.plan || 'Coding & Robotics Academy'}
+          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-sm border border-slate-800">
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-5 md:items-center">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Current Programme</p>
+                <h2 className="mt-1 text-lg sm:text-xl font-bold text-white">
+                  {student.plan || currentModule?.trackName || 'Not assigned'}
                 </h2>
-                <p className="text-xs text-slate-300 mt-1">
-                  Assigned Class: <strong className="text-white">{student.class || student.grade || 'Junior Cadet'}</strong> • Current Focus: <span className="text-brand-red font-semibold">{currentModule?.title || 'Foundational Computing'}</span>
+                <p className="mt-1 text-xs text-slate-300">
+                  {student.class || student.grade ? `Class: ${student.class || student.grade}` : 'Class not assigned'}
                 </p>
-
-                {/* Inline Progress Bar */}
-                <div className="mt-3.5 max-w-md">
-                  <div className="flex items-center justify-between text-[11px] mb-1 font-semibold text-slate-300">
-                    <span>Curriculum Completion</span>
-                    <span className="text-white font-bold">{overallProgress}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-700/80 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-brand-red rounded-full transition-all duration-500" 
-                      style={{ width: `${overallProgress}%` }}
-                    />
-                  </div>
-                </div>
               </div>
-
-              <div className="flex items-center gap-3 shrink-0">
-                <Link
-                  to="/portal/student/courses"
-                  className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-2"
-                >
-                  <span>Continue Learning</span>
-                  <ArrowRight size={14} />
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Compact 4-Stat Metrics Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Overall Progress</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{overallProgress}%</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">{completedModulesCount} of {modules.length} milestones</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Assessments</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{exams.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">{upcomingAssignments.length} with upcoming deadlines</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Resources</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{personalResources.length + classResources.length + generalResources.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Lesson notes & materials</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Announcements</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{notifications.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Unread notifications</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-7 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Course Progress</h2>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Verified module completion across active learning tracks.</p>
-                </div>
-                <span className="rounded-full border border-brand-red/20 bg-brand-red/10 px-2.5 py-0.5 text-[10px] font-bold text-brand-red">
-                  Current Term
-                </span>
-              </div>
-
-              {courseProgressList.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                  <BookOpenIcon />
-                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No enrolled modules recorded yet</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Your learning progress will appear here after your curriculum is assigned.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {courseProgressList.map((track) => (
-                    <CircularProgress
-                      key={track.label}
-                      percentage={track.percentage}
-                      label={track.label}
-                      modulesDone={track.modulesDone}
-                      modulesTotal={track.modulesTotal}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Upcoming Assessments</h2>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Deadlines and tests recorded in your portal.</p>
-                </div>
-                <Trophy size={16} className="text-brand-red" aria-hidden="true" />
-              </div>
-              {upcomingAssignments.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                  <CheckCircle2 className="mx-auto text-slate-300 dark:text-slate-700" size={28} aria-hidden="true" />
-                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No pending assessments</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">Assessment dates will appear here when scheduled.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {upcomingAssignments.map((exam) => (
-                    <div key={exam.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-900/60">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
-                          <Code2 size={15} aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{exam.title}</p>
-                          <p className="truncate text-[10px] text-slate-500">{exam.subject || 'Assessment'}</p>
-                        </div>
-                      </div>
-                      <span className="shrink-0 rounded-lg bg-white dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700">
-                        {formatDate(exam.dueDate)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-
-          <StudentAnalyticsVisualizer
-            studentName={student.fullName || 'Student'}
-            studentClass={student.class || student.grade || 'Not recorded'}
-            enrolledSubjects={student.subjects || []}
-            completedModulesCount={completedModulesCount}
-            totalModulesCount={modules.length}
-            learningTracks={courseProgressList.map((track) => ({
-              subject: track.label,
-              progress: track.percentage,
-              modulesDone: track.modulesDone,
-              modulesTotal: track.modulesTotal,
-            }))}
-          />
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Recent Activity</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Latest verified module completions.</p>
-                </div>
-                <Activity size={16} className="text-brand-red" aria-hidden="true" />
-              </div>
-              {recentActivities.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                  <Activity className="mx-auto text-slate-300 dark:text-slate-700" size={26} aria-hidden="true" />
-                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No completed activities yet</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {recentActivities.map((module) => (
-                    <div key={module.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
-                      <div className="mt-0.5 rounded-lg bg-emerald-500/10 p-1.5 text-emerald-600">
-                        <Award size={14} aria-hidden="true" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white">Completed Module</p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{module.title}</p>
-                        <p className="mt-0.5 text-[10px] font-mono text-slate-400">{module.completionDate || 'Completion recorded'}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 lg:col-span-7 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
-                    <Trophy size={16} aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Active Milestone Focus</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">The next curriculum checkpoint from your recorded modules.</p>
-                  </div>
-                </div>
-                {currentModule && (
-                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
-                    Stage {currentModule.stageNumber}
-                  </span>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Current Focus</p>
+                <p className="mt-1 text-base font-bold text-white">
+                  {currentModule?.title || 'Not assigned'}
+                </p>
+                {currentModule?.stageName && (
+                  <p className="mt-1 text-xs text-slate-300">{currentModule.stageName}</p>
                 )}
               </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Next Deliverable</p>
-                  <p className="mt-1 text-xs font-bold text-slate-900 dark:text-white">
-                    {upcomingAssignments[0]?.title || 'No upcoming deliverable recorded'}
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-slate-500">{formatDate(upcomingAssignments[0]?.dueDate)}</p>
-                </div>
-                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Certificate Readiness</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">{overallProgress}%</p>
-                  <p className="mt-0.5 text-[10px] text-slate-500">{completedModulesCount} of {modules.length} milestones verified</p>
-                </div>
+              <div className="md:text-right">
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Programme Progress</p>
+                <p className="mt-1 text-3xl font-black text-white">{overallProgress}%</p>
+                <p className="text-xs text-slate-300">{completedModulesCount} of {modules.length} milestones completed</p>
               </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
-                <span className="text-slate-500">Primary Track: <strong className="text-slate-800 dark:text-slate-200">{student.plan || 'Coding & Tech Academy'}</strong></span>
-                <span className="text-slate-500">Assigned Class: <strong className="text-slate-800 dark:text-slate-200">{student.class || student.grade || 'Not recorded'}</strong></span>
-              </div>
-            </section>
-          </div>
-
-          <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-            <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-red/10 text-brand-red">
-                  <Award size={18} aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Program Modules & Certificates</h2>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Generate certificates only for modules that have a verified completion record.</p>
-                </div>
-              </div>
-              <span className="self-start rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                {completedModulesCount} of {modules.length} Completed
-              </span>
             </div>
-
-            {modules.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                <Award className="mx-auto text-slate-300 dark:text-slate-700" size={28} aria-hidden="true" />
-                <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No program milestones assigned yet</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">Your instructor will record your curriculum stages here.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {modules.map((module) => {
-                  const credentialId = stableCredentialId(
-                    student.username || student.accessCode || student.id || 'student',
-                    module.id
-                  );
-                  return (
-                    <article
-                      key={module.id}
-                      className={`flex flex-col justify-between rounded-xl border p-4 transition-all ${
-                        module.completed
-                          ? 'border-brand-red/20 bg-brand-red/[0.02] dark:bg-brand-red/[0.04]'
-                          : 'border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40'
-                      }`}
-                    >
-                      <div>
-                        <div className="mb-2.5 flex items-start justify-between gap-2">
-                          <span className="rounded-md bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-slate-800">
-                            {module.stageName}
-                          </span>
-                          {module.completed ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                              <CheckCircle2 size={11} aria-hidden="true" /> Completed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                              <Clock size={11} aria-hidden="true" /> In progress
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-sm font-bold leading-snug text-slate-900 dark:text-white">{module.title}</h3>
-                        <p className="mt-0.5 text-xs font-semibold text-brand-red">{module.trackName}</p>
-                        {module.competencies.length > 0 && (
-                          <div className="mt-3">
-                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Competencies</p>
-                            <div className="flex flex-wrap gap-1">
-                              {module.competencies.slice(0, 5).map((competency) => (
-                                <span key={competency} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                  {competency}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
-                        <div className="mb-2.5 flex items-center justify-between gap-3 text-[10px] text-slate-500">
-                          <span>{module.completionDate ? `Verified ${formatDate(module.completionDate)}` : 'Verification pending'}</span>
-                          <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{module.score || '—'}</span>
-                        </div>
-                        {module.completed ? (
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedModuleForCert(module);
-                                setCertStudentName(student.fullName || '');
-                              }}
-                              className="min-h-9 flex-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-950"
-                            >
-                              Customize & Preview
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadCertificate(module)}
-                              disabled={generatingCert}
-                              title="Download certificate PDF"
-                              aria-label={`Download certificate for ${module.title}`}
-                              className="min-h-9 min-w-9 rounded-xl bg-brand-red px-2.5 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
-                            >
-                              <Download size={14} className="mx-auto" aria-hidden="true" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled
-                            className="min-h-9 w-full rounded-xl bg-slate-100 px-3 text-xs font-semibold text-slate-400 dark:bg-slate-800/60 dark:text-slate-500"
-                          >
-                            Milestone in progress
-                          </button>
-                        )}
-                        <p className="mt-1.5 text-[9px] font-mono text-slate-400">{credentialId}</p>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
           </section>
 
-          <AchievementBadgeGrid
-            studentName={student.fullName}
-            title="My Achievement & Mastery Badges"
-            subtitle="Earn verifiable badges and XP as you complete milestones and projects."
-          />
-
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="space-y-6 lg:col-span-2">
-              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
-                      <Video size={16} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Live Classroom & Sessions</h2>
-                      <p className="mt-0.5 text-xs text-slate-500">Links published specifically for your student account.</p>
-                    </div>
-                  </div>
-                </div>
-
-                {personalLinks.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                    <Video size={26} className="mx-auto text-slate-300 dark:text-slate-700" aria-hidden="true" />
-                    <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No live classroom links yet</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">Your tutor will publish meeting links here before scheduled sessions.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {personalLinks.map((link) => (
-                      <article key={link.id} className="flex flex-col justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
-                        <div>
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="rounded-md bg-brand-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-red">{link.platform || 'Class Link'}</span>
-                            {link.meetingTime && <span className="inline-flex items-center gap-1 text-[10px] text-slate-500"><Clock size={11} aria-hidden="true" />{link.meetingTime}</span>}
-                          </div>
-                          <h3 className="text-xs font-bold text-slate-900 dark:text-white">{link.title}</h3>
-                          {link.description && <p className="mt-1 text-[11px] text-slate-500 line-clamp-2">{link.description}</p>}
-                        </div>
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-3.5 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-brand-red px-3 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-950"
-                        >
-                          Join Classroom <ExternalLink size={12} aria-hidden="true" />
-                        </a>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section id="student-learning-materials" className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
-                      <FileText size={16} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Learning Materials</h2>
-                      <p className="mt-0.5 text-xs text-slate-500">Personal, class-specific, and school-assigned curriculum resources.</p>
-                    </div>
-                  </div>
-                  <Link
-                    to="/portal/student/resources"
-                    className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-bold text-brand-red hover:bg-brand-red/5 focus:outline-none focus:ring-2 focus:ring-brand-red"
-                  >
-                    Full Resource Library <ArrowRight size={13} aria-hidden="true" />
-                  </Link>
-                </div>
-
-                <ResourceListView
-                  resources={allStudentResources}
-                  role="student"
-                  studentClass={student?.class || student?.grade}
-                  onPreview={(item) => {
-                    const url = item.url || item.fileUrl;
-                    if (url) window.open(url, '_blank');
-                  }}
-                  emptyMessage="No learning materials recorded yet. Resources assigned to your class or school will appear here."
-                />
-              </section>
-
-              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                <div className="mb-4 flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                    <Trophy size={16} aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Active Assessments & Quizzes</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">Exams and evaluation tests currently visible to your portal.</p>
-                  </div>
-                </div>
-                {exams.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center dark:border-slate-800 dark:bg-slate-900/50">
-                    <p className="text-xs text-slate-500">No active assessments are currently recorded for your account.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {exams.slice(0, 6).map((exam) => (
-                      <article key={exam.id} className="flex flex-col justify-between rounded-xl border border-slate-100 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50">
-                        <div>
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
-                            <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{exam.subject || 'Assessment'}</span>
-                            {(exam.targetClass || exam.class) && <span className="rounded-md bg-brand-red/10 px-2 py-0.5 text-[10px] font-bold text-brand-red">{exam.targetClass || exam.class}</span>}
-                          </div>
-                          <h3 className="text-xs font-bold text-slate-900 dark:text-white">{exam.title}</h3>
-                          {exam.duration && <p className="mt-0.5 text-[10px] text-slate-500">Duration: {exam.duration}</p>}
-                          {exam.passcodeProtected && <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300"><Lock size={11} aria-hidden="true" /> Passcode required</p>}
-                        </div>
-                        {exam.link || exam.url ? (
-                          <a
-                            href={exam.link || exam.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-3.5 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white hover:bg-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:bg-slate-800 dark:focus:ring-offset-slate-950"
-                          >
-                            Start Test <ExternalLink size={11} aria-hidden="true" />
-                          </a>
-                        ) : (
-                          <span className="mt-3.5 text-xs font-semibold text-slate-400">Link not published</span>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="pro-surface rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Programme Progress</p>
+              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{overallProgress}%</p>
             </div>
-
-            <aside className="space-y-6">
-              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Cadet Profile</h2>
-                <div className="mt-3 space-y-0.5 text-xs">
-                  <ProfileRow label="Username" value={student.username || '—'} mono />
-                  <ProfileRow label="Assigned Class" value={student.class || student.grade || '—'} />
-                  <ProfileRow label="School Partner" value={student.schoolName || '—'} />
-                  <ProfileRow label="Primary Track" value={student.plan || '—'} />
-                  {(student.accessCode || student.passcode) && <ProfileRow label="Access Code" value={student.accessCode || student.passcode || '—'} mono highlight />}
-                  <ProfileRow label="Status" value={student.status || 'Active Learner'} highlightSuccess />
-                  {student.notes && (
-                    <div className="mt-3 rounded-xl border border-amber-200/70 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                      <span className="font-bold">Mentor Remarks</span>
-                      <p className="mt-0.5 text-[11px]">{student.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Bell size={16} className="text-brand-red" aria-hidden="true" />
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Announcements</h2>
-                  </div>
-                  {unreadCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-full bg-brand-red text-white text-[10px] font-black">
-                      {unreadCount} Unread
-                    </span>
-                  )}
-                </div>
-                {notifications.length === 0 ? (
-                  <p className="text-xs text-slate-500">No announcements currently.</p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {notifications.slice(0, 5).map((notification) => {
-                      const isRead = isNotificationRead(notification);
-                      return (
-                        <button
-                          type="button"
-                          key={notification.id}
-                          onClick={() => openDrawer(notification.id)}
-                          className={`w-full rounded-xl border p-2.5 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-brand-red cursor-pointer ${
-                            isRead
-                              ? 'border-slate-100 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 hover:bg-slate-100/70 dark:hover:bg-slate-850'
-                              : 'border-brand-red/30 bg-brand-red/[0.04] text-slate-900 dark:border-brand-red/30 dark:bg-brand-red/[0.08] dark:text-white'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className={`text-xs font-bold ${!isRead ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
-                              {notification.title}
-                            </span>
-                            {!isRead && <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-red" aria-label="Unread" />}
-                          </div>
-                          <p className="mt-0.5 text-[11px] text-slate-500 line-clamp-2 dark:text-slate-400">{notification.message}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </aside>
+            <div className="pro-surface rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Learning Tracks</p>
+              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{courseProgressList.length}</p>
+            </div>
+            <div className="pro-surface rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Milestones</p>
+              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{modules.length}</p>
+            </div>
+            <div className="pro-surface rounded-2xl p-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Completed</p>
+              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{completedModulesCount}</p>
+            </div>
           </div>
 
-          {selectedModuleForCert && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="certificate-modal-title">
-              <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-8">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-brand-red">Certificate Preview</p>
-                    <h2 id="certificate-modal-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{selectedModuleForCert.title}</h2>
-                    <p className="mt-1 text-xs text-slate-500">{selectedModuleForCert.stageName} · {selectedModuleForCert.trackName}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedModuleForCert(null)}
-                    className="min-h-11 min-w-11 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red dark:hover:bg-slate-800 dark:hover:text-white"
-                    aria-label="Close certificate preview"
-                  >
-                    <X size={18} className="mx-auto" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                    <span className="font-bold text-brand-red">{selectedModuleForCert.stageName}</span>
-                    <span className="font-mono text-slate-500">
-                      {stableCredentialId(student.username || student.accessCode || student.id || 'student', selectedModuleForCert.id)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{selectedModuleForCert.title}</p>
-                  <p className="mt-1 text-xs text-slate-500">Instructor: {selectedModuleForCert.instructor || 'Academic Directorate'}</p>
-                  <p className="mt-3 text-xs text-emerald-700 dark:text-emerald-300">Verified completion: {formatDate(selectedModuleForCert.completionDate)}</p>
-                </div>
-
-                <div className="mt-5">
-                  <label htmlFor="certificate-student-name" className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Student Name
-                  </label>
-                  <input
-                    id="certificate-student-name"
-                    type="text"
-                    value={certStudentName}
-                    onChange={(event) => setCertStudentName(event.target.value)}
-                    className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                    autoComplete="name"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-500">Use the exact spelling you want printed on the PDF certificate.</p>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedModuleForCert(null)}
-                    className="min-h-11 flex-1 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-red dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={generatingCert || !certStudentName.trim()}
-                    onClick={() => handleDownloadCertificate(selectedModuleForCert, certStudentName)}
-                    className="min-h-11 flex-1 rounded-xl bg-brand-red px-4 text-xs font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-                  >
-                    {generatingCert ? 'Generating PDF…' : 'Download Certificate'}
-                  </button>
-                </div>
+          <section className="pro-surface rounded-2xl p-5 sm:p-6">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Learning Analytics</h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Your recorded progress across assigned learning tracks.</p>
               </div>
+              <Activity size={16} className="text-brand-red" aria-hidden="true" />
             </div>
-          )}
+            <StudentAnalyticsVisualizer
+              studentName={student.fullName || 'Student'}
+              studentClass={student.class || student.grade || 'Not recorded'}
+              enrolledSubjects={student.subjects || []}
+              completedModulesCount={completedModulesCount}
+              totalModulesCount={modules.length}
+              learningTracks={courseProgressList.map((track) => ({
+                subject: track.label,
+                progress: track.percentage,
+                modulesDone: track.modulesDone,
+                modulesTotal: track.modulesTotal,
+              }))}
+            />
+          </section>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="pro-surface rounded-2xl p-5 sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Learning Tracks</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Progress from your assigned modules.</p>
+                </div>
+                <Link to="/portal/student/courses" className="text-xs font-bold text-brand-red inline-flex items-center gap-1">
+                  Open Learning <ArrowRight size={13} />
+                </Link>
+              </div>
+              {courseProgressList.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
+                  <BookOpenIcon />
+                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No learning tracks assigned</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Your school administrator or instructor has not assigned a track yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {courseProgressList.map(track => (
+                    <CircularProgress key={track.label} {...track} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="pro-surface rounded-2xl p-5 sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Recent Learning Activity</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Verified activity recorded for your account.</p>
+                </div>
+                <Award size={16} className="text-brand-red" aria-hidden="true" />
+              </div>
+              {recentActivities.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No completed activity yet</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Completed milestones will appear in the Achievements section.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {recentActivities.slice(0, 5).map(module => (
+                    <div key={module.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+                      <Award size={15} className="mt-0.5 text-emerald-600" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{module.title}</p>
+                        <p className="text-[10px] text-slate-500">{module.completionDate ? `Completed ${formatDate(module.completionDate)}` : 'Completed'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </>
       )}
     </div>
