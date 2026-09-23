@@ -11,7 +11,7 @@ import {
   Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, 
   Trash2, Send, RefreshCw, ShieldCheck, X, School, 
   GraduationCap, UserCheck, Download, Link as LinkIcon,
-  Filter, ChevronDown, Plus, Settings, ArrowRight
+  Filter, ChevronDown, Plus, Settings, ArrowRight, ChevronRight
 } from 'lucide-react';
 
 export interface AssignedStudentTutor {
