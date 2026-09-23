@@ -120,9 +120,14 @@ const PortalLayout: React.FC = () => {
     ];
     if (role === 'student') {
       base.push({ name: 'Learning', path: '/portal/student/courses', icon: <Book size={18} />, desc: 'Curriculum & Tracks' });
-      base.push({ name: 'Calendar', path: '/portal/student/calendar', icon: <Calendar size={18} />, desc: 'Schedules & Classes' });
-      base.push({ name: 'Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson Notes & PDFs' });
-      base.push({ name: 'Payments', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Tuition & Statements' });
+      base.push({ name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Award size={18} />, desc: 'Mastery, badges & certificates' });
+      base.push({ name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Video size={18} />, desc: 'Live lessons & sessions' });
+      base.push({ name: 'Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson Notes & Learning Materials' });
+      base.push({ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardList size={18} />, desc: 'CBT assessments & quizzes' });
+      const registrationType = sessionStorage.getItem('studentRegistrationType');
+      if (registrationType === 'individual') {
+        base.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
+      }
     } else if (role === 'staff') {
       base.push({ name: 'Live Classes', path: '/portal/staff/classes', icon: <Video size={18} />, desc: 'Teaching Roster' });
       base.push({ name: 'Student Access', path: '/portal/staff/credentials', icon: <Key size={18} />, desc: 'Access Credentials' });
@@ -150,11 +155,12 @@ const PortalLayout: React.FC = () => {
   const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
   const isStudentAccessCodeOnly = !userEmail && sessionStorage.getItem('studentDocId');
 
+  const studentCanPay = role === 'student' && sessionStorage.getItem('studentRegistrationType') === 'individual';
   const bottomNavItems = [
     { name: 'Home', path: `/portal/${role}`, icon: <LayoutDashboard size={20} /> },
     { name: role === 'school' ? 'Roster' : role === 'student' ? 'Learning' : 'Classes', path: role === 'school' ? '/portal/school/roster' : role === 'student' ? '/portal/student/courses' : `/portal/${role}/calendar`, icon: <BookOpen size={20} /> },
-    { name: 'Calendar', path: `/portal/${role}/calendar`, icon: <Calendar size={20} /> },
-    { name: 'Payments', path: `/portal/${role}/payments`, icon: <CreditCard size={20} /> },
+    { name: role === 'student' ? 'Live' : 'Calendar', path: role === 'student' ? '/portal/student/live-classrooms' : `/portal/${role}/calendar`, icon: role === 'student' ? <Video size={20} /> : <Calendar size={20} /> },
+    ...(role === 'student' && !studentCanPay ? [] : [{ name: 'Payments', path: `/portal/${role}/payments`, icon: <CreditCard size={20} /> }]),
     { name: 'Settings', path: `/portal/${role}/settings`, icon: <Settings size={20} /> }
   ];
 
