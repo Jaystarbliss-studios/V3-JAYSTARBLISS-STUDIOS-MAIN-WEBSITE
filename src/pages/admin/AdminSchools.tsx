@@ -839,57 +839,43 @@ const AdminSchools: React.FC = () => {
 
     setOnboardingSaving(true);
     try {
-      const schoolId = (onboardForm.schoolCode || onboardForm.name)
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-        .slice(0, 15) || `school-${Date.now()}`;
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
 
-      const generatedCode = onboardForm.schoolCode || `${onboardForm.name.slice(0, 4).toUpperCase()}-2026`;
-
-      const newSchoolRecord: SchoolData = {
-        id: schoolId,
-        name: onboardForm.name.trim(),
-        schoolCode: generatedCode,
-        contactName: onboardForm.contactName.trim() || 'School Administrator',
-        contactEmail: onboardForm.contactEmail.trim().toLowerCase(),
-        phone: onboardForm.phone.trim(),
-        state: onboardForm.state.trim() || 'Lagos',
-        address: onboardForm.address.trim(),
-        status: 'ACTIVE',
-        programs: onboardForm.initialProgramName.trim()
-          ? [
-              {
-                id: `prog-${Date.now()}`,
-                name: onboardForm.initialProgramName.trim(),
-                description: onboardForm.initialProgramDesc.trim(),
-                status: 'ACTIVE'
-              }
-            ]
-          : [],
-        billing: {
-          baseAmount: Number(onboardForm.initialFee) || 350000,
+      const response = await fetch('/.netlify/functions/school-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'onboard_school',
+          name: onboardForm.name,
+          schoolCode: onboardForm.schoolCode,
+          contactName: onboardForm.contactName,
+          contactEmail: onboardForm.contactEmail,
+          phone: onboardForm.phone,
+          state: onboardForm.state,
+          address: onboardForm.address,
+          initialProgramName: onboardForm.initialProgramName,
+          initialProgramDesc: onboardForm.initialProgramDesc,
+          initialFee: onboardForm.initialFee,
           cycle: onboardForm.cycle,
-          allowedModes: [onboardForm.mode, 'advance_termly', 'advance_monthly'],
-          mode: onboardForm.mode,
-          nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          status: 'ACTIVE',
-          notes: 'Standard institutional curriculum and workspace partnership agreement.'
-        }
-      };
-
-      await setDoc(doc(db, 'schools', schoolId), {
-        ...newSchoolRecord,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+          mode: onboardForm.mode
+        })
       });
 
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to onboard new school.');
+
+      const newSchoolRecord = result.school as SchoolData;
       setSchools(prev => [newSchoolRecord, ...prev]);
       setShowOnboardModal(false);
-      setSelectedSchoolId(schoolId);
+      setSelectedSchoolId(result.schoolId);
       toast.success(`${newSchoolRecord.name} onboarded successfully!`);
     } catch (err) {
       console.error('Onboarding failed:', err);
-      toast.error('Unable to onboard new school.');
+      toast.error(err instanceof Error ? err.message : 'Unable to onboard new school.');
     } finally {
       setOnboardingSaving(false);
     }
