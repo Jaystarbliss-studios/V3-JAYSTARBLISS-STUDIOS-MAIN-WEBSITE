@@ -100,6 +100,7 @@ const AdminStudents: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [tutorFilter, setTutorFilter] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedSchoolView, setSelectedSchoolView] = useState<string | null>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -392,6 +393,19 @@ const AdminStudents: React.FC = () => {
   useEffect(() => {
     void loadAllData();
   }, [loadAllData]);
+
+  const schoolGroups = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; students: UnifiedStudent[] }>();
+    schools.forEach(s => map.set(s.id, { id: s.id, name: s.name, students: [] }));
+    students.filter(s => s.studentType === 'school' && s.schoolId).forEach(s => {
+      const existing = map.get(s.schoolId);
+      if (existing) existing.students.push(s);
+      else map.set(s.schoolId, { id: s.schoolId, name: s.schoolName || s.schoolId, students: [s] });
+    });
+    return Array.from(map.values()).filter(s => s.students.length > 0).sort((a,b) => a.name.localeCompare(b.name));
+  }, [schools, students]);
+
+  const privateStudents = useMemo(() => students.filter(s => s.studentType === 'personal' || s.studentType === 'parent'), [students]);
 
   // Multi-Criteria Filtering
   const filteredStudents = useMemo(() => {
@@ -915,6 +929,31 @@ const AdminStudents: React.FC = () => {
           <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Active Accounts</p>
           <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{stats.active}</p>
         </div>
+      </div>
+
+      {/* Student population explorer */}
+      <div className="pro-surface rounded-2xl border border-slate-200/80 p-5 dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-sm font-black text-slate-900 dark:text-white">Student Directory by School</h2>
+            <p className="text-xs text-slate-500 mt-1">Click a school to view every student onboarded under that school.</p>
+          </div>
+          <button type="button" onClick={() => setSelectedSchoolView(selectedSchoolView ? null : "__private__")} className="min-h-10 rounded-xl border border-slate-200 dark:border-slate-700 px-3 text-xs font-black text-slate-700 dark:text-slate-200">
+            {selectedSchoolView === "__private__" ? "Close Private Students" : "View Private Students (" + privateStudents.length + ")"}
+          </button>
+        </div>
+        {selectedSchoolView === "__private__" ? (
+          <div className="rounded-2xl border border-purple-200/70 dark:border-purple-900/40 overflow-hidden">
+            <div className="px-4 py-3 bg-purple-50/60 dark:bg-purple-950/20 text-xs font-black text-purple-800 dark:text-purple-200">Private students · parent-registered + self-registered</div>
+            {privateStudents.length === 0 ? <div className="p-5 text-xs text-slate-500">No private students found.</div> : <div className="divide-y divide-slate-100 dark:divide-slate-800">{privateStudents.map(s => <button type="button" key={s.id} onClick={() => { setManagingStudent(s); setSelectedSchoolView(null); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex items-center justify-between gap-3"><span><span className="block text-xs font-black text-slate-900 dark:text-white">{s.fullName}</span><span className="block text-[11px] text-slate-500">{s.studentType === "parent" ? "Parent-registered" : "Self-registered"} · {s.class}</span></span><ChevronDown size={14} className="text-slate-400"/></button>)}</div>}
+          </div>
+        ) : selectedSchoolView ? (() => {
+          const school = schoolGroups.find(s => s.id === selectedSchoolView);
+          return school ? <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-900/40 overflow-hidden">
+            <div className="px-4 py-3 bg-emerald-50/60 dark:bg-emerald-950/20 flex items-center justify-between"><div><p className="text-xs font-black text-emerald-800 dark:text-emerald-200">{school.name}</p><p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">{school.students.length} onboarded students</p></div><button type="button" onClick={() => setSelectedSchoolView(null)} className="text-xs font-black text-slate-500 hover:text-slate-900 dark:hover:text-white">Close</button></div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">{school.students.map(s => <button type="button" key={s.id} onClick={() => setManagingStudent(s)} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 flex items-center justify-between gap-3"><span><span className="block text-xs font-black text-slate-900 dark:text-white">{s.fullName}</span><span className="block text-[11px] text-slate-500">{s.class} · {s.username}</span></span><ChevronRight size={14} className="text-slate-400"/></button>)}</div>
+          </div> : null;
+        })() : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">{schoolGroups.map(s => <button type="button" key={s.id} onClick={() => setSelectedSchoolView(s.id)} className="text-left rounded-2xl border border-slate-200 dark:border-slate-800 p-4 hover:border-brand-red hover:bg-brand-red/5 transition-colors"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-black text-slate-900 dark:text-white truncate">{s.name}</p><p className="text-[11px] text-slate-500 mt-1">{s.students.length} students onboarded</p></div><ChevronRight size={16} className="text-slate-400 shrink-0"/></div></button>)}</div>}
       </div>
 
       {/* Search & Unified Filter Popover Bar */}
