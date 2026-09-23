@@ -686,7 +686,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             const docItem = resources.find(r => r.id === res.id);
             if (docItem) setPreviewDoc(docItem);
           }}
-          showAssignButton={role === 'school' || role === 'staff' || role === 'all'}
+          showAssignButton={role === 'school'}
           emptyMessage="No curriculum resources found. Lessons and study notes uploaded by educators will appear here."
         />
       )}
