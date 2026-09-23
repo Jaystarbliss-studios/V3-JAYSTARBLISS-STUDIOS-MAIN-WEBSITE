@@ -148,7 +148,7 @@ export function useResourceReadTracker(customUserId?: string) {
 /**
  * Date range filter evaluation helper
  */
-export type DateFilterType = 'all' | 'last_week' | 'last_month' | 'last_90_days';
+export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';
 
 export function matchesDateFilter(dateVal: any, filter: DateFilterType): boolean {
   if (filter === 'all' || filter === 'recent' || filter === 'oldest') return true;
