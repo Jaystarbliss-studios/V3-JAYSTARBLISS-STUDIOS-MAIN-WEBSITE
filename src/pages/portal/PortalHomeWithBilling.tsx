@@ -24,6 +24,10 @@ const PortalHomeWithBilling: React.FC<{ role: 'student' | 'parent' | 'staff' | '
   const billingLabel = role === 'staff' ? 'Open Wallet & Payments' : role === 'school' ? 'Open School Billing' : role === 'parent' ? 'Open Tuition & Billing' : 'Open Tuition & Billing';
   const billingDescription = role === 'staff' ? 'Review available earnings, withdrawals and payment history.' : role === 'school' ? 'Review institutional plans, charges and payment history.' : 'Review plans, charges, payment history and receipts.';
 
+  if (role === 'student') {
+    return <div className="space-y-8">{dashboard}</div>;
+  }
+
   return <div className="space-y-8">
     {dashboard}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
