@@ -51,16 +51,17 @@ export interface ResourceListViewProps {
 }
 
 const DATE_FILTER_OPTIONS: { id: DateFilterType; label: string }[] = [
-  { id: 'all', label: 'All Dates' },
-  { id: 'recent', label: '⚡ Most Recent (Past 48h)' },
-  { id: 'last_week', label: '📅 Last Week (7 Days)' },
-  { id: 'last_month', label: '🗓️ Previous Month (30 Days)' },
-  { id: 'last_90_days', label: '⏳ Past 90 Days' },
-  { id: 'oldest', label: '⌛ Oldest First' }
+  { id: 'all', label: 'All Resources' },
+  { id: 'recent', label: 'Most Recent' },
+  { id: 'last_week', label: 'Added in the Last 7 Days' },
+  { id: 'last_month', label: 'Added in the Last 30 Days' },
+  { id: 'last_90_days', label: 'Added in the Last 90 Days' },
+  { id: 'oldest', label: 'Oldest First' }
 ];
 
 const STANDARD_CLASSES = [
   'All Classes',
+  'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5',
   'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
   'JSS 1', 'JSS 2', 'JSS 3',
   'SSS 1', 'SSS 2', 'SSS 3',
@@ -144,6 +145,34 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
     return 0;
   };
 
+  const normalizeClass = (value?: string) => String(value || '')
+    .toLowerCase()
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const classMatches = (resource: ResourceItem, selected: string) => {
+    const target = normalizeClass(selected);
+    if (!target || target === 'all classes') return true;
+    const values = [
+      resource.classLevel,
+      ...(Array.isArray(resource.assignedClasses) ? resource.assignedClasses : [])
+    ].filter(Boolean).map(normalizeClass);
+    return values.some(value => {
+      if (!value || ['all classes', 'all', 'general', 'universal'].includes(value)) return true;
+      if (value === target) return true;
+      // Treat only deliberate class ranges/aliases as matches; avoid Year 1 matching Year 10.
+      const targetNumber = target.match(/(?:year|primary|grade|jss|sss)\s*(\d+)/)?.[1];
+      const valueNumber = value.match(/(?:year|primary|grade|jss|sss)\s*(\d+)/)?.[1];
+      if (targetNumber && valueNumber && targetNumber === valueNumber) {
+        const targetPrefix = target.match(/^(year|primary|grade|jss|sss)/)?.[1];
+        const valuePrefix = value.match(/^(year|primary|grade|jss|sss)/)?.[1];
+        return targetPrefix === valuePrefix;
+      }
+      return false;
+    });
+  };
+
   // Filter & Sort Resources
   const filteredResources = useMemo(() => {
     let list = resources.filter(item => {
@@ -157,14 +186,8 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
       const dateVal = item.dateAdded || item.timestamp || item.createdAt;
       if (!matchesDateFilter(dateVal, selectedDateFilter)) return false;
 
-      // Class Filter
-      if (selectedClass !== 'All Classes') {
-        const target = selectedClass.toLowerCase();
-        const matchesClassLevel = item.classLevel && item.classLevel.toLowerCase().includes(target);
-        const matchesAssigned = item.assignedClasses && item.assignedClasses.some(c => c.toLowerCase().includes(target));
-        const matchesUniversal = item.classLevel === 'All Classes' || item.classLevel === 'Universal' || item.assignedClasses?.includes('All Classes');
-        if (!matchesClassLevel && !matchesAssigned && !matchesUniversal) return false;
-      }
+      // Class / grade filter
+      if (!classMatches(item, selectedClass)) return false;
 
       // Subject Filter
       if (selectedSubject !== 'All Subjects' && item.subject !== selectedSubject) {
@@ -670,12 +693,12 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
                       </button>
                     )}
 
-                    {/* Manage / Assign Button */}
-                    {(showAssignButton || onAssign) && (
+                    {/* Class assignment is an administrator function only. Students can read/download resources but never manage assignments. */}
+                    {role !== 'student' && (showAssignButton || onAssign) && (
                       <button
                         type="button"
                         onClick={() => onAssign && onAssign(item)}
-                        title="Manage and assign to class/members"
+                        title="Assign resource to classes"
                         className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-brand-red hover:text-brand-red text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <Users size={13} />
