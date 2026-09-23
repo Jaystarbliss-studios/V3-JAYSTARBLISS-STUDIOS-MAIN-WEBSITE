@@ -26,6 +26,7 @@ import {
   ChevronRight, 
   Key, 
   Award,
+  ClipboardList,
   Search
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
