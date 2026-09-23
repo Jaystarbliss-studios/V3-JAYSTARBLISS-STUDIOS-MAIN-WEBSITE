@@ -96,6 +96,64 @@ export const handler: Handler = async (event) => {
 
     const schoolRef = adminDb.collection("schools").doc(schoolId);
 
+    if (action === "onboard_school") {
+      const name = String(body.name || "").trim();
+      const contactEmail = String(body.contactEmail || "").trim().toLowerCase();
+      if (!name || !contactEmail) {
+        return response(400, { error: "School name and administrator email are required." });
+      }
+
+      const requestedCode = String(body.schoolCode || "").trim().toUpperCase();
+      const baseId = (requestedCode || name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15);
+      const newSchoolId = baseId || `school-${Date.now()}`;
+      const newSchoolRef = adminDb.collection("schools").doc(newSchoolId);
+      const existing = await newSchoolRef.get();
+      if (existing.exists) {
+        return response(409, { error: "A school with this generated ID already exists. Change the school code or name and try again." });
+      }
+
+      const generatedCode = requestedCode || `${name.slice(0, 4).toUpperCase()}-2026`;
+      const programName = String(body.initialProgramName || "").trim();
+      const programDescription = String(body.initialProgramDesc || "").trim();
+      const billingAmount = Number(body.initialFee) || 350000;
+      const cycle = body.cycle === "monthly" ? "monthly" : "termly";
+      const mode = String(body.mode || "advance_termly");
+
+      const schoolRecord = {
+        id: newSchoolId,
+        name,
+        schoolCode: generatedCode,
+        contactName: String(body.contactName || "").trim() || "School Administrator",
+        contactEmail,
+        phone: String(body.phone || "").trim(),
+        state: String(body.state || "").trim() || "Lagos",
+        address: String(body.address || "").trim(),
+        status: "ACTIVE",
+        programs: programName ? [{
+          id: `prog-${Date.now()}`,
+          name: programName,
+          description: programDescription,
+          status: "ACTIVE"
+        }] : [],
+        billing: {
+          baseAmount: billingAmount,
+          cycle,
+          allowedModes: [mode, "advance_termly", "advance_monthly"],
+          mode,
+          nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          status: "ACTIVE",
+          notes: "Standard institutional curriculum and workspace partnership agreement."
+        },
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        createdBy: decoded.uid,
+        createdByEmail: email
+      };
+
+      await newSchoolRef.set(schoolRecord);
+      return response(201, { created: true, schoolId: newSchoolId, school: schoolRecord });
+    }
+
     if (action === "update_profile") {
       const allowedFields = [
         "name",
