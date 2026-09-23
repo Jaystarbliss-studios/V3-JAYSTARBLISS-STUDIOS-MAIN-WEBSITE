@@ -15,7 +15,7 @@ import {
   X, Search,
   KeyRound, ArrowLeft,
   CreditCard, Bell, ShieldCheck, Check,
-  Users, Code, ChevronRight, Edit3, Send, UserCheck
+  Users, Code, ChevronRight, Edit3, Send, UserCheck, AlertTriangle
 } from 'lucide-react';
 import { formatNaira, billingPost } from '../../lib/billing';
 
@@ -308,6 +308,9 @@ const AdminSchools: React.FC = () => {
   const [savingAction, setSavingAction] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showDeleteSchoolModal, setShowDeleteSchoolModal] = useState(false);
+  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
+  const [deletingSchool, setDeletingSchool] = useState(false);
 
   // Load all schools and faculty/catalog
   const loadSchools = useCallback(async () => {
@@ -482,12 +485,24 @@ const AdminSchools: React.FC = () => {
     if (!selectedSchool) return;
     setSavingAction(true);
     try {
-      const updatedData = {
-        ...profileForm,
-        updatedAt: serverTimestamp()
-      };
-      await setDoc(doc(db, 'schools', selectedSchool.id), updatedData, { merge: true });
-      
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
+
+      const response = await fetch('/.netlify/functions/school-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'update_profile',
+          schoolId: selectedSchool.id,
+          ...profileForm
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to save school profile.');
+
       setSchools(prev => prev.map(s => s.id === selectedSchool.id ? { ...s, ...profileForm } : s));
       toast.success('School profile updated successfully.');
     } catch (err) {
@@ -495,6 +510,49 @@ const AdminSchools: React.FC = () => {
       toast.error('Unable to save school profile.');
     } finally {
       setSavingAction(false);
+    }
+  };
+
+  // Delete a school and its linked portal data through the super-admin backend.
+  const handleDeleteSchool = async () => {
+    if (!selectedSchool) return;
+    if (deleteConfirmationInput.trim() !== selectedSchool.name.trim()) {
+      toast.error('Type the exact school name to confirm deletion.');
+      return;
+    }
+
+    setDeletingSchool(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
+
+      const response = await fetch('/.netlify/functions/school-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: 'delete_school',
+          schoolId: selectedSchool.id,
+          confirmation: deleteConfirmationInput.trim()
+        })
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to delete school.');
+
+      const deletedName = selectedSchool.name;
+      setSchools(prev => prev.filter(s => s.id !== selectedSchool.id));
+      setSelectedSchoolId(null);
+      setShowDeleteSchoolModal(false);
+      setDeleteConfirmationInput('');
+      toast.success(`${deletedName} and its linked school portal records were deleted.`);
+    } catch (err) {
+      console.error('Delete school failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Unable to delete school.');
+    } finally {
+      setDeletingSchool(false);
     }
   };
 
@@ -885,6 +943,14 @@ const AdminSchools: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => setShowDeleteSchoolModal(true)}
+                className="min-h-10 px-3.5 rounded-xl border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Trash2 size={14} /> Delete School
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   toast.info(`Directly logging into school admin portal for ${selectedSchool.name}...`);
                   startImpersonation({
@@ -939,6 +1005,68 @@ const AdminSchools: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {showDeleteSchoolModal && selectedSchool && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+              <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl border border-red-200 dark:border-red-900/50 shadow-2xl p-6 md:p-7">
+                <div className="flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-2xl bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400 flex items-center justify-center shrink-0">
+                    <AlertTriangle size={22} />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Delete school permanently?</h2>
+                    <p className="text-xs leading-5 text-slate-500 dark:text-slate-400 mt-1">
+                      This removes <strong className="text-slate-900 dark:text-white">{selectedSchool.name}</strong>, its onboarded students, linked school users, school resources, sessions, payments and other school-scoped portal records. Linked Firebase login accounts are also removed.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-red-700 dark:text-red-400">Permanent action</p>
+                  <p className="text-xs text-red-800 dark:text-red-300 mt-1">
+                    This cannot be undone from the admin portal.
+                  </p>
+                </div>
+
+                <div className="mt-5">
+                  <label className={labelClass}>
+                    Type <span className="text-red-600 dark:text-red-400 normal-case tracking-normal">{selectedSchool.name}</span> to confirm
+                  </label>
+                  <input
+                    autoFocus
+                    value={deleteConfirmationInput}
+                    onChange={e => setDeleteConfirmationInput(e.target.value)}
+                    placeholder={selectedSchool.name}
+                    className={inputClass}
+                    disabled={deletingSchool}
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteSchoolModal(false);
+                      setDeleteConfirmationInput('');
+                    }}
+                    disabled={deletingSchool}
+                    className="min-h-11 px-5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteSchool()}
+                    disabled={deletingSchool || deleteConfirmationInput.trim() !== selectedSchool.name.trim()}
+                    className="min-h-11 px-5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black inline-flex items-center justify-center gap-2"
+                  >
+                    {deletingSchool ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                    {deletingSchool ? 'Deleting School…' : 'Delete School Permanently'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* TAB 1: Profile & Overview */}
           {activeSchoolTab === 'profile' && (
