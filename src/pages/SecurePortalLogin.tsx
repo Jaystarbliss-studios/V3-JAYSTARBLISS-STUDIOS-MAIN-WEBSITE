@@ -188,12 +188,18 @@ const SecurePortalLogin: React.FC = () => {
       if (activeTab === 'student') {
         const result = await serverAccess('student');
         const name = result.data.name || identifier.trim();
+        const registrationType = result.data.isIndependent === true || (!result.data.schoolId && !result.data.parentId)
+          ? 'individual'
+          : result.data.parentId
+            ? 'parent'
+            : 'school';
         storeSession('student', result.user.uid, name, {
           studentDocId: result.data.studentDocId || '',
           studentUsername: result.data.username || '',
           studentClass: result.data.class || '',
           schoolId: result.data.schoolId || '',
           schoolName: result.data.schoolName || '',
+          studentRegistrationType: registrationType,
         });
         toast.success(`Welcome ${String(name).split(' ')[0]}! Logged in successfully.`);
         navigate('/portal/student');
@@ -305,9 +311,15 @@ const SecurePortalLogin: React.FC = () => {
       }
 
       if (role === 'STUDENT') {
+        const registrationType = data.isIndependent === true || (!data.schoolId && !data.parentId)
+          ? 'individual'
+          : data.parentId
+            ? 'parent'
+            : 'school';
         storeSession('student', googleUser.uid, data.name || googleUser.displayName || 'Student', {
           studentDocId: data.studentDocId || '',
           schoolId: data.schoolId || '',
+          studentRegistrationType: registrationType,
         });
         navigate('/portal/student');
         return;
