@@ -159,7 +159,7 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
   // Aggregate and collapse individual class occurrences for each time slot on that day into ONE unified session entry
   const groupedDaySessions = useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     // 1. First filter by selected programme and search query
@@ -212,8 +212,10 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
         try {
           const d = new Date(itemDate + 'T00:00:00');
           if (!isNaN(d.getTime())) {
-            formattedDate = d.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
+            const day = d.getDate();
+            const suffix = day % 10 === 1 && day % 100 !== 11 ? 'st' : day % 10 === 2 && day % 100 !== 12 ? 'nd' : day % 10 === 3 && day % 100 !== 13 ? 'rd' : 'th';
             dayName = d.toLocaleDateString('en-NG', { weekday: 'long' });
+            formattedDate = `${dayName}, ${day}${suffix} ${d.toLocaleDateString('en-NG', { month: 'long' })} ${d.getFullYear()}`;
           }
         } catch {
           // fallback
@@ -283,13 +285,12 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
       const isPastTimeToday = isToday && sess.endTime < currentTimeStr;
       const isCurrentTimeSlot = isToday && sess.startTime <= currentTimeStr && currentTimeStr <= sess.endTime;
 
-      const hasExplicitOngoing = sess.occurrences.some(o => o.status === 'ONGOING');
       const allExplicitCompleted = sess.occurrences.every(o => o.status === 'COMPLETED' || o.status === 'ATTENDED');
       const anyAbsent = sess.occurrences.some(o => o.status === 'ABSENT');
       const anyRescheduled = sess.occurrences.some(o => o.status === 'RESCHEDULED');
       const anyCancelled = sess.occurrences.some(o => o.status === 'CANCELLED');
 
-      if (hasExplicitOngoing || (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled)) {
+      if (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled && !anyRescheduled) {
         sess.overallStatus = 'ONGOING';
         sess.isLiveNow = true;
       } else if (allExplicitCompleted || isPastDate || isPastTimeToday) {
