@@ -306,7 +306,7 @@ const AdminSchools: React.FC = () => {
     });
 
     setBillingForm({
-      baseAmount: selectedSchool.billing?.baseAmount ?? 300000,
+      baseAmount: selectedSchool.billing?.baseAmount ?? 0,
       cycle: selectedSchool.billing?.cycle || 'termly',
       allowedModes: selectedSchool.billing?.allowedModes || ['advance_termly', 'advance_monthly', 'post_monthly', 'post_termly'],
       mode: selectedSchool.billing?.mode || 'advance_termly',
@@ -781,7 +781,7 @@ const AdminSchools: React.FC = () => {
       }
 
       const generatedCode = requestedCode || `${name.slice(0, 4).toUpperCase()}-2026`;
-      const initialFee = Number(String(onboardForm.initialFee || 350000).replace(/[^0-9.]/g, '')) || 350000;
+      const initialFee = Number(String(onboardForm.initialFee || 0).replace(/[^0-9.]/g, '')) || 0;
       const initialProgramName = onboardForm.initialProgramName.trim();
       const initialProgramDesc = onboardForm.initialProgramDesc.trim();
 
@@ -899,7 +899,7 @@ const AdminSchools: React.FC = () => {
         address: '',
         initialProgramName: 'Kids Coding & AI Essentials',
         initialProgramDesc: 'Comprehensive coding, robotics, and creative tech curriculum for students.',
-        initialFee: '350000',
+        initialFee: '',
         cycle: 'termly',
         mode: 'advance_termly'
       });
@@ -1005,7 +1005,7 @@ const AdminSchools: React.FC = () => {
               { id: 'billing', label: 'Billing & Custom Fees', icon: <CreditCard size={15} /> },
               { id: 'passcodes', label: `Exam Passcodes (${passcodes.length})`, icon: <Key size={15} /> },
               { id: 'resources', label: `Curriculum & Links (${resources.length})`, icon: <FileText size={15} /> },
-              { id: 'cadets', label: `Enrolled Cadets (${cadets.length})`, icon: <Users size={15} /> },
+              { id: 'cadets', label: `Enrolled Students (${cadets.length})`, icon: <Users size={15} /> },
               { id: 'raw', label: 'Firestore Data', icon: <Code size={15} /> }
             ].map(tab => (
               <button
@@ -1206,7 +1206,7 @@ const AdminSchools: React.FC = () => {
                       <span className="font-bold text-brand-red">{programsList.length} Active</span>
                     </div>
                     <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-500">Enrolled Cadets:</span>
+                      <span className="text-slate-500">Enrolled Students:</span>
                       <span className="font-bold text-emerald-600">{cadets.length} Students</span>
                     </div>
                     <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
@@ -1542,7 +1542,7 @@ const AdminSchools: React.FC = () => {
                               tutorId: defaultTutor.id,
                               tutorName: defaultTutor.name,
                               tutorEmail: defaultTutor.email,
-                              payoutRate: 45000,
+                              payoutRate: 0,
                               payoutType: 'per_term',
                               role: (editingProgram.assignedTutors?.length || 0) === 0 ? 'lead' : 'co_tutor',
                               notes: ''
@@ -2600,13 +2600,13 @@ const AdminSchools: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: Enrolled Cadets Roster */}
+          {/* TAB 6: Enrolled Students Roster */}
           {activeSchoolTab === 'cadets' && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h2 className="text-base font-black text-slate-900 dark:text-white">
-                    Enrolled Cadets ({cadets.length})
+                    Enrolled Students ({cadets.length})
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Students enrolled under {selectedSchool.name}. These students do not see individual payment fees in their student portals.
@@ -2629,7 +2629,7 @@ const AdminSchools: React.FC = () => {
                       cadets.map(c => (
                         <tr key={c.id}>
                           <td className="py-3.5 px-3 font-bold text-slate-900 dark:text-white">
-                            {c.fullName || c.studentName || 'Student Cadet'}
+                            {c.fullName || c.studentName || 'Student'}
                           </td>
                           <td className="py-3.5 px-3 font-mono text-slate-500">
                             {c.username || c.email || c.id}
@@ -2639,7 +2639,7 @@ const AdminSchools: React.FC = () => {
                           </td>
                           <td className="py-3.5 px-3">
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40">
-                              Active Cadet
+                              Active Student
                             </span>
                           </td>
                         </tr>
