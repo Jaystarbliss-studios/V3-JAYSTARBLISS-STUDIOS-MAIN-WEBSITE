@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  School, GraduationCap, Users, ShieldCheck, Mail, Lock, 
+  School, GraduationCap, Users, ShieldCheck, Building2, Mail, Lock, 
   Eye, EyeOff, ArrowLeft, Sun, Moon
 } from 'lucide-react';
 import { 
