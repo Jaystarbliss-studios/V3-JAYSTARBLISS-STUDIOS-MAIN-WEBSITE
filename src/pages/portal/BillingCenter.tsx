@@ -11,7 +11,6 @@ import SEO from '../../components/ui/SEO';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
 import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
-import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { auth, db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
 import { getEffectiveAuth, isMasqueradingActive } from '../../utils/impersonation';
@@ -75,7 +74,7 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const [withdrawing, setWithdrawing] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [withdrawMode, setWithdrawMode] = useState<'bank' | 'opay'>('bank');
-  const [isAddMoneyModalOpen, setIsAddMoneyModalOpen] = useState(false);
+  const [showStaffTransactionHistory, setShowStaffTransactionHistory] = useState(false);
 
   const handleConfirmWithdrawal = async (payoutData: {
     destination: 'bank' | 'opay';
@@ -1020,41 +1019,32 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
             userName={data.wallet?.userName || auth.currentUser?.displayName || 'Faculty Instructor'}
             userRole="staff"
             balance={Number(data.wallet?.availableBalance || 0)}
-            subTitleText="Teaching Roster • Active Cadets"
+            subTitleText="Teaching Roster"
             subTitleValue={`${data.students?.length || 0} Learners`}
             latestTransaction={payments[0] || null}
             onRefresh={load}
-            onViewTransactionHistory={() => {
-              const el = document.getElementById('fintech-tx-history');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
+            onViewTransactionHistory={() => setShowStaffTransactionHistory(true)}
             onWithdraw={() => {
               setWithdrawMode('bank');
               setIsWithdrawModalOpen(true);
             }}
-            onTransferBank={() => {
-              setWithdrawMode('bank');
-              setIsWithdrawModalOpen(true);
-            }}
-            onTransferOPay={() => {
-              setWithdrawMode('opay');
-              setIsWithdrawModalOpen(true);
-            }}
-            onAddMoney={() => setIsAddMoneyModalOpen(true)}
             onVaultClick={() => {
               setWithdrawMode('bank');
               setIsWithdrawModalOpen(true);
             }}
           />
 
-          <div id="fintech-tx-history" className="pt-4">
-            <FintechTransactionHistory 
-              transactions={payments} 
-              title="Student Earnings & Teaching Settlements"
-              role="staff"
-              emptyMessage="No tuition records currently linked to your teaching roster"
-            />
-          </div>
+          {showStaffTransactionHistory && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Teaching settlement history">
+              <div className="w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-7">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div><p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Billing</p><h2 className="text-lg font-black text-slate-900 dark:text-white">Teaching Payouts &amp; Settlement History</h2></div>
+                  <button type="button" onClick={() => setShowStaffTransactionHistory(false)} className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white"><X size={16}/></button>
+                </div>
+                <FintechTransactionHistory transactions={payments} title="Teaching Payouts & Settlement History" role="staff" emptyMessage="No teaching payout transactions are recorded yet." />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1081,17 +1071,6 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         savedAccountName={data.wallet?.bankAccount?.accountName || ''}
         banksList={banks}
         onConfirmWithdrawal={handleConfirmWithdrawal}
-      />
-
-      {/* Fintech Add Money Modal */}
-      <FintechAddMoneyModal
-        isOpen={isAddMoneyModalOpen}
-        onClose={() => setIsAddMoneyModalOpen(false)}
-        userName={auth.currentUser?.displayName || 'Faculty Member'}
-        userEmail={auth.currentUser?.email || ''}
-        onPaystackTopUp={async (amt) => {
-          toast.success(`Paystack checkout initiated for ₦${amt.toLocaleString()}`);
-        }}
       />
 
       {/* Checkout Modal for Parents / Independent Students */}
