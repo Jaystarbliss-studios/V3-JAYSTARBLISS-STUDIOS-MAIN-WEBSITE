@@ -156,7 +156,15 @@ const PortalLayout: React.FC = () => {
   const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
   const isStudentAccessCodeOnly = !userEmail && sessionStorage.getItem('studentDocId');
 
-  const studentCanPay = role === 'student' && sessionStorage.getItem('studentRegistrationType') === 'individual';
+  const [studentRegistrationType, setStudentRegistrationType] = useState(() => sessionStorage.getItem('studentRegistrationType') || '');
+  useEffect(() => {
+    if (role !== 'student') return;
+    const sync = () => setStudentRegistrationType(sessionStorage.getItem('studentRegistrationType') || '');
+    window.addEventListener('jaystar-student-registration-type', sync);
+    sync();
+    return () => window.removeEventListener('jaystar-student-registration-type', sync);
+  }, [role]);
+  const studentCanPay = role === 'student' && studentRegistrationType === 'individual';
   const bottomNavItems = [
     { name: 'Home', path: `/portal/${role}`, icon: <LayoutDashboard size={20} /> },
     { name: role === 'school' ? 'Roster' : role === 'student' ? 'Learning' : 'Classes', path: role === 'school' ? '/portal/school/roster' : role === 'student' ? '/portal/student/courses' : `/portal/${role}/calendar`, icon: <BookOpen size={20} /> },
