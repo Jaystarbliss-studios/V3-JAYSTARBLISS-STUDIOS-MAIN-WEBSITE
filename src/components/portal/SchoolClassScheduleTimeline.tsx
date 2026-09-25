@@ -121,6 +121,12 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
   const [expandedSessionKeys, setExpandedSessionKeys] = useState<Record<string, boolean>>({});
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [, setClockTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(value => value + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Status update handler for authorized Tutors and Admins
   const handleUpdateStatus = async (occurrenceIds: string[], newStatus: string) => {
