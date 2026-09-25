@@ -114,6 +114,12 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
   const [rescheduleStartTime, setRescheduleStartTime] = useState('');
   const [rescheduleEndTime, setRescheduleEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [, setClockTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(value => value + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const fetchSchedules = React.useCallback(async () => {
     setLoading(true);
