@@ -149,15 +149,15 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       });
       setSchools(loadedSchools);
 
-      // Build Unified Parents & Cadets List from enrollment_requests, individualStudents, and students
+      // Build Unified Parents & Students List from enrollment_requests, individualStudents, and students
       // Strictly ignore school-registered students (students with schoolId or studentType === 'school')
-      const parentCadetsMap = new Map<string, UnifiedParentStudent>();
+      const parentStudentsMap = new Map<string, UnifiedParentStudent>();
 
       // 1. From enrollment_requests
       enrollSnap.docs.forEach((d: any) => {
         const item = d.data();
         if (item.schoolId || item.studentType === 'school') return;
-        parentCadetsMap.set(d.id, {
+        parentStudentsMap.set(d.id, {
           id: d.id,
           source: 'enrollment_requests',
           studentName: item.studentName || item.childName || 'Scholar',
@@ -182,7 +182,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       indivSnap.docs.forEach((d: any) => {
         const item = d.data();
         if (item.schoolId || item.studentType === 'school') return;
-        parentCadetsMap.set(d.id, {
+        parentStudentsMap.set(d.id, {
           id: d.id,
           source: 'individualStudents',
           studentName: item.fullName || item.studentName || item.username || 'Scholar',
@@ -206,8 +206,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       // 3. From students collection (personal/parent)
       studSnap.docs.forEach((d: any) => {
         const item = d.data();
-        if (!parentCadetsMap.has(d.id) && item.studentType !== 'school' && !item.schoolId) {
-          parentCadetsMap.set(d.id, {
+        if (!parentStudentsMap.has(d.id) && item.studentType !== 'school' && !item.schoolId) {
+          parentStudentsMap.set(d.id, {
             id: d.id,
             source: 'students',
             studentName: item.fullName || item.name || 'Scholar',
@@ -228,93 +228,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         }
       });
 
-      // Ensure requested parent accounts and their assigned children exist in parentCadetsMap
-      const defaultChildrenSeed: UnifiedParentStudent[] = [
-        {
-          id: 'shawn_torru',
-          source: 'individualStudents',
-          studentName: 'SHAWN TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Robotics, IoT & Electronics',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 4'
-        },
-        {
-          id: 'jayden_torru',
-          source: 'individualStudents',
-          studentName: 'JAYDEN TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Python AI & Machine Learning',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 6'
-        },
-        {
-          id: 'emanuella_torru',
-          source: 'individualStudents',
-          studentName: 'EMANUELLA TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Full-Stack Web Engineering',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 8'
-        },
-        {
-          id: 'zoeudofiazu',
-          source: 'individualStudents',
-          studentName: 'ANIEBIET ZOE',
-          parentName: 'ANIE UDOFIA',
-          parentEmail: 'anie.udofia31@gmail.com',
-          parentPhone: '+234 802 333 4455',
-          plan: 'Scratch Creative Coding & Animation',
-          amount: 35000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 3'
-        },
-        {
-          id: 'aniebiet_joanna',
-          source: 'individualStudents',
-          studentName: 'ANIEBIET JOANNA',
-          parentName: 'ANIE UDOFIA',
-          parentEmail: 'anie.udofia31@gmail.com',
-          parentPhone: '+234 802 333 4455',
-          plan: 'Game Development (Roblox & Unity)',
-          amount: 35000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 5'
-        }
-      ];
-
-      defaultChildrenSeed.forEach(seedChild => {
-        if (!parentCadetsMap.has(seedChild.id)) {
-          const existing = Array.from(parentCadetsMap.values()).find(
-            c => c.studentName?.toLowerCase() === seedChild.studentName.toLowerCase() &&
-                 c.parentEmail?.toLowerCase() === seedChild.parentEmail.toLowerCase()
-          );
-          if (!existing) {
-            parentCadetsMap.set(seedChild.id, seedChild);
-          }
-        }
-      });
-
-      const unifiedParentsList = Array.from(parentCadetsMap.values());
+      // Parent/student records are database-driven. Do not seed families, programmes or fees in the UI.
+      const unifiedParentsList = Array.from(parentStudentsMap.values());
 
       // Merge Payments from Firestore and API
       const directPayments = paymentsSnap.docs.map((d: any) => {
@@ -340,9 +255,9 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
               plan: 'Partner School Term Subscription',
               category: 'school_tuition',
               type: 'inflow',
-              amount: p.amount || sch.billing?.baseAmount || 300000,
-              customerTotal: p.amount || sch.billing?.baseAmount || 300000,
-              baseAmount: p.amount || sch.billing?.baseAmount || 300000,
+              amount: p.amount || sch.billing?.baseAmount || 0,
+              customerTotal: p.amount || sch.billing?.baseAmount || 0,
+              baseAmount: p.amount || sch.billing?.baseAmount || 0,
               transactionFee: Number(p.transactionFee || 0),
               status: p.status || 'PAID',
               paidAt: p.paidAt || p.date || sch.billing?.lastPaymentDate || new Date().toISOString()
@@ -496,7 +411,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
   // Live Calculated Dynamic Available Balance (Treasury Pool minus Withdrawals and Transfers to Tutors)
   const calculatedAvailableBalance = useMemo(() => {
     const netPool = totalInflows - totalDisbursed - totalTransfersToTutors;
-    return netPool >= 0 ? netPool : Math.max(0, 2450000 - totalDisbursed - totalTransfersToTutors);
+    return netPool >= 0 ? netPool : 0;
   }, [totalInflows, totalDisbursed, totalTransfersToTutors]);
 
   // Platform Net Retained Revenue
@@ -556,7 +471,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         payerName: p.payerName || p.customerName || p.schoolName || p.studentName || 'Guardian',
         payerEmail: p.payerEmail || p.customerEmail || '',
         payerRole: p.payerRole || (p.schoolId ? 'School' : (p.parentId ? 'Parent' : undefined)),
-        studentName: p.studentName || p.cadetName || '',
+        studentName: p.studentName || p.studentName || '',
         schoolName: p.schoolName || '',
         tutorName: p.tutorName || '',
         students: p.students || p.metadata?.students || [],
@@ -711,7 +626,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     setSelectedSchoolWorkspace(school);
     setActiveSchoolTab('config');
     setSchoolBillingConfig({
-      baseAmount: school.billing?.baseAmount || 300000,
+      baseAmount: school.billing?.baseAmount || 0,
       cycle: school.billing?.cycle || 'termly',
       mode: school.billing?.mode || 'advance_termly',
       nextDueDate: school.billing?.nextDueDate || '',
@@ -723,7 +638,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       status: school.billing?.status || 'ACTIVE'
     });
     setOfflinePaymentDraft({
-      amount: String(school.billing?.baseAmount || 300000),
+      amount: String(school.billing?.baseAmount || 0),
       reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString().slice(0, 10),
       payerName: school.name || '',
@@ -854,7 +769,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       
       // Reset draft
       setOfflinePaymentDraft({
-        amount: String(selectedSchoolWorkspace.billing?.baseAmount || 300000),
+        amount: String(selectedSchoolWorkspace.billing?.baseAmount || 0),
         reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
         date: new Date().toISOString().slice(0, 10),
         payerName: selectedSchoolWorkspace.name,
@@ -934,7 +849,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         targetId: school.id,
         recipientId: school.adminUid || school.id,
         email: school.contactEmail || school.email,
-        amount: school.billing?.baseAmount || 300000,
+        amount: school.billing?.baseAmount || 0,
         nextDueDate: school.billing?.nextDueDate,
         title: `Tuition & workspace Subscription Due - ${school.name}`
       });
@@ -1188,7 +1103,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         }
       });
 
-      const invoicedFee = Number(schoolBillingConfig.baseAmount || sch.billing?.baseAmount || 300000);
+      const invoicedFee = Number(schoolBillingConfig.baseAmount || sch.billing?.baseAmount || 0);
       const institutionalMargin = invoicedFee - totalFacultyPayout;
 
       // Filter payments specific to this school
@@ -1640,7 +1555,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                       value={offlinePaymentDraft.amount}
                       onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, amount: e.target.value })}
                       className={inputClass}
-                      placeholder="e.g. 300000"
+                      placeholder="Enter amount"
                     />
                   </div>
 
@@ -2187,7 +2102,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
                   <th className="p-3.5 text-left">Date</th>
                   <th className="p-3.5 text-left">Reference / Plan</th>
-                  <th className="p-3.5 text-left">Cadet / Institution</th>
+                  <th className="p-3.5 text-left">Student / Institution</th>
                   <th className="p-3.5 text-left">Amount</th>
                   <th className="p-3.5 text-left">Assigned Tutor</th>
                   <th className="p-3.5 text-right">Action</th>
@@ -2742,340 +2657,48 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
   // =========================================================================
   // MAIN FINTECH DASHBOARD VIEW ('hub')
-  // =========================================================================
   return (
     <div className="space-y-6">
-      <SEO title="Billing, Invoicing & Treasury | Admin" description="Manage platform treasury, verified collections, tuition invoicing and staff allocations." noindex={true} />
+      <SEO title="Billing, Invoicing & Treasury | Admin" description="Manage platform treasury, tuition billing and staff allocations." noindex={true} />
 
-      {/* Hero Admin Fintech Wallet Card with 5 Integrated Metric Blocks */}
-      <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#0F172A] via-[#0B1528] to-[#1E293B] border border-sky-500/20 text-white shadow-2xl p-6 sm:p-8 space-y-6">
-        {/* Subtle geometric radiant glow */}
-        <div className="absolute -right-12 -bottom-12 w-64 h-64 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute -left-12 -top-12 w-56 h-56 rounded-full bg-brand-red/10 blur-3xl pointer-events-none" />
-
-        {/* Card Top Row: Available Balance Header + Refresh Icon + Eye Toggle + Transaction History Link */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center">
-              <CheckCircle2 size={13} />
-            </span>
-            <span className="text-xs font-semibold text-slate-300">
-              Available Balance
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowBalance(!showBalance)}
-              className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors ml-0.5"
-              title={showBalance ? 'Hide Balance' : 'Show Balance'}
-              aria-label={showBalance ? 'Hide Balance' : 'Show Balance'}
-            >
-              {showBalance ? <Eye size={14} /> : <EyeOff size={14} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-              title="Refresh Ledger"
-              aria-label="Refresh Ledger"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin text-sky-400" : ""} />
-            </button>
+      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0F172A] via-[#0B1528] to-[#1E293B] border border-slate-700/60 text-white p-5 sm:p-7">
+        <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-brand-red/10 blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-red">Financial Control Center</p>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-black">Billing &amp; Treasury</h1>
+            <p className="mt-2 text-xs sm:text-sm text-slate-300 max-w-2xl">Live figures come from the financial records. No demo balances or invented transaction history are displayed.</p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setActiveView('transactions')}
-            className="flex items-center gap-1.5 text-xs font-black text-sky-400 hover:text-sky-300 transition-colors group"
-          >
-            <span>Transaction History</span>
-            <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-xs font-black hover:bg-white/15">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh ledger
           </button>
         </div>
-
-        {/* Card Center: Dynamic Balance & Main Action Buttons */}
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-          <div className="min-w-0">
-            <div className="text-2xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight text-white drop-shadow-xs break-words">
-              {showBalance ? formatCurrency(calculatedAvailableBalance) : '₦••••••••'}
-            </div>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-1 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <span>Live Escrow Reconciled • {paid.length} verified invoices</span>
-            </p>
-          </div>
-
-          {/* Action Buttons: Add Money, Transfer to Tutor, Bank Settlement */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            <button
-              type="button"
-              onClick={() => setIsAddMoneyModalOpen(true)}
-              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-sky-600/25 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus size={14} strokeWidth={2.5} />
-              <span>Direct Deposit</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsTransferToTutorOpen(true)}
-              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white border border-sky-500/30 text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Send size={14} />
-              <span>Transfer to Tutor</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setWithdrawMode('bank');
-                setIsWithdrawModalOpen(true);
-              }}
-              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Building2 size={14} />
-              <span>Bank Settlement</span>
-            </button>
-          </div>
+        <div className="relative z-10 mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Available balance</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? formatCurrency(calculatedAvailableBalance) : '₦••••••'}</p></div>
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Verified invoices</p><p className="mt-1 text-xl font-black">{paid.length}</p></div>
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Tutor allocations</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? money(tutorAllocated) : '₦••••'}</p></div>
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Platform net</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? money(platformNet) : '₦••••'}</p></div>
         </div>
+      </section>
 
-        {/* Card Bottom: The 5 Integrated Platform Metric Cards */}
-        <div className="relative z-10 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-          {/* Metric 1: Gross Collections */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
-              <DollarSign size={14} className="text-emerald-400" />
-              <span>Gross Collections</span>
-            </div>
-            <div className="font-mono font-black text-base text-white mt-1">
-              {showBalance ? money(totalGross) : '₦••••'}
-            </div>
-          </div>
-
-          {/* Metric 2: Paystack Fees */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
-              <Activity size={14} className="text-sky-400" />
-              <span>Paystack Fees</span>
-            </div>
-            <div className="font-mono font-black text-base text-white mt-1">
-              {showBalance ? money(totalFees) : '₦••••'}
-            </div>
-          </div>
-
-          {/* Metric 3: Tutor Allocations */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
-              <Users size={14} className="text-brand-red" />
-              <span>Tutor Allocations</span>
-            </div>
-            <div className="font-mono font-black text-base text-white mt-1">
-              {showBalance ? money(tutorAllocated) : '₦••••'}
-            </div>
-          </div>
-
-          {/* Metric 4: Withdrawal Fees */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
-              <Wallet size={14} className="text-purple-400" />
-              <span>Withdrawal Fees</span>
-            </div>
-            <div className="font-mono font-black text-base text-white mt-1">
-              {showBalance ? money(withdrawalFees) : '₦••••'}
-            </div>
-          </div>
-
-          {/* Metric 5: Platform Net */}
-          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
-            <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
-              <TrendingUp size={14} className="text-amber-400" />
-              <span>Platform Net</span>
-            </div>
-            <div className="font-mono font-black text-base text-emerald-400 mt-1">
-              {showBalance ? money(platformNet) : '₦••••'}
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[
+          ['parents', 'Parent Enrollment & Billing', 'Set student plans, billing and tutor allocations for parent-linked students.'],
+          ['transactions', 'Transaction History', 'Review verified financial transactions and receipts.'],
+          ['monthly', 'Monthly Breakdown', 'Review financial activity by period.'],
+          ['schools', 'Partner School Billings', 'Configure school billing, programmes and fee schedules.'],
+          ['tutors', 'Tutor Allocations & Disbursals', 'Allocate approved payouts and manage tutor settlement operations.'],
+          ['policies', 'Fee Policies & Plans', 'Configure platform billing rules and pricing plans.']
+        ].map(([id, title, description]) => (
+          <button key={id} type="button" onClick={() => setActiveView(id as any)} className="text-left rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:border-brand-red/50 hover:shadow-sm transition-all">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white">{title}</h2>
+            <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">{description}</p>
+            <span className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-brand-red">Open module <ChevronRight size={13} /></span>
+          </button>
+        ))}
       </div>
-
-      {/* Primary Operation Modules Navigation Grid */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-base font-black text-slate-900 dark:text-white">
-            Operations &amp; Financial Modules
-          </h2>
-          <span className="text-xs text-slate-500">
-            Click any module to open dedicated operational view
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          
-          {/* Module 1: Parent Enrollment & Billing */}
-          <div
-            onClick={() => setActiveView('parents')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-brand-red/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Users size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {(data.enrollments || []).length} Enrollments
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-brand-red transition-colors">
-                Parent Enrollment &amp; Billing
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Parent tuition payments, enrollment admissions approvals, family invoices &amp; tutor pairings.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-brand-red">
-              <span>Open Parent Billing &amp; Approvals</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Module 2: Transaction History */}
-          <div
-            onClick={() => setActiveView('transactions')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-sky-500/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <FileText size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {paid.length} Invoices
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                Transaction History
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Verified payment ledger, transaction filters, receipt generation &amp; statement downloads.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
-              <span>Open Transactions Ledger</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Module 3: Monthly Breakdown */}
-          <div
-            onClick={() => setActiveView('monthly')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-emerald-500/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <TrendingUp size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {monthly.length} Months
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                Monthly Breakdown
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Month-by-month financial reconciliation, gross volume, gateway fees &amp; net platform yield.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              <span>View Breakdown Analysis</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Module 4: Partner School Billings */}
-          <div
-            onClick={() => setActiveView('schools')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-purple-500/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <School size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {schools.length} Schools
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                Partner School Billings
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Manage custom termly/monthly rates, cycle modes, renewal dates and one-click reminders.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
-              <span>Manage School Billings</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Module 5: Tutor Allocations & Disbursals */}
-          <div
-            onClick={() => setActiveView('tutors')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-sky-500/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Users size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {(data.staff || []).length} Tutors
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
-                Tutor Allocations &amp; Disbursals
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Assign invoices to faculty and disburse instant wallet balances directly to instructors.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-sky-600 dark:text-sky-400">
-              <span>Assign &amp; Credit Faculty</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-          {/* Module 6: Fee Policies & Plans */}
-          <div
-            onClick={() => setActiveView('policies')}
-            className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md hover:border-amber-500/50 cursor-pointer transition-all group flex flex-col justify-between space-y-4"
-          >
-            <div className="flex items-start justify-between">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Sliders size={22} />
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300">
-                {plans.length} Plans
-              </span>
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                Fee Policies &amp; Plans
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Configure parent/school checkout surcharge fees, withdrawal rules &amp; course pricing plans.
-              </p>
-            </div>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
-              <span>Configure Policies &amp; Plans</span>
-              <ChevronRight size={15} className="group-hover:translate-x-1 transition-transform" />
-            </div>
-          </div>
-
-        </div>
-      </div>
-    );
+    </div>
+  );
   };
 
   return (

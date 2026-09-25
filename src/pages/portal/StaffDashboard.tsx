@@ -85,7 +85,7 @@ const StaffDashboard: React.FC = () => {
           if (sch.tutorId === staffUid || sch.assignedTutorId === staffUid || sch.assignedStaffId === staffUid) return true;
           if (Array.isArray(sch.assignedTutors) && sch.assignedTutors.includes(staffUid)) return true;
           if (Array.isArray(sch.tutors) && sch.tutors.some((t: any) => t.id === staffUid || t.email === currentUser?.email)) return true;
-          return true; // Default fallback allowing access to partner school records
+          return false;
         });
         setAssignedSchools(mySchools);
       } catch (e) {
@@ -263,105 +263,6 @@ const StaffDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 3: Curriculum & Teaching Resources */}
-        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-amber-500/40 transition-all">
-          <div className="space-y-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <BookOpen size={22} />
-            </div>
-            <h3 className="font-black text-slate-900 dark:text-white text-base">
-              Resources & Curriculum Library
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Review syllabus outlines, lesson guides, coding project starter templates, and teaching material documents.
-            </p>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Link
-              to="/portal/staff/resources"
-              className="inline-flex items-center gap-2 text-xs font-black text-amber-600 dark:text-amber-400 hover:underline"
-            >
-              <span>Browse Resource Library</span>
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {/* Card 4: Teaching Subjects & Approvals */}
-        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-blue-500/40 transition-all">
-          <div className="space-y-3">
-            <div className="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <Sparkles size={22} />
-            </div>
-            <h3 className="font-black text-slate-900 dark:text-white text-base">
-              Teaching Subjects & Track Approvals
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Manage the curriculum subjects and technical disciplines you are accredited to teach across partner schools.
-            </p>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Link
-              to="/portal/staff/subjects"
-              className="inline-flex items-center gap-2 text-xs font-black text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              <span>Manage Teaching Subjects</span>
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {/* Card 5: Student Credentials & Access */}
-        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-purple-500/40 transition-all">
-          <div className="space-y-3">
-            <div className="w-11 h-11 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-              <Key size={22} />
-            </div>
-            <h3 className="font-black text-slate-900 dark:text-white text-base">
-              Learner Access & Credentials
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Verify student access cards, account activation passcodes, and exam login credentials for assigned learners.
-            </p>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Link
-              to="/portal/staff/credentials"
-              className="inline-flex items-center gap-2 text-xs font-black text-purple-600 dark:text-purple-400 hover:underline"
-            >
-              <span>Access Credentials</span>
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-
-        {/* Card 6: Teaching Calendar */}
-        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-slate-400 transition-all">
-          <div className="space-y-3">
-            <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
-              <Calendar size={22} />
-            </div>
-            <h3 className="font-black text-slate-900 dark:text-white text-base">
-              Faculty Teaching Timetable
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              View your monthly teaching calendar, laboratory lab dates, and institutional partner event schedules.
-            </p>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <Link
-              to="/portal/staff/calendar"
-              className="inline-flex items-center gap-2 text-xs font-black text-slate-700 dark:text-slate-300 hover:underline"
-            >
-              <span>Open Timetable</span>
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
       </div>
 
       {/* Broadcast Live Class Link Modal */}

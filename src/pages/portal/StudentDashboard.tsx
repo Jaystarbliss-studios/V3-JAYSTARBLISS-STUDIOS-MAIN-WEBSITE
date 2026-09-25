@@ -217,7 +217,7 @@ const StudentDashboard: React.FC = () => {
   const [selectedModuleForCert, setSelectedModuleForCert] = useState<ProgramModule | null>(null);
   const [certStudentName, setCertStudentName] = useState('');
   const [generatingCert, setGeneratingCert] = useState(false);
-  const [enrolledProgramName, setEnrolledProgramName] = useState('General Curriculum Track');
+  const [enrolledProgramName, setEnrolledProgramName] = useState('');
   const [isEdclubAllowed, setIsEdclubAllowed] = useState(true);
   const [hasResourcesAllowed, setHasResourcesAllowed] = useState(true);
 
@@ -338,11 +338,16 @@ const StudentDashboard: React.FC = () => {
           studentRecord.class = cachedClass;
         }
 
+        const registrationType = studentRecord.schoolId
+          ? 'school'
+          : (studentRecord.parentId || studentRecord.parentEmail ? 'parent' : 'individual');
+        sessionStorage.setItem('studentRegistrationType', registrationType);
+        window.dispatchEvent(new CustomEvent('jaystar-student-registration-type', { detail: registrationType }));
         setStudent(studentRecord);
         setCertStudentName(studentRecord.fullName || '');
 
         // Resolve student program track & feature permissions (School general program vs specialized track)
-        let progName = (studentRecord as any).programName || (studentRecord as any).program || studentRecord.plan || (studentRecord as any).track || 'General Technology Track';
+        let progName = (studentRecord as any).programName || (studentRecord as any).program || studentRecord.plan || (studentRecord as any).track || '';
         let edclubAccess = true;
         let resAccess = true;
 
@@ -385,7 +390,7 @@ const StudentDashboard: React.FC = () => {
           }
         }
 
-        setEnrolledProgramName(progName);
+        setEnrolledProgramName(progName || '');
         setIsEdclubAllowed(edclubAccess);
         setHasResourcesAllowed(resAccess);
 
@@ -796,125 +801,6 @@ const StudentDashboard: React.FC = () => {
                 <p className="text-xs text-slate-300">{completedModulesCount} of {modules.length} milestones completed</p>
               </div>
             </div>
-          </section>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Programme Progress</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{overallProgress}%</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Learning Tracks</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{courseProgressList.length}</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Milestones</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{modules.length}</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Completed</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{completedModulesCount}</p>
-            </div>
-          </div>
-
-          {/* Typing Masters Academy • In Collaboration with EdClub */}
-          <TypingMastersAcademyCard
-            studentName={student.fullName}
-            studentClass={student.class || student.grade}
-            schoolId={student.schoolId}
-            isAllowed={isEdclubAllowed}
-            enrolledProgramName={enrolledProgramName}
-          />
-
-          {/* Scheduled Classes & Timetable */}
-          <section className="pro-surface rounded-2xl p-5 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-indigo-500" />
-                  My Class Timetable & Scheduled Sessions
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                  Live classes, recurring school timetables, and session updates from your instructors.
-                </p>
-              </div>
-              {studentSchedules.some(s => s.status === 'ONGOING') && (
-                <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-black animate-pulse">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  Class Currently In Session
-                </span>
-              )}
-            </div>
-
-            {studentSchedules.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
-                <Clock className="mx-auto h-8 w-8 text-slate-300 dark:text-slate-700 mb-2" />
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No scheduled classes yet</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Your instructor or school administrator will publish your upcoming schedule here.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {studentSchedules.slice(0, 6).map((sch: any) => (
-                  <div
-                    key={sch.id}
-                    className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2 ${
-                      sch.status === 'ONGOING'
-                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm shadow-emerald-500/10'
-                        : sch.status === 'RESCHEDULED'
-                        ? 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/20'
-                        : sch.status === 'ABSENT'
-                        ? 'border-rose-300 bg-rose-50/50 dark:bg-rose-950/20'
-                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          {sch.date}
-                        </span>
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                          sch.status === 'ONGOING'
-                            ? 'bg-emerald-500 text-white'
-                            : sch.status === 'RESCHEDULED'
-                            ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                            : sch.status === 'ABSENT'
-                            ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
-                            : sch.status === 'COMPLETED'
-                            ? 'bg-sky-500/20 text-sky-600 dark:text-sky-400'
-                            : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                        }`}>
-                          {sch.status === 'ONGOING' ? 'Live Now' : sch.status}
-                        </span>
-                      </div>
-
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
-                        {sch.title}
-                      </h4>
-
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                        <Clock size={12} /> {sch.startTime} - {sch.endTime}
-                        {sch.tutorName && <span>• Tutor: {sch.tutorName}</span>}
-                      </p>
-
-                      {sch.status === 'RESCHEDULED' && (
-                        <div className="mt-2 p-2 rounded-xl bg-amber-100/60 dark:bg-amber-950/40 text-[11px] text-amber-800 dark:text-amber-300">
-                          <p className="font-bold">Rescheduled Reason: {sch.rescheduleReason || 'Rescheduled'}</p>
-                          {sch.rescheduledDate && (
-                            <p className="text-[10px] font-mono mt-0.5">New Time: {sch.rescheduledDate} @ {sch.rescheduledStartTime}</p>
-                          )}
-                        </div>
-                      )}
-
-                      {sch.status === 'ABSENT' && sch.absenceReason && (
-                        <div className="mt-2 p-2 rounded-xl bg-rose-100/60 dark:bg-rose-950/40 text-[11px] text-rose-800 dark:text-rose-300">
-                          <p className="font-bold">Absence Note: {sch.absenceReason}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
 
           <section className="pro-surface rounded-2xl p-5 sm:p-6">

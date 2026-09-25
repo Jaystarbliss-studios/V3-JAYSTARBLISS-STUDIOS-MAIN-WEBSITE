@@ -331,7 +331,7 @@ const AdminClassSchedules: React.FC = () => {
       scope: 'all',
       rangeStart: 'Year 1',
       rangeEnd: 'Year 5',
-      classLevels: ['Year 1'],
+      classLevels: [],
       parentId: parents[0]?.id || '',
       studentId: '',
       title: defaultProg?.name || 'Robotics & Software Engineering',
@@ -339,9 +339,9 @@ const AdminClassSchedules: React.FC = () => {
       tutorName: defaultProg?.assignedTutors?.[0]?.tutorName || '',
       meetingLink: '',
       startDate: new Date().toISOString().slice(0, 10),
-      startTime: '10:00',
-      endTime: '12:00',
-      recurring: true,
+      startTime: '',
+      endTime: '',
+      recurring: false,
       weeks: '12'
     });
     setShowForm(true);

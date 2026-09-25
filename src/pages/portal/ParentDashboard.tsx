@@ -39,7 +39,7 @@ const ParentDashboard: React.FC = () => {
   const [studentAge, setStudentAge] = useState('');
   const [availablePrograms, setAvailablePrograms] = useState<{ id: string; title: string }[]>([]);
   const [selectedPlan, setSelectedPlan] = useState('');
-  const [preferredSubjects, setPreferredSubjects] = useState('Scratch, Python, Web Development');
+  const [preferredSubjects, setPreferredSubjects] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState('');
   const [enrollError, setEnrollError] = useState('');
@@ -74,87 +74,6 @@ const ParentDashboard: React.FC = () => {
           try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }
         }
 
-        // Fallback seeded children for GIFT TORRU & ANIE UDOFIA
-        if (allStudentsMap.size === 0) {
-          if (userEmail === 'gifttorru@gmail.com') {
-            allStudentsMap.set('shawn_torru', {
-              id: 'shawn_torru',
-              name: 'SHAWN TORRU',
-              studentName: 'SHAWN TORRU',
-              fullName: 'SHAWN TORRU',
-              age: '9',
-              grade: 'Year 4',
-              plan: 'Robotics, IoT & Electronics',
-              track: 'Robotics, IoT & Electronics',
-              teachingMode: 'Online 1-on-1',
-              status: 'APPROVED',
-              parentName: 'GIFT TORRU',
-              parentEmail: 'gifttorru@gmail.com',
-              amount: 45000
-            } as any);
-            allStudentsMap.set('jayden_torru', {
-              id: 'jayden_torru',
-              name: 'JAYDEN TORRU',
-              studentName: 'JAYDEN TORRU',
-              fullName: 'JAYDEN TORRU',
-              age: '11',
-              grade: 'Year 6',
-              plan: 'Python AI & Machine Learning',
-              track: 'Python AI & Machine Learning',
-              teachingMode: 'Online 1-on-1',
-              status: 'APPROVED',
-              parentName: 'GIFT TORRU',
-              parentEmail: 'gifttorru@gmail.com',
-              amount: 45000
-            } as any);
-            allStudentsMap.set('emanuella_torru', {
-              id: 'emanuella_torru',
-              name: 'EMANUELLA TORRU',
-              studentName: 'EMANUELLA TORRU',
-              fullName: 'EMANUELLA TORRU',
-              age: '13',
-              grade: 'Year 8',
-              plan: 'Full-Stack Web Engineering',
-              track: 'Full-Stack Web Engineering',
-              teachingMode: 'Online 1-on-1',
-              status: 'APPROVED',
-              parentName: 'GIFT TORRU',
-              parentEmail: 'gifttorru@gmail.com',
-              amount: 45000
-            } as any);
-          } else if (userEmail === 'anie.udofia31@gmail.com') {
-            allStudentsMap.set('zoeudofiazu', {
-              id: 'zoeudofiazu',
-              name: 'ANIEBIET ZOE',
-              studentName: 'ANIEBIET ZOE',
-              fullName: 'ANIEBIET ZOE',
-              age: '8',
-              grade: 'Year 3',
-              plan: 'Scratch Creative Coding & Animation',
-              track: 'Scratch Creative Coding & Animation',
-              teachingMode: 'Online 1-on-1',
-              status: 'APPROVED',
-              parentName: 'ANIE UDOFIA',
-              parentEmail: 'anie.udofia31@gmail.com',
-              amount: 35000
-            } as any);
-            allStudentsMap.set('aniebiet_joanna', {
-              id: 'aniebiet_joanna',
-              name: 'ANIEBIET JOANNA',
-              studentName: 'ANIEBIET JOANNA',
-              fullName: 'ANIEBIET JOANNA',
-              age: '10',
-              grade: 'Year 5',
-              plan: 'Game Development (Roblox & Unity)',
-              track: 'Game Development (Roblox & Unity)',
-              teachingMode: 'Online 1-on-1',
-              status: 'APPROVED',
-              parentName: 'ANIE UDOFIA',
-              parentEmail: 'anie.udofia31@gmail.com',
-              amount: 35000
-            } as any);
-          }
-        }
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
         setChildren(childList);
@@ -395,187 +314,6 @@ const ParentDashboard: React.FC = () => {
         )}
       </section>
 
-      {/* Class Schedules & Mentorship Sessions */}
-      <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              <Calendar size={18} className="text-brand-red" />
-              <span>Upcoming Class &amp; Mentorship Sessions</span>
-            </h2>
-            <p className="text-xs text-slate-500">Live sessions and timetable scheduled for your enrolled children.</p>
-          </div>
-          <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 self-start sm:self-auto">
-            {schedules.length} Scheduled
-          </span>
-        </div>
-
-        {schedules.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
-            No live class occurrences or private mentorship sessions have been scheduled yet.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {schedules.map((sch: any) => (
-              <div
-                key={sch.id}
-                className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 space-y-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-red">
-                    {sch.studentName || sch.classLevel || 'Mentorship Session'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    {sch.status || 'SCHEDULED'}
-                  </span>
-                </div>
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                  {sch.title || 'Live Technology Session'}
-                </h3>
-                <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
-                  <Calendar size={12} className="text-slate-400" />
-                  <span>
-                    {sch.date ? new Date(sch.date + 'T00:00:00').toLocaleDateString('en-NG', { dateStyle: 'full' }) : 'Scheduled recurring'}
-                    {sch.startTime && ` • ${sch.startTime} - ${sch.endTime || ''}`}
-                  </span>
-                </p>
-                {sch.tutorName && (
-                  <p className="text-[11px] text-slate-500">
-                    Faculty Mentor: <strong className="text-slate-700 dark:text-slate-300">{sch.tutorName}</strong>
-                  </p>
-                )}
-                {sch.meetingLink && (
-                  <div className="pt-1">
-                    <a
-                      href={sch.meetingLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-brand-red hover:underline"
-                    >
-                      <span>Join Live Session</span>
-                      <ExternalLink size={12} />
-                    </a>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Tuition & Notices Grid */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Tuition & Statements</h2>
-              <p className="text-xs text-slate-500">Official payment receipts linked to your cadets.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/portal/parent/payments')}
-              className="text-xs font-bold text-brand-red hover:underline flex items-center gap-1"
-            >
-              <span>View All</span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {payments.length === 0 ? (
-            <EmptyPanel text="No past tuition receipts are recorded yet." />
-          ) : (
-            <div className="space-y-2.5">
-              {payments.slice(0, 5).map(payment => (
-                <button
-                  type="button"
-                  key={payment.id}
-                  onClick={() => setSelectedTx(payment)}
-                  className="w-full text-left flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-950/40 text-brand-red flex items-center justify-center shrink-0">
-                      <Receipt size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-slate-900 dark:text-white group-hover:text-brand-red transition-colors">
-                        {payment.plan || payment.paymentPlanName || payment.description || 'Tuition Payment'}
-                      </p>
-                      <p className="text-[11px] text-slate-500 truncate">
-                        {payment.studentName || 'Cadet Tuition'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                      ₦{typeof payment.amount === 'number' ? payment.amount.toLocaleString('en-NG') : payment.amount || '0'}
-                    </p>
-                    <span className="inline-block text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
-                      {payment.status || 'Verified'}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Bell size={18} className="text-brand-red" aria-hidden="true" />
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Parent Notices & Alerts</h2>
-                <p className="text-xs text-slate-500">Messages and announcements targeted to your parent account.</p>
-              </div>
-            </div>
-            {unreadCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-brand-red text-white text-[10px] font-black">
-                {unreadCount} Unread
-              </span>
-            )}
-          </div>
-
-          {parentNotifs.length === 0 ? (
-            <EmptyPanel text="No active notices are currently available." />
-          ) : (
-            <div className="space-y-2.5">
-              {parentNotifs.slice(0, 5).map(notice => {
-                const isRead = isNotificationRead(notice);
-                return (
-                  <button
-                    type="button"
-                    key={notice.id}
-                    onClick={() => openDrawer(notice.id)}
-                    className={`w-full text-left rounded-xl border p-3 transition-all flex items-start justify-between gap-3 group cursor-pointer ${
-                      !isRead
-                        ? 'border-brand-red/30 bg-red-50/40 dark:bg-red-950/20 text-slate-900 dark:text-white'
-                        : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-850'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-xs font-bold truncate ${!isRead ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {notice.title || 'Institute Notice'}
-                        </p>
-                        {!isRead && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-red shrink-0" />
-                        )}
-                      </div>
-                      <p className="text-[11px] leading-4 text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
-                        {notice.message || 'No additional details.'}
-                      </p>
-                    </div>
-                    <span className="text-brand-red text-xs font-bold shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 mt-1">
-                      Read <ChevronRight size={12} />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-
       {/* Enrollment Requests Section */}
       <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -653,7 +391,7 @@ const ParentDashboard: React.FC = () => {
                       <option key={p.id} value={p.title}>{p.title}</option>
                     ))
                   ) : (
-                    <option value="General Coding & Computing Track">General Coding & Computing Track</option>
+                    <option value="">No programme selected</option>
                   )}
                 </select>
               </Field>
@@ -701,7 +439,7 @@ const EmptyPanel: React.FC<{ text: string }> = ({ text }) => (
 const EmptyChildrenState: React.FC<{ onAdd: () => void }> = ({ onAdd }) => (
   <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-8 text-center">
     <GraduationCap className="mx-auto text-slate-300 dark:text-slate-700" size={36} aria-hidden="true" />
-    <h3 className="mt-3 text-xs font-bold text-slate-900 dark:text-white">No cadets linked yet</h3>
+    <h3 className="mt-3 text-xs font-bold text-slate-900 dark:text-white">No students linked yet</h3>
     <p className="mx-auto mt-1 max-w-sm text-[11px] leading-4 text-slate-500">
       A verified child record will appear here once admissions links it to this parent account.
     </p>

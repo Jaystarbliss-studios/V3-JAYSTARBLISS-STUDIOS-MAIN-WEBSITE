@@ -71,14 +71,6 @@ interface Credentials {
   email?: string;
 }
 
-const STATIC_SCHOOLS = [
-  { id: 'peniel', name: 'Peniel Lily Montessori School' },
-  { id: 'southgold', name: 'South Gold Montessori School' },
-  { id: 'sapphire', name: 'Sapphire Explorer Montessori School' },
-  { id: 'easystars', name: 'Easy Stars Early Years Academy' },
-  { id: 'christycaleb', name: 'Christy Caleb International School' },
-  { id: 'royalbreed', name: 'Royal Breed Academy' },
-];
 
 const AdminStudents: React.FC = () => {
   const navigate = useNavigate();
@@ -86,7 +78,7 @@ const AdminStudents: React.FC = () => {
   
   // Data State
   const [students, setStudents] = useState<UnifiedStudent[]>([]);
-  const [schools, setSchools] = useState<{ id: string; name: string }[]>(STATIC_SCHOOLS);
+  const [schools, setSchools] = useState<{ id: string; name: string }[]>([]);
   const [tutors, setTutors] = useState<{ id: string; name: string; email: string }[]>([]);
   const [parents, setParents] = useState<{ id: string; name: string; email: string; phone?: string }[]>([]);
   const [dispatches, setDispatches] = useState<Dispatch[]>([]);
@@ -182,8 +174,7 @@ const AdminStudents: React.FC = () => {
       ]);
 
       const schoolMap = new Map<string, string>();
-      STATIC_SCHOOLS.forEach(s => schoolMap.set(s.id, s.name));
-      const loadedSchools = [...STATIC_SCHOOLS];
+      const loadedSchools: { id: string; name: string }[] = [];
       schoolsSnap.docs.forEach((d: any) => {
         const data = d.data();
         const name = data.name || data.schoolName || d.id;
@@ -264,17 +255,17 @@ const AdminStudents: React.FC = () => {
 
         const subjectsStr = Array.isArray(data.subjects)
           ? data.subjects.join(', ')
-          : (data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics');
+          : (data.subjects || data.track || data.course || '');
 
         return {
           id,
           docSource: defaultSource,
-          fullName: data.fullName || data.studentName || data.name || data.displayName || 'Student Cadet',
-          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `cadet_${id.slice(-4)}`),
+          fullName: data.fullName || data.studentName || data.name || data.displayName || 'Student',
+          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `student_${id.slice(-4)}`),
           email: data.email || data.studentEmail || '',
           class: data.class || data.className || data.grade || 'General',
           grade: data.grade || data.class || 'General',
-          track: data.track || data.learningTrack || data.program || data.course || 'Technology & Coding',
+          track: data.track || data.learningTrack || data.program || data.course || '',
           subjects: subjectsStr,
           schoolId,
           schoolName: sName,
@@ -350,7 +341,7 @@ const AdminStudents: React.FC = () => {
                 email: child.email || '',
                 class: child.class || child.grade || 'General',
                 grade: child.grade || child.class || 'General',
-                track: child.track || child.program || 'Technology & Coding',
+                track: child.track || child.program || '',
                 subjects: Array.isArray(child.subjects) ? child.subjects.join(', ') : (child.subjects || 'Coding, Mathematics'),
                 schoolId: child.schoolId || '',
                 schoolName: child.schoolName || '',
@@ -493,7 +484,7 @@ const AdminStudents: React.FC = () => {
             username: cleanUsername,
             email: form.email.trim() || undefined,
             class: form.className.trim() || 'General',
-            track: form.track.trim() || 'Technology & Coding',
+            track: form.track.trim() || '',
             subjects: subjectsArray,
             schoolId: form.studentType === 'school' ? form.schoolId : undefined,
             parentId: form.studentType === 'parent' ? form.parentId : undefined,
@@ -565,7 +556,7 @@ const AdminStudents: React.FC = () => {
         email: form.email.trim()
       });
 
-      toast.success(`Cadet "${form.fullName}" added successfully.`);
+      toast.success(`Student "${form.fullName}" added successfully.`);
       setShowCreate(false);
       resetForm();
       await loadAllData();
@@ -661,7 +652,7 @@ const AdminStudents: React.FC = () => {
       tutorName: foundTutor.name,
       tutorEmail: foundTutor.email,
       role: newMentorDraft.role || 'Lead Mentor',
-      trackOrSubject: newMentorDraft.trackOrSubject || assigningTutorStudent?.track || 'General Technology'
+      trackOrSubject: newMentorDraft.trackOrSubject || assigningTutorStudent?.track || ''
     };
 
     setSelectedTutorsList([...selectedTutorsList, newMentorEntry]);
@@ -793,7 +784,7 @@ const AdminStudents: React.FC = () => {
       const collectionName = resourceForm.type === 'link' ? 'personalLinks' : 'personalResources';
       const payload: any = {
         studentId: resourceForm.studentId,
-        studentName: selectedStudent?.fullName || 'Cadet',
+        studentName: selectedStudent?.fullName || 'Student',
         title: resourceForm.title.trim(),
         description: resourceForm.description.trim(),
         timestamp: serverTimestamp(),
@@ -871,7 +862,7 @@ const AdminStudents: React.FC = () => {
                 Scholars &amp; Student Operations
               </h1>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Centralized academic roster for independent learners, parent-registered scholars, and affiliated school cadets.
+                Centralized academic roster for independent learners, parent-registered scholars, and affiliated school students.
               </p>
             </div>
           </div>
@@ -902,7 +893,7 @@ const AdminStudents: React.FC = () => {
             className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-red px-5 text-xs font-bold text-white shadow-md shadow-brand-red/20 hover:bg-red-700 transition-all"
           >
             <UserPlus size={15} aria-hidden="true" />
-            Add Student / Cadet
+            Add Student / Student
           </button>
         </div>
       </div>
@@ -964,7 +955,7 @@ const AdminStudents: React.FC = () => {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search cadet, username, school, parent..."
+            placeholder="Search student, username, school, parent..."
             className="w-full min-h-10 pl-9 pr-9 rounded-xl border border-slate-200/90 bg-white text-xs font-medium text-slate-900 placeholder-slate-400 focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white shadow-2xs"
           />
           {search && (
@@ -1033,7 +1024,7 @@ const AdminStudents: React.FC = () => {
                 </label>
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
                   {[
-                    { id: 'all', label: 'All Cadets', count: stats.total },
+                    { id: 'all', label: 'All Students', count: stats.total },
                     { id: 'personal', label: 'Personal', count: stats.personal },
                     { id: 'parent', label: 'Parent Enrolled', count: stats.parent },
                     { id: 'school', label: 'School Affiliated', count: stats.school },
@@ -1115,7 +1106,7 @@ const AdminStudents: React.FC = () => {
       <section className="pro-surface overflow-hidden rounded-3xl border border-slate-200/80 shadow-xs dark:border-slate-800 dark:bg-slate-900/80">
         <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800">
           <div>
-            <h2 className="text-lg font-black text-slate-900 dark:text-white">Student &amp; Cadet Directory</h2>
+            <h2 className="text-lg font-black text-slate-900 dark:text-white">Student &amp; Student Directory</h2>
             <p className="mt-0.5 text-xs text-slate-500">
               Showing {filteredStudents.length} of {students.length} enrolled scholars across all programs.
             </p>
@@ -1176,7 +1167,7 @@ const AdminStudents: React.FC = () => {
                         {student.studentType === 'school' ? (
                           <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                             <School size={11} />
-                            {student.schoolName || 'School Cadet'}
+                            {student.schoolName || 'School Student'}
                           </span>
                         ) : student.studentType === 'parent' ? (
                           <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
@@ -1218,7 +1209,7 @@ const AdminStudents: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        toast.info(`Directly viewing cadet dashboard for ${student.fullName}...`);
+                        toast.info(`Directly viewing student dashboard for ${student.fullName}...`);
                         startImpersonation({
                           id: student.id,
                           uid: student.firebaseUid || student.id,
@@ -1277,7 +1268,7 @@ const AdminStudents: React.FC = () => {
         <form onSubmit={handleSendResource} className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
-              Target Student / Cadet <span className="text-brand-red">*</span>
+              Target Student / Student <span className="text-brand-red">*</span>
             </label>
             <select
               value={resourceForm.studentId}
@@ -1368,7 +1359,7 @@ const AdminStudents: React.FC = () => {
           <h2 className="text-base font-black text-slate-900 dark:text-white">Recent Learning Dispatches</h2>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {dispatches.slice(0, 6).map(item => {
-              const targetCadet = students.find(s => s.id === item.studentId);
+              const targetStudent = students.find(s => s.id === item.studentId);
               return (
                 <div
                   key={`${item.collectionName}-${item.id}`}
@@ -1385,7 +1376,7 @@ const AdminStudents: React.FC = () => {
                       {item.title || 'Untitled'}
                     </h3>
                     <p className="mt-1 text-[11px] text-slate-500">
-                      To: <strong>{targetCadet?.fullName || 'Cadet'}</strong>
+                      To: <strong>{targetStudent?.fullName || 'Student'}</strong>
                     </p>
                   </div>
                   <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1406,13 +1397,13 @@ const AdminStudents: React.FC = () => {
         </section>
       )}
 
-      {/* MODAL: Onboard New Student / Cadet */}
+      {/* MODAL: Onboard New Student / Student */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 md:p-8">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">Add Student / Cadet</h2>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">Add Student / Student</h2>
                 <p className="text-xs text-slate-500">
                   Onboard a new scholar with personalized credentials and course assignment.
                 </p>
@@ -1466,7 +1457,7 @@ const AdminStudents: React.FC = () => {
                         : 'border border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     }`}
                   >
-                    School Cadet
+                    School Student
                   </button>
                 </div>
               </div>
@@ -1496,7 +1487,7 @@ const AdminStudents: React.FC = () => {
 
                 <div>
                   <label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Cadet Username <span className="text-brand-red">*</span>
+                    Student Username <span className="text-brand-red">*</span>
                   </label>
                   <input
                     type="text"
@@ -1531,7 +1522,7 @@ const AdminStudents: React.FC = () => {
                     type="text"
                     value={form.className}
                     onChange={e => setForm(prev => ({ ...prev, className: e.target.value }))}
-                    placeholder="e.g. Primary 5, Year 7, Cadet Alpha"
+                    placeholder="e.g. Primary 5, Year 7, Student Alpha"
                     className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:border-brand-red focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   />
                 </div>
@@ -1649,7 +1640,7 @@ const AdminStudents: React.FC = () => {
                   disabled={saving}
                   className="min-h-11 flex-1 rounded-xl bg-brand-red text-xs font-bold text-white shadow-md shadow-brand-red/20 hover:bg-red-700 disabled:opacity-50"
                 >
-                  {saving ? 'Creating Cadet...' : 'Onboard Cadet'}
+                  {saving ? 'Creating Student...' : 'Onboard Student'}
                 </button>
               </div>
             </form>
@@ -1676,7 +1667,7 @@ const AdminStudents: React.FC = () => {
                     {managingStudent.studentType === 'school' ? (
                       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                         <School size={11} />
-                        {managingStudent.schoolName || 'School Cadet'}
+                        {managingStudent.schoolName || 'School Student'}
                       </span>
                     ) : managingStudent.studentType === 'parent' ? (
                       <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-extrabold text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
@@ -1942,7 +1933,7 @@ const AdminStudents: React.FC = () => {
                     <Trash2 size={16} />
                     <div className="text-left">
                       <p className="text-xs font-bold">Delete Student Record</p>
-                      <p className="text-[10px] text-red-600/80 dark:text-red-400">Permanently erase cadet record &amp; dispatches</p>
+                      <p className="text-[10px] text-red-600/80 dark:text-red-400">Permanently erase student record &amp; dispatches</p>
                     </div>
                   </div>
                   <span className="text-[11px] font-black uppercase tracking-wider text-red-700 dark:text-red-400">Delete</span>

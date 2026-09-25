@@ -1,0 +1,117 @@
+name: Portal hardening and verification
+
+on:
+  push:
+    branches: [fix/parent-billing-schedule-auth-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/parent-billing-schedule-auth-hardening
+          fetch-depth: 0
+
+      - name: Apply safe portal hardening patches
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          def patch(path, transforms):
+              p = root / path
+              if not p.exists():
+                  print(f'SKIP missing {path}')
+                  return False
+              text = p.read_text(encoding='utf-8')
+              original = text
+              for label, fn in transforms:
+                  before = text
+                  text = fn(text)
+                  if text != before:
+                      print(f'  {path}: {label}')
+              if text != original:
+                  p.write_text(text, encoding='utf-8')
+                  return True
+              return False
+
+          changed = False
+
+          changed |= patch('src/pages/admin/AdminStudents.tsx', [
+              ('remove STATIC_SCHOOLS', lambda s: re.sub(r"\nconst STATIC_SCHOOLS = \[[\s\S]*?\];\n", "\n", s, count=1)),
+              ('dynamic school state', lambda s: s.replace("useState<{ id: string; name: string }[]>(STATIC_SCHOOLS)", "useState<{ id: string; name: string }[]>([])")),
+              ('remove static school seeding', lambda s: s.replace("      const schoolMap = new Map<string, string>();\n      STATIC_SCHOOLS.forEach(s => schoolMap.set(s.id, s.name));\n      const loadedSchools = [...STATIC_SCHOOLS];", "      const schoolMap = new Map<string, string>();\n      const loadedSchools: { id: string; name: string }[] = [];")),
+              ('neutral student fallback', lambda s: s.replace("'Student Cadet'", "'Student'")),
+              ('neutral username fallback', lambda s: s.replace('`cadet_${id.slice(-4)}`', '`student_${id.slice(-4)}`')),
+              ('no fake default track', lambda s: s.replace("data.track || data.learningTrack || data.program || data.course || 'Technology & Coding'", "data.track || data.learningTrack || data.program || data.course || ''")),
+              ('no fake default subjects', lambda s: s.replace("(data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics')", "(data.subjects || data.track || data.course || '')")),
+          ])
+
+          for path in root.glob('src/**/*.tsx'):
+              changed |= patch(str(path), [
+                  ('bank-only withdrawal mode', lambda s: s.replace('initialMode={withdrawMode}', 'initialMode="bank"')),
+              ])
+
+          changed |= patch('src/utils/resourceTracking.ts', [
+              ('complete DateFilterType', lambda s: re.sub(r"export type DateFilterType = [^;]+;", "export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';", s, count=1)),
+          ])
+
+          changed |= patch('src/pages/admin/AdminSchools.tsx', [
+              ('empty initial fee', lambda s: s.replace("initialFee: '300000'", "initialFee: ''")),
+              ('empty billing default', lambda s: s.replace('baseAmount: 300000,', 'baseAmount: 0,')),
+          ])
+
+          def cascade_delete_school(s):
+              old = """      // Direct Firestore delete on school document\n      await deleteDoc(doc(db, 'schools', selectedSchool.id));"""
+              new = """      // Cascade the school's Firestore portal records before deleting the school document.\n      // Firebase Auth accounts are intentionally not deleted from the client; their portal profile is removed.\n      const linkedCollections = ['students', 'individualStudents', 'users', 'schoolPasscodes', 'schoolLinks', 'schoolExams', 'classSchedules', 'payments', 'schoolPrograms'];\n      for (const collectionName of linkedCollections) {\n        const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', selectedSchool.id))).catch(() => ({ docs: [] } as any));\n        for (const item of snap.docs) await deleteDoc(doc(db, collectionName, item.id));\n      }\n      await deleteDoc(doc(db, 'schools', selectedSchool.id));"""
+              return s.replace(old, new)
+          changed |= patch('src/pages/admin/AdminSchools.tsx', [('cascade school records on delete', cascade_delete_school)])
+
+          changed |= patch('firestore.rules', [
+              ('recognize admin custom claims', lambda s: s.replace("request.auth.token.email != null && (request.auth.token.email == 'johnrufai242@gmail.com'", "request.auth.token.email != null && (request.auth.token.admin == true || request.auth.token.isAdmin == true || request.auth.token.email == 'johnrufai242@gmail.com'")),
+              ('recognize SUPERADMIN role variant', lambda s: s.replace("['SUPER_ADMIN','super_admin','ADMIN','admin','CONTENT_ADMIN'", "['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin','CONTENT_ADMIN'")),
+          ])
+
+          # The existing AdminBilling hub had an incomplete JSX edit. Replace only the visual hub
+          # wrapper with a compact, valid version; all dedicated views and modal handlers remain intact.
+          def repair_admin_billing_hub(s):
+              marker = "  // MAIN FINTECH DASHBOARD VIEW ('hub')"
+              start = s.find(marker)
+              outer_return = s.find("\n  return (\n    <>\n      {renderViewContent()}", start)
+              if start < 0 or outer_return < 0:
+                  return s
+              hub = '''  // MAIN FINTECH DASHBOARD VIEW ('hub')\n  return (\n    <div className="space-y-6">\n      <SEO title="Billing, Invoicing & Treasury | Admin" description="Manage platform treasury, tuition billing and staff allocations." noindex={true} />\n\n      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#0F172A] via-[#0B1528] to-[#1E293B] border border-slate-700/60 text-white p-5 sm:p-7">\n        <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-brand-red/10 blur-3xl pointer-events-none" />\n        <div className="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">\n          <div>\n            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-brand-red">Financial Control Center</p>\n            <h1 className="mt-2 text-2xl sm:text-3xl font-black">Billing &amp; Treasury</h1>\n            <p className="mt-2 text-xs sm:text-sm text-slate-300 max-w-2xl">Live figures come from the financial records. No demo balances or invented transaction history are displayed.</p>\n          </div>\n          <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-xs font-black hover:bg-white/15">\n            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh ledger\n          </button>\n        </div>\n        <div className="relative z-10 mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">\n          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Available balance</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? formatCurrency(calculatedAvailableBalance) : '₦••••••'}</p></div>\n          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Verified invoices</p><p className="mt-1 text-xl font-black">{paid.length}</p></div>\n          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Tutor allocations</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? money(tutorAllocated) : '₦••••'}</p></div>\n          <div className="rounded-2xl bg-white/5 border border-white/10 p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Platform net</p><p className="mt-1 text-xl font-black font-mono">{showBalance ? money(platformNet) : '₦••••'}</p></div>\n        </div>\n      </section>\n\n      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">\n        {[\n          ['parents', 'Parent Enrollment & Billing', 'Set student plans, billing and tutor allocations for parent-linked students.'],\n          ['transactions', 'Transaction History', 'Review verified financial transactions and receipts.'],\n          ['monthly', 'Monthly Breakdown', 'Review financial activity by period.'],\n          ['schools', 'Partner School Billings', 'Configure school billing, programmes and fee schedules.'],\n          ['tutors', 'Tutor Allocations & Disbursals', 'Allocate approved payouts and manage tutor settlement operations.'],\n          ['policies', 'Fee Policies & Plans', 'Configure platform billing rules and pricing plans.']\n        ].map(([id, title, description]) => (\n          <button key={id} type="button" onClick={() => setActiveView(id as any)} className="text-left rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:border-brand-red/50 hover:shadow-sm transition-all">\n            <h2 className="text-sm font-black text-slate-900 dark:text-white">{title}</h2>\n            <p className="mt-1.5 text-xs leading-5 text-slate-500 dark:text-slate-400">{description}</p>\n            <span className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-brand-red">Open module <ChevronRight size={13} /></span>\n          </button>\n        ))}\n      </div>\n    </div>\n  );\n  };\n'''
+              return s[:start] + hub + s[outer_return:]
+
+          changed |= patch('src/pages/admin/AdminBilling.tsx', [('replace malformed hub with valid compact hub', repair_admin_billing_hub)])
+
+          helper = root / 'src/utils/resourceDateFilters.ts'
+          helper.write_text("""export type ResourceDateSort = 'recent' | 'oldest';\n\nexport function resourceDateMs(value: any): number {\n  if (!value) return 0;\n  if (typeof value === 'number') return value;\n  if (typeof value === 'string') { const n = Date.parse(value); return Number.isFinite(n) ? n : 0; }\n  if (value?.toDate instanceof Function) return value.toDate().getTime();\n  if (typeof value?.seconds === 'number') return value.seconds * 1000;\n  if (value instanceof Date) return value.getTime();\n  return 0;\n}\n\nexport function sortResourcesByDate<T extends Record<string, any>>(items: T[], mode: ResourceDateSort): T[] {\n  return [...items].sort((a, b) => {\n    const delta = resourceDateMs(b.createdAt ?? b.updatedAt ?? b.timestamp ?? b.date) - resourceDateMs(a.createdAt ?? a.updatedAt ?? a.timestamp ?? a.date);\n    return mode === 'oldest' ? -delta : delta;\n  });\n}\n""", encoding='utf-8')
+          changed = True
+          print('Portal hardening patches applied.')
+
+      - name: Install dependencies and reconcile the existing lockfile
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript and production build verification
+        run: npm run build
+
+      - name: Commit verified repairs
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src package.json package-lock.json firestore.rules .github/workflows/repair-portal-branch.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: harden portal data, school lifecycle and authorization"
+          git push origin HEAD:fix/parent-billing-schedule-auth-hardening

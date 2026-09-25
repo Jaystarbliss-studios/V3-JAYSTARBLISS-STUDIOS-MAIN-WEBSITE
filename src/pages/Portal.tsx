@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  School, GraduationCap, Users, ShieldCheck, Mail, Lock, 
+  School, GraduationCap, Users, ShieldCheck, Building2, Mail, Lock, 
   Eye, EyeOff, ArrowLeft, Sun, Moon
 } from 'lucide-react';
 import { 
@@ -29,6 +29,7 @@ import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 
 type Role = 'school' | 'student' | 'parent' | 'staff';
+type LoginMode = 'institute' | 'client';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -55,6 +56,7 @@ const Portal: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const toast = useToast();
   
+  const [loginMode, setLoginMode] = useState<LoginMode>('institute');
   const [activeTab, setActiveTab] = useState<Role>('student');
   const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState(''); // username, email, or school code
@@ -112,7 +114,7 @@ const Portal: React.FC = () => {
       localStorage.setItem('jaystar_cached_user_role', 'student');
       localStorage.setItem('jaystar_cached_user_id', result.user.uid);
       localStorage.setItem('jaystar_cached_user_name', studentName);
-      toast.success(`Welcome Cadet ${String(studentName).split(' ')[0]}! Logged in successfully.`);
+      toast.success(`Welcome ${String(studentName).split(' ')[0]}! Logged in successfully.`);
       navigate('/portal/student');
       return;
     } catch (portalAccessErr) {
@@ -362,7 +364,7 @@ const Portal: React.FC = () => {
     const code = password.trim();
 
     if (!rawInput || !code) {
-      throw new Error('Please enter your School Email / Access Code or Cadet Username and Passcode.');
+      throw new Error('Please enter your School Email / Access Code or student username and Passcode.');
     }
 
     if (rawInput.includes('@')) {
@@ -511,16 +513,16 @@ const Portal: React.FC = () => {
             localStorage.setItem('jaystar_cached_user_id', firebaseUid);
             localStorage.setItem('jaystar_cached_user_name', studentName);
 
-            toast.success(`Welcome Cadet ${studentName.split(' ')[0]}! Logged in successfully.`);
+            toast.success(`Welcome ${studentName.split(' ')[0]}! Logged in successfully.`);
             navigate('/portal/student');
             return;
           }
         }
-      } catch (cadetErr) {
-        console.warn('Cadet login lookup notice:', cadetErr);
+      } catch (studentErr) {
+        console.warn('Student login lookup notice:', studentErr);
       }
 
-      throw new Error('Invalid school credentials, cadet username, or access passcode. Please verify your credentials or contact your school administrator.');
+      throw new Error('Invalid school credentials, student username, or access passcode. Please verify your credentials or contact your school administrator.');
     }
 
     if (matchedSchool.firebaseUid) {
@@ -845,24 +847,24 @@ const Portal: React.FC = () => {
 
         {/* RIGHT FORM PANEL */}
         <div className="form-panel">
-          <div className="role-tabs">
-            {tabs.map(tab => (
-              <button 
-                key={tab.id}
-                type="button"
-                className={`role-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => { 
-                  setActiveTab(tab.id); 
-                  setError(''); 
-                  setSuccess('');
-                  setIdentifier(''); 
-                  setPassword('');
-                }}
-              >
-                <span className="tab-ico">{tab.icon}</span>
-                {tab.label}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800">
+              <button type="button" className={`role-tab ${loginMode === 'institute' ? 'active' : ''}`} onClick={() => { setLoginMode('institute'); setActiveTab('student'); setError(''); setSuccess(''); setIdentifier(''); setPassword(''); }}>
+                <span className="tab-ico"><Building2 size={16} /></span> Login to Institute
               </button>
-            ))}
+              <button type="button" className={`role-tab ${loginMode === 'client' ? 'active' : ''}`} onClick={() => { setLoginMode('client'); setActiveTab('parent'); setError(''); setSuccess(''); setIdentifier(''); setPassword(''); }}>
+                <span className="tab-ico"><Users size={16} /></span> Login as Client
+              </button>
+            </div>
+            {loginMode === 'institute' && (
+              <div className="grid grid-cols-3 gap-1.5 role-tabs" aria-label="Institute account type">
+                {tabs.filter(tab => tab.id !== 'parent').map(tab => (
+                  <button key={tab.id} type="button" className={`role-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => { setActiveTab(tab.id); setError(''); setSuccess(''); setIdentifier(''); setPassword(''); }}>
+                    <span className="tab-ico">{tab.icon}</span>{tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="form-body">
@@ -871,8 +873,8 @@ const Portal: React.FC = () => {
               <div className="form-sub">
                 {activeTab === 'student' && 'Enter your Student Username & Access Code'}
                 {activeTab === 'school' && 'Enter your School Email or Partner Access Code'}
-                {activeTab === 'parent' && 'Sign in to monitor your children’s classes & progress'}
-                {activeTab === 'staff' && 'Sign in to your tutor & instructor workspace'}
+                {loginMode === 'client' && 'Sign in with your client email and password, or continue with Google'}
+                {activeTab === 'staff' && loginMode === 'institute' && 'Sign in to your tutor & instructor workspace'}
               </div>
               
               {error && <div className="msg msg-error show">{error}</div>}
@@ -883,7 +885,7 @@ const Portal: React.FC = () => {
                   <label>
                     {activeTab === 'student' && 'Student Username or Email'}
                     {activeTab === 'school' && 'School Email or Terminal ID'}
-                    {activeTab === 'parent' && 'Parent Email Address'}
+                    {loginMode === 'client' ? 'Client Email Address' : 'Parent Email Address'}
                     {activeTab === 'staff' && 'Staff / Tutor Email'}
                   </label>
                   <div className="input-wrap">
@@ -893,7 +895,7 @@ const Portal: React.FC = () => {
                       placeholder={
                         activeTab === 'student' ? 'e.g. john or john@example.com' :
                         activeTab === 'school' ? 'school@institution.edu' :
-                        activeTab === 'parent' ? 'parent@example.com' : 'staff@jaystarbliss.ng'
+                        loginMode === 'client' ? 'client@example.com' : 'staff@jaystarbliss.ng'
                       } 
                       required 
                       value={identifier}
@@ -948,7 +950,7 @@ const Portal: React.FC = () => {
                 </CyberLiquidButton>
               </form>
 
-              {(activeTab === 'parent' || activeTab === 'staff') && (
+              {(loginMode === 'client' || activeTab === 'staff') && (
                 <>
                   <div className="auth-divider">or</div>
                   <button type="button" className="google-btn" onClick={handleGoogleLogin} disabled={loading}>

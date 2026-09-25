@@ -5,6 +5,7 @@ import {
 import { formatCurrency } from '../../lib/receiptGenerator';
 import { useToast } from '../../contexts/ToastContext';
 import { billingPost } from '../../lib/billing';
+import { auth } from '../../lib/firebase';
 
 export interface BankOption {
   code: string;
@@ -57,6 +58,35 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
   const [accountVerified, setAccountVerified] = useState(hasSavedAccount);
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [directoryBanks, setDirectoryBanks] = useState<BankOption[]>(banksList || []);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+
+  useEffect(() => {
+    setDirectoryBanks(banksList || []);
+  }, [banksList]);
+
+  useEffect(() => {
+    if (!isOpen || directoryBanks.length > 0) return;
+    let cancelled = false;
+    const loadDirectory = async () => {
+      setDirectoryLoading(true);
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        const token = await user.getIdToken();
+        const response = await fetch('/.netlify/functions/paystack-banks', { headers: { Authorization: `Bearer ${token}` } });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || 'Unable to load supported banks.');
+        if (!cancelled) setDirectoryBanks(Array.isArray(result.banks) ? result.banks : []);
+      } catch (error) {
+        console.warn('Nigerian bank directory lookup failed:', error);
+      } finally {
+        if (!cancelled) setDirectoryLoading(false);
+      }
+    };
+    void loadDirectory();
+    return () => { cancelled = true; };
+  }, [isOpen, directoryBanks.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,8 +102,8 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
   }, [isOpen, savedBankCode, savedAccountNumber, savedAccountLast4, savedAccountName]);
 
   const availableBanks = useMemo(
-    () => [...banksList].sort((a, b) => a.name.localeCompare(b.name)),
-    [banksList]
+    () => [...directoryBanks].sort((a, b) => a.name.localeCompare(b.name)),
+    [directoryBanks]
   );
 
   const filteredBanks = useMemo(() => {
@@ -264,9 +294,8 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
               {selectedBank && (
                 <p className="mt-1.5 text-[11px] text-slate-500">Selected: <span className="font-bold text-slate-800 dark:text-slate-200">{selectedBank.name}</span></p>
               )}
-              {availableBanks.length === 0 && (
-                <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">The live Nigerian bank directory is still loading. Please refresh and try again.</p>
-              )}
+              {directoryLoading && <p className="mt-2 text-[11px] text-slate-500">Loading the live Nigerian bank directory…</p>}
+              {!directoryLoading && availableBanks.length === 0 && <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">The bank directory could not be loaded. Close this window and try again.</p>}
             </div>
 
             <div>

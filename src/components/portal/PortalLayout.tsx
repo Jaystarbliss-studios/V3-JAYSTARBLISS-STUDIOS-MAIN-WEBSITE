@@ -48,7 +48,7 @@ const PortalLayout: React.FC = () => {
   const pathParts = location.pathname.split('/');
   const role = pathParts[2] || 'student';
   
-  const [displayName, setDisplayName] = useState('Cadet');
+  const [displayName, setDisplayName] = useState('Student');
   const [userEmail, setUserEmail] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
@@ -75,7 +75,7 @@ const PortalLayout: React.FC = () => {
       setUserEmail(user.email || '');
       setIsEmailVerified(user.emailVerified);
       setPhotoURL(user.photoURL);
-      setDisplayName(sessionStorage.getItem('userName') || user.displayName || user.email?.split('@')[0] || 'Cadet');
+      setDisplayName(sessionStorage.getItem('userName') || user.displayName || user.email?.split('@')[0] || 'Student');
     } else {
       setDisplayName(sessionStorage.getItem('userName') || 'Portal User');
     }
@@ -156,7 +156,15 @@ const PortalLayout: React.FC = () => {
   const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
   const isStudentAccessCodeOnly = !userEmail && sessionStorage.getItem('studentDocId');
 
-  const studentCanPay = role === 'student' && sessionStorage.getItem('studentRegistrationType') === 'individual';
+  const [studentRegistrationType, setStudentRegistrationType] = useState(() => sessionStorage.getItem('studentRegistrationType') || '');
+  useEffect(() => {
+    if (role !== 'student') return;
+    const sync = () => setStudentRegistrationType(sessionStorage.getItem('studentRegistrationType') || '');
+    window.addEventListener('jaystar-student-registration-type', sync);
+    sync();
+    return () => window.removeEventListener('jaystar-student-registration-type', sync);
+  }, [role]);
+  const studentCanPay = role === 'student' && studentRegistrationType === 'individual';
   const bottomNavItems = [
     { name: 'Home', path: `/portal/${role}`, icon: <LayoutDashboard size={20} /> },
     { name: role === 'school' ? 'Roster' : role === 'student' ? 'Learning' : 'Classes', path: role === 'school' ? '/portal/school/roster' : role === 'student' ? '/portal/student/courses' : `/portal/${role}/calendar`, icon: <BookOpen size={20} /> },
