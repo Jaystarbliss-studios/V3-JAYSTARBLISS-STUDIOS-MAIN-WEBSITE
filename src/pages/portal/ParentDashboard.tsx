@@ -439,7 +439,7 @@ const EmptyPanel: React.FC<{ text: string }> = ({ text }) => (
 const EmptyChildrenState: React.FC<{ onAdd: () => void }> = ({ onAdd }) => (
   <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-8 text-center">
     <GraduationCap className="mx-auto text-slate-300 dark:text-slate-700" size={36} aria-hidden="true" />
-    <h3 className="mt-3 text-xs font-bold text-slate-900 dark:text-white">No cadets linked yet</h3>
+    <h3 className="mt-3 text-xs font-bold text-slate-900 dark:text-white">No students linked yet</h3>
     <p className="mx-auto mt-1 max-w-sm text-[11px] leading-4 text-slate-500">
       A verified child record will appear here once admissions links it to this parent account.
     </p>
