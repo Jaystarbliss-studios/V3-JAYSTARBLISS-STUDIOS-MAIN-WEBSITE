@@ -44,7 +44,6 @@ jobs:
 
           changed = False
 
-          # Never ship demo/static schools or fake student identity fallbacks.
           changed |= patch('src/pages/admin/AdminStudents.tsx', [
               ('remove STATIC_SCHOOLS', lambda s: re.sub(r"\nconst STATIC_SCHOOLS = \[[\s\S]*?\];\n", "\n", s, count=1)),
               ('dynamic school state', lambda s: s.replace("useState<{ id: string; name: string }[]>(STATIC_SCHOOLS)", "useState<{ id: string; name: string }[]>([])")),
@@ -55,18 +54,35 @@ jobs:
               ('no fake default subjects', lambda s: s.replace("(data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics')", "(data.subjects || data.track || data.course || '')")),
           ])
 
-          # Withdrawal is bank-only in the new UX. Do not pass an obsolete Opay mode.
           for path in root.glob('src/**/*.tsx'):
               changed |= patch(str(path), [
                   ('bank-only withdrawal mode', lambda s: s.replace('initialMode={withdrawMode}', 'initialMode="bank"')),
               ])
 
-          # Keep date filter types consistent with the actual viewer options.
           changed |= patch('src/utils/resourceTracking.ts', [
               ('complete DateFilterType', lambda s: re.sub(r"export type DateFilterType = [^;]+;", "export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';", s, count=1)),
           ])
 
-          # Deterministic date sorting helper for resource viewers.
+          # Remove fake onboarding/billing defaults. Empty means the admin must explicitly configure it.
+          changed |= patch('src/pages/admin/AdminSchools.tsx', [
+              ('empty initial fee', lambda s: s.replace("initialFee: '300000'", "initialFee: ''")),
+              ('empty billing default', lambda s: s.replace('baseAmount: 300000,', 'baseAmount: 0,')),
+          ])
+
+          # School deletion must remove the school's Firestore portal records, not merely the parent school document.
+          def cascade_delete_school(s):
+              old = """      // Direct Firestore delete on school document\n      await deleteDoc(doc(db, 'schools', selectedSchool.id));"""
+              new = """      // Cascade the school's Firestore portal records before deleting the school document.\n      // Firebase Auth accounts are intentionally not deleted from the client; their portal profile is removed.\n      const linkedCollections = ['students', 'individualStudents', 'users', 'schoolPasscodes', 'schoolLinks', 'schoolExams', 'classSchedules', 'payments', 'schoolPrograms'];\n      for (const collectionName of linkedCollections) {\n        const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', selectedSchool.id))).catch(() => ({ docs: [] } as any));\n        for (const item of snap.docs) await deleteDoc(doc(db, collectionName, item.id));\n      }\n      await deleteDoc(doc(db, 'schools', selectedSchool.id));"""
+              return s.replace(old, new)
+          changed |= patch('src/pages/admin/AdminSchools.tsx', [('cascade school records on delete', cascade_delete_school)])
+
+          # Allow legitimate administrator custom claims as well as the existing email/profile checks.
+          changed |= patch('firestore.rules', [
+              ('recognize admin custom claims', lambda s: s.replace("request.auth.token.email != null && (request.auth.token.email == 'johnrufai242@gmail.com'", "request.auth.token.email != null && (request.auth.token.admin == true || request.auth.token.isAdmin == true || request.auth.token.email == 'johnrufai242@gmail.com'")),
+              ('recognize SUPERADMIN role variant', lambda s: s.replace("['SUPER_ADMIN','super_admin','ADMIN','admin','CONTENT_ADMIN'", "['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin','CONTENT_ADMIN'")),
+          ])
+
+          # Deterministic resource date sorting helper.
           helper = root / 'src/utils/resourceDateFilters.ts'
           helper.write_text("""export type ResourceDateSort = 'recent' | 'oldest';\n\nexport function resourceDateMs(value: any): number {\n  if (!value) return 0;\n  if (typeof value === 'number') return value;\n  if (typeof value === 'string') { const n = Date.parse(value); return Number.isFinite(n) ? n : 0; }\n  if (value?.toDate instanceof Function) return value.toDate().getTime();\n  if (typeof value?.seconds === 'number') return value.seconds * 1000;\n  if (value instanceof Date) return value.getTime();\n  return 0;\n}\n\nexport function sortResourcesByDate<T extends Record<string, any>>(items: T[], mode: ResourceDateSort): T[] {\n  return [...items].sort((a, b) => {\n    const delta = resourceDateMs(b.createdAt ?? b.updatedAt ?? b.timestamp ?? b.date) - resourceDateMs(a.createdAt ?? a.updatedAt ?? a.timestamp ?? a.date);\n    return mode === 'oldest' ? -delta : delta;\n  });\n}\n""", encoding='utf-8')
           changed = True
@@ -83,10 +99,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src package.json package-lock.json .github/workflows/repair-portal-branch.yml
+          git add src package.json package-lock.json firestore.rules .github/workflows/repair-portal-branch.yml
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "fix: harden portal data and withdrawal flow"
+          git commit -m "fix: harden portal data, school lifecycle and authorization"
           git push origin HEAD:fix/parent-billing-schedule-auth-hardening
