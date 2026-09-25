@@ -413,7 +413,7 @@ const AdminSchools: React.FC = () => {
     try {
       // Cascade the school's Firestore portal records before deleting the school document.
       // Firebase Auth accounts are intentionally not deleted from the client; their portal profile is removed.
-      const linkedCollections = ['students', 'individualStudents', 'users', 'schoolPasscodes', 'schoolLinks', 'schoolExams', 'classSchedules', 'payments', 'schoolPrograms'];
+      const linkedCollections = ['students', 'individualStudents', 'users', 'schoolPasscodes', 'schoolLinks', 'schoolExams', 'schoolResources', 'schoolOnboarding', 'classSchedules', 'payments', 'schoolPrograms'];
       for (const collectionName of linkedCollections) {
         const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', selectedSchool.id))).catch(() => ({ docs: [] } as any));
         for (const item of snap.docs) await deleteDoc(doc(db, collectionName, item.id));
