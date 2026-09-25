@@ -228,92 +228,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         }
       });
 
-      // Ensure requested parent accounts and their assigned children exist in parentCadetsMap
-      const defaultChildrenSeed: UnifiedParentStudent[] = [
-        {
-          id: 'shawn_torru',
-          source: 'individualStudents',
-          studentName: 'SHAWN TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Robotics, IoT & Electronics',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 4'
-        },
-        {
-          id: 'jayden_torru',
-          source: 'individualStudents',
-          studentName: 'JAYDEN TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Python AI & Machine Learning',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 6'
-        },
-        {
-          id: 'emanuella_torru',
-          source: 'individualStudents',
-          studentName: 'EMANUELLA TORRU',
-          parentName: 'GIFT TORRU',
-          parentEmail: 'gifttorru@gmail.com',
-          parentPhone: '+234 803 000 1122',
-          plan: 'Full-Stack Web Engineering',
-          amount: 45000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 8'
-        },
-        {
-          id: 'zoeudofiazu',
-          source: 'individualStudents',
-          studentName: 'ANIEBIET ZOE',
-          parentName: 'ANIE UDOFIA',
-          parentEmail: 'anie.udofia31@gmail.com',
-          parentPhone: '+234 802 333 4455',
-          plan: 'Scratch Creative Coding & Animation',
-          amount: 35000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 3'
-        },
-        {
-          id: 'aniebiet_joanna',
-          source: 'individualStudents',
-          studentName: 'ANIEBIET JOANNA',
-          parentName: 'ANIE UDOFIA',
-          parentEmail: 'anie.udofia31@gmail.com',
-          parentPhone: '+234 802 333 4455',
-          plan: 'Game Development (Roblox & Unity)',
-          amount: 35000,
-          cycle: 'monthly',
-          teachingMode: 'Online 1-on-1',
-          status: 'APPROVED',
-          grade: 'Year 5'
-        }
-      ];
-
-      defaultChildrenSeed.forEach(seedChild => {
-        if (!parentCadetsMap.has(seedChild.id)) {
-          const existing = Array.from(parentCadetsMap.values()).find(
-            c => c.studentName?.toLowerCase() === seedChild.studentName.toLowerCase() &&
-                 c.parentEmail?.toLowerCase() === seedChild.parentEmail.toLowerCase()
-          );
-          if (!existing) {
-            parentCadetsMap.set(seedChild.id, seedChild);
-          }
-        }
-      });
-
+      // Parent/student records are database-driven. Do not seed families, programmes or fees in the UI.
       const unifiedParentsList = Array.from(parentCadetsMap.values());
 
       // Merge Payments from Firestore and API
@@ -340,9 +255,9 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
               plan: 'Partner School Term Subscription',
               category: 'school_tuition',
               type: 'inflow',
-              amount: p.amount || sch.billing?.baseAmount || 300000,
-              customerTotal: p.amount || sch.billing?.baseAmount || 300000,
-              baseAmount: p.amount || sch.billing?.baseAmount || 300000,
+              amount: p.amount || sch.billing?.baseAmount || 0,
+              customerTotal: p.amount || sch.billing?.baseAmount || 0,
+              baseAmount: p.amount || sch.billing?.baseAmount || 0,
               transactionFee: Number(p.transactionFee || 0),
               status: p.status || 'PAID',
               paidAt: p.paidAt || p.date || sch.billing?.lastPaymentDate || new Date().toISOString()
@@ -496,7 +411,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
   // Live Calculated Dynamic Available Balance (Treasury Pool minus Withdrawals and Transfers to Tutors)
   const calculatedAvailableBalance = useMemo(() => {
     const netPool = totalInflows - totalDisbursed - totalTransfersToTutors;
-    return netPool >= 0 ? netPool : Math.max(0, 2450000 - totalDisbursed - totalTransfersToTutors);
+    return netPool >= 0 ? netPool : 0;
   }, [totalInflows, totalDisbursed, totalTransfersToTutors]);
 
   // Platform Net Retained Revenue
@@ -711,7 +626,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     setSelectedSchoolWorkspace(school);
     setActiveSchoolTab('config');
     setSchoolBillingConfig({
-      baseAmount: school.billing?.baseAmount || 300000,
+      baseAmount: school.billing?.baseAmount || 0,
       cycle: school.billing?.cycle || 'termly',
       mode: school.billing?.mode || 'advance_termly',
       nextDueDate: school.billing?.nextDueDate || '',
@@ -723,7 +638,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       status: school.billing?.status || 'ACTIVE'
     });
     setOfflinePaymentDraft({
-      amount: String(school.billing?.baseAmount || 300000),
+      amount: String(school.billing?.baseAmount || 0),
       reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString().slice(0, 10),
       payerName: school.name || '',
@@ -854,7 +769,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       
       // Reset draft
       setOfflinePaymentDraft({
-        amount: String(selectedSchoolWorkspace.billing?.baseAmount || 300000),
+        amount: String(selectedSchoolWorkspace.billing?.baseAmount || 0),
         reference: `TX-BANK-${Date.now().toString().slice(-6)}`,
         date: new Date().toISOString().slice(0, 10),
         payerName: selectedSchoolWorkspace.name,
@@ -934,7 +849,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         targetId: school.id,
         recipientId: school.adminUid || school.id,
         email: school.contactEmail || school.email,
-        amount: school.billing?.baseAmount || 300000,
+        amount: school.billing?.baseAmount || 0,
         nextDueDate: school.billing?.nextDueDate,
         title: `Tuition & workspace Subscription Due - ${school.name}`
       });
@@ -1188,7 +1103,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         }
       });
 
-      const invoicedFee = Number(schoolBillingConfig.baseAmount || sch.billing?.baseAmount || 300000);
+      const invoicedFee = Number(schoolBillingConfig.baseAmount || sch.billing?.baseAmount || 0);
       const institutionalMargin = invoicedFee - totalFacultyPayout;
 
       // Filter payments specific to this school
@@ -1640,7 +1555,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                       value={offlinePaymentDraft.amount}
                       onChange={e => setOfflinePaymentDraft({ ...offlinePaymentDraft, amount: e.target.value })}
                       className={inputClass}
-                      placeholder="e.g. 300000"
+                      placeholder="Enter amount"
                     />
                   </div>
 
