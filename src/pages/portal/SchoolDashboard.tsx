@@ -270,7 +270,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     event.preventDefault();
     if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
     const id = passcodeForm.id || `pc-${Date.now()}`;
-    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || '', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || '', invigilatorName: passcodeForm.invigilatorName || '', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    const payload = { classLevel: passcodeForm.classLevel || '', subject: passcodeForm.subject || '', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || '', invigilatorName: passcodeForm.invigilatorName || '', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
     try {
       await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
       const next = { id, ...payload } as Passcode;
@@ -370,7 +370,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                     </div>
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">{exam.title}</h3>
                     <div className="text-[11px] text-slate-500 space-y-0.5">
-                      <div>Subject: {exam.subject || 'Coding & Tech'}</div>
+                      <div>Subject: {exam.subject || 'Subject not configured'}</div>
                       <div>Class: {exam.targetClass || 'All eligible learners'}</div>
                     </div>
                     <div className="flex gap-2 pt-1">
@@ -400,7 +400,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">Examination keys for CBT invigilation.</p>
             </div>
-            <button onClick={() => setPasscodeForm({ classLevel: 'General', subject: 'Coding & Tech', examTitle: '', passcode: generatePasscode(), isActive: true, validUntil: 'End of Term' })} className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1.5">
+            <button onClick={() => setPasscodeForm({ classLevel: '', subject: '', examTitle: '', passcode: generatePasscode(), isActive: true, validUntil: '' })} className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1.5">
               <Key size={14}/> New passcode
             </button>
           </div>
@@ -422,7 +422,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       </span>
                     </div>
                     <h3 className="text-xs font-bold text-slate-900 dark:text-white mt-1.5">{pc.examTitle}</h3>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Valid: {pc.validUntil || 'End of Term'} • Invigilator: {pc.invigilatorName || 'School'}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Valid: {pc.validUntil || 'Not configured'} • Invigilator: {pc.invigilatorName || 'School'}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <code className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-mono font-bold text-xs">{pc.passcode}</code>
@@ -539,10 +539,10 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
                       : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                 }`}>
-                  {school?.billing?.status || 'ACTIVE SUBSCRIPTION'}
+                  {school?.billing?.status || 'NOT CONFIGURED'}
                 </span>
               </div>
-              <h3 className="text-lg font-black text-white">{school?.plan || 'Standard Technology Curriculum'}</h3>
+              <h3 className="text-lg font-black text-white">{school?.plan || (Array.isArray(school?.programs) ? school.programs.find((p: any) => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL')?.name : '') || 'Not configured'}</h3>
               <p className="text-xs text-slate-300">
                 Covers hands-on computer science lab instructions, STEM curriculum kits, and learner CBT assessment portals.
               </p>
@@ -561,12 +561,12 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
               <div className="text-xs text-slate-500 space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex justify-between">
                   <span>Cycle:</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{school?.billing?.cycle || 'Termly'}</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{school?.billing?.cycle || 'Not configured'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Mode:</span>
                   <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">
-                    {school?.billing?.mode ? school.billing.mode.replace(/_/g, ' ') : 'Advance Termly'}
+                    {school?.billing?.mode ? school.billing.mode.replace(/_/g, ' ') : 'Not configured'}
                   </span>
                 </div>
                 {school?.billing?.nextDueDate && (
