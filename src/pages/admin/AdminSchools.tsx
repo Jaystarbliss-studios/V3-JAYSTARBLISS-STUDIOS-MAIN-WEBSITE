@@ -780,7 +780,7 @@ const AdminSchools: React.FC = () => {
         // Continue with initialId if check fails
       }
 
-      const generatedCode = requestedCode || `${name.slice(0, 4).toUpperCase()}-2026`;
+      const generatedCode = requestedCode || `${name.slice(0, 4).toUpperCase()}-${new Date().getFullYear()}`;
       const initialFee = Number(String(onboardForm.initialFee || 0).replace(/[^0-9.]/g, '')) || 0;
       const initialProgramName = onboardForm.initialProgramName.trim();
       const initialProgramDesc = onboardForm.initialProgramDesc.trim();
@@ -806,9 +806,9 @@ const AdminSchools: React.FC = () => {
           cycle: (onboardForm.cycle === 'monthly' ? 'monthly' : 'termly') as 'termly' | 'monthly',
           allowedModes: [onboardForm.mode || 'advance_termly', 'advance_termly', 'advance_monthly'],
           mode: onboardForm.mode || 'advance_termly',
-          nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-          status: 'ACTIVE',
-          notes: 'Standard institutional curriculum and workspace partnership agreement.'
+          nextDueDate: initialFee > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : '',
+          status: initialFee > 0 ? 'ACTIVE' : 'NOT_CONFIGURED',
+          notes: ''
         },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
