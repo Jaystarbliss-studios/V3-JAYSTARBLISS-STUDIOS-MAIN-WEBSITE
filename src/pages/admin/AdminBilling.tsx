@@ -471,7 +471,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         payerName: p.payerName || p.customerName || p.schoolName || p.studentName || 'Guardian',
         payerEmail: p.payerEmail || p.customerEmail || '',
         payerRole: p.payerRole || (p.schoolId ? 'School' : (p.parentId ? 'Parent' : undefined)),
-        studentName: p.studentName || p.cadetName || '',
+        studentName: p.studentName || p.studentName || '',
         schoolName: p.schoolName || '',
         tutorName: p.tutorName || '',
         students: p.students || p.metadata?.students || [],
@@ -2102,7 +2102,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
                   <th className="p-3.5 text-left">Date</th>
                   <th className="p-3.5 text-left">Reference / Plan</th>
-                  <th className="p-3.5 text-left">Cadet / Institution</th>
+                  <th className="p-3.5 text-left">Student / Institution</th>
                   <th className="p-3.5 text-left">Amount</th>
                   <th className="p-3.5 text-left">Assigned Tutor</th>
                   <th className="p-3.5 text-right">Action</th>
