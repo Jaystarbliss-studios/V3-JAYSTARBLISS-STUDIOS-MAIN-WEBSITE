@@ -137,6 +137,12 @@ export const PortalCalendar: React.FC = () => {
   const [message, setMessage] = useState('');
   const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({});
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [, setClockTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockTick(value => value + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const currentRole = String(sessionStorage.getItem('userRole') || '').toUpperCase();
   const canUpdateStatus = ['STAFF', 'TUTOR', 'INSTRUCTOR', 'FACULTY', 'ADMIN', 'SUPER_ADMIN', 'SUPERADMIN'].includes(currentRole);
 
