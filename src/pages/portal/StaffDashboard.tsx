@@ -85,7 +85,7 @@ const StaffDashboard: React.FC = () => {
           if (sch.tutorId === staffUid || sch.assignedTutorId === staffUid || sch.assignedStaffId === staffUid) return true;
           if (Array.isArray(sch.assignedTutors) && sch.assignedTutors.includes(staffUid)) return true;
           if (Array.isArray(sch.tutors) && sch.tutors.some((t: any) => t.id === staffUid || t.email === currentUser?.email)) return true;
-          return true; // Default fallback allowing access to partner school records
+          return false;
         });
         setAssignedSchools(mySchools);
       } catch (e) {
