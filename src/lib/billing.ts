@@ -95,7 +95,7 @@ export const billingGet = async <T>(path: string): Promise<T> => {
   }
 
   // Resilient Direct Firestore resolution
-  if (path === 'billing-data') {
+  if (path.startsWith('billing-data') || path.startsWith('billing') || path === 'billing/me') {
     try {
       const config = await getClientPaymentConfig();
       const cachedRole = String(
@@ -103,7 +103,11 @@ export const billingGet = async <T>(path: string): Promise<T> => {
         localStorage.getItem('jaystar_cached_user_role') || 
         ''
       ).toLowerCase();
-      const cachedSchoolId = sessionStorage.getItem('schoolId') || '';
+      const cachedSchoolId = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || localStorage.getItem('jaystar_cached_school_id') || '';
+
+      // Parse any query params in path
+      const urlParams = new URLSearchParams(path.includes('?') ? path.split('?')[1] : '');
+      const querySchoolId = urlParams.get('schoolId') || '';
 
       // 1. Fetch current user document
       let userDocData: any = null;
@@ -119,7 +123,7 @@ export const billingGet = async <T>(path: string): Promise<T> => {
       const rawRole = String(userDocData?.role || cachedRole || 'student').toLowerCase();
       const effectiveRole = ['admin', 'superadmin'].includes(rawRole)
         ? 'admin'
-        : ['school', 'partner_school', 'school_admin'].includes(rawRole) || Boolean(userDocData?.schoolId) || Boolean(cachedSchoolId)
+        : ['school', 'partner_school', 'school_admin'].includes(rawRole) || Boolean(userDocData?.schoolId) || Boolean(cachedSchoolId) || Boolean(querySchoolId)
           ? 'school'
           : ['parent', 'guardian'].includes(rawRole)
             ? 'parent'
@@ -130,7 +134,7 @@ export const billingGet = async <T>(path: string): Promise<T> => {
       // 2. School Role Handler
       if (effectiveRole === 'school') {
         let schoolDoc: any = null;
-        const targetSchoolId = String(userDocData?.schoolId || cachedSchoolId || '').trim();
+        const targetSchoolId = String(querySchoolId || userDocData?.schoolId || cachedSchoolId || '').trim();
 
         if (targetSchoolId) {
           const sSnap = await getDoc(doc(db, 'schools', targetSchoolId)).catch(() => null);
@@ -139,23 +143,28 @@ export const billingGet = async <T>(path: string): Promise<T> => {
           }
         }
 
-        // If not found by direct ID, search by email or adminUid
+        // If not found by direct ID, search in schools collection
         if (!schoolDoc) {
           const userEmail = (user.email || String(userDocData?.email || '')).toLowerCase();
-          const allSchoolsSnap = await getDocs(query(collection(db, 'schools'), limit(50))).catch(() => ({ docs: [] } as any));
+          const allSchoolsSnap = await getDocs(query(collection(db, 'schools'), limit(100))).catch(() => ({ docs: [] } as any));
           
           for (const d of allSchoolsSnap.docs) {
             const data = d.data();
             const contactEmail = String(data.contactEmail || data.email || '').toLowerCase();
-            const adminUid = String(data.adminUid || '');
-            if (d.id === user.uid || (userEmail && contactEmail === userEmail) || (adminUid && adminUid === user.uid)) {
+            const adminUid = String(data.adminUid || data.firebaseUid || '');
+            if (
+              d.id === user.uid || 
+              d.id === targetSchoolId || 
+              (userEmail && contactEmail === userEmail) || 
+              (adminUid && adminUid === user.uid)
+            ) {
               schoolDoc = { id: d.id, ...data };
               break;
             }
           }
 
-          // If still not matched, check if there's any school document
-          if (!schoolDoc && allSchoolsSnap.docs.length > 0) {
+          // If still not matched and targetSchoolId is provided, check if first school exists
+          if (!schoolDoc && allSchoolsSnap.docs.length > 0 && !targetSchoolId) {
             const first = allSchoolsSnap.docs[0];
             schoolDoc = { id: first.id, ...first.data() };
           }
@@ -163,27 +172,22 @@ export const billingGet = async <T>(path: string): Promise<T> => {
 
         const effectiveSchoolId = schoolDoc?.id || targetSchoolId || user.uid;
         const [paymentsSnap, enrollmentsSnap, studentsSnap, notifSnap] = await Promise.all([
-          getDocs(query(collection(db, 'payments'), limit(150))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'payments'), limit(200))).catch(() => ({ docs: [] } as any)),
           getDocs(query(collection(db, 'enrollment_requests'), limit(100))).catch(() => ({ docs: [] } as any)),
-          getDocs(query(collection(db, 'students'), limit(100))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'students'), limit(200))).catch(() => ({ docs: [] } as any)),
           getDocs(query(collection(db, 'notifications'), limit(30))).catch(() => ({ docs: [] } as any))
         ]);
 
         const allPayments = paymentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
         const schoolPayments = allPayments.filter((p: any) => 
           String(p.schoolId || '') === effectiveSchoolId || 
+          String(p.schoolDocId || '') === effectiveSchoolId ||
           String(p.userId || '') === user.uid ||
-          String(p.recipientId || '') === user.uid
+          String(p.recipientId || '') === user.uid ||
+          (user.email && String(p.payerEmail || p.email || '').toLowerCase() === user.email.toLowerCase())
         );
 
-        const schoolBilling = schoolDoc?.billing || userDocData?.billing || {
-          baseAmount: 350000,
-          cycle: 'termly',
-          allowedModes: ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'],
-          mode: 'advance_termly',
-          status: 'ACTIVE'
-        };
-
+        const schoolBilling = schoolDoc?.billing || userDocData?.billing || null;
         const schoolPrograms = schoolDoc?.programs || [];
         const schoolInfo = schoolDoc ? {
           id: schoolDoc.id,
@@ -191,12 +195,16 @@ export const billingGet = async <T>(path: string): Promise<T> => {
           schoolCode: schoolDoc.schoolCode || '',
           contactEmail: schoolDoc.contactEmail || schoolDoc.email || user.email || '',
           address: schoolDoc.address || '',
-          phone: schoolDoc.phone || ''
+          phone: schoolDoc.phone || '',
+          programs: schoolPrograms,
+          billing: schoolBilling
         } : {
           id: effectiveSchoolId,
           name: userDocData?.name || 'Partner School',
           schoolCode: '',
-          contactEmail: user.email || ''
+          contactEmail: user.email || '',
+          programs: schoolPrograms,
+          billing: schoolBilling
         };
 
         return {
@@ -212,8 +220,8 @@ export const billingGet = async <T>(path: string): Promise<T> => {
             transactionFees: schoolPayments.reduce((acc: number, p: any) => acc + Number(p.transactionFee || 0), 0),
             paymentCount: schoolPayments.length,
             lastPaidAt: schoolPayments[0]?.paidAt || null,
-            nextPaymentDue: schoolBilling.nextDueDate || null,
-            overdue: schoolBilling.status === 'OVERDUE'
+            nextPaymentDue: schoolBilling ? schoolBilling.nextDueDate || null : null,
+            overdue: schoolBilling ? schoolBilling.status === 'OVERDUE' : false
           },
           enrollments: enrollmentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((e: any) => String(e.schoolId || '') === effectiveSchoolId),
           students: studentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((s: any) => String(s.schoolId || '') === effectiveSchoolId),

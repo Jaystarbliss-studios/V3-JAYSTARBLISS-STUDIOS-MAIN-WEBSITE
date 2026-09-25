@@ -127,7 +127,8 @@ export const handler: Handler = async event => {
 
     // Privileged Admin Role
     if (isPrivilegedRole(role)) {
-      const [paymentsSnap, enrollmentSnap, usersTutorSnap, usersStaffSnap, withdrawalsSnap, schoolsSnap, parentsSnap, directStudentsSnap] = await Promise.all([
+      const requestedSchoolId = event.queryStringParameters?.schoolId || "";
+      const [paymentsSnap, enrollmentSnap, usersTutorSnap, usersStaffSnap, withdrawalsSnap, schoolsSnap, parentsSnap, individualSnap, studentsSnap, usersStudentSnap] = await Promise.all([
         adminDb.collection("payments").limit(500).get(),
         adminDb.collection("enrollment_requests").limit(200).get(),
         adminDb.collection("users").where("role", "in", ["TUTOR", "tutor", "INSTRUCTOR", "instructor"]).limit(100).get(),
@@ -135,7 +136,9 @@ export const handler: Handler = async event => {
         adminDb.collection("walletWithdrawals").limit(200).get(),
         adminDb.collection("schools").limit(100).get(),
         adminDb.collection("users").where("role", "in", ["PARENT", "parent"]).limit(150).get(),
-        adminDb.collection("individualStudents").limit(200).get()
+        adminDb.collection("individualStudents").limit(500).get(),
+        adminDb.collection("students").limit(500).get(),
+        adminDb.collection("users").where("role", "in", ["STUDENT", "student", "SCHOLAR", "scholar", "CADET", "cadet"]).limit(500).get()
       ]);
 
       const payments = paymentsSnap.docs.map(doc => ({ id: doc.id, ...plain(doc.data()) }));
@@ -167,11 +170,26 @@ export const handler: Handler = async event => {
         createdAt: plain(doc.data().createdAt)
       }));
 
+      const allStudentsMap = new Map<string, any>();
+      individualSnap.docs.forEach(d => allStudentsMap.set(d.id, { id: d.id, collection: 'individualStudents', ...plain(d.data()) }));
+      studentsSnap.docs.forEach(d => {
+        if (!allStudentsMap.has(d.id)) allStudentsMap.set(d.id, { id: d.id, collection: 'students', ...plain(d.data()) });
+      });
+      usersStudentSnap.docs.forEach(d => {
+        const data = d.data();
+        const key = String(data.studentDocId || d.id);
+        if (!allStudentsMap.has(key)) {
+          allStudentsMap.set(key, { id: key, collection: 'users', fullName: data.fullName || data.name || 'Student', ...plain(data) });
+        }
+      });
+
+      let allStudentsList = Array.from(allStudentsMap.values()).map(safeStudent);
+      if (requestedSchoolId) {
+        allStudentsList = allStudentsList.filter(s => String(s.schoolId || '').toLowerCase() === requestedSchoolId.toLowerCase());
+      }
+
       // Filter direct/self-registered students (no schoolId, no parentId)
-      const directStudents = directStudentsSnap.docs
-        .map(doc => ({ id: doc.id, ...plain(doc.data()) }))
-        .filter(s => !s.schoolId && !s.parentId)
-        .map(safeStudent);
+      const directStudents = allStudentsList.filter(s => !s.schoolId && !s.parentId);
 
       return {
         statusCode: 200,
@@ -186,6 +204,7 @@ export const handler: Handler = async event => {
           staff: Array.from(staffMap.values()).filter(item => isActiveRecord(item)),
           schools,
           parents,
+          students: allStudentsList,
           directStudents
         })
       };
@@ -217,7 +236,7 @@ export const handler: Handler = async event => {
 
     // School Administrator Role
     if (role === "school") {
-      let schoolId = String((user as any).schoolId || "");
+      let schoolId = String((user as any).schoolId || event.queryStringParameters?.schoolId || "").trim();
       let schoolDoc: any = null;
 
       if (schoolId) {
@@ -226,31 +245,110 @@ export const handler: Handler = async event => {
       }
 
       if (!schoolDoc) {
-        // Try finding by user email or decoded UID
-        const byEmailSnap = await adminDb.collection("schools").where("contactEmail", "==", decoded.email?.toLowerCase() || "").limit(1).get();
-        if (!byEmailSnap.empty) {
-          schoolDoc = { id: byEmailSnap.docs[0].id, ...plain(byEmailSnap.docs[0].data()) };
+        // Try finding by UID
+        const byUidSnap = await adminDb.collection("schools").doc(decoded.uid).get();
+        if (byUidSnap.exists) {
+          schoolDoc = { id: byUidSnap.id, ...plain(byUidSnap.data()) };
           schoolId = schoolDoc.id;
         } else {
-          // Check by ID
-          const byUidSnap = await adminDb.collection("schools").doc(decoded.uid).get();
-          if (byUidSnap.exists) {
-            schoolDoc = { id: byUidSnap.id, ...plain(byUidSnap.data()) };
-            schoolId = schoolDoc.id;
+          // Try finding by user email or contactEmail
+          const userEmail = (decoded.email || (user as any).email || "").toLowerCase();
+          if (userEmail) {
+            const byEmailSnap = await adminDb.collection("schools").where("contactEmail", "==", userEmail).limit(1).get();
+            if (!byEmailSnap.empty) {
+              schoolDoc = { id: byEmailSnap.docs[0].id, ...plain(byEmailSnap.docs[0].data()) };
+              schoolId = schoolDoc.id;
+            } else {
+              const byEmail2 = await adminDb.collection("schools").where("email", "==", userEmail).limit(1).get();
+              if (!byEmail2.empty) {
+                schoolDoc = { id: byEmail2.docs[0].id, ...plain(byEmail2.docs[0].data()) };
+                schoolId = schoolDoc.id;
+              }
+            }
           }
         }
       }
 
       const effectiveSchoolId = schoolId || decoded.uid;
-      const [payments, enrollments, students, notificationSnap] = await Promise.all([
-        docs("payments", "schoolId", effectiveSchoolId, 100),
-        docs("enrollment_requests", "schoolId", effectiveSchoolId, 100),
-        Promise.all([
-          docs("individualStudents", "schoolId", effectiveSchoolId, 150),
-          docs("students", "schoolId", effectiveSchoolId, 150)
-        ]).then(([a, b]) => [...a, ...b].map(safeStudent)),
+      const schoolName = String(schoolDoc?.name || (user as any).schoolName || (user as any).name || "").trim();
+
+      // Collect all payments matching school
+      const paymentQueries = [
+        adminDb.collection("payments").where("schoolId", "==", effectiveSchoolId).limit(100).get(),
+        adminDb.collection("payments").where("userId", "==", decoded.uid).limit(100).get(),
+      ];
+      if (schoolDoc?.id && schoolDoc.id !== effectiveSchoolId) {
+        paymentQueries.push(adminDb.collection("payments").where("schoolId", "==", schoolDoc.id).limit(100).get());
+      }
+      if (decoded.email) {
+        paymentQueries.push(adminDb.collection("payments").where("email", "==", decoded.email).limit(100).get());
+        paymentQueries.push(adminDb.collection("payments").where("payerEmail", "==", decoded.email).limit(100).get());
+      }
+      if (schoolName) {
+        paymentQueries.push(adminDb.collection("payments").where("schoolName", "==", schoolName).limit(100).get());
+      }
+
+      // Collect all students matching school
+      const studentQueries = [
+        adminDb.collection("individualStudents").where("schoolId", "==", effectiveSchoolId).limit(200).get(),
+        adminDb.collection("students").where("schoolId", "==", effectiveSchoolId).limit(200).get(),
+        adminDb.collection("users").where("schoolId", "==", effectiveSchoolId).limit(200).get(),
+      ];
+      if (schoolDoc?.id && schoolDoc.id !== effectiveSchoolId) {
+        studentQueries.push(adminDb.collection("individualStudents").where("schoolId", "==", schoolDoc.id).limit(200).get());
+        studentQueries.push(adminDb.collection("students").where("schoolId", "==", schoolDoc.id).limit(200).get());
+        studentQueries.push(adminDb.collection("users").where("schoolId", "==", schoolDoc.id).limit(200).get());
+      }
+      if (schoolName) {
+        studentQueries.push(adminDb.collection("individualStudents").where("schoolName", "==", schoolName).limit(200).get());
+        studentQueries.push(adminDb.collection("students").where("schoolName", "==", schoolName).limit(200).get());
+      }
+
+      const [paymentSnaps, studentSnaps, enrollmentsSnap, notificationSnap] = await Promise.all([
+        Promise.all(paymentQueries),
+        Promise.all(studentQueries),
+        adminDb.collection("enrollment_requests").where("schoolId", "==", effectiveSchoolId).limit(100).get(),
         adminDb.collection("notifications").where("recipientId", "in", [decoded.uid, effectiveSchoolId]).limit(25).get()
       ]);
+
+      const paymentMap = new Map<string, any>();
+      paymentSnaps.forEach(snap => {
+        snap.docs.forEach(doc => {
+          if (!paymentMap.has(doc.id)) {
+            paymentMap.set(doc.id, { id: doc.id, ...plain(doc.data()) });
+          }
+        });
+      });
+      const payments = Array.from(paymentMap.values()).sort((a, b) => new Date(b.paidAt || b.createdAt || 0).getTime() - new Date(a.paidAt || a.createdAt || 0).getTime());
+
+      const studentMap = new Map<string, any>();
+      studentSnaps.forEach(snap => {
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          const roleVal = String(data.role || '').toUpperCase();
+          if (snap === studentQueries[2] && !['STUDENT', 'SCHOLAR', 'CADET'].includes(roleVal) && !data.studentDocId) {
+            return;
+          }
+          const key = String(data.studentDocId || doc.id);
+          if (!studentMap.has(key)) {
+            studentMap.set(key, {
+              id: key,
+              fullName: data.fullName || data.studentName || data.name || 'Student',
+              studentName: data.fullName || data.studentName || data.name || 'Student',
+              username: data.username || key,
+              class: data.class || data.grade || 'General',
+              grade: data.class || data.grade || 'General',
+              track: data.track || 'General Tech',
+              schoolId: data.schoolId || effectiveSchoolId,
+              schoolName: data.schoolName || schoolName,
+              portalAccessEnabled: data.portalAccessEnabled !== false,
+              accountStatus: data.accountStatus || 'ACTIVE',
+              ...plain(data)
+            });
+          }
+        });
+      });
+      const students = Array.from(studentMap.values()).map(safeStudent);
 
       return {
         statusCode: 200,
@@ -258,12 +356,12 @@ export const handler: Handler = async event => {
         body: JSON.stringify({
           role,
           config,
-          schoolInfo: schoolDoc ? { id: schoolDoc.id, name: schoolDoc.name, schoolCode: schoolDoc.schoolCode, contactEmail: schoolDoc.contactEmail } : null,
+          schoolInfo: schoolDoc ? { id: schoolDoc.id, name: schoolDoc.name, schoolCode: schoolDoc.schoolCode, contactEmail: schoolDoc.contactEmail } : { id: effectiveSchoolId, name: schoolName || 'Partner School' },
           schoolBilling: schoolDoc?.billing || (user as any).billing || null,
           schoolPrograms: schoolDoc?.programs || [],
           payments,
           billingSummary: billingSummary(payments),
-          enrollments,
+          enrollments: enrollmentsSnap.docs.map(doc => ({ id: doc.id, ...plain(doc.data()) })),
           students,
           notifications: notificationSnap.docs.map(doc => ({ id: doc.id, ...plain(doc.data()) }))
         })

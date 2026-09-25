@@ -7,7 +7,7 @@ import {
   FileText, ExternalLink, HelpCircle, Layers,
   ChevronRight, AlertCircle, Calendar, Mail
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
@@ -166,11 +166,17 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
     studentClass: string;
     schoolId: string;
     schoolName: string;
+    programId?: string;
+    programName?: string;
+    hasResources?: boolean;
   }>({
     docId: sessionStorage.getItem('studentDocId') || '',
     studentClass: sessionStorage.getItem('studentClass') || '',
     schoolId: sessionStorage.getItem('schoolId') || '',
-    schoolName: sessionStorage.getItem('schoolName') || ''
+    schoolName: sessionStorage.getItem('schoolName') || '',
+    programId: sessionStorage.getItem('studentProgramId') || '',
+    programName: sessionStorage.getItem('studentProgramName') || '',
+    hasResources: true
   });
 
   // School Session Context
@@ -270,9 +276,11 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
           getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] }))
         ]);
 
-        dbItems = [...resSnap.docs, ...staffSnap.docs, ...schoolResSnap.docs].map(dDoc => {
+        const staffMap = new Map<string, ResourceDocument>();
+        [...resSnap.docs, ...staffSnap.docs, ...schoolResSnap.docs].forEach(dDoc => {
+          if (staffMap.has(dDoc.id)) return;
           const d = dDoc.data();
-          return {
+          staffMap.set(dDoc.id, {
             id: dDoc.id,
             title: d.title || 'Teaching Resource',
             category: 'staff',
@@ -288,12 +296,66 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             dateAdded: d.timestamp?.toDate ? d.timestamp.toDate().toISOString() : (d.dateAdded || d.createdAt || ''),
             tags: d.tags || ['Teaching Material'],
             content: d.content
-          };
+          });
         });
+        dbItems = Array.from(staffMap.values());
       } else if (role === 'student') {
+        // Resolve student program and permissions
+        let studentProgramId = '';
+        let studentProgramName = 'General Programme';
+        let studentHasResources = true;
+
+        if (sDocId) {
+          try {
+            const [sSnap, iSnap] = await Promise.all([
+              getDoc(doc(db, 'students', sDocId)).catch(() => null),
+              getDoc(doc(db, 'individualStudents', sDocId)).catch(() => null)
+            ]);
+            const sData = sSnap?.exists() ? sSnap.data() : (iSnap?.exists() ? iSnap.data() : null);
+            if (sData) {
+              studentProgramId = sData.programId || sData.assignedProgramId || '';
+              studentProgramName = sData.programName || sData.program || sData.plan || sData.track || 'General Programme';
+            }
+          } catch (e) {
+            console.warn('Student record fetch notice:', e);
+          }
+        }
+
+        // If school is present, resolve school programs
+        if (sSchoolId) {
+          try {
+            const schDoc = await getDoc(doc(db, 'schools', sSchoolId));
+            if (schDoc.exists()) {
+              const schData = schDoc.data();
+              const schPrograms: any[] = Array.isArray(schData.programs) ? schData.programs : [];
+              if (schPrograms.length > 0) {
+                let matched = schPrograms.find(p => p.id === studentProgramId || (p.name && p.name.toLowerCase() === studentProgramName.toLowerCase()));
+                if (!matched) {
+                  // Fall back to school general program
+                  matched = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
+                }
+                if (matched) {
+                  studentProgramId = matched.id || studentProgramId;
+                  studentProgramName = matched.name || studentProgramName;
+                  studentHasResources = matched.hasResources !== false;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('School lookup notice:', e);
+          }
+        }
+
+        setStudentInfo(prev => ({
+          ...prev,
+          programId: studentProgramId,
+          programName: studentProgramName,
+          hasResources: studentHasResources
+        }));
+
         // Students can access:
         // 1. All curriculum resources uploaded by Admin
-        // 2. All school resources uploaded for their affiliated school (with class assignments)
+        // 2. All school resources uploaded for their affiliated school (with class & program assignments)
         // 3. Personal resources assigned to this student
         const fetchPromises: Promise<any>[] = [
           getDocs(collection(db, 'resources')).catch(() => ({ docs: [] }))
@@ -330,6 +392,29 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
           const d = dDoc.data();
           const docId = dDoc.id;
           if (seenMap.has(docId)) return;
+
+          // Scope check: School scoping
+          const rSchoolId = d.assignedSchoolId || d.schoolId || '';
+          if (rSchoolId && rSchoolId !== 'all') {
+            if (!sSchoolId || rSchoolId !== sSchoolId) {
+              return; // Not for this student's school
+            }
+          }
+
+          // Scope check: Programme scoping
+          const rProgId = d.assignedProgramId || d.programId || '';
+          const rProgName = d.assignedProgramName || '';
+          if (rProgId && rProgId !== 'all') {
+            const matchesProgId = studentProgramId && (rProgId === studentProgramId);
+            const matchesProgName = studentProgramName && (
+              rProgName.toLowerCase() === studentProgramName.toLowerCase() ||
+              studentProgramName.toLowerCase().includes(rProgName.toLowerCase()) ||
+              rProgName.toLowerCase().includes(studentProgramName.toLowerCase())
+            );
+            if (!matchesProgId && !matchesProgName) {
+              return; // Exclude because student is on a different program!
+            }
+          }
 
           const assignedClasses: string[] = Array.isArray(d.assignedClasses) 
             ? d.assignedClasses 
@@ -666,7 +751,22 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
       </div>
 
       {/* Main Results Container (List Format with Filters, Recency & Unread Indicators) */}
-      {loading ? (
+      {role === 'student' && studentInfo.hasResources === false ? (
+        <div className="p-8 sm:p-12 rounded-3xl bg-slate-900/60 dark:bg-slate-950/80 border border-slate-800 text-center space-y-4 filter grayscale-[30%]">
+          <div className="w-16 h-16 rounded-3xl bg-slate-800 text-amber-400 flex items-center justify-center mx-auto border border-slate-700">
+            <BookOpen size={28} />
+          </div>
+          <h2 className="text-xl font-black text-slate-200">
+            Resource Library Not Included in Current Track
+          </h2>
+          <p className="max-w-md mx-auto text-xs text-slate-400 leading-relaxed">
+            Your enrolled program track (<strong>{studentInfo.programName || 'Enrolled Track'}</strong>) is configured without access to the general digital resource repository. 
+          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
+            <span>🔒 Locked by Institutional Curriculum Settings</span>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-center">
           <Loader2 className="animate-spin text-brand-red mb-3" size={32} />
           <p className="text-xs text-gray-500 font-medium">Syncing curriculum and school class assignments from Firestore...</p>
@@ -687,7 +787,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             if (docItem) setPreviewDoc(docItem);
           }}
           showAssignButton={role === 'school'}
-          emptyMessage="No curriculum resources found. Lessons and study notes uploaded by educators will appear here."
+          emptyMessage="No curriculum resources found for your enrolled program track. Lessons and study notes uploaded by educators will appear here."
         />
       )}
 

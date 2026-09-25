@@ -31,8 +31,30 @@ export const handler: Handler = async event => {
     if (parentId) { const parentSnap = await adminDb.collection('users').doc(parentId).get(); if (!parentSnap.exists || String(parentSnap.data()?.role || '').toLowerCase() !== 'parent' || blocked(parentSnap.data()?.accountStatus || parentSnap.data()?.status)) return json(400, { error: 'The supplied parent account is not a valid active parent profile.' }); }
 
     let resolvedProgram: any = null;
-    if (programId) { const programSnap = await adminDb.collection('programs').doc(programId).get(); if (!programSnap.exists) return json(400, { error: 'Selected program was not found.' }); resolvedProgram = { id: programSnap.id, ...programSnap.data() }; }
-    const finalProgramName = programName || resolvedProgram?.name || track || '';
+    let finalProgramId = programId;
+    if (finalProgramId) {
+      const programSnap = await adminDb.collection('programs').doc(finalProgramId).get();
+      if (programSnap.exists) {
+        resolvedProgram = { id: programSnap.id, ...programSnap.data() };
+      }
+    } else {
+      // If not specified, look up school's configured programs and assign the general program
+      const schPrograms: any[] = Array.isArray(school.programs) ? school.programs : [];
+      if (schPrograms.length > 0) {
+        const general = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
+        if (general) {
+          resolvedProgram = general;
+          finalProgramId = general.id || general.programId || '';
+        }
+      } else if (school.programId || school.defaultProgramId) {
+        finalProgramId = school.programId || school.defaultProgramId;
+        const programSnap = await adminDb.collection('programs').doc(finalProgramId).get();
+        if (programSnap.exists) {
+          resolvedProgram = { id: programSnap.id, ...programSnap.data() };
+        }
+      }
+    }
+    const finalProgramName = programName || resolvedProgram?.name || resolvedProgram?.title || track || 'General School Programme';
     const duplicate = await adminDb.collection('individualStudents').where('username', '==', username).limit(1).get(); if (!duplicate.empty) return json(409, { error: 'That student username is already in use.' });
     const accessCode = normalizeCode(requestedCode || makeCode()); if (accessCode.length < 8 || accessCode.length > 40) return json(400, { error: 'Student access code must be between 8 and 40 characters.' });
     const accessCodeHash = hashAccessCode(accessCode); const codeDuplicate = await adminDb.collection('individualStudents').where('accessCodeHash', '==', accessCodeHash).limit(1).get(); if (!codeDuplicate.empty) return json(409, { error: 'That student access code is already in use.' });
@@ -40,10 +62,10 @@ export const handler: Handler = async event => {
 
     const syntheticEmail = `student-${randomBytes(10).toString('hex')}@jbs-portal.local`; const authUser = await adminAuth.createUser({ email: email || syntheticEmail, password: makePassword(), displayName: fullName, disabled: false }); createdUid = authUser.uid;
     const studentRef = adminDb.collection('individualStudents').doc(); const now = new Date();
-    await studentRef.set({ fullName, studentName: fullName, username, accessCodeHash, schoolId, schoolName: school.name || school.schoolName || '', class: className, grade: className, track: finalProgramName, programId: programId || null, programName: finalProgramName || null, email: email || null, parentId: parentId || null, firebaseUid: authUser.uid, userId: authUser.uid, portalAccessEnabled: true, accountStatus: 'ACTIVE', source: 'school_onboarding', createdAt: now, updatedAt: now });
+    await studentRef.set({ fullName, studentName: fullName, username, accessCodeHash, schoolId, schoolName: school.name || school.schoolName || '', class: className, grade: className, track: finalProgramName, programId: finalProgramId || null, programName: finalProgramName || null, email: email || null, parentId: parentId || null, firebaseUid: authUser.uid, userId: authUser.uid, portalAccessEnabled: true, accountStatus: 'ACTIVE', source: 'school_onboarding', createdAt: now, updatedAt: now });
     await adminDb.collection('users').doc(authUser.uid).set({ email: authUser.email || null, name: fullName, role: 'student', studentDocId: studentRef.id, schoolId, schoolName: school.name || school.schoolName || '', parentId: parentId || null, portalAccessEnabled: true, accountStatus: 'ACTIVE', createdAt: now, updatedAt: now }, { merge: true });
-    if (programId || finalProgramName) await adminDb.collection('enrollments').add({ studentId: studentRef.id, studentUid: authUser.uid, studentName: fullName, schoolId, programId: programId || null, programName: finalProgramName || null, status: 'ACTIVE', source: 'school_onboarding', enrolledBy: decoded.uid, enrolledAt: now, createdAt: now, updatedAt: now });
-    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className, parentId: parentId || null, programId: programId || null, programName: finalProgramName || null } });
-    return json(201, { student: { id: studentRef.id, fullName, username, class: className, schoolId, programId: programId || null, programName: finalProgramName || null, portal: '/portal/student' }, credentials: { username, accessCode, portal: '/portal/student' } });
+    if (finalProgramId || finalProgramName) await adminDb.collection('enrollments').add({ studentId: studentRef.id, studentUid: authUser.uid, studentName: fullName, schoolId, programId: finalProgramId || null, programName: finalProgramName || null, status: 'ACTIVE', source: 'school_onboarding', enrolledBy: decoded.uid, enrolledAt: now, createdAt: now, updatedAt: now });
+    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className, parentId: parentId || null, programId: finalProgramId || null, programName: finalProgramName || null } });
+    return json(201, { student: { id: studentRef.id, fullName, username, class: className, schoolId, programId: finalProgramId || null, programName: finalProgramName || null, portal: '/portal/student' }, credentials: { username, accessCode, portal: '/portal/student' } });
   } catch (error) { if (createdUid) await adminAuth.deleteUser(createdUid).catch(() => undefined); console.error('School student onboarding error:', error); return json(500, { error: 'Unable to onboard the student. No partial account should remain.' }); }
 };

@@ -63,10 +63,19 @@ export const handler: Handler = async (event) => {
       const snap = await findStudent(identifier, adminDb);
       if (!snap) return { statusCode: 401, body: JSON.stringify({ error: "Invalid student credentials." }) };
       profile = snap.data() || {};
-      const suppliedCodeHash = hashAccessCode(code);
-      const storedHash = String(profile.accessCodeHash || "").trim().toLowerCase();
-      const legacyCode = String(profile.accessCode || profile.passcode || "").trim().toUpperCase();
-      const codeMatches = storedHash ? storedHash === suppliedCodeHash : !!legacyCode && legacyCode === normalizeCode(code);
+
+      const rawCode = code.trim();
+      const suppliedCodeHashUpper = hashAccessCode(rawCode);
+      const suppliedCodeHashExact = createHash("sha256").update(rawCode).digest("hex");
+      const storedAccessHash = String(profile.accessCodeHash || "").trim().toLowerCase();
+      const storedPasswordHash = String(profile.passwordHash || profile.customPasswordHash || "").trim().toLowerCase();
+      const legacyCode = String(profile.accessCode || profile.passcode || "").trim();
+
+      const codeMatches =
+        (storedPasswordHash && storedPasswordHash === suppliedCodeHashExact) ||
+        (storedAccessHash && (storedAccessHash === suppliedCodeHashExact || storedAccessHash === suppliedCodeHashUpper)) ||
+        (legacyCode && (legacyCode.toUpperCase() === rawCode.toUpperCase() || legacyCode === rawCode));
+
       if (!codeMatches || isBlocked(profile)) return { statusCode: 401, body: JSON.stringify({ error: "Invalid student credentials." }) };
 
       const tutorId = String(profile.tutorId || profile.staffId || profile.assignedTutorId || profile.assignedStaffId || profile.instructorId || "").trim();

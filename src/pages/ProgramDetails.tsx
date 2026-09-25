@@ -92,7 +92,18 @@ const ProgramDetails: React.FC = () => {
 
       {/* Header Banner */}
       <div className="bg-brand-slate text-white py-16 lg:py-24 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        {program.image || program.coverImage || program.bannerImage ? (
+          <div className="absolute inset-0 z-0">
+            <img 
+              src={program.image || program.coverImage || program.bannerImage} 
+              alt={program.title}
+              className="w-full h-full object-cover opacity-20 filter saturate-150"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-brand-slate via-brand-slate/80 to-brand-slate/60" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        )}
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-5xl relative z-10">
           <Link to="/programs" className="text-white/70 hover:text-white inline-flex items-center gap-2 mb-6 text-xs font-bold tracking-widest uppercase">
             <ArrowLeft size={14} /> Back to Programs

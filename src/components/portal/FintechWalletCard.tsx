@@ -147,23 +147,23 @@ export const FintechWalletCard: React.FC<FintechWalletCardProps> = ({
           </button>
         </div>
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="min-w-0">
+            <div className="text-2xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight text-slate-900 dark:text-white break-words">
               {showBalance ? formattedBalance : '₦••••••••'}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-              Live wallet balance from your account
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>Live wallet balance from your account</span>
             </p>
           </div>
 
           <button
             type="button"
             onClick={onWithdraw}
-            className="min-h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98]"
+            className="min-h-10 sm:min-h-11 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] self-start md:self-auto"
           >
-            <ArrowDownToLine size={15} strokeWidth={2.5} />
+            <ArrowDownToLine size={14} strokeWidth={2.5} />
             <span>Withdraw Payout</span>
           </button>
         </div>

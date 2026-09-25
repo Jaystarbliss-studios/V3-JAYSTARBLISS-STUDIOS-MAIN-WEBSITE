@@ -632,45 +632,45 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Topbar */}
-        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-4 sm:px-6 lg:px-8 transition-colors shadow-xs">
-          <div className="flex items-center gap-3">
+        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-13 sm:h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-2.5 sm:px-6 lg:px-8 transition-colors shadow-xs">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             {/* Mobile Menu Button */}
             <Tooltip content="Open navigation menu" placement="right">
               <button 
-                className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors" 
+                className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors shrink-0" 
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open navigation menu"
               >
-                <Menu size={22} />
+                <Menu size={18} className="sm:w-[22px] sm:h-[22px]" />
               </button>
             </Tooltip>
 
-            <span className="text-sm font-bold text-gray-900 dark:text-white">
+            <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">
               {currentNav?.name || 'Overview'}
             </span>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2.5">
             {/* Quick User Impersonator Button */}
             <Tooltip content="Direct Dashboard Login & User Search" placement="bottom">
               <button
                 type="button"
                 onClick={() => setImpersonateModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-xs transition-colors"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-[11px] sm:text-xs transition-colors shrink-0"
                 aria-label="Direct Dashboard Login"
               >
-                <UserCheck size={15} />
-                <span className="hidden sm:inline">Log in as User</span>
+                <UserCheck size={13} className="sm:w-[15px] sm:h-[15px]" />
+                <span className="hidden xs:inline">Log in as User</span>
               </button>
             </Tooltip>
 
             <Tooltip content="Search admin workspace" placement="bottom">
               <button 
                 onClick={() => setSearchOpen(true)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-lg sm:rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 aria-label="Search content"
               >
-                <Search size={18} />
+                <Search size={15} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             </Tooltip>
 
@@ -679,24 +679,24 @@ const AdminLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                className="p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-lg sm:rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} />}
+                {theme === 'dark' ? <Sun size={15} className="text-amber-400 sm:w-[18px] sm:h-[18px]" /> : <Moon size={15} className="sm:w-[18px] sm:h-[18px]" />}
               </button>
             </Tooltip>
 
             {/* Persistent Real-time Notification Bell */}
             <NotificationBell role="admin" />
 
-            <div className="h-6 w-px bg-slate-200/80 dark:bg-slate-800"></div>
+            <div className="h-4 sm:h-6 w-px bg-slate-200/80 dark:bg-slate-800"></div>
             
             <Tooltip content="Administrator Profile" placement="bottom">
-              <div className="flex items-center gap-2.5 py-1.5 px-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+              <div className="flex items-center gap-1.5 sm:gap-2.5 py-1 px-1.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                 <div className="text-right hidden sm:block">
                   <div className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">Admin Officer</div>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-[10px] sm:text-xs shadow-xs">
                   JD
                 </div>
               </div>

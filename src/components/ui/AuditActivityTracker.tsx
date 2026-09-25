@@ -4,30 +4,19 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useLocation } from 'react-router-dom';
 
-const record = async (token: string, payload: Record<string, unknown>) => {
+const record = async (_token: string, payload: Record<string, unknown>) => {
   try {
-    // Try Netlify function if available
-    const res = await fetch('/.netlify/functions/audit-log', {
-      method: 'POST',
-      keepalive: true,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(payload)
-    }).catch(() => null);
-
-    // If Netlify function is not available (e.g. 404 in client preview/dev), write directly to Firestore
-    if (!res || !res.ok) {
-      if (auth.currentUser) {
-        const uid = auth.currentUser.uid;
-        const email = auth.currentUser.email || '';
-        await addDoc(collection(db, 'activityLogs'), {
-          ...payload,
-          actorId: uid,
-          userId: uid,
-          userEmail: email,
-          createdAt: serverTimestamp(),
-          timestamp: new Date().toISOString()
-        }).catch(() => {});
-      }
+    if (auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      const email = auth.currentUser.email || '';
+      await addDoc(collection(db, 'activityLogs'), {
+        ...payload,
+        actorId: uid,
+        userId: uid,
+        userEmail: email,
+        createdAt: serverTimestamp(),
+        timestamp: new Date().toISOString()
+      }).catch(() => {});
     }
   } catch {
     // Silent catch for telemetry

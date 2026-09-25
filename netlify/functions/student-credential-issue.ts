@@ -40,22 +40,61 @@ export const handler: Handler = async event => {
     if (!studentRef || !student) return json(404, { error: 'Student record not found.' });
     if (blocked(student.accountStatus || student.status)) return json(403, { error: 'This student account is not active.' });
     if (isTeachingStaff && !isAssigned(student, decoded.uid)) return json(403, { error: 'You can only issue credentials for students assigned to you.' });
-    if (isSchool) { const schoolId = String(caller.schoolId || ''); if (!schoolId || String(student.schoolId || '') !== schoolId) return json(403, { error: 'You can only issue credentials for students in your school.' }); }
+    if (isSchool) {
+      let schoolId = String(caller.schoolId || '').trim();
+      if (!schoolId) {
+        const sDoc = await adminDb.collection('schools').doc(decoded.uid).get();
+        if (sDoc.exists) {
+          schoolId = sDoc.id;
+        } else {
+          const userEmail = (caller.email || decoded.email || '').toLowerCase();
+          if (userEmail) {
+            const byEmail = await adminDb.collection('schools').where('contactEmail', '==', userEmail).limit(1).get();
+            if (!byEmail.empty) schoolId = byEmail.docs[0].id;
+            else {
+              const byEmail2 = await adminDb.collection('schools').where('email', '==', userEmail).limit(1).get();
+              if (!byEmail2.empty) schoolId = byEmail2.docs[0].id;
+            }
+          }
+        }
+      }
+      if (!schoolId || (String(student.schoolId || '').trim().toLowerCase() !== schoolId.toLowerCase() && String(student.schoolId || '') !== decoded.uid)) {
+        return json(403, { error: 'You can only issue credentials for students in your school.' });
+      }
+    }
 
-    const username = String(student.username || '').trim().toLowerCase();
-    if (!username) return json(409, { error: 'This student does not have a portal username yet.' });
+    let username = String(student.username || '').trim().toLowerCase();
+    if (!username) {
+      const baseName = String(student.fullName || student.studentName || 'student').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'student';
+      username = `${baseName}${Math.floor(100 + Math.random() * 900)}`;
+      await studentRef.update({ username });
+    }
     const accessCode = makeCode();
     const accessCodeHash = hashCode(accessCode);
     const duplicate = await adminDb.collection('individualStudents').where('accessCodeHash', '==', accessCodeHash).limit(1).get();
     if (!duplicate.empty) return json(409, { error: 'A credential collision occurred. Please try again.' });
 
     const now = new Date();
-    await studentRef.update({ accessCodeHash, portalAccessEnabled: true, accountStatus: 'ACTIVE', credentialIssuedAt: now, credentialIssuedBy: decoded.uid, updatedAt: now });
+    await studentRef.update({ 
+      username,
+      accessCodeHash, 
+      portalAccessEnabled: true, 
+      accountStatus: 'ACTIVE', 
+      credentialIssuedAt: now, 
+      credentialIssuedBy: decoded.uid, 
+      updatedAt: now 
+    });
     if (student.firebaseUid || student.userId) {
       const uid = String(student.firebaseUid || student.userId);
-      const authUser = await adminAuth.getUser(uid);
-      if (authUser.disabled) await adminAuth.updateUser(uid, { disabled: false });
-      await adminDb.collection('users').doc(uid).set({ portalAccessEnabled: true, accountStatus: 'ACTIVE', updatedAt: now }, { merge: true });
+      const authUser = await adminAuth.getUser(uid).catch(() => null);
+      if (authUser && authUser.disabled) await adminAuth.updateUser(uid, { disabled: false }).catch(() => null);
+      await adminDb.collection('users').doc(uid).set({ 
+        username,
+        accessCodeHash,
+        portalAccessEnabled: true, 
+        accountStatus: 'ACTIVE', 
+        updatedAt: now 
+      }, { merge: true });
     }
     await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'STUDENT_CREDENTIAL_ISSUED', targetId: studentRef.id, targetType: 'student', schoolId: student.schoolId || null, timestamp: now, metadata: { username, issuedRole: callerRole } });
     return json(200, { student: { id: studentRef.id, fullName: student.fullName || student.studentName || 'Student', username, portal: '/portal' }, credentials: { username, accessCode, portal: '/portal' } });

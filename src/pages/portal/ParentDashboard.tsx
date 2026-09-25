@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
 import { collection, getDocs, query, where, limit } from 'firebase/firestore';
-import { GraduationCap, PlusCircle, CreditCard, Bell, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, Download, Receipt } from 'lucide-react';
+import { GraduationCap, PlusCircle, CreditCard, Bell, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, Download, Receipt, Calendar, ExternalLink } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -13,6 +13,7 @@ import { getEffectiveAuth } from '../../utils/impersonation';
 interface ChildRecord {
   id: string;
   fullName?: string;
+  name?: string;
   username?: string;
   email?: string;
   subjects?: string[] | string;
@@ -31,6 +32,7 @@ const ParentDashboard: React.FC = () => {
   const [payments, setPayments] = useState<any[]>([]);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [childProgress, setChildProgress] = useState<Record<string, ProgressRecord>>({});
+  const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [studentName, setStudentName] = useState('');
@@ -73,10 +75,11 @@ const ParentDashboard: React.FC = () => {
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
         setChildren(childList);
-        const [paymentResult, enrollmentResult, programsSnap] = await Promise.allSettled([
+        const [paymentResult, enrollmentResult, programsSnap, schedSnap] = await Promise.allSettled([
           getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50))),
           getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid), limit(25))),
-          getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs')))
+          getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs'))),
+          getDocs(collection(db, 'classSchedules'))
         ]);
         if (programsSnap.status === 'fulfilled') {
           const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'Technology Programme') as string }));
@@ -89,6 +92,23 @@ const ParentDashboard: React.FC = () => {
         else { console.warn('Payment lookup failed:', paymentResult.reason); setPayments([]); }
         if (enrollmentResult.status === 'fulfilled') setEnrollments(enrollmentResult.value.docs.map(enrollmentDoc => ({ id: enrollmentDoc.id, ...enrollmentDoc.data() })));
         else { console.warn('Enrollment lookup failed:', enrollmentResult.reason); setEnrollments([]); }
+        if (schedSnap.status === 'fulfilled') {
+          const allScheds = schedSnap.value.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+          const childIds = childList.map(c => c.id);
+          const childNames = childList.map(c => (c.name || '').toLowerCase());
+          const childEmails = childList.map(c => (c.email || '').toLowerCase());
+          const parentScheds = allScheds.filter((s: any) => {
+            if (s.parentId === userUid || s.parentId === userEmail) return true;
+            if (s.parentEmail && s.parentEmail.toLowerCase() === userEmail) return true;
+            if (s.studentId && childIds.includes(s.studentId)) return true;
+            if (s.studentName && childNames.includes(String(s.studentName).toLowerCase())) return true;
+            if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;
+            return false;
+          });
+          setSchedules(parentScheds);
+        } else {
+          setSchedules([]);
+        }
         const progressResults = await Promise.allSettled(childList.map(async child => {
           const snap = await getDocs(query(collection(db, 'studentModules'), where('studentId', '==', child.id), limit(50)));
           let completed = 0;
@@ -288,6 +308,74 @@ const ParentDashboard: React.FC = () => {
                 </article>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      {/* Class Schedules & Mentorship Sessions */}
+      <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Calendar size={18} className="text-brand-red" />
+              <span>Upcoming Class &amp; Mentorship Sessions</span>
+            </h2>
+            <p className="text-xs text-slate-500">Live sessions and timetable scheduled for your enrolled children.</p>
+          </div>
+          <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 self-start sm:self-auto">
+            {schedules.length} Scheduled
+          </span>
+        </div>
+
+        {schedules.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
+            No live class occurrences or private mentorship sessions have been scheduled yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {schedules.map((sch: any) => (
+              <div
+                key={sch.id}
+                className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4 space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-brand-red">
+                    {sch.studentName || sch.classLevel || 'Mentorship Session'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {sch.status || 'SCHEDULED'}
+                  </span>
+                </div>
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                  {sch.title || 'Live Technology Session'}
+                </h3>
+                <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                  <Calendar size={12} className="text-slate-400" />
+                  <span>
+                    {sch.date ? new Date(sch.date + 'T00:00:00').toLocaleDateString('en-NG', { dateStyle: 'full' }) : 'Scheduled recurring'}
+                    {sch.startTime && ` • ${sch.startTime} - ${sch.endTime || ''}`}
+                  </span>
+                </p>
+                {sch.tutorName && (
+                  <p className="text-[11px] text-slate-500">
+                    Faculty Mentor: <strong className="text-slate-700 dark:text-slate-300">{sch.tutorName}</strong>
+                  </p>
+                )}
+                {sch.meetingLink && (
+                  <div className="pt-1">
+                    <a
+                      href={sch.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-brand-red hover:underline"
+                    >
+                      <span>Join Live Session</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </section>

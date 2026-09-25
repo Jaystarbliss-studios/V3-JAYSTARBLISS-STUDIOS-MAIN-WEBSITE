@@ -417,32 +417,32 @@ const PortalLayout: React.FC = () => {
         )}
 
         {/* Top Header with Search and Profile */}
-        <header className="bg-white dark:bg-[#161B26] border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between sticky top-0 z-20 shrink-0 transition-colors shadow-xs">
+        <header className="bg-white dark:bg-[#161B26] border-b border-slate-200/80 dark:border-slate-800/80 px-2.5 sm:px-6 lg:px-8 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-20 shrink-0 transition-colors shadow-xs">
           {/* Integrated Search Bar */}
-          <div className="flex-1 max-w-md mr-4">
+          <div className="flex-1 max-w-xs sm:max-w-md mr-2 sm:mr-4">
             <div className="relative">
-              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={13} className="absolute left-2.5 sm:left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search anything in your workspace..."
-                className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-red transition-all"
+                placeholder="Search..."
+                className="w-full pl-7 sm:pl-9 pr-6 sm:pr-8 py-1 sm:py-1.5 text-[11px] sm:text-xs rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-red transition-all"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
-                  <X size={13} />
+                  <X size={11} />
                 </button>
               )}
             </div>
           </div>
 
           {/* Right Header: Notification, Theme, Profile */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5 relative" ref={profileRef}>
+          <div className="flex items-center gap-1 sm:gap-3 relative" ref={profileRef}>
             <NotificationBell 
               role={role as any} 
               userId={auth.currentUser?.uid} 
@@ -454,10 +454,10 @@ const PortalLayout: React.FC = () => {
               <button 
                 type="button" 
                 onClick={toggleTheme} 
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" 
+                className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" 
                 aria-label="Toggle Theme"
               >
-                {theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-slate-600" />}
+                {theme === 'dark' ? <Sun size={13} className="text-amber-400 sm:w-[15px] sm:h-[15px]" /> : <Moon size={13} className="text-slate-600 sm:w-[15px] sm:h-[15px]" />}
               </button>
             </Tooltip>
 
@@ -465,13 +465,13 @@ const PortalLayout: React.FC = () => {
             <button 
               type="button" 
               onClick={() => setShowProfileMenu(!showProfileMenu)} 
-              className="flex items-center gap-2.5 py-1 px-1.5 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700" 
+              className="flex items-center gap-1.5 sm:gap-2.5 py-0.5 px-1 sm:py-1 sm:px-1.5 rounded-xl sm:rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700" 
               aria-label="User Profile Menu"
             >
               {photoURL ? (
-                <img src={photoURL} alt={displayName} referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover border border-brand-red/40 shrink-0" />
+                <img src={photoURL} alt={displayName} referrerPolicy="no-referrer" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border border-brand-red/40 shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-brand-red text-white flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-brand-red text-white flex items-center justify-center font-bold text-[10px] sm:text-xs uppercase shrink-0">
                   {displayName.charAt(0)}
                 </div>
               )}

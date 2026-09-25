@@ -92,10 +92,6 @@ export const handler: Handler = async (event) => {
     const action = String(body.action || "").trim().toLowerCase();
     const schoolId = String(body.schoolId || "").trim();
 
-    if (!schoolId) return response(400, { error: "School ID is required." });
-
-    const schoolRef = adminDb.collection("schools").doc(schoolId);
-
     if (action === "onboard_school") {
       const name = String(body.name || "").trim();
       const contactEmail = String(body.contactEmail || "").trim().toLowerCase();
@@ -105,7 +101,7 @@ export const handler: Handler = async (event) => {
 
       const requestedCode = String(body.schoolCode || "").trim().toUpperCase();
       const baseId = (requestedCode || name).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15);
-      const newSchoolId = baseId || `school-${Date.now()}`;
+      const newSchoolId = schoolId || baseId || `school-${Date.now()}`;
       const newSchoolRef = adminDb.collection("schools").doc(newSchoolId);
       const existing = await newSchoolRef.get();
       if (existing.exists) {
@@ -153,6 +149,10 @@ export const handler: Handler = async (event) => {
       await newSchoolRef.set(schoolRecord);
       return response(201, { created: true, schoolId: newSchoolId, school: schoolRecord });
     }
+
+    if (!schoolId) return response(400, { error: "School ID is required." });
+
+    const schoolRef = adminDb.collection("schools").doc(schoolId);
 
     if (action === "update_profile") {
       const allowedFields = [

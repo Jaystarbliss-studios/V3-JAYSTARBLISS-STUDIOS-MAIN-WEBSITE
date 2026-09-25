@@ -27,8 +27,6 @@ const GENERIC_TITLES = new Set([
   'technology student',
   'student',
   'scholar',
-  'student',
-  'student',
   'teaching workspace',
   'parent learning view',
   'school learning view',
@@ -44,23 +42,33 @@ const GENERIC_TITLES = new Set([
   'super admin',
   'overview',
   'learning progress',
-  'tutor planning workspace'
+  'tutor planning workspace',
+  'school portal',
+  'school admin',
+  'school administrator',
+  'partner institution',
+  'partner school',
+  'partner school institution',
+  'school',
+  'school console',
+  'unnamed school'
 ]);
 
 // Extract a friendly first name or clean display title
-function cleanFirstName(raw?: string): string {
+function cleanFirstName(raw?: string, _isSchool = false): string {
   if (!raw) return '';
   let cleaned = raw.trim();
-
-  // If name has prefixes like "Cadet John Doe" or "Dr. Jane Smith"
-  cleaned = cleaned.replace(/^(cadet|student|dr\.|mr\.|mrs\.|miss|engr\.|instructor|coach|tutor)\s+/i, '');
+  if (GENERIC_TITLES.has(cleaned.toLowerCase())) return '';
 
   // If email was passed, extract handle
   if (cleaned.includes('@')) {
     cleaned = cleaned.split('@')[0];
   }
 
-  // Remove numbers from handles e.g. johnrufai242 -> johnrufai -> John
+  // If name has prefixes like "Cadet John Doe" or "Dr. Jane Smith"
+  cleaned = cleaned.replace(/^(cadet|student|dr\.|mr\.|mrs\.|miss|engr\.|instructor|coach|tutor)\s+/i, '');
+
+  // Remove numbers and special characters from handles e.g. johnrufai242 -> johnrufai -> John
   cleaned = cleaned.replace(/[0-9_.-]+/g, ' ').trim();
   const words = cleaned.split(/\s+/).filter(Boolean);
 
@@ -68,11 +76,7 @@ function cleanFirstName(raw?: string): string {
 
   const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 
-  // If it is an institution name
-  if (raw.toLowerCase().includes('school') || raw.toLowerCase().includes('college') || raw.toLowerCase().includes('academy') || raw.toLowerCase().includes('institute')) {
-    return words.map(capitalize).join(' ');
-  }
-
+  // Always return the engaging first name (e.g. "Christy" for "Christy Caleb International School", "John" for "John Doe")
   return capitalize(words[0]);
 }
 
@@ -86,13 +90,15 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
   const [formattedDate, setFormattedDate] = useState('');
   const [resolvedName, setResolvedName] = useState<string>('');
 
+  const isSchoolRole = role?.toLowerCase().includes('partner') || role?.toLowerCase().includes('school') || window.location.pathname.startsWith('/portal/school');
+
   useEffect(() => {
     let isMounted = true;
 
     const resolveName = async () => {
       // 1. Check if propName is a real person/school name
       if (propName && !GENERIC_TITLES.has(propName.trim().toLowerCase())) {
-        const cleaned = cleanFirstName(propName);
+        const cleaned = cleanFirstName(propName, isSchoolRole);
         if (cleaned) {
           if (isMounted) setResolvedName(cleaned);
           return;
@@ -101,43 +107,62 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
 
       // 2. Respect the active impersonated dashboard identity.
       const effective = getEffectiveAuth();
-      if (effective.isMasquerading && effective.effectiveName) {
-        const cleaned = cleanFirstName(effective.effectiveName);
+      if (effective.isMasquerading && effective.effectiveName && !GENERIC_TITLES.has(effective.effectiveName.trim().toLowerCase())) {
+        const cleaned = cleanFirstName(effective.effectiveName, isSchoolRole);
         if (cleaned) {
           if (isMounted) setResolvedName(cleaned);
           return;
         }
       }
 
-      // 3. Check current authenticated user
+      // 3. For school portals, check sessionStorage / cached school record
+      if (isSchoolRole) {
+        const cachedSchool = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name');
+        if (cachedSchool && !GENERIC_TITLES.has(cachedSchool.trim().toLowerCase())) {
+          if (isMounted) setResolvedName(cachedSchool.trim());
+          return;
+        }
+      }
+
+      // 4. Check current authenticated user displayName
       const currentUser = auth.currentUser;
-      if (currentUser?.displayName) {
-        const cleaned = cleanFirstName(currentUser.displayName);
+      if (currentUser?.displayName && !GENERIC_TITLES.has(currentUser.displayName.trim().toLowerCase())) {
+        const cleaned = cleanFirstName(currentUser.displayName, isSchoolRole);
         if (cleaned) {
           if (isMounted) setResolvedName(cleaned);
           return;
         }
       }
 
-      // 4. Check session/local storage cached name
+      // 5. Check session/local storage cached name
       const cached = sessionStorage.getItem('userName') || localStorage.getItem('jaystar_cached_user_name');
       if (cached && !GENERIC_TITLES.has(cached.trim().toLowerCase())) {
-        const cleaned = cleanFirstName(cached);
+        const cleaned = cleanFirstName(cached, isSchoolRole);
         if (cleaned) {
           if (isMounted) setResolvedName(cleaned);
           return;
         }
       }
 
-      // 5. Try fetching from Firestore users collection
+      // 6. Try fetching from Firestore users & schools collection
       if (currentUser?.uid) {
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists() && isMounted) {
             const data = userDoc.data();
-            const fullName = data?.name || data?.fullName || data?.displayName || data?.schoolName;
-            if (fullName) {
-              const cleaned = cleanFirstName(fullName);
+            if (isSchoolRole) {
+              const schoolId = data?.schoolId;
+              if (schoolId) {
+                const sDoc = await getDoc(doc(db, 'schools', schoolId));
+                if (sDoc.exists() && sDoc.data()?.name) {
+                  setResolvedName(sDoc.data().name);
+                  return;
+                }
+              }
+            }
+            const fullName = data?.schoolName || data?.name || data?.fullName || data?.displayName;
+            if (fullName && !GENERIC_TITLES.has(fullName.trim().toLowerCase())) {
+              const cleaned = cleanFirstName(fullName, isSchoolRole);
               if (cleaned) {
                 setResolvedName(cleaned);
                 return;
@@ -145,11 +170,11 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
             }
           }
         } catch {
-          // ignore error and fallback to email handle
+          // ignore error and fallback
         }
       }
 
-      // 6. Fallback to email handle
+      // 7. Fallback to email handle
       if (currentUser?.email) {
         const emailHandle = currentUser.email.split('@')[0];
         const cleaned = cleanFirstName(emailHandle);
@@ -159,7 +184,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
         }
       }
 
-      if (isMounted) setResolvedName('Friend');
+      if (isMounted) setResolvedName(isSchoolRole ? 'Partner School' : 'Learner');
     };
 
     resolveName();
@@ -167,7 +192,7 @@ export const DashboardGreeting: React.FC<DashboardGreetingProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [propName]);
+  }, [propName, isSchoolRole]);
 
   useEffect(() => {
     const now = new Date();

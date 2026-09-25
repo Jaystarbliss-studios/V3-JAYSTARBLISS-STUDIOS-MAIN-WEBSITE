@@ -62,13 +62,38 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
         throw new Error('No active user session. Please sign in again.');
       }
 
-      await updatePassword(user, newPassword);
+      // 1. Direct Auth update if available
+      try {
+        await updatePassword(user, newPassword);
+      } catch (authErr: any) {
+        console.warn('Direct updatePassword note:', authErr?.message);
+        if (authErr?.code === 'auth/requires-recent-login') {
+          // Continue to backend sync or report
+        }
+      }
 
-      // Update forcePasswordReset flag in Firestore if applicable
+      // 2. Call backend endpoint to sync password hash to student and user records
+      const token = await user.getIdToken(true);
+      const res = await fetch('/.netlify/functions/student-change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Unable to complete password update.');
+      }
+
+      // 3. Update local flag in Firestore if applicable
       const userDocRef = doc(db, 'users', user.uid);
       try {
         await updateDoc(userDocRef, {
           forcePasswordReset: false,
+          mustResetPassword: false,
           passwordUpdatedAt: new Date().toISOString()
         });
       } catch (err) {
@@ -76,8 +101,9 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       }
 
       sessionStorage.setItem('forcePasswordReset', 'false');
+      sessionStorage.setItem('mustResetPassword', 'false');
       setSuccess(true);
-      toast.success('Your password has been successfully updated!');
+      toast.success('Your password has been successfully updated! You can now log in with your new password.');
 
       setTimeout(() => {
         if (onSuccess) onSuccess();

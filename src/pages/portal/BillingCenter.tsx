@@ -13,7 +13,7 @@ import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
 import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { auth, db } from '../../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
 
 export type BillingCenterRole = 'student' | 'parent' | 'staff' | 'school';
 type PaymentRecord = Record<string, any> & { id: string };
@@ -125,8 +125,90 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   const load = async () => { 
     setLoading(true); 
     try { 
-      const result = await billingGet<any>('billing-data');
-      setData(result);
+      const schoolParam = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || localStorage.getItem('jaystar_cached_school_id') || '';
+      const endpoint = 'billing-data' + (schoolParam ? `?schoolId=${encodeURIComponent(schoolParam)}` : '');
+      const result = await billingGet<any>(endpoint);
+      const currentUser = auth.currentUser;
+
+      // Direct Firestore School Fallback if role is school to guarantee live, fresh custom fees
+      if (role === 'school') {
+        let directSchoolDoc: any = null;
+        const targetId = schoolParam || sessionStorage.getItem('schoolDocId') || currentUser?.uid || '';
+        if (targetId) {
+          const sSnap = await getDoc(doc(db, 'schools', targetId)).catch(() => null);
+          if (sSnap && sSnap.exists()) {
+            directSchoolDoc = { id: sSnap.id, ...sSnap.data() };
+          }
+        }
+        if (!directSchoolDoc && currentUser) {
+          const uEmail = (currentUser.email || '').toLowerCase();
+          const schoolsSnap = await getDocs(query(collection(db, 'schools'), limit(100))).catch(() => ({ docs: [] } as any));
+          for (const d of schoolsSnap.docs) {
+            const data = d.data();
+            const contactEmail = String(data.contactEmail || data.email || '').toLowerCase();
+            const adminUid = String(data.adminUid || data.firebaseUid || '');
+            if (
+              d.id === targetId ||
+              d.id === currentUser.uid ||
+              (uEmail && contactEmail === uEmail) ||
+              adminUid === currentUser.uid
+            ) {
+              directSchoolDoc = { id: d.id, ...data };
+              break;
+            }
+          }
+        }
+        if (directSchoolDoc) {
+          result.schoolDoc = directSchoolDoc;
+          result.schoolBilling = directSchoolDoc.billing || result.schoolBilling || null;
+          result.schoolPrograms = (directSchoolDoc.programs && directSchoolDoc.programs.length > 0) 
+            ? directSchoolDoc.programs 
+            : (result.schoolPrograms || []);
+          result.schoolInfo = {
+            id: directSchoolDoc.id,
+            name: directSchoolDoc.name || result.schoolInfo?.name || 'Partner School',
+            schoolCode: directSchoolDoc.schoolCode || result.schoolInfo?.schoolCode || '',
+            contactEmail: directSchoolDoc.contactEmail || directSchoolDoc.email || result.schoolInfo?.contactEmail || '',
+            address: directSchoolDoc.address || '',
+            phone: directSchoolDoc.phone || '',
+            ...(result.schoolInfo || {})
+          };
+        }
+      }
+      
+      // Fallback query if payments is empty
+      let mergedPayments = Array.isArray(result.payments) ? [...result.payments] : [];
+      if (currentUser && mergedPayments.length === 0) {
+        try {
+          const effectiveSchoolId = schoolParam || result.schoolInfo?.id || currentUser.uid;
+          const [snap1, snap2, snap3] = await Promise.all([
+            getDocs(query(collection(db, 'payments'), where('schoolId', '==', effectiveSchoolId))),
+            getDocs(query(collection(db, 'payments'), where('userId', '==', currentUser.uid))),
+            currentUser.email ? getDocs(query(collection(db, 'payments'), where('email', '==', currentUser.email))) : Promise.resolve(null)
+          ]);
+          const map = new Map<string, any>();
+          [snap1, snap2, snap3].forEach(snap => {
+            if (!snap) return;
+            snap.docs.forEach(d => {
+              if (!map.has(d.id)) {
+                const docData = d.data();
+                map.set(d.id, {
+                  id: d.id,
+                  ...docData,
+                  paidAt: docData.paidAt?.toDate ? docData.paidAt.toDate().toISOString() : docData.paidAt || docData.createdAt
+                });
+              }
+            });
+          });
+          if (map.size > 0) {
+            mergedPayments = Array.from(map.values());
+          }
+        } catch (fsErr) {
+          console.warn('Direct Firestore payment fallback in BillingCenter:', fsErr);
+        }
+      }
+
+      setData({ ...result, payments: mergedPayments });
       if (result.schoolBilling?.mode) {
         setSelectedMode(result.schoolBilling.mode);
       }
@@ -168,19 +250,24 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   // Active School custom billing
   const schoolBilling = data.schoolBilling;
   const schoolPrograms = data.schoolPrograms || data.schoolInfo?.programs || [];
-  const configuredFee = Number(schoolBilling?.baseAmount || 350000);
+  const configuredFee = Number(schoolBilling?.baseAmount || 0);
   const schoolCycle = schoolBilling?.cycle || 'termly';
   const allowedSchoolModes = schoolBilling?.allowedModes || ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'];
+
+  const hasConfiguredSubscription = configuredFee > 0 || (schoolPrograms.length > 0 && schoolPrograms.some((p: any) => Number(p.fee || p.amount || 0) > 0));
 
   // Calculate fee based on selected programs or default fee
   const activeProgramsList = useMemo(() => {
     if (!schoolPrograms.length) {
-      return [{ id: 'core_prog', name: 'Standard Coding & Technology Track', fee: configuredFee, status: 'ACTIVE' }];
+      if (configuredFee > 0) {
+        return [{ id: 'core_prog', name: 'Institutional Technology Partnership', fee: configuredFee, status: 'ACTIVE' }];
+      }
+      return [];
     }
     return schoolPrograms.map((p: any, idx: number) => ({
       id: p.id || `prog_${idx}`,
       name: p.name || `Program Track ${idx + 1}`,
-      fee: Number(p.fee || p.amount || Math.round(configuredFee / schoolPrograms.length)),
+      fee: Number(p.fee || p.amount || (configuredFee > 0 ? Math.round(configuredFee / schoolPrograms.length) : 0)),
       status: p.status || 'ACTIVE',
       description: p.description || ''
     }));
@@ -202,7 +289,10 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
   // Payments
   const payments = useMemo(() => {
     return (data.payments || [])
-      .filter((p: PaymentRecord) => String(p.status || '').toUpperCase() === 'PAID')
+      .filter((p: PaymentRecord) => {
+        const st = String(p.status || p.paymentStatus || '').toUpperCase();
+        return !st || ['PAID', 'SUCCESS', 'SUCCESSFUL', 'COMPLETED', 'APPROVED', 'CONFIRMED', 'VERIFIED'].includes(st);
+      })
       .sort((a: PaymentRecord, b: PaymentRecord) => new Date(b.paidAt || b.createdAt || 0).getTime() - new Date(a.paidAt || a.createdAt || 0).getTime());
   }, [data.payments]);
 
@@ -483,122 +573,141 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
         {/* Dynamic School Billing Fee Card */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-5">
-            <div className="flex items-start justify-between">
+          {!hasConfiguredSubscription || baseTotalForPrograms === 0 ? (
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-3xl p-8 shadow-sm text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-xs">
+                <Bell size={28} />
+              </div>
               <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-brand-red">
-                  Admin-Configured Institutional Fee
-                </span>
-                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
-                  {formatNaira(schoolFee)} <span className="text-xs text-slate-400 font-normal">({paymentPercentage}% of {formatNaira(baseTotalForPrograms)} full fee) / {schoolCycle === 'monthly' ? 'Month (4 Weeks)' : 'Term (12 Weeks)'}</span>
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Active programs in this invoice: <strong className="text-slate-700 dark:text-slate-300">{selectedPrograms.map((p: any) => p.name).join(', ')}</strong>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                  No Institutional Subscription Configured
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                  No institutional curriculum subscription or custom fee has been configured for {data.schoolInfo?.name || 'this school'} yet. Please contact the Jaystarbliss administration to set up your institution's custom fee schedule.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {schoolCycle === 'monthly' ? '4 Weeks Cycle' : '12 Weeks Term'}
-              </span>
-            </div>
-
-            {/* Percentage Payment Selector */}
-            <div>
-              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                Select Upfront Payment Percentage
-              </label>
-              <div className="grid grid-cols-3 gap-2.5">
-                {[
-                  { pct: 100, label: '100% Full Payment', desc: 'Pay total fee in full' },
-                  { pct: 70, label: '70% Termly Upfront', desc: '30% deferred balance' },
-                  { pct: 50, label: '50% Half Termly', desc: '50% deferred balance' }
-                ].map(opt => (
-                  <button
-                    key={opt.pct}
-                    type="button"
-                    onClick={() => setPaymentPercentage(opt.pct)}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                      paymentPercentage === opt.pct
-                        ? 'border-brand-red bg-red-50/50 dark:bg-red-950/20 text-slate-900 dark:text-white font-black'
-                        : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <div className="text-xs font-bold">{opt.label}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
-                  </button>
-                ))}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold text-slate-600 dark:text-slate-300">
+                Institutional Subscription: Not Configured (₦0)
               </div>
             </div>
-
-            {/* Partial Payment Notice */}
-            {paymentPercentage < 100 && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200">
-                <div className="font-bold flex items-center gap-1.5">
-                  <Bell size={14} className="text-amber-600" />
-                  <span>Upfront Installment Mode Active ({paymentPercentage}%)</span>
+          ) : (
+            <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-brand-red">
+                    Admin-Configured Institutional Fee
+                  </span>
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white mt-1">
+                    {formatNaira(schoolFee)} <span className="text-xs text-slate-400 font-normal">({paymentPercentage}% of {formatNaira(baseTotalForPrograms)} full fee) / {schoolCycle === 'monthly' ? 'Month (4 Weeks)' : 'Term (12 Weeks)'}</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Active programs in this invoice: <strong className="text-slate-700 dark:text-slate-300">{selectedPrograms.map((p: any) => p.name).join(', ')}</strong>
+                  </p>
                 </div>
-                <p className="mt-1 leading-relaxed">
-                  You are paying <strong>{formatNaira(schoolFee)}</strong> now. A remaining balance of <strong className="font-black text-brand-red">{formatNaira(remainingBalance)}</strong> will be scheduled to be settled before the end of the term.
-                </p>
+                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  {schoolCycle === 'monthly' ? '4 Weeks Cycle' : '12 Weeks Term'}
+                </span>
               </div>
-            )}
 
-            {/* Mode of Payment Selector */}
-            <div>
-              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                Select Mode of Payment
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {[
-                  { id: 'advance_termly', label: 'Advance Termly', desc: 'Pay upfront for the entire 12-week term.' },
-                  { id: 'advance_monthly', label: 'Advance Monthly', desc: 'Pay upfront for 4 weeks of curriculum access.' },
-                  { id: 'post_termly', label: 'Post Termly', desc: 'Settle institutional invoice at end of term.' },
-                  { id: 'post_monthly', label: 'Post Monthly', desc: 'Settle institutional invoice at end of month.' }
-                ]
-                  .filter(m => allowedSchoolModes.includes(m.id))
-                  .map(modeOpt => (
-                    <div
-                      key={modeOpt.id}
-                      onClick={() => setSelectedMode(modeOpt.id)}
-                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                        selectedMode === modeOpt.id
-                          ? 'border-brand-red bg-red-50/50 dark:bg-red-950/20 text-slate-900 dark:text-white'
+              {/* Percentage Payment Selector */}
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                  Select Upfront Payment Percentage
+                </label>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {[
+                    { pct: 100, label: '100% Full Payment', desc: 'Pay total fee in full' },
+                    { pct: 70, label: '70% Termly Upfront', desc: '30% deferred balance' },
+                    { pct: 50, label: '50% Half Termly', desc: '50% deferred balance' }
+                  ].map(opt => (
+                    <button
+                      key={opt.pct}
+                      type="button"
+                      onClick={() => setPaymentPercentage(opt.pct)}
+                      className={`p-3 rounded-2xl border text-left transition-all ${
+                        paymentPercentage === opt.pct
+                          ? 'border-brand-red bg-red-50/50 dark:bg-red-950/20 text-slate-900 dark:text-white font-black'
                           : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-400'
                       }`}
                     >
-                      <div className="flex items-center justify-between font-bold text-xs">
-                        <span>{modeOpt.label}</span>
-                        {selectedMode === modeOpt.id && <Check size={14} className="text-brand-red" />}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-snug">{modeOpt.desc}</p>
-                    </div>
+                      <div className="text-xs font-bold">{opt.label}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{opt.desc}</div>
+                    </button>
                   ))}
+                </div>
               </div>
-            </div>
 
-            {/* Price breakdown */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="block text-slate-400 text-[10px] uppercase font-bold">Payable Base</span>
-                <strong className="text-slate-900 dark:text-white font-mono">{formatNaira(schoolFee)}</strong>
-              </div>
-              <div>
-                <span className="block text-slate-400 text-[10px] uppercase font-bold">Est. Gateway Fee</span>
-                <strong className="text-slate-900 dark:text-white font-mono">{formatNaira(chargePreview.transactionFee)}</strong>
-              </div>
-              <div>
-                <span className="block text-slate-400 text-[10px] uppercase font-bold">Est. Total</span>
-                <strong className="text-brand-red font-mono font-black">{formatNaira(chargePreview.totalAmount)}</strong>
-              </div>
-            </div>
+              {/* Partial Payment Notice */}
+              {paymentPercentage < 100 && (
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Bell size={14} className="text-amber-600" />
+                    <span>Upfront Installment Mode Active ({paymentPercentage}%)</span>
+                  </div>
+                  <p className="mt-1 leading-relaxed">
+                    You are paying <strong>{formatNaira(schoolFee)}</strong> now. A remaining balance of <strong className="font-black text-brand-red">{formatNaira(remainingBalance)}</strong> will be scheduled to be settled before the end of the term.
+                  </p>
+                </div>
+              )}
 
-            <button
-              type="button"
-              onClick={() => startCheckout()}
-              className="w-full min-h-12 rounded-2xl bg-brand-red hover:bg-red-700 text-white font-black text-xs md:text-sm inline-flex items-center justify-center gap-2 shadow-sm transition-all"
-            >
-              <CreditCard size={17} /> Proceed to Paystack Checkout ({formatNaira(schoolFee)})
-            </button>
-          </div>
+              {/* Mode of Payment Selector */}
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                  Select Mode of Payment
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'advance_termly', label: 'Advance Termly', desc: 'Pay upfront for the entire 12-week term.' },
+                    { id: 'advance_monthly', label: 'Advance Monthly', desc: 'Pay upfront for 4 weeks of curriculum access.' },
+                    { id: 'post_termly', label: 'Post Termly', desc: 'Settle institutional invoice at end of term.' },
+                    { id: 'post_monthly', label: 'Post Monthly', desc: 'Settle institutional invoice at end of month.' }
+                  ]
+                    .filter(m => allowedSchoolModes.includes(m.id))
+                    .map(modeOpt => (
+                      <div
+                        key={modeOpt.id}
+                        onClick={() => setSelectedMode(modeOpt.id)}
+                        className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                          selectedMode === modeOpt.id
+                            ? 'border-brand-red bg-red-50/50 dark:bg-red-950/20 text-slate-900 dark:text-white'
+                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-950/40 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-bold text-xs">
+                          <span>{modeOpt.label}</span>
+                          {selectedMode === modeOpt.id && <Check size={14} className="text-brand-red" />}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-snug">{modeOpt.desc}</p>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Price breakdown */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 grid grid-cols-3 gap-2 text-xs">
+                <div>
+                  <span className="block text-slate-400 text-[10px] uppercase font-bold">Payable Base</span>
+                  <strong className="text-slate-900 dark:text-white font-mono">{formatNaira(schoolFee)}</strong>
+                </div>
+                <div>
+                  <span className="block text-slate-400 text-[10px] uppercase font-bold">Est. Gateway Fee</span>
+                  <strong className="text-slate-900 dark:text-white font-mono">{formatNaira(chargePreview.transactionFee)}</strong>
+                </div>
+                <div>
+                  <span className="block text-slate-400 text-[10px] uppercase font-bold">Est. Total</span>
+                  <strong className="text-brand-red font-mono font-black">{formatNaira(chargePreview.totalAmount)}</strong>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => startCheckout()}
+                className="w-full min-h-12 rounded-2xl bg-brand-red hover:bg-red-700 text-white font-black text-xs md:text-sm inline-flex items-center justify-center gap-2 shadow-sm transition-all"
+              >
+                <CreditCard size={17} /> Proceed to Paystack Checkout ({formatNaira(schoolFee)})
+              </button>
+            </div>
+          )}
 
           {/* Quick Metrics */}
           <div className="space-y-4">
@@ -621,14 +730,36 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
                 </div>
               </div>
             </div>
+
+            {/* Institutional Payment & Receipt Instructions */}
+            <div className="bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 text-xs space-y-3">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs uppercase tracking-wider">
+                <Building2 size={16} className="text-brand-red" />
+                <span>Payment & Remittance Guide</span>
+              </div>
+              <ul className="space-y-2 text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="text-brand-red font-black">•</span>
+                  <span><strong>Instant Settlement:</strong> Click <em>Proceed to Paystack Checkout</em> to pay securely using Card, Bank Transfer, or USSD with instant automated reconciliation.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-brand-red font-black">•</span>
+                  <span><strong>Automatic Receipts:</strong> Every verified transaction generates an official stamped PDF receipt with breakdown of student access allocations.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-brand-red font-black">•</span>
+                  <span><strong>Installment Options:</strong> Select 50%, 70%, or 100% upfront depending on your school board's approved billing schedule.</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
-        {/* Payment History */}
+        {/* Payment History & Receipts */}
         <div className="mt-8">
           <FintechTransactionHistory 
             transactions={payments} 
-            title="Institutional Transactions & Statements"
+            title="Institutional Transactions & Receipts"
             role="school"
             emptyMessage="No verified school payments on record"
           />

@@ -381,8 +381,8 @@ const Programs: React.FC = () => {
                     <Card key={program.id} hoverEffect className="pro-surface pro-interactive flex flex-col justify-between overflow-hidden !rounded-3xl">
                       <div className="relative h-44 overflow-hidden -m-px">
                         <img
-                          src={getProgramImage(program.categoryId)}
-                          alt=""
+                          src={program.image || program.coverImage || program.bannerImage || getProgramImage(program.categoryId)}
+                          alt={program.title || "Program image"}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"
                         />

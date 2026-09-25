@@ -214,11 +214,15 @@ const AdminStaff: React.FC = () => {
         }
       });
 
-      // All students
-      const allStudentDocs: any[] = [
-        ...schoolStudentsSnap.docs.map((d: any) => ({ id: d.id, studentType: 'school', ...d.data() })),
-        ...indStudentsSnap.docs.map((d: any) => ({ id: d.id, studentType: 'individual', ...d.data() }))
-      ];
+      // All students deduplicated
+      const allStudentsMap = new Map<string, any>();
+      schoolStudentsSnap.docs.forEach((d: any) => allStudentsMap.set(d.id, { id: d.id, studentType: 'school', ...d.data() }));
+      indStudentsSnap.docs.forEach((d: any) => {
+        if (!allStudentsMap.has(d.id)) {
+          allStudentsMap.set(d.id, { id: d.id, studentType: 'individual', ...d.data() });
+        }
+      });
+      const allStudentDocs: any[] = Array.from(allStudentsMap.values());
 
       // Combine user profiles with tutors & staff collections
       const rawUsersMap = new Map<string, any>();

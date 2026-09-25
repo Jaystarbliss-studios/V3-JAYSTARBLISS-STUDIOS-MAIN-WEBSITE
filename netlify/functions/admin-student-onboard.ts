@@ -31,6 +31,8 @@ export const handler: Handler = async event => {
     const email = clean(body.email, 160).toLowerCase();
     const className = clean(body.class || body.grade || '', 80);
     const track = clean(body.track || '', 120);
+    const programId = clean(body.programId || '', 160);
+    const programName = clean(body.programName || '', 180);
     const subjects = Array.isArray(body.subjects) ? body.subjects.map((subject: unknown) => clean(subject, 80)).filter(Boolean).slice(0, 12) : [];
     const schoolId = clean(body.schoolId || '', 160);
     const parentId = clean(body.parentId || '', 160);
@@ -48,9 +50,25 @@ export const handler: Handler = async event => {
     const codeDuplicate = await adminDb.collection('individualStudents').where('accessCodeHash', '==', accessCodeHash).limit(1).get();
     if (!codeDuplicate.empty) return json(409, { error: 'That student access code is already in use.' });
 
+    let resolvedSchool: any = null;
+    let finalProgramId = programId;
+    let finalProgramName = programName;
+
     if (schoolId) {
       const schoolSnap = await adminDb.collection('schools').doc(schoolId).get();
       if (!schoolSnap.exists || blocked(schoolSnap.data()?.accountStatus || schoolSnap.data()?.status)) return json(400, { error: 'The selected school is not active.' });
+      resolvedSchool = schoolSnap.data();
+
+      if (!finalProgramId) {
+        const schPrograms: any[] = Array.isArray(resolvedSchool.programs) ? resolvedSchool.programs : [];
+        if (schPrograms.length > 0) {
+          const general = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
+          if (general) {
+            finalProgramId = general.id || general.programId || '';
+            finalProgramName = finalProgramName || general.name || general.title || '';
+          }
+        }
+      }
     }
     if (parentId) {
       const parentSnap = await adminDb.collection('users').doc(parentId).get();
@@ -62,10 +80,14 @@ export const handler: Handler = async event => {
     createdUid = authUser.uid;
     const studentRef = adminDb.collection('individualStudents').doc();
     const now = new Date();
-    const schoolName = schoolId ? ((await adminDb.collection('schools').doc(schoolId).get()).data()?.name || (await adminDb.collection('schools').doc(schoolId).get()).data()?.schoolName || '') : '';
-    await studentRef.set({ fullName, studentName: fullName, username, email: email || null, accessCodeHash, subjects, class: className || null, grade: className || null, track, schoolId: schoolId || null, schoolName, parentId: parentId || null, firebaseUid: authUser.uid, userId: authUser.uid, portalAccessEnabled: true, accountStatus: 'ACTIVE', source: 'admin_onboarding', createdAt: now, updatedAt: now });
+    const schoolName = resolvedSchool ? (resolvedSchool.name || resolvedSchool.schoolName || '') : '';
+    const trackValue = finalProgramName || track || 'General Track';
+    await studentRef.set({ fullName, studentName: fullName, username, email: email || null, accessCodeHash, subjects, class: className || null, grade: className || null, track: trackValue, programId: finalProgramId || null, programName: finalProgramName || null, schoolId: schoolId || null, schoolName, parentId: parentId || null, firebaseUid: authUser.uid, userId: authUser.uid, portalAccessEnabled: true, accountStatus: 'ACTIVE', source: 'admin_onboarding', createdAt: now, updatedAt: now });
     await adminDb.collection('users').doc(authUser.uid).set({ email: authUser.email || null, name: fullName, role: 'student', studentDocId: studentRef.id, schoolId: schoolId || null, schoolName, parentId: parentId || null, portalAccessEnabled: true, accountStatus: 'ACTIVE', createdAt: now, updatedAt: now });
-    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'ADMIN_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId: schoolId || null, timestamp: now, metadata: { username, class: className || null, parentId: parentId || null } });
+    if (finalProgramId || finalProgramName) {
+      await adminDb.collection('enrollments').add({ studentId: studentRef.id, studentUid: authUser.uid, studentName: fullName, schoolId: schoolId || null, programId: finalProgramId || null, programName: finalProgramName || null, status: 'ACTIVE', source: 'admin_onboarding', enrolledBy: decoded.uid, enrolledAt: now, createdAt: now, updatedAt: now });
+    }
+    await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'ADMIN_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId: schoolId || null, timestamp: now, metadata: { username, class: className || null, parentId: parentId || null, programId: finalProgramId || null } });
     return json(201, { student: { id: studentRef.id, fullName, username, class: className || null, schoolId: schoolId || null, portal: '/portal' }, credentials: { username, accessCode, portal: '/portal' } });
   } catch (error) {
     if (createdUid) { try { await adminAuth.deleteUser(createdUid); } catch (rollbackError) { console.error('Admin student Auth rollback failed:', rollbackError); } }

@@ -2,13 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, BookOpen, Download, 
   RefreshCw, School, Award, ArrowUpRight,
-  ShieldCheck, CheckCircle2, MessageSquare
+  ShieldCheck, CheckCircle2, MessageSquare,
+  Keyboard, ExternalLink, Copy, Check, Sparkles, Edit2, Save, X, Image as ImageIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { 
+  collection, getDocs, query, orderBy, limit,
+  doc, getDoc, setDoc, serverTimestamp 
+} from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import AdminAnalyticsWidget from '../../components/admin/AdminAnalyticsWidget';
+import PhotoUpload from '../../components/admin/PhotoUpload';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -39,6 +44,17 @@ const AdminDashboard: React.FC = () => {
   const [resourcesData, setResourcesData] = useState<any[]>([]);
   const [examsData, setExamsData] = useState<any[]>([]);
 
+  // Typing Masters Academy (EdClub Collaboration) State
+  const [edclubUrl, setEdclubUrl] = useState('https://jaystarbliss-studios.edclub.com');
+  const [edclubInput, setEdclubInput] = useState('https://jaystarbliss-studios.edclub.com');
+  const [edclubBannerUrl, setEdclubBannerUrl] = useState('');
+  const [edclubBannerInput, setEdclubBannerInput] = useState('');
+  const [edclubTitle, setEdclubTitle] = useState('Keyboarding & Speed Typing Hub');
+  const [edclubSubtitle, setEdclubSubtitle] = useState('Touch Typing Foundations • Home Row & Punctuation');
+  const [isEditingEdclub, setIsEditingEdclub] = useState(false);
+  const [savingEdclub, setSavingEdclub] = useState(false);
+  const [copiedEdclub, setCopiedEdclub] = useState(false);
+
   const fetchDashboardData = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
@@ -56,7 +72,8 @@ const AdminDashboard: React.FC = () => {
         schoolResourcesSnap,
         examsSnap,
         schoolExamsSnap,
-        activitySnap
+        activitySnap,
+        edclubSnap
       ] = await Promise.all([
         getDocs(collection(db, 'users')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'students')).catch(() => ({ size: 0, docs: [] })),
@@ -69,8 +86,24 @@ const AdminDashboard: React.FC = () => {
         getDocs(collection(db, 'schoolResources')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'exams')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'schoolExams')).catch(() => ({ size: 0, docs: [] })),
-        getDocs(query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100))).catch(() => ({ size: 0, docs: [] }))
+        getDocs(query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100))).catch(() => ({ size: 0, docs: [] })),
+        getDoc(doc(db, 'settings', 'edclub')).catch(() => null)
       ]);
+
+      if (edclubSnap && edclubSnap.exists()) {
+        const d = edclubSnap.data();
+        if (d.portalUrl) {
+          const cleanUrl = d.portalUrl === 'https://www.edclub.com' ? 'https://jaystarbliss-studios.edclub.com' : d.portalUrl;
+          setEdclubUrl(cleanUrl);
+          setEdclubInput(cleanUrl);
+        }
+        if (d.bannerUrl) {
+          setEdclubBannerUrl(d.bannerUrl);
+          setEdclubBannerInput(d.bannerUrl);
+        }
+        if (d.title) setEdclubTitle(d.title);
+        if (d.subtitle) setEdclubSubtitle(d.subtitle);
+      }
 
       const usersList = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -90,14 +123,21 @@ const AdminDashboard: React.FC = () => {
       const studentsList = Array.from(studentMap.values());
 
       const inquiriesList = inquiriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const resourcesList = [
-        ...resourcesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        ...schoolResourcesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      ];
-      const examsList = [
-        ...examsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        ...schoolExamsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      ];
+
+      const resourceMap = new Map<string, any>();
+      resourcesSnap.docs.forEach(doc => resourceMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      schoolResourcesSnap.docs.forEach(doc => {
+        if (!resourceMap.has(doc.id)) resourceMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+      const resourcesList = Array.from(resourceMap.values());
+
+      const examMap = new Map<string, any>();
+      examsSnap.docs.forEach(doc => examMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      schoolExamsSnap.docs.forEach(doc => {
+        if (!examMap.has(doc.id)) examMap.set(doc.id, { id: doc.id, ...doc.data() });
+      });
+      const examsList = Array.from(examMap.values());
+
       const activityList = activitySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       setMetrics({
@@ -154,6 +194,46 @@ const AdminDashboard: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     toast.success(`Exported ${data.length} records to ${filename}.csv`);
+  };
+
+  const handleCopyEdclubLink = async () => {
+    try {
+      await navigator.clipboard.writeText(edclubUrl);
+      setCopiedEdclub(true);
+      toast.success('EdClub collaboration link copied to clipboard!');
+      setTimeout(() => setCopiedEdclub(false), 2500);
+    } catch (e) {
+      toast.error('Could not copy link to clipboard.');
+    }
+  };
+
+  const handleSaveEdclub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = edclubInput.trim();
+    if (!clean) {
+      toast.error('Please specify a valid EdClub collaboration link.');
+      return;
+    }
+    setSavingEdclub(true);
+    try {
+      await setDoc(doc(db, 'settings', 'edclub'), {
+        portalUrl: clean,
+        bannerUrl: edclubBannerInput.trim(),
+        title: edclubTitle.trim() || 'Keyboarding & Speed Typing Hub',
+        subtitle: edclubSubtitle.trim() || 'Touch Typing Foundations • Home Row & Punctuation',
+        name: 'Jaystarbliss Studios • Typing Masters Academy',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setEdclubUrl(clean);
+      setEdclubBannerUrl(edclubBannerInput.trim());
+      setIsEditingEdclub(false);
+      toast.success('EdClub collaboration settings & banner updated and live across student portals!');
+    } catch (err) {
+      console.error('Save EdClub link error:', err);
+      toast.error('Failed to update EdClub collaboration settings.');
+    } finally {
+      setSavingEdclub(false);
+    }
   };
 
   const stats = [
@@ -317,6 +397,200 @@ const AdminDashboard: React.FC = () => {
             </Link>
           );
         })}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* TYPING MASTERS ACADEMY • EDCLUB COLLABORATION HUB & BANNER DESIGN */}
+      {/* ========================================================================= */}
+      <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-6 sm:p-8 text-white shadow-2xl transition-all">
+        {/* Background Banner Image or Gradient */}
+        {edclubBannerUrl ? (
+          <>
+            <img 
+              src={edclubBannerUrl} 
+              alt="EdClub Banner" 
+              className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-indigo-950/90 to-slate-950/80 pointer-events-none" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 pointer-events-none" />
+        )}
+        
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                <Sparkles size={11} />
+                Typing Masters Academy
+              </span>
+              <span className="text-xs text-indigo-200 font-bold">
+                In Collaboration with <strong className="text-white font-black">EdClub</strong>
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black uppercase">
+                Active Collab
+              </span>
+              {edclubBannerUrl && (
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[10px] font-bold">
+                  Custom Banner Live
+                </span>
+              )}
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5 tracking-tight">
+              <Keyboard className="w-6 h-6 text-indigo-400 shrink-0" />
+              <span>{edclubTitle}</span>
+            </h2>
+            <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed font-medium">
+              {edclubSubtitle}
+            </p>
+            <p className="text-[11px] text-indigo-300/70">
+              Only students enrolled in programs with EdClub assigned will have this portal unlocked.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900/80 backdrop-blur-md border border-indigo-500/30 text-indigo-300 font-mono text-xs shadow-inner">
+              <span className="font-semibold text-white truncate max-w-[200px] sm:max-w-xs">{edclubUrl}</span>
+              <button
+                type="button"
+                onClick={handleCopyEdclubLink}
+                title="Copy Collab Link"
+                aria-label="Copy Collab Link"
+                className="p-1 hover:text-white text-indigo-300 transition-colors ml-1"
+              >
+                {copiedEdclub ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEdclubInput(edclubUrl);
+                setEdclubBannerInput(edclubBannerUrl);
+                setIsEditingEdclub(true);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-indigo-100 hover:text-white border border-white/20 text-xs font-bold transition-all shadow-sm"
+              title="Edit EdClub Banner & Portal URL"
+            >
+              <ImageIcon size={15} />
+              <span>Configure Banner &amp; Link</span>
+            </button>
+
+            <a
+              href={edclubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-black transition-all shadow-lg shadow-indigo-600/40 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <ExternalLink size={14} />
+              <span>Launch EdClub</span>
+              <ArrowUpRight size={13} className="opacity-70" />
+            </a>
+          </div>
+        </div>
+
+        {/* Modal / Editor for EdClub Banner & Collaboration Configuration */}
+        {isEditingEdclub && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="w-full max-w-xl bg-slate-900 rounded-3xl border border-indigo-500/40 shadow-2xl p-6 sm:p-8 space-y-5 text-white max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-indigo-900/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 flex items-center justify-center">
+                    <Keyboard size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white">Configure EdClub Portal &amp; Banner</h3>
+                    <p className="text-xs text-indigo-300">Upload background banner and set student portal launch link</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingEdclub(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdclub} className="space-y-4">
+                {/* Banner Photo Upload */}
+                <div>
+                  <PhotoUpload
+                    label="EdClub Card Banner Image"
+                    value={edclubBannerInput}
+                    onChange={(url) => setEdclubBannerInput(url)}
+                    helpText="Upload a vibrant landscape banner image to serve as the EdClub background."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200 mb-1.5">
+                    EdClub Collaboration Launch URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={edclubInput}
+                    onChange={(e) => setEdclubInput(e.target.value)}
+                    placeholder="https://jaystarbliss-studios.edclub.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-indigo-900/80 bg-slate-950 text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Custom school or general Jaystarbliss EdClub subdomain URL.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200 mb-1.5">
+                      Card Title
+                    </label>
+                    <input
+                      type="text"
+                      value={edclubTitle}
+                      onChange={(e) => setEdclubTitle(e.target.value)}
+                      placeholder="Keyboarding & Speed Typing Hub"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-indigo-900/80 bg-slate-950 text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200 mb-1.5">
+                      Card Subtitle / Weekly Target
+                    </label>
+                    <input
+                      type="text"
+                      value={edclubSubtitle}
+                      onChange={(e) => setEdclubSubtitle(e.target.value)}
+                      placeholder="Touch Typing Foundations • Home Row & Punctuation"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-indigo-900/80 bg-slate-950 text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-indigo-900/60 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingEdclub(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingEdclub}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-black transition-all flex items-center gap-1.5 disabled:opacity-50 shadow-lg shadow-indigo-600/30"
+                  >
+                    <Save size={14} />
+                    <span>{savingEdclub ? 'Saving Changes...' : 'Save Banner & Settings'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ========================================================================= */}

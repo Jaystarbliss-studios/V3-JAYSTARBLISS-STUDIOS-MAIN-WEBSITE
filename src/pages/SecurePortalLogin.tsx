@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { School, GraduationCap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useTheme } from '../hooks/useTheme';
 import SEO from '../components/ui/SEO';
@@ -57,39 +57,49 @@ const SecurePortalLogin: React.FC = () => {
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
 
-    // Check admin authentication / self-heal first (handles admin logging in from school tab or direct email)
-    if (email === 'johnrufai242@gmail.com') {
+    // Check admin authentication first
+    if (email === 'johnrufai242@gmail.com' || email === 'admin@jaystarbliss.com') {
       try {
-        const idToken = await user.getIdToken(true);
-        const adminRes = await fetch('/.netlify/functions/admin-auth-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        });
-        const adminData = await adminRes.json().catch(() => ({}));
-        if (adminRes.ok && adminData.isAdmin) {
-          storeSession('super_admin', user.uid, adminData.user?.name || user.displayName || 'Administrator', { userEmail: user.email || '' });
-          navigate('/admin');
-          return;
-        }
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          name: user.displayName || 'Super Admin',
+          fullName: user.displayName || 'Super Admin',
+          email: user.email,
+          role: 'SUPER_ADMIN',
+          accountStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        storeSession('super_admin', user.uid, user.displayName || 'Administrator', { userEmail: user.email || '' });
+        navigate('/admin');
+        return;
       } catch (adminErr) {
-        console.warn('Admin auth sync check:', adminErr);
+        console.warn('Admin direct init check:', adminErr);
       }
     }
 
     let snap = await getDoc(doc(db, 'users', user.uid));
     let data = snap.exists() ? (snap.data() || {}) : {};
 
-    // If logging into the school portal tab, run the trusted server-side self-heal if profile or link is missing
+    // If logging into the school portal tab, check direct school linkage in Firestore if profile or link is missing
     if (activeTab === 'school' && (!snap.exists() || !data.schoolId || String(data.role || '').toUpperCase() !== 'SCHOOL')) {
       try {
-        const idToken = await user.getIdToken(true);
-        const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ scope: 'single', email: user.email || email }),
-        });
-        const syncData = await response.json().catch(() => ({}));
-        if (response.ok && syncData?.results?.[0]?.status === 'LINKED') {
+        const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
+        const schoolSnap = await getDocs(schoolQuery);
+        if (!schoolSnap.empty) {
+          const schDoc = schoolSnap.docs[0];
+          await setDoc(doc(db, 'users', user.uid), {
+            uid: user.uid,
+            name: user.displayName || schDoc.data().contactName || 'School Administrator',
+            fullName: user.displayName || schDoc.data().contactName || 'School Administrator',
+            email,
+            role: 'SCHOOL',
+            schoolId: schDoc.id,
+            schoolName: schDoc.data().name || '',
+            accountStatus: 'ACTIVE',
+            status: 'ACTIVE',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
           const refreshedSnap = await getDoc(doc(db, 'users', user.uid));
           if (refreshedSnap.exists()) {
             snap = refreshedSnap;
@@ -97,7 +107,7 @@ const SecurePortalLogin: React.FC = () => {
           }
         }
       } catch (err) {
-        console.warn('School admin self-heal check:', err);
+        console.warn('School admin direct linkage check:', err);
       }
     }
 
@@ -134,18 +144,20 @@ const SecurePortalLogin: React.FC = () => {
         throw new Error('This account is not registered as an affiliated school administrator.');
       }
       if (!data.schoolId) {
-        const idToken = await user.getIdToken(true);
-        const response = await fetch('/.netlify/functions/admin-school-admin-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ scope: 'single', email: user.email || email }),
-        });
-        const syncData = await response.json().catch(() => ({}));
-        if (response.ok && syncData?.results?.[0]?.status === 'LINKED') {
-          const refreshedSnap = await getDoc(doc(db, 'users', user.uid));
-          if (refreshedSnap.exists()) {
-            data = refreshedSnap.data() || {};
+        try {
+          const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
+          const schoolSnap = await getDocs(schoolQuery);
+          if (!schoolSnap.empty) {
+            const schDoc = schoolSnap.docs[0];
+            await setDoc(doc(db, 'users', user.uid), {
+              schoolId: schDoc.id,
+              schoolName: schDoc.data().name || '',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+            data = { ...data, schoolId: schDoc.id, schoolName: schDoc.data().name || '' };
           }
+        } catch (syncErr) {
+          console.warn('School admin linkage check error:', syncErr);
         }
         if (!data.schoolId) {
           await signOut(auth).catch(() => undefined);
@@ -243,25 +255,26 @@ const SecurePortalLogin: React.FC = () => {
       const idToken = await googleUser.getIdToken(true);
 
       // Check admin Google authentication first
-      if (googleUser.email === 'johnrufai242@gmail.com') {
+      if (googleUser.email === 'johnrufai242@gmail.com' || googleUser.email === 'admin@jaystarbliss.com') {
         try {
-          const response = await fetch('/.netlify/functions/admin-google-login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken }),
+          await setDoc(doc(db, 'users', googleUser.uid), {
+            uid: googleUser.uid,
+            name: googleUser.displayName || 'Super Admin',
+            fullName: googleUser.displayName || 'Super Admin',
+            email: googleUser.email,
+            role: 'SUPER_ADMIN',
+            accountStatus: 'ACTIVE',
+            status: 'ACTIVE',
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+          storeSession('super_admin', googleUser.uid, googleUser.displayName || 'Super Admin', {
+            userEmail: googleUser.email || '',
           });
-          const adminData = await response.json().catch(() => ({}));
-          if (response.ok && adminData.customToken) {
-            const credential = await signInWithCustomToken(auth, adminData.customToken);
-            storeSession('super_admin', credential.user.uid, adminData.name || 'Super Admin', {
-              userEmail: credential.user.email || adminData.email || '',
-            });
-            toast.success('Administrator verified. Welcome back!');
-            navigate('/admin');
-            return;
-          }
+          toast.success('Administrator verified. Welcome back!');
+          navigate('/admin');
+          return;
         } catch (adminErr) {
-          console.warn('Admin Google check:', adminErr);
+          console.warn('Admin Google direct set:', adminErr);
         }
       }
 

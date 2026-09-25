@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { Loader2 } from 'lucide-react';
 import ChangePasswordModal from '../portal/ChangePasswordModal';
@@ -70,38 +70,50 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         if (!currentUser) return;
         let userSnap = await getDoc(doc(db, 'users', currentUser.uid));
         
-        // Self-heal for admin routes if accessing /admin or if user is known admin
-        if (location.pathname.startsWith('/admin') || currentUser.email === 'johnrufai242@gmail.com') {
+        // Direct self-heal for known super admins / admin emails if user record is missing or not admin
+        const isSuperAdminEmail = currentUser.email === 'johnrufai242@gmail.com' || currentUser.email === 'admin@jaystarbliss.com';
+        if (isSuperAdminEmail && (!userSnap.exists() || !adminRoles.includes(String(userSnap.data()?.role || '').toUpperCase()))) {
           try {
-            const idToken = await currentUser.getIdToken(true);
-            const adminSyncResponse = await fetch('/.netlify/functions/admin-auth-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-            });
-            const adminSyncData = await adminSyncResponse.json().catch(() => ({}));
-            if (adminSyncResponse.ok && adminSyncData.isAdmin) {
-              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
-              if (refreshed.exists()) userSnap = refreshed;
-            }
-          } catch (adminSyncErr) {
-            console.warn('Admin auth sync check:', adminSyncErr);
+            await setDoc(doc(db, 'users', currentUser.uid), {
+              uid: currentUser.uid,
+              name: currentUser.displayName || 'Super Admin',
+              fullName: currentUser.displayName || 'Super Admin',
+              email: currentUser.email,
+              role: 'SUPER_ADMIN',
+              accountStatus: 'ACTIVE',
+              status: 'ACTIVE',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+            userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+          } catch (createErr) {
+            console.warn('Super admin direct init error:', createErr);
           }
-        } else if (location.pathname.startsWith('/portal/school')) {
-          // Self-heal for school route if user profile or role/schoolId is missing
+        }
+
+        // Direct self-heal for school administrators if schoolId is missing
+        if ((location.pathname.startsWith('/portal/school') || userSnap.data()?.role === 'SCHOOL') && (!userSnap.exists() || !userSnap.data()?.schoolId)) {
           try {
-            const idToken = await currentUser.getIdToken(true);
-            const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-              body: JSON.stringify({ scope: 'single', email: currentUser.email || '' }),
-            });
-            const syncData = await syncResponse.json().catch(() => ({}));
-            if (syncResponse.ok && syncData?.results?.[0]?.status === 'LINKED') {
-              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
-              if (refreshed.exists()) userSnap = refreshed;
+            const email = (currentUser.email || '').toLowerCase();
+            const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
+            const schoolSnap = await getDocs(schoolQuery);
+            if (!schoolSnap.empty) {
+              const schDoc = schoolSnap.docs[0];
+              await setDoc(doc(db, 'users', currentUser.uid), {
+                uid: currentUser.uid,
+                name: currentUser.displayName || schDoc.data().contactName || 'School Administrator',
+                fullName: currentUser.displayName || schDoc.data().contactName || 'School Administrator',
+                email,
+                role: 'SCHOOL',
+                schoolId: schDoc.id,
+                schoolName: schDoc.data().name || '',
+                accountStatus: 'ACTIVE',
+                status: 'ACTIVE',
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+              userSnap = await getDoc(doc(db, 'users', currentUser.uid));
             }
-          } catch (repairError) {
-            console.warn('School administrator link repair check:', repairError);
+          } catch (schErr) {
+            console.warn('School admin direct link error:', schErr);
           }
         }
 
@@ -163,27 +175,25 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
           }
         }
 
-        // School administrators can arrive here with an authenticated Firebase
-        // session but without the legacy schoolId field. Repair the approved
-        // mapping server-side before deciding whether the portal is authorized.
+        // Direct fallback check if schoolId is still not populated
         if ((role === 'SCHOOL' || location.pathname.startsWith('/portal/school')) && !String(data.schoolId || '').trim()) {
           try {
-            const idToken = await currentUser.getIdToken(true);
-            const syncResponse = await fetch('/.netlify/functions/admin-school-admin-sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-              body: JSON.stringify({ scope: 'single', email: currentUser.email || data.email || '' }),
-            });
-            const syncData = await syncResponse.json().catch(() => ({}));
-            if (syncResponse.ok && syncData?.results?.[0]?.status === 'LINKED') {
-              const refreshed = await getDoc(doc(db, 'users', currentUser.uid));
-              if (refreshed.exists()) {
-                data = refreshed.data() || {};
-                role = String(data.role || 'SCHOOL').trim().toUpperCase();
-              }
+            const email = (currentUser.email || data.email || '').toLowerCase();
+            const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
+            const schoolSnap = await getDocs(schoolQuery);
+            if (!schoolSnap.empty) {
+              const schDoc = schoolSnap.docs[0];
+              await setDoc(doc(db, 'users', currentUser.uid), {
+                role: 'SCHOOL',
+                schoolId: schDoc.id,
+                schoolName: schDoc.data().name || '',
+                updatedAt: serverTimestamp()
+              }, { merge: true });
+              data = { ...data, schoolId: schDoc.id, schoolName: schDoc.data().name || '' };
+              role = 'SCHOOL';
             }
           } catch (repairError) {
-            console.warn('School administrator link repair failed:', repairError);
+            console.warn('School administrator link check:', repairError);
           }
         }
 

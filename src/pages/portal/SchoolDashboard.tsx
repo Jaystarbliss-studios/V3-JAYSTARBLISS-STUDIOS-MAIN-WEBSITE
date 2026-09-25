@@ -1,17 +1,37 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
-import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight } from 'lucide-react';
+import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import ResourceLibrary from './ResourceLibrary';
 import { auth, db } from '../../lib/firebase';
+import { formatNaira } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import { getEffectiveAuth } from '../../utils/impersonation';
 
 export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
 export interface SchoolDashboardProps { initialTab?: SchoolDashboardTab; }
-type SchoolRecord = { id: string; name?: string; plan?: string; coordinator?: string; labDays?: string; email?: string; status?: string; };
+type SchoolRecord = { 
+  id: string; 
+  name?: string; 
+  plan?: string; 
+  coordinator?: string; 
+  labDays?: string; 
+  email?: string; 
+  status?: string; 
+  billing?: { 
+    baseAmount?: number; 
+    cycle?: string; 
+    mode?: string; 
+    status?: string; 
+    nextDueDate?: string; 
+    notes?: string; 
+    allowedModes?: string[]; 
+    lastReminderSentAt?: string; 
+  };
+  programs?: any[];
+};
 type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedCadetsCount?: number; };
 type Exam = { id: string; title: string; subject?: string; term?: string; duration?: string; link?: string; url?: string; fileUrl?: string; status?: string; date?: string; targetClass?: string; description?: string; passcodeProtected?: boolean; };
 type SchoolLink = { id: string; title: string; url: string; description?: string; };
@@ -136,13 +156,19 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
 
       if (!schoolRecordData) {
         // Fallback default record if masquerading or previewing
+        const cachedName = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name');
         schoolRecordData = {
           id: schoolId || 'school-default',
-          name: effective.effectiveName || 'Partner School Institution',
+          name: effective.effectiveName || cachedName || 'Partner School Institution',
           plan: 'Institutional Partner Plan',
           coordinator: 'School Administrator',
           labDays: 'Mon - Fri'
         };
+      }
+
+      if (schoolRecordData.name && !['School Portal', 'school-default', 'Partner School Institution'].includes(schoolRecordData.name)) {
+        sessionStorage.setItem('schoolName', schoolRecordData.name);
+        localStorage.setItem('jaystar_cached_school_name', schoolRecordData.name);
       }
 
       setSchool(schoolRecordData);
@@ -151,8 +177,12 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       let fetchedStudentCount = 0;
       try {
         if (!effective.isMasquerading) {
-          const studentsResult = await jsonFetch<{ count: number }>('/.netlify/functions/school-students');
+          const studentsResult = await jsonFetch<{ count: number; schoolName?: string }>('/.netlify/functions/school-students');
           fetchedStudentCount = Number(studentsResult.count || 0);
+          if (studentsResult.schoolName && studentsResult.schoolName !== 'School Portal') {
+            sessionStorage.setItem('schoolName', studentsResult.schoolName);
+            setSchool(prev => prev ? { ...prev, name: studentsResult.schoolName } : prev);
+          }
         } else {
           throw new Error('Impersonation mode using client-side Firestore query');
         }
@@ -165,15 +195,23 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       }
 
       try {
-        if (!effective.isMasquerading) {
-          const scheduleResult = await jsonFetch<{ schedules: ClassSchedule[] }>('/.netlify/functions/class-schedules');
-          setClassSchedules(Array.isArray(scheduleResult.schedules) ? scheduleResult.schedules : []);
+        const scheduleResult = await jsonFetch<{ schedules: ClassSchedule[] }>('/.netlify/functions/class-schedules');
+        if (Array.isArray(scheduleResult.schedules) && scheduleResult.schedules.length > 0) {
+          setClassSchedules(scheduleResult.schedules);
         } else {
-          throw new Error('Impersonation fallback for schedules');
+          throw new Error('Empty from server, try Firestore query');
         }
       } catch {
-        const schedSnap = await getDocs(query(collection(db, 'classSchedules'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] }));
-        setClassSchedules(schedSnap.docs.map(d => ({ id: d.id, ...d.data() } as ClassSchedule)));
+        const [schedSnap, nameSnap] = await Promise.all([
+          getDocs(query(collection(db, 'classSchedules'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          schoolRecordData.name ? getDocs(query(collection(db, 'classSchedules'), where('schoolName', '==', schoolRecordData.name))).catch(() => ({ docs: [] })) : Promise.resolve({ docs: [] })
+        ]);
+        const schedMap = new Map<string, ClassSchedule>();
+        schedSnap.docs.forEach(d => schedMap.set(d.id, { id: d.id, ...d.data() } as ClassSchedule));
+        nameSnap.docs.forEach(d => {
+          if (!schedMap.has(d.id)) schedMap.set(d.id, { id: d.id, ...d.data() } as ClassSchedule);
+        });
+        setClassSchedules(Array.from(schedMap.values()));
       }
 
       const [examSnap, linkSnap, passSnap] = await Promise.all([
@@ -224,7 +262,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       {tab === 'overview' && (
         <div className="space-y-6">
           <DashboardGreeting
-            name={schoolName}
+            name={schoolName.split(' ')[0] || schoolName}
             role="Partner Institution"
             subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
           />
@@ -310,11 +348,34 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
             </div>
 
             <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institution Details</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institution Details</h2>
+                <button onClick={() => navigate('/portal/school/payments')} className="text-xs font-bold text-brand-red hover:underline inline-flex items-center gap-1">
+                  Subscription & Fees <ChevronRight size={12}/>
+                </button>
+              </div>
               <div className="mt-3 space-y-2 text-xs">
                 <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-slate-500">Plan Track</span>
                   <span className="font-semibold text-slate-900 dark:text-white">{school?.plan || 'Active Curriculum'}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Institutional Fee</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {school?.billing?.baseAmount ? `${formatNaira(school.billing.baseAmount)} / ${school.billing.cycle || 'Term'}` : 'Custom Institutional Plan'}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-500">Billing Status</span>
+                  <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                    school?.billing?.status === 'OVERDUE' 
+                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
+                      : school?.billing?.status === 'DUE' 
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
+                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                  }`}>
+                    {school?.billing?.status || 'ACTIVE'}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-slate-500">Coordinator</span>
@@ -554,17 +615,73 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       )}
 
       {tab === 'partnership' && (
-        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <CreditCard size={18} className="text-brand-red"/> Fees & Billing Portal
-          </h2>
-          <div className="rounded-xl bg-slate-900 text-white p-5 border border-slate-800">
-            <div className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Current Program Plan</div>
-            <h3 className="text-lg font-bold mt-1">{school?.plan || 'Standard Technology Curriculum'}</h3>
-            <p className="text-xs text-slate-300 mt-1">Billing statements, invoices, and verified receipts are managed directly through the Fees & Payments section.</p>
-            <button onClick={() => navigate('/portal/school/payments')} className="mt-4 min-h-9 rounded-xl bg-white text-slate-900 px-4 text-xs font-bold inline-flex items-center gap-2">
-              <CreditCard size={14}/> Open Fees & Payments
+        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <CreditCard size={18} className="text-brand-red"/> Institutional Subscription & Fees
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">Admin-configured institutional curriculum billing and payment schedule.</p>
+            </div>
+            <button 
+              onClick={() => navigate('/portal/school/payments')} 
+              className="px-4 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold inline-flex items-center gap-2 shadow-xs transition-colors"
+            >
+              <CreditCard size={14}/> Complete Payment / Invoices
             </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-slate-900 text-white p-5 border border-slate-800 space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Undergoing Curriculum Plan</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                  school?.billing?.status === 'OVERDUE' 
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                    : school?.billing?.status === 'DUE' 
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                }`}>
+                  {school?.billing?.status || 'ACTIVE SUBSCRIPTION'}
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-white">{school?.plan || 'Standard Technology Curriculum'}</h3>
+              <p className="text-xs text-slate-300">
+                Covers hands-on computer science lab instructions, STEM curriculum kits, and learner CBT assessment portals.
+              </p>
+              {school?.billing?.notes && (
+                <div className="text-[11px] text-slate-400 bg-slate-800/60 p-2.5 rounded-lg border border-slate-700 mt-2">
+                  <strong className="text-slate-300">Administrative Note:</strong> {school.billing.notes}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-5 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Institutional Fee</span>
+              <div className="text-2xl font-black text-slate-900 dark:text-white">
+                {school?.billing?.baseAmount ? formatNaira(school.billing.baseAmount) : 'Custom Fee'}
+              </div>
+              <div className="text-xs text-slate-500 space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between">
+                  <span>Cycle:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{school?.billing?.cycle || 'Termly'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Mode:</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">
+                    {school?.billing?.mode ? school.billing.mode.replace(/_/g, ' ') : 'Advance Termly'}
+                  </span>
+                </div>
+                {school?.billing?.nextDueDate && (
+                  <div className="flex justify-between">
+                    <span>Due Date:</span>
+                    <span className="font-bold text-brand-red">
+                      {new Date(school.billing.nextDueDate).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

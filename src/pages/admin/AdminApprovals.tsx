@@ -24,21 +24,29 @@ const AdminApprovals: React.FC = () => {
     const qStudents = query(collection(db, 'student_requests'), where('status', '==', 'pending'));
     const unsubStudents = onSnapshot(qStudents, (snap) => {
       setStudentReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.warn('student_requests listener warning:', err);
     });
 
     const qTutors = query(collection(db, 'tutor_applications'), where('status', '==', 'pending'));
     const unsubTutors = onSnapshot(qTutors, (snap) => {
       setTutorReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.warn('tutor_applications listener warning:', err);
     });
 
     const qSubjects = query(collection(db, 'tutor_subject_applications'), where('status', '==', 'pending'));
     const unsubSubjects = onSnapshot(qSubjects, (snap) => {
       setSubjectReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.warn('tutor_subject_applications listener warning:', err);
     });
 
     const qEnrollments = query(collection(db, 'enrollment_requests'), where('status', '==', 'pending'));
     const unsubEnrollments = onSnapshot(qEnrollments, (snap) => {
       setEnrollmentReqs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.warn('enrollment_requests listener warning:', err);
     });
 
     return () => {

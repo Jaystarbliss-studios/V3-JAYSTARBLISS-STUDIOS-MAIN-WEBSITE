@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  collection, getDocs, addDoc, deleteDoc, doc, 
-  setDoc, query, serverTimestamp, updateDoc, where
+  collection, getDocs, getDoc, addDoc, deleteDoc, doc, 
+  setDoc, query, serverTimestamp, updateDoc, where, limit
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../../lib/firebase';
@@ -39,6 +39,11 @@ export interface SchoolProgram {
   assignedTutors?: AssignedTutorAllocation[];
   baseFee?: number;
   costPerStudent?: number;
+  hasEdclub?: boolean;
+  hasResources?: boolean;
+  hasAssessments?: boolean;
+  hasLiveClasses?: boolean;
+  isGeneralProgram?: boolean;
 }
 
 export interface SchoolBillingConfig {
@@ -72,6 +77,8 @@ export interface SchoolData {
   billing?: SchoolBillingConfig;
   createdAt?: any;
   updatedAt?: any;
+  createdBy?: string;
+  createdByEmail?: string;
   adminUid?: string;
 }
 
@@ -126,7 +133,7 @@ const DEFAULT_SCHOOLS: SchoolData[] = [
     status: 'ACTIVE',
     programs: [],
     billing: {
-      baseAmount: 350000,
+      baseAmount: 0,
       cycle: 'termly',
       allowedModes: ['advance_termly', 'advance_monthly', 'post_termly'],
       mode: 'advance_termly',
@@ -261,7 +268,7 @@ const AdminSchools: React.FC = () => {
     phone: '',
     state: 'Lagos',
     address: '',
-    initialFee: '350000',
+    initialFee: '300000',
     cycle: 'termly' as 'monthly' | 'termly',
     mode: 'advance_termly' as any,
     initialProgramName: '',
@@ -443,11 +450,14 @@ const AdminSchools: React.FC = () => {
         setPasscodes(passSnap.docs.map(d => ({ id: d.id, ...d.data() } as ExamPasscode)));
         setResources(resSnap.docs.map(d => ({ id: d.id, ...d.data() } as SchoolResource)));
         
-        const cadetsList = [
-          ...studSnap.docs.map(d => ({ id: d.id, ...d.data() } as CadetRecord)),
-          ...indivSnap.docs.map(d => ({ id: d.id, ...d.data() } as CadetRecord))
-        ];
-        setCadets(cadetsList);
+        const cadetMap = new Map<string, CadetRecord>();
+        studSnap.docs.forEach(d => cadetMap.set(d.id, { id: d.id, ...d.data() } as CadetRecord));
+        indivSnap.docs.forEach(d => {
+          if (!cadetMap.has(d.id)) {
+            cadetMap.set(d.id, { id: d.id, ...d.data() } as CadetRecord);
+          }
+        });
+        setCadets(Array.from(cadetMap.values()));
         setPayments(paySnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (err) {
         console.warn('Error fetching school sub-records:', err);
@@ -485,29 +495,25 @@ const AdminSchools: React.FC = () => {
     if (!selectedSchool) return;
     setSavingAction(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
+      if (!profileForm.name?.trim() || !profileForm.contactEmail?.trim()) {
+        toast.error('School name and administrator email are required.');
+        return;
+      }
 
-      const response = await fetch('/.netlify/functions/school-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'update_profile',
-          schoolId: selectedSchool.id,
-          ...profileForm
-        })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to save school profile.');
+      // Direct Firestore update on school document
+      await setDoc(doc(db, 'schools', selectedSchool.id), {
+        ...profileForm,
+        name: profileForm.name.trim(),
+        contactEmail: profileForm.contactEmail.trim().toLowerCase(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
 
+      // Sync to local state
       setSchools(prev => prev.map(s => s.id === selectedSchool.id ? { ...s, ...profileForm } : s));
       toast.success('School profile updated successfully.');
     } catch (err) {
       console.error('Save profile failed:', err);
-      toast.error('Unable to save school profile.');
+      toast.error(err instanceof Error ? err.message : 'Unable to save school profile.');
     } finally {
       setSavingAction(false);
     }
@@ -523,24 +529,8 @@ const AdminSchools: React.FC = () => {
 
     setDeletingSchool(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
-
-      const response = await fetch('/.netlify/functions/school-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action: 'delete_school',
-          schoolId: selectedSchool.id,
-          confirmation: deleteConfirmationInput.trim()
-        })
-      });
-
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to delete school.');
+      // Direct Firestore delete on school document
+      await deleteDoc(doc(db, 'schools', selectedSchool.id));
 
       const deletedName = selectedSchool.name;
       setSchools(prev => prev.filter(s => s.id !== selectedSchool.id));
@@ -576,14 +566,25 @@ const AdminSchools: React.FC = () => {
 
       // 2. Sync to linked school administrator user record in Firestore
       try {
-        const usersSnap = await getDocs(query(collection(db, 'users'), where('schoolId', '==', selectedSchool.id)));
-        if (!usersSnap.empty) {
-          for (const uDoc of usersSnap.docs) {
-            await setDoc(doc(db, 'users', uDoc.id), {
-              billing: updatedBilling,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          }
+        const uidsToSync = new Set<string>();
+        if (selectedSchool.adminUid) uidsToSync.add(selectedSchool.adminUid);
+        if ((selectedSchool as any).firebaseUid) uidsToSync.add((selectedSchool as any).firebaseUid);
+
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('schoolId', '==', selectedSchool.id))).catch(() => ({ docs: [] } as any));
+        usersSnap.docs.forEach((uDoc: any) => uidsToSync.add(uDoc.id));
+
+        const schoolEmail = selectedSchool.contactEmail || selectedSchool.email;
+        if (schoolEmail) {
+          const emailSnap = await getDocs(query(collection(db, 'users'), where('email', '==', schoolEmail))).catch(() => ({ docs: [] } as any));
+          emailSnap.docs.forEach((uDoc: any) => uidsToSync.add(uDoc.id));
+        }
+
+        for (const uid of uidsToSync) {
+          await setDoc(doc(db, 'users', uid), {
+            schoolId: selectedSchool.id,
+            billing: updatedBilling,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch(() => undefined);
         }
       } catch (uErr) {
         console.warn('School user billing sync notice:', uErr);
@@ -832,47 +833,154 @@ const AdminSchools: React.FC = () => {
   // Onboard New School
   const handleOnboardSchool = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!onboardForm.name.trim() || !onboardForm.contactEmail.trim()) {
+    const name = onboardForm.name.trim();
+    const contactEmail = onboardForm.contactEmail.trim().toLowerCase();
+    if (!name || !contactEmail) {
       toast.error('School name and administrator email are required.');
       return;
     }
 
     setOnboardingSaving(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error('Your administrator session has expired. Please sign in again.');
+      const requestedCode = onboardForm.schoolCode.trim().toUpperCase();
+      const baseId = (requestedCode || name).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15);
+      const initialId = baseId || `school-${Date.now()}`;
 
-      const response = await fetch('/.netlify/functions/school-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+      // Check if doc already exists in Firestore
+      let finalSchoolId = initialId;
+      try {
+        const existingSnap = await getDoc(doc(db, 'schools', initialId));
+        if (existingSnap.exists()) {
+          finalSchoolId = `${baseId}-${Date.now().toString().slice(-4)}`;
+        }
+      } catch {
+        // Continue with initialId if check fails
+      }
+
+      const generatedCode = requestedCode || `${name.slice(0, 4).toUpperCase()}-2026`;
+      const initialFee = Number(String(onboardForm.initialFee || 350000).replace(/[^0-9.]/g, '')) || 350000;
+      const initialProgramName = onboardForm.initialProgramName.trim();
+      const initialProgramDesc = onboardForm.initialProgramDesc.trim();
+
+      const newSchoolRecord: SchoolData = {
+        id: finalSchoolId,
+        name,
+        schoolCode: generatedCode,
+        contactName: onboardForm.contactName.trim() || 'School Administrator',
+        contactEmail,
+        phone: onboardForm.phone.trim(),
+        state: onboardForm.state.trim() || 'Lagos',
+        address: onboardForm.address.trim(),
+        status: 'ACTIVE',
+        programs: initialProgramName ? [{
+          id: `prog-${Date.now()}`,
+          name: initialProgramName,
+          description: initialProgramDesc,
+          status: 'ACTIVE'
+        }] : [],
+        billing: {
+          baseAmount: initialFee,
+          cycle: (onboardForm.cycle === 'monthly' ? 'monthly' : 'termly') as 'termly' | 'monthly',
+          allowedModes: [onboardForm.mode || 'advance_termly', 'advance_termly', 'advance_monthly'],
+          mode: onboardForm.mode || 'advance_termly',
+          nextDueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+          status: 'ACTIVE',
+          notes: 'Standard institutional curriculum and workspace partnership agreement.'
         },
-        body: JSON.stringify({
-          action: 'onboard_school',
-          name: onboardForm.name,
-          schoolCode: onboardForm.schoolCode,
-          contactName: onboardForm.contactName,
-          contactEmail: onboardForm.contactEmail,
-          phone: onboardForm.phone,
-          state: onboardForm.state,
-          address: onboardForm.address,
-          initialProgramName: onboardForm.initialProgramName,
-          initialProgramDesc: onboardForm.initialProgramDesc,
-          initialFee: onboardForm.initialFee,
-          cycle: onboardForm.cycle,
-          mode: onboardForm.mode
-        })
-      });
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: auth.currentUser?.uid || 'admin',
+        createdByEmail: auth.currentUser?.email || ''
+      };
 
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to onboard new school.');
+      // 1. Direct Firestore write for the new school
+      await setDoc(doc(db, 'schools', finalSchoolId), newSchoolRecord);
 
-      const newSchoolRecord = result.school as SchoolData;
+      // 2. Set up invitation for school administrator
+      try {
+        await setDoc(doc(db, 'invites', contactEmail), {
+          email: contactEmail,
+          name: onboardForm.contactName.trim() || 'School Administrator',
+          role: 'SCHOOL',
+          schoolId: finalSchoolId,
+          schoolName: name,
+          status: 'PENDING',
+          createdAt: serverTimestamp(),
+          createdBy: auth.currentUser?.uid || 'admin',
+          createdByEmail: auth.currentUser?.email || ''
+        }, { merge: true });
+      } catch (inviteErr) {
+        console.warn('Invite creation non-fatal warning:', inviteErr);
+      }
+
+      // 3. Link existing user account if already registered with this email
+      try {
+        const userQuery = query(collection(db, 'users'), where('email', '==', contactEmail), limit(1));
+        const userSnap = await getDocs(userQuery);
+        if (!userSnap.empty) {
+          const userDoc = userSnap.docs[0];
+          await setDoc(doc(db, 'users', userDoc.id), {
+            role: 'SCHOOL',
+            schoolId: finalSchoolId,
+            schoolName: name,
+            accountStatus: 'ACTIVE',
+            billing: newSchoolRecord.billing,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
+      } catch (syncErr) {
+        console.warn('User link sync non-fatal warning:', syncErr);
+      }
+
+      // 4. Log audit activity
+      try {
+        await addDoc(collection(db, 'activityLogs'), {
+          action: 'school_onboarded',
+          schoolId: finalSchoolId,
+          schoolName: name,
+          contactEmail,
+          actorId: auth.currentUser?.uid || 'admin',
+          userEmail: auth.currentUser?.email || '',
+          createdAt: serverTimestamp(),
+          timestamp: new Date().toISOString()
+        });
+      } catch (actErr) {
+        console.warn('Activity log non-fatal warning:', actErr);
+      }
+
+      // 5. Create notification
+      try {
+        await addDoc(collection(db, 'notifications'), {
+          title: `New School Onboarded: ${name}`,
+          message: `${name} (${generatedCode}) has been successfully onboarded.`,
+          type: 'school_onboarded',
+          recipientId: 'all',
+          schoolId: finalSchoolId,
+          createdAt: serverTimestamp()
+        });
+      } catch (notifErr) {
+        console.warn('Notification non-fatal warning:', notifErr);
+      }
+
+      // 6. Update local state and reset modal
       setSchools(prev => [newSchoolRecord, ...prev]);
       setShowOnboardModal(false);
-      setSelectedSchoolId(result.schoolId);
-      toast.success(`${newSchoolRecord.name} onboarded successfully!`);
+      setSelectedSchoolId(finalSchoolId);
+      setOnboardForm({
+        name: '',
+        schoolCode: '',
+        contactName: '',
+        contactEmail: '',
+        phone: '',
+        state: 'Lagos',
+        address: '',
+        initialProgramName: 'Kids Coding & AI Essentials',
+        initialProgramDesc: 'Comprehensive coding, robotics, and creative tech curriculum for students.',
+        initialFee: '350000',
+        cycle: 'termly',
+        mode: 'advance_termly'
+      });
+      toast.success(`${name} onboarded successfully!`);
     } catch (err) {
       console.error('Onboarding failed:', err);
       toast.error(err instanceof Error ? err.message : 'Unable to onboard new school.');

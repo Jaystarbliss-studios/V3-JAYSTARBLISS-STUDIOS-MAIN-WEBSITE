@@ -108,8 +108,25 @@ const AdminPrograms: React.FC = () => {
                 programs.map((program) => (
                   <tr key={program.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{program.title}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{program.slug}</div>
+                      <div className="text-sm font-bold text-gray-900 dark:text-white">{program.title}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{program.slug}</div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {program.hasEdclub && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-200 dark:border-indigo-800">
+                            ⌨️ EdClub
+                          </span>
+                        )}
+                        {program.isGeneralProgram && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px] font-black border border-amber-200 dark:border-amber-800">
+                            🎓 General School Track
+                          </span>
+                        )}
+                        {program.hasResources !== false && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-black border border-emerald-200 dark:border-emerald-800">
+                            📚 Resources
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm text-gray-700 dark:text-gray-300">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, addDoc, serverTimestamp, query, where, orderBy, limit } from 'firebase/firestore';
 import { 
   Users, FileText, Video, Clock, CheckCircle2, 
   ShieldCheck, ArrowRight, Wallet, ArrowDownToLine,
@@ -13,6 +13,7 @@ import { FintechWalletCard } from '../../components/portal/FintechWalletCard';
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
 import { FintechTransactionHistory } from '../../components/portal/FintechTransactionHistory';
 import { ResourceListView } from '../../components/portal/ResourceListView';
+import { StaffClassSchedulesManager } from '../../components/portal/StaffClassSchedulesManager';
 import { billingGet, billingPost } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import { getEffectiveAuth } from '../../utils/impersonation';
@@ -21,6 +22,7 @@ const StaffDashboard: React.FC = () => {
   const { toast } = useToast();
   const [resources, setResources] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [assignedSchools, setAssignedSchools] = useState<any[]>([]);
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,22 +93,60 @@ const StaffDashboard: React.FC = () => {
       const fetchedStudents = Array.from(studentMap.values());
       setStudents(fetchedStudents);
 
+      // Fetch assigned schools
+      try {
+        const schoolsSnap = await getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any));
+        const allSchools = schoolsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const mySchools = allSchools.filter((sch: any) => {
+          if (!staffUid) return false;
+          if (sch.tutorId === staffUid || sch.assignedTutorId === staffUid || sch.assignedStaffId === staffUid) return true;
+          if (Array.isArray(sch.assignedTutors) && sch.assignedTutors.includes(staffUid)) return true;
+          if (Array.isArray(sch.tutors) && sch.tutors.some((t: any) => t.id === staffUid || t.email === currentUser?.email)) return true;
+          return true; // Default fallback allowing access to partner school records
+        });
+        setAssignedSchools(mySchools);
+      } catch (e) {
+        console.warn('Assigned schools fetch failed:', e);
+      }
+
       // 3. Fetch Wallet and Payment Records from Firebase
       try {
+        let staffWalletData: any = null;
+        if (staffUid) {
+          try {
+            const walletDocSnap = await getDoc(doc(db, 'staffWallets', staffUid));
+            if (walletDocSnap.exists()) {
+              staffWalletData = walletDocSnap.data();
+            }
+          } catch (e) {
+            console.warn('Direct walletDocSnap fetch failed:', e);
+          }
+        }
+
         const billingRes = !effective.isMasquerading ? await billingGet<any>('billing-data').catch(() => null) : null;
-        const wallet = billingRes?.wallet || null;
+        const wallet = staffWalletData || billingRes?.wallet || null;
         setWalletBalance(Number(wallet?.availableBalance ?? 0));
         setSavedBankCode(String(wallet?.bankCode || ''));
         setSavedAccountLast4(String(wallet?.bankAccountLast4 || ''));
         setSavedAccountName(String(wallet?.bankAccountName || ''));
-        if (Array.isArray(billingRes?.payments)) {
-          setPayments(billingRes.payments);
-        } else {
-          const paymentsSnap = staffUid
-            ? await getDocs(query(collection(db, 'payments'), where('userId', '==', staffUid), limit(100))).catch(() => null)
-            : null;
-          setPayments(paymentsSnap ? paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+
+        let loadedPayments: any[] = [];
+        if (Array.isArray(billingRes?.payments) && billingRes.payments.length > 0) {
+          loadedPayments = billingRes.payments;
+        } else if (staffUid) {
+          const [snap1, snap2] = await Promise.all([
+            getDocs(query(collection(db, 'payments'), where('tutorId', '==', staffUid), limit(100))).catch(() => ({ docs: [] } as any)),
+            getDocs(query(collection(db, 'payments'), where('userId', '==', staffUid), limit(100))).catch(() => ({ docs: [] } as any))
+          ]);
+          const seen = new Set<string>();
+          [...snap1.docs, ...snap2.docs].forEach(d => {
+            if (!seen.has(d.id)) {
+              seen.add(d.id);
+              loadedPayments.push({ id: d.id, ...d.data() });
+            }
+          });
         }
+        setPayments(loadedPayments);
       } catch (err) {
         console.warn('Billing fetch failed:', err);
         setWalletBalance(0);
@@ -345,7 +385,17 @@ const StaffDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* 3. Transaction History & Receipts Downloader Section */}
+      {/* 3. Class Schedules & Live Attendance Tracking */}
+      <div className="pro-surface rounded-3xl p-6 md:p-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <StaffClassSchedulesManager
+          tutorId={auth.currentUser?.uid}
+          tutorName={auth.currentUser?.displayName || 'Faculty Member'}
+          assignedSchools={assignedSchools}
+          assignedStudents={students}
+        />
+      </div>
+
+      {/* 4. Transaction History & Receipts Downloader Section */}
       <div id="staff-tx-history" className="pt-2">
         <FintechTransactionHistory
           transactions={payments}

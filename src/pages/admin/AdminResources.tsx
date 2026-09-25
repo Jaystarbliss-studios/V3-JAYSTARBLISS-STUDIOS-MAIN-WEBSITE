@@ -39,8 +39,16 @@ const AdminResources: React.FC = () => {
     description?: string;
     fileUrl?: string;
     url?: string;
+    assignedSchoolId?: string;
+    assignedSchoolName?: string;
+    assignedProgramId?: string;
+    assignedProgramName?: string;
   } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Schools and Programs Catalog for Scoped Assignment
+  const [schoolsList, setSchoolsList] = useState<{ id: string; name: string; programs?: any[] }[]>([]);
+  const [programsList, setProgramsList] = useState<{ id: string; title?: string; name?: string }[]>([]);
 
   // Resources state
   const [resources, setResources] = useState<any[]>([]);
@@ -50,6 +58,10 @@ const AdminResources: React.FC = () => {
     subject: 'Computer Science & ICT',
     classLevel: 'All Classes',
     assignedClasses: ['All Classes'],
+    assignedSchoolId: 'all',
+    assignedSchoolName: 'All Schools (Universal)',
+    assignedProgramId: 'all',
+    assignedProgramName: 'All Programmes (Universal)',
     description: '',
     fileUrl: ''
   });
@@ -61,7 +73,11 @@ const AdminResources: React.FC = () => {
     title: '',
     category: 'both',
     url: '',
-    description: ''
+    description: '',
+    assignedSchoolId: 'all',
+    assignedSchoolName: 'All Schools (Universal)',
+    assignedProgramId: 'all',
+    assignedProgramName: 'All Programmes (Universal)'
   });
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [previewLinkUrl, setPreviewLinkUrl] = useState('');
@@ -72,7 +88,11 @@ const AdminResources: React.FC = () => {
     title: '',
     category: 'both',
     url: '',
-    description: ''
+    description: '',
+    assignedSchoolId: 'all',
+    assignedSchoolName: 'All Schools (Universal)',
+    assignedProgramId: 'all',
+    assignedProgramName: 'All Programmes (Universal)'
   });
   const [examSubmitting, setExamSubmitting] = useState(false);
 
@@ -80,15 +100,31 @@ const AdminResources: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resSnap, linksSnap, examsSnap] = await Promise.all([
+      const [resSnap, linksSnap, examsSnap, schoolsSnap, progsSnap] = await Promise.all([
         getDocs(query(collection(db, 'resources'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'resources'))),
         getDocs(query(collection(db, 'links'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'links'))),
-        getDocs(query(collection(db, 'exams'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'exams')))
+        getDocs(query(collection(db, 'exams'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'exams'))),
+        getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'programs')).catch(() => ({ docs: [] } as any))
       ]);
 
       setResources(resSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLinks(linksSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setExams(examsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+      const schoolsData = schoolsSnap.docs.map((d: any) => ({
+        id: d.id,
+        name: d.data().name || d.id,
+        programs: d.data().programs || []
+      }));
+      setSchoolsList(schoolsData);
+
+      const progsData = progsSnap.docs.map((d: any) => ({
+        id: d.id,
+        title: d.data().title || d.data().name || d.id,
+        name: d.data().name || d.data().title || d.id
+      }));
+      setProgramsList(progsData);
     } catch (err: any) {
       console.error('Error loading resources:', err);
       toast.error('Failed to load learning resources.');
@@ -116,6 +152,12 @@ const AdminResources: React.FC = () => {
         subject: resForm.subject || 'Computer Science & ICT',
         classLevel: resForm.classLevel || 'All Classes',
         assignedClasses: resForm.assignedClasses || ['All Classes'],
+        assignedSchoolId: resForm.assignedSchoolId || 'all',
+        schoolId: resForm.assignedSchoolId || 'all',
+        assignedSchoolName: resForm.assignedSchoolName || 'All Schools (Universal)',
+        assignedProgramId: resForm.assignedProgramId || 'all',
+        programId: resForm.assignedProgramId || 'all',
+        assignedProgramName: resForm.assignedProgramName || 'All Programmes (Universal)',
         description: resForm.description.trim(),
         fileUrl: resForm.fileUrl.trim(),
         timestamp: serverTimestamp()
@@ -127,6 +169,10 @@ const AdminResources: React.FC = () => {
         subject: 'Computer Science & ICT', 
         classLevel: 'All Classes', 
         assignedClasses: ['All Classes'], 
+        assignedSchoolId: 'all',
+        assignedSchoolName: 'All Schools (Universal)',
+        assignedProgramId: 'all',
+        assignedProgramName: 'All Programmes (Universal)',
         description: '', 
         fileUrl: '' 
       });
@@ -152,11 +198,26 @@ const AdminResources: React.FC = () => {
         title: linkForm.title.trim(),
         category: linkForm.category,
         url: linkForm.url.trim(),
+        assignedSchoolId: linkForm.assignedSchoolId || 'all',
+        schoolId: linkForm.assignedSchoolId || 'all',
+        assignedSchoolName: linkForm.assignedSchoolName || 'All Schools (Universal)',
+        assignedProgramId: linkForm.assignedProgramId || 'all',
+        programId: linkForm.assignedProgramId || 'all',
+        assignedProgramName: linkForm.assignedProgramName || 'All Programmes (Universal)',
         description: linkForm.description.trim(),
         timestamp: serverTimestamp()
       });
       toast.success(`Link "${linkForm.title}" posted successfully!`);
-      setLinkForm({ title: '', category: 'both', url: '', description: '' });
+      setLinkForm({ 
+        title: '', 
+        category: 'both', 
+        url: '', 
+        description: '',
+        assignedSchoolId: 'all',
+        assignedSchoolName: 'All Schools (Universal)',
+        assignedProgramId: 'all',
+        assignedProgramName: 'All Programmes (Universal)'
+      });
       setPreviewLinkUrl('');
       fetchData();
     } catch (err: any) {
@@ -180,11 +241,26 @@ const AdminResources: React.FC = () => {
         title: examForm.title.trim(),
         category: examForm.category,
         url: examForm.url.trim(),
+        assignedSchoolId: examForm.assignedSchoolId || 'all',
+        schoolId: examForm.assignedSchoolId || 'all',
+        assignedSchoolName: examForm.assignedSchoolName || 'All Schools (Universal)',
+        assignedProgramId: examForm.assignedProgramId || 'all',
+        programId: examForm.assignedProgramId || 'all',
+        assignedProgramName: examForm.assignedProgramName || 'All Programmes (Universal)',
         description: examForm.description.trim(),
         timestamp: serverTimestamp()
       });
       toast.success(`Exam/Assessment "${examForm.title}" posted successfully!`);
-      setExamForm({ title: '', category: 'both', url: '', description: '' });
+      setExamForm({ 
+        title: '', 
+        category: 'both', 
+        url: '', 
+        description: '',
+        assignedSchoolId: 'all',
+        assignedSchoolName: 'All Schools (Universal)',
+        assignedProgramId: 'all',
+        assignedProgramName: 'All Programmes (Universal)'
+      });
       fetchData();
     } catch (err: any) {
       console.error(err);
@@ -214,6 +290,12 @@ const AdminResources: React.FC = () => {
       const updates: any = {
         title: editingItem.title.trim(),
         category: editingItem.category,
+        assignedSchoolId: editingItem.assignedSchoolId || 'all',
+        schoolId: editingItem.assignedSchoolId || 'all',
+        assignedSchoolName: editingItem.assignedSchoolName || 'All Schools (Universal)',
+        assignedProgramId: editingItem.assignedProgramId || 'all',
+        programId: editingItem.assignedProgramId || 'all',
+        assignedProgramName: editingItem.assignedProgramName || 'All Programmes (Universal)',
         description: (editingItem.description || '').trim(),
         updatedAt: serverTimestamp()
       };
@@ -386,6 +468,7 @@ const AdminResources: React.FC = () => {
                 </select>
               </div>
 
+              {/* Target Class / Grade */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">
                   Target Class / Grade
@@ -419,6 +502,79 @@ const AdminResources: React.FC = () => {
                   <option value="Grade 5">Grade 5</option>
                   <option value="Grade 6">Grade 6</option>
                 </select>
+              </div>
+
+              {/* School & Program Scoping */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-black text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                  <School size={14} className="text-brand-red" />
+                  <span>Institutional &amp; Programme Scope</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Assign to School
+                    </label>
+                    <select
+                      value={resForm.assignedSchoolId}
+                      onChange={(e) => {
+                        const sch = schoolsList.find(s => s.id === e.target.value);
+                        setResForm({
+                          ...resForm,
+                          assignedSchoolId: e.target.value,
+                          assignedSchoolName: sch ? sch.name : 'All Schools (Universal)',
+                          assignedProgramId: 'all',
+                          assignedProgramName: 'All Programmes (Universal)'
+                        });
+                      }}
+                      className="w-full px-2.5 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    >
+                      <option value="all">All Schools (Universal)</option>
+                      {schoolsList.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Assign to Programme Track
+                    </label>
+                    <select
+                      value={resForm.assignedProgramId}
+                      onChange={(e) => {
+                        const selProgId = e.target.value;
+                        let pName = 'All Programmes (Universal)';
+                        if (selProgId !== 'all') {
+                          const selectedSch = schoolsList.find(s => s.id === resForm.assignedSchoolId);
+                          const pInSch = selectedSch?.programs?.find((p: any) => p.id === selProgId || p.name === selProgId);
+                          const pInGlobal = programsList.find(p => p.id === selProgId);
+                          pName = pInSch?.name || pInGlobal?.name || pInGlobal?.title || selProgId;
+                        }
+                        setResForm({
+                          ...resForm,
+                          assignedProgramId: selProgId,
+                          assignedProgramName: pName
+                        });
+                      }}
+                      className="w-full px-2.5 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    >
+                      <option value="all">All Programmes (Universal)</option>
+                      {resForm.assignedSchoolId !== 'all' && (
+                        schoolsList.find(s => s.id === resForm.assignedSchoolId)?.programs?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.name} (School Track)</option>
+                        ))
+                      )}
+                      {programsList.map(p => (
+                        <option key={p.id} value={p.id}>{p.name || p.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                  Only students enrolled under this selected programme track will be able to see and download this resource.
+                </p>
               </div>
 
               <div>
@@ -952,6 +1108,76 @@ const AdminResources: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Institutional & Program Scoping */}
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-gray-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-black text-gray-800 dark:text-gray-200 uppercase tracking-wider">
+                  <School size={14} className="text-brand-red" />
+                  <span>Institutional &amp; Programme Scope</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Assigned School
+                    </label>
+                    <select
+                      value={editingItem.assignedSchoolId || 'all'}
+                      onChange={(e) => {
+                        const sch = schoolsList.find(s => s.id === e.target.value);
+                        setEditingItem({
+                          ...editingItem,
+                          assignedSchoolId: e.target.value,
+                          assignedSchoolName: sch ? sch.name : 'All Schools (Universal)',
+                          assignedProgramId: 'all',
+                          assignedProgramName: 'All Programmes (Universal)'
+                        });
+                      }}
+                      className="w-full px-2.5 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    >
+                      <option value="all">All Schools (Universal)</option>
+                      {schoolsList.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1">
+                      Assigned Programme Track
+                    </label>
+                    <select
+                      value={editingItem.assignedProgramId || 'all'}
+                      onChange={(e) => {
+                        const selProgId = e.target.value;
+                        let pName = 'All Programmes (Universal)';
+                        if (selProgId !== 'all') {
+                          const selectedSch = schoolsList.find(s => s.id === editingItem.assignedSchoolId);
+                          const pInSch = selectedSch?.programs?.find((p: any) => p.id === selProgId || p.name === selProgId);
+                          const pInGlobal = programsList.find(p => p.id === selProgId);
+                          pName = pInSch?.name || pInGlobal?.name || pInGlobal?.title || selProgId;
+                        }
+                        setEditingItem({
+                          ...editingItem,
+                          assignedProgramId: selProgId,
+                          assignedProgramName: pName
+                        });
+                      }}
+                      className="w-full px-2.5 py-2 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    >
+                      <option value="all">All Programmes (Universal)</option>
+                      {editingItem.assignedSchoolId && editingItem.assignedSchoolId !== 'all' && (
+                        schoolsList.find(s => s.id === editingItem.assignedSchoolId)?.programs?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.name} (School Track)</option>
+                        ))
+                      )}
+                      {programsList.map(p => (
+                        <option key={p.id} value={p.id}>{p.name || p.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400 mb-1.5">

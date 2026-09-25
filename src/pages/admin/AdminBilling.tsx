@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  Activity, CheckCircle2, DollarSign, Edit3, Loader2, Save, 
-  ShieldCheck, TrendingUp, Users, Wallet, School, 
-  Send, CreditCard, RefreshCw, Check, ArrowLeft,
-  ArrowUpRight, ArrowDownLeft, Building2, Plus, Eye, EyeOff,
+  Activity, CheckCircle2, DollarSign, Loader2, Save, 
+  TrendingUp, Users, Wallet, School, 
+  Send, CreditCard, RefreshCw, ArrowLeft,
+  Building2, Plus, Eye, EyeOff,
   Search, ChevronRight, FileText, Download, Calendar, Layers,
-  Sliders, UserCheck, AlertCircle, Filter, ExternalLink
+  Sliders, UserCheck, AlertCircle, ExternalLink,
+  ChevronDown, ChevronUp, Settings, User, BookOpen
 } from 'lucide-react';
 import { billingGet, billingPost, dateLabel, formatNaira } from '../../lib/billing';
 import SEO from '../../components/ui/SEO';
@@ -17,8 +18,21 @@ import { FintechTransactionHistory } from '../../components/portal/FintechTransa
 import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawalModal';
 import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { TransferToTutorModal } from '../../components/portal/TransferToTutorModal';
-import { formatCurrency, formatReceiptDate, generatePdfReceipt } from '../../lib/receiptGenerator';
+import { ParentTuitionModal } from '../../components/portal/ParentTuitionModal';
+import type { UnifiedParentStudent } from '../../components/portal/ParentTuitionModal';
+import { TutorAllocationModal } from '../../components/portal/TutorAllocationModal';
+import { formatCurrency, generatePdfReceipt } from '../../lib/receiptGenerator';
 import type { TransactionReceiptData } from '../../lib/receiptGenerator';
+
+export interface ParentFamilyGroup {
+  id: string;
+  type: 'parent' | 'independent_student';
+  parentName: string;
+  parentEmail: string;
+  parentPhone?: string;
+  children: UnifiedParentStudent[];
+  totalBilled: number;
+}
 
 type Plan = Record<string, any> & { id: string };
 type Policy = { percentage: string; flat: string; cap: string; waiveFlatBelow?: string; enabled: boolean };
@@ -66,32 +80,44 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
   const [activeSchoolTab, setActiveSchoolTab] = useState<'config' | 'margin' | 'record_payment' | 'invoices'>('config');
   const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [schoolBillingConfig, setSchoolBillingConfig] = useState({
-    baseAmount: 300000,
+    baseAmount: 0,
     cycle: 'termly',
     mode: 'advance_termly',
     nextDueDate: '',
     allowedModes: ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'],
     discountPercent: 0,
-    notes: ''
+    notes: '',
+    status: 'ACTIVE'
   });
   const [offlinePaymentDraft, setOfflinePaymentDraft] = useState({
-    amount: '300000',
+    amount: '',
     reference: '',
     date: new Date().toISOString().slice(0, 10),
     payerName: '',
-    description: 'Termly Technology & Hardware & Electronics workspace Institutional Tuition',
+    description: 'Institutional Tuition Payment',
     notes: 'Direct Bank Settlement'
   });
 
-  // Parent filter state
+  // Parent filter & expand state
   const [parentSearch, setParentSearch] = useState('');
   const [parentStatusFilter, setParentStatusFilter] = useState('ALL');
+  const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({});
+  const toggleParentExpand = (id: string) => {
+    setExpandedParents(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   // Fintech Modals
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [withdrawMode, setWithdrawMode] = useState<'bank' | 'opay'>('bank');
   const [isAddMoneyModalOpen, setIsAddMoneyModalOpen] = useState(false);
   const [isTransferToTutorOpen, setIsTransferToTutorOpen] = useState(false);
+
+  // Parent & Tutor Modals
+  const [isParentModalOpen, setIsParentModalOpen] = useState(false);
+  const [selectedParentStudent, setSelectedParentStudent] = useState<UnifiedParentStudent | null>(null);
+  const [isTutorAllocModalOpen, setIsTutorAllocModalOpen] = useState(false);
+  const [defaultAllocTutorId, setDefaultAllocTutorId] = useState<string | undefined>(undefined);
+  const [defaultAllocSchoolId, setDefaultAllocSchoolId] = useState<string | undefined>(undefined);
 
   // Load all billing data with direct Firestore fallback and sync
   const load = useCallback(async () => {
@@ -101,16 +127,108 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       const billingResult = await billingGet<any>('billing-data').catch(() => null);
 
       // 2. Fetch directly from Firestore collections to ensure 100% test transfers and direct payments appear
-      const [schoolSnap, paymentsSnap, withdrawalsSnap, usersSnap, enrollSnap] = await Promise.all([
+      const [schoolSnap, paymentsSnap, withdrawalsSnap, usersSnap, enrollSnap, indivSnap, studSnap] = await Promise.all([
         getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'payments')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'walletWithdrawals')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'users')).catch(() => ({ docs: [] } as any)),
-        getDocs(collection(db, 'enrollment_requests')).catch(() => ({ docs: [] } as any))
+        getDocs(collection(db, 'enrollment_requests')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'students')).catch(() => ({ docs: [] } as any))
       ]);
 
-      const loadedSchools = schoolSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      const loadedSchools = schoolSnap.docs.map((d: any) => {
+        const item = d.data();
+        const fallbackName = item.name || item.schoolName || item.institutionName || (item.contactEmail ? item.contactEmail.split('@')[0] : '') || (item.email ? item.email.split('@')[0] : '') || item.schoolCode || 'Partner Institution';
+        return {
+          id: d.id,
+          ...item,
+          name: fallbackName,
+          code: item.code || item.schoolCode || d.id
+        };
+      });
       setSchools(loadedSchools);
+
+      // Build Unified Parents & Cadets List from enrollment_requests, individualStudents, and students
+      // Strictly ignore school-registered students (students with schoolId or studentType === 'school')
+      const parentCadetsMap = new Map<string, UnifiedParentStudent>();
+
+      // 1. From enrollment_requests
+      enrollSnap.docs.forEach((d: any) => {
+        const item = d.data();
+        if (item.schoolId || item.studentType === 'school') return;
+        parentCadetsMap.set(d.id, {
+          id: d.id,
+          source: 'enrollment_requests',
+          studentName: item.studentName || item.childName || 'Scholar',
+          parentName: item.parentName || item.guardianName || '',
+          parentEmail: item.parentEmail || item.email || '',
+          parentPhone: item.parentPhone || item.phone || '',
+          plan: item.plan || item.courseName || item.program || '',
+          amount: Number(item.amount || item.tuitionFee || 0),
+          cycle: item.cycle || 'monthly',
+          teachingMode: item.teachingMode || item.mode || 'Online 1-on-1',
+          tutorId: item.tutorId,
+          tutorName: item.tutorName,
+          tutorPayoutRate: Number(item.tutorPayoutRate || 0),
+          status: String(item.status || 'PENDING').toUpperCase(),
+          age: item.age,
+          grade: item.grade,
+          createdAt: item.createdAt?.toDate ? item.createdAt.toDate().toISOString() : (item.createdAt || new Date().toISOString())
+        });
+      });
+
+      // 2. From individualStudents
+      indivSnap.docs.forEach((d: any) => {
+        const item = d.data();
+        if (item.schoolId || item.studentType === 'school') return;
+        parentCadetsMap.set(d.id, {
+          id: d.id,
+          source: 'individualStudents',
+          studentName: item.fullName || item.studentName || item.username || 'Scholar',
+          parentName: item.parentName || item.guardianName || '',
+          parentEmail: item.parentEmail || item.email || '',
+          parentPhone: item.parentPhone || item.phone || '',
+          plan: item.track || item.plan || item.subjects || '',
+          amount: Number(item.amount || item.tuitionFee || 0),
+          cycle: item.cycle || 'monthly',
+          teachingMode: item.teachingMode || item.mode || 'Online 1-on-1',
+          tutorId: item.tutorId,
+          tutorName: item.tutorName,
+          tutorPayoutRate: Number(item.tutorPayoutRate || 0),
+          status: String(item.accountStatus || item.status || 'ACTIVE').toUpperCase(),
+          age: item.age,
+          grade: item.grade || item.class,
+          createdAt: item.createdAt?.toDate ? item.createdAt.toDate().toISOString() : (item.createdAt || new Date().toISOString())
+        });
+      });
+
+      // 3. From students collection (personal/parent)
+      studSnap.docs.forEach((d: any) => {
+        const item = d.data();
+        if (!parentCadetsMap.has(d.id) && item.studentType !== 'school' && !item.schoolId) {
+          parentCadetsMap.set(d.id, {
+            id: d.id,
+            source: 'students',
+            studentName: item.fullName || item.name || 'Scholar',
+            parentName: item.parentName || '',
+            parentEmail: item.parentEmail || item.email || '',
+            parentPhone: item.parentPhone || item.phone || '',
+            plan: item.track || item.plan || '',
+            amount: Number(item.amount || item.tuitionFee || 0),
+            cycle: item.cycle || 'monthly',
+            teachingMode: item.teachingMode || 'Online 1-on-1',
+            tutorId: item.tutorId,
+            tutorName: item.tutorName,
+            tutorPayoutRate: Number(item.tutorPayoutRate || 0),
+            status: String(item.accountStatus || item.status || 'ACTIVE').toUpperCase(),
+            grade: item.grade || item.class,
+            createdAt: item.createdAt?.toDate ? item.createdAt.toDate().toISOString() : (item.createdAt || new Date().toISOString())
+          });
+        }
+      });
+
+      const unifiedParentsList = Array.from(parentCadetsMap.values());
 
       // Merge Payments from Firestore and API
       const directPayments = paymentsSnap.docs.map((d: any) => {
@@ -195,7 +313,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           minimumWithdrawalAmount: 10000
         },
         payments: allMergedPayments,
-        enrollments: enrollSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })),
+        enrollments: unifiedParentsList,
         withdrawals: Array.from(withdrawalMap.values()),
         staff: staffList.length > 0 ? staffList : (billingResult?.staff || [])
       };
@@ -238,14 +356,30 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     });
   }, [withdrawals]);
 
-  // Total Gross Collections
-  const totalGross = useMemo(() => {
+  // Total Inflow Collections (Tuitions, School fees, Parent payments - excluding internal transfers)
+  const totalInflows = useMemo(() => {
     return paid.reduce((sum: number, p: any) => {
+      const isOutflow = p.type === 'transfer_to' || p.type === 'outflow' || p.category === 'transfer_to';
+      if (isOutflow) return sum;
       const raw = Number(p.customerTotal || p.amount || p.baseAmount || p.totalAmount || 0);
       const normalized = raw > 10000000 ? raw / 100 : raw; // Handle kobo format if stored as kobo
       return sum + normalized;
     }, 0);
   }, [paid]);
+
+  // Total Transfers to Faculty/Tutors
+  const totalTransfersToTutors = useMemo(() => {
+    return paid.reduce((sum: number, p: any) => {
+      const isTransfer = p.type === 'transfer_to' || p.category === 'transfer_to';
+      if (!isTransfer) return sum;
+      const raw = Number(p.amount || p.customerTotal || p.baseAmount || 0);
+      const normalized = raw > 10000000 ? raw / 100 : raw;
+      return sum + normalized;
+    }, 0);
+  }, [paid]);
+
+  // Total Gross Collections
+  const totalGross = totalInflows;
 
   // Paystack Gateway Fees
   const totalFees = useMemo(() => {
@@ -273,11 +407,11 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     return paidWithdrawals.reduce((sum: number, w: any) => sum + Number(w.netAmount || w.amount || 0), 0);
   }, [paidWithdrawals]);
 
-  // Live Calculated Dynamic Available Balance
+  // Live Calculated Dynamic Available Balance (Treasury Pool minus Withdrawals and Transfers to Tutors)
   const calculatedAvailableBalance = useMemo(() => {
-    const netPool = totalGross - totalDisbursed;
-    return netPool > 0 ? netPool : (totalGross > 0 ? totalGross : 2450000);
-  }, [totalGross, totalDisbursed]);
+    const netPool = totalInflows - totalDisbursed - totalTransfersToTutors;
+    return netPool >= 0 ? netPool : Math.max(0, 2450000 - totalDisbursed - totalTransfersToTutors);
+  }, [totalInflows, totalDisbursed, totalTransfersToTutors]);
 
   // Platform Net Retained Revenue
   const platformNet = useMemo(() => {
@@ -499,7 +633,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         ? school.billing.allowedModes 
         : ['advance_termly', 'advance_monthly', 'post_termly', 'post_monthly'],
       discountPercent: Number(school.billing?.discountPercent || 0),
-      notes: school.billing?.notes || ''
+      notes: school.billing?.notes || '',
+      status: school.billing?.status || 'ACTIVE'
     });
     setOfflinePaymentDraft({
       amount: String(school.billing?.baseAmount || 300000),
@@ -518,21 +653,49 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     setSaving('school-full');
     try {
       const schRef = doc(db, 'schools', selectedSchoolWorkspace.id);
+      const cleanBaseAmount = Number(String(schoolBillingConfig.baseAmount || 0).replace(/[^0-9.]/g, '')) || 0;
       const updatedBilling = {
         ...(selectedSchoolWorkspace.billing || {}),
-        baseAmount: Number(schoolBillingConfig.baseAmount),
+        baseAmount: cleanBaseAmount,
         cycle: schoolBillingConfig.cycle,
         mode: schoolBillingConfig.mode,
-        nextDueDate: schoolBillingConfig.nextDueDate,
+        nextDueDate: schoolBillingConfig.nextDueDate || '',
         allowedModes: schoolBillingConfig.allowedModes,
-        discountPercent: Number(schoolBillingConfig.discountPercent),
-        notes: schoolBillingConfig.notes,
+        discountPercent: Number(schoolBillingConfig.discountPercent || 0),
+        notes: schoolBillingConfig.notes || '',
+        status: schoolBillingConfig.status || 'ACTIVE',
         updatedAt: new Date().toISOString()
       };
-      await updateDoc(schRef, {
+      
+      // 1. Update schools document with merge
+      await setDoc(schRef, {
         billing: updatedBilling,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
+
+      // 2. Sync to school user document if linked
+      const adminUid = selectedSchoolWorkspace.adminUid || selectedSchoolWorkspace.firebaseUid;
+      if (adminUid) {
+        await setDoc(doc(db, 'users', adminUid), {
+          schoolId: selectedSchoolWorkspace.id,
+          billing: updatedBilling,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(err => console.warn('School user billing sync notice:', err));
+      }
+
+      // 3. Post to backend endpoint to keep function data synchronized
+      billingPost('billing-admin', {
+        action: 'set_school_billing',
+        schoolId: selectedSchoolWorkspace.id,
+        baseAmount: cleanBaseAmount,
+        cycle: schoolBillingConfig.cycle,
+        allowedModes: schoolBillingConfig.allowedModes,
+        mode: schoolBillingConfig.mode,
+        nextDueDate: schoolBillingConfig.nextDueDate || '',
+        status: schoolBillingConfig.status || 'ACTIVE',
+        notes: schoolBillingConfig.notes || ''
+      }).catch(pErr => console.debug('Background billing post notice:', pErr));
+
       toast.success(`Billing configuration updated for ${selectedSchoolWorkspace.name}.`);
       setSelectedSchoolWorkspace({
         ...selectedSchoolWorkspace,
@@ -633,10 +796,38 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     setSaving('school-quick');
     try {
       const schRef = doc(db, 'schools', editingSchoolBilling.id);
-      await updateDoc(schRef, {
-        billing: editingSchoolBilling.billing,
+      const cleanBaseAmount = Number(String(editingSchoolBilling.billing?.baseAmount || 0).replace(/[^0-9.]/g, '')) || 0;
+      const updatedBilling = {
+        ...(editingSchoolBilling.billing || {}),
+        baseAmount: cleanBaseAmount,
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(schRef, {
+        billing: updatedBilling,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
+
+      const adminUid = editingSchoolBilling.adminUid || editingSchoolBilling.firebaseUid;
+      if (adminUid) {
+        await setDoc(doc(db, 'users', adminUid), {
+          schoolId: editingSchoolBilling.id,
+          billing: updatedBilling,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch(err => console.warn('School user billing sync notice:', err));
+      }
+
+      billingPost('billing-admin', {
+        action: 'set_school_billing',
+        schoolId: editingSchoolBilling.id,
+        baseAmount: cleanBaseAmount,
+        cycle: updatedBilling.cycle || 'termly',
+        allowedModes: updatedBilling.allowedModes || ['advance_termly', 'advance_monthly'],
+        mode: updatedBilling.mode || 'advance_termly',
+        nextDueDate: updatedBilling.nextDueDate || '',
+        status: updatedBilling.status || 'ACTIVE',
+        notes: updatedBilling.notes || ''
+      }).catch(pErr => console.debug('Background billing post notice:', pErr));
+
       toast.success(`Billing settings for ${editingSchoolBilling.name} saved.`);
       setEditingSchoolBilling(null);
       await load();
@@ -894,6 +1085,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     // If a school is selected for full workspace management
     if (selectedSchoolWorkspace) {
       const sch = selectedSchoolWorkspace;
+      const schoolDisplayName = sch.name || sch.schoolName || sch.institutionName || sch.contactEmail?.split('@')[0] || sch.email?.split('@')[0] || 'Partner Institution';
+      const safeLower = schoolDisplayName.toLowerCase();
       const schoolPrograms = Array.isArray(sch.programs) ? sch.programs : [];
       
       // Calculate Faculty Payouts for this school's programs
@@ -914,13 +1107,13 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       // Filter payments specific to this school
       const schoolPayments = (data.payments || []).filter((p: any) => 
         p.schoolId === sch.id || 
-        String(p.description || '').toLowerCase().includes(sch.name.toLowerCase()) ||
-        String(p.payerName || '').toLowerCase().includes(sch.name.toLowerCase())
+        (p.description && String(p.description).toLowerCase().includes(safeLower)) ||
+        (p.payerName && String(p.payerName).toLowerCase().includes(safeLower))
       );
 
       return (
         <div className="space-y-6">
-          <SEO title={`Billing Workspace: ${sch.name} | Admin`} description="School custom billing, faculty margin allocations, and offline settlements." noindex={true} />
+          <SEO title={`Billing Workspace: ${schoolDisplayName} | Admin`} description="School custom billing, faculty margin allocations, and offline settlements." noindex={true} />
 
           {/* Top Bar: Back navigation & actions */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1549,7 +1742,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     });
 
     const totalSchoolInvoicedVolume = schools.reduce((acc: number, sch: any) => {
-      return acc + Number(sch.billing?.baseAmount || 300000);
+      return acc + Number(sch.billing?.baseAmount || 0);
     }, 0);
 
     return (
@@ -1613,19 +1806,19 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
               <span>Verified Billing Contracts</span>
             </div>
             <div className="text-2xl font-black font-mono text-purple-600 dark:text-purple-400 mt-2">
-              {schools.filter((s: any) => s.billing?.baseAmount).length}
+              {schools.filter((s: any) => Number(s.billing?.baseAmount) > 0).length}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">Schools with custom fee profile</p>
           </div>
         </div>
 
-        {/* Schools Table & Workspace Hub */}
+        {/* Schools List & Workspace Hub */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white">Partner School Custom Billing Management</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Click on any school to configure custom school fees, manage billing frequencies, record bank settlements, and inspect faculty margins.
+                Manage partner school custom fees, termly billing schedules, faculty margin allocations, and direct bank settlements.
               </p>
             </div>
 
@@ -1654,57 +1847,69 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {filteredSchools.map(sch => {
-                  const progCount = sch.programs?.length || 0;
-                  const baseFee = sch.billing?.baseAmount || 300000;
-                  const cycle = sch.billing?.cycle || 'termly';
-                  const mode = sch.billing?.mode || 'advance_termly';
-                  const nextDueDate = sch.billing?.nextDueDate;
+                {filteredSchools.length > 0 ? (
+                  filteredSchools.map(sch => {
+                    const progCount = sch.programs?.length || 0;
+                    const baseFee = Number(sch.billing?.baseAmount || 0);
+                    const cycle = sch.billing?.cycle || 'termly';
+                    const mode = sch.billing?.mode || 'advance_termly';
+                    const nextDueDate = sch.billing?.nextDueDate;
 
-                  return (
-                    <tr key={sch.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3.5 px-3">
-                        <div className="font-bold text-slate-900 dark:text-white">{sch.name}</div>
-                        <div className="text-[11px] text-slate-400">{sch.contactEmail || sch.email} {sch.code ? `• ${sch.code}` : ''}</div>
-                      </td>
-                      <td className="py-3.5 px-3">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-50 text-sky-600 dark:bg-sky-950/40">
-                          {progCount} Tracks
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3 font-mono font-black text-slate-900 dark:text-white">
-                        {formatNaira(baseFee)}
-                      </td>
-                      <td className="py-3.5 px-3 capitalize text-slate-600 dark:text-slate-400">
-                        {cycle} • {mode.replace('_', ' ')}
-                      </td>
-                      <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 font-mono">
-                        {nextDueDate ? new Date(nextDueDate).toLocaleDateString('en-NG') : '—'}
-                      </td>
-                      <td className="py-3.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openSchoolWorkspace(sch)}
-                            className="min-h-8 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs"
-                          >
-                            <Sliders size={13} />
-                            <span>Manage Billing &amp; Fees</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={saving === `reminder-${sch.id}`}
-                            onClick={() => void sendSchoolReminder(sch)}
-                            className="min-h-8 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-[11px] font-black inline-flex items-center gap-1"
-                          >
-                            {saving === `reminder-${sch.id}` ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />}
-                            <span>Send Notice</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={sch.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="py-3.5 px-3">
+                          <div className="font-bold text-slate-900 dark:text-white">{sch.name}</div>
+                          <div className="text-[11px] text-slate-400">{sch.contactEmail || sch.email} {sch.code ? `• ${sch.code}` : ''}</div>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-50 text-sky-600 dark:bg-sky-950/40">
+                            {progCount} Tracks
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3 font-mono font-black text-slate-900 dark:text-white">
+                          {baseFee > 0 ? (
+                            formatNaira(baseFee)
+                          ) : (
+                            <span className="text-slate-400 font-medium italic">Not Configured (₦0)</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-3 capitalize text-slate-600 dark:text-slate-400">
+                          {cycle} • {mode.replace('_', ' ')}
+                        </td>
+                        <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400 font-mono">
+                          {nextDueDate ? new Date(nextDueDate).toLocaleDateString('en-NG') : '—'}
+                        </td>
+                        <td className="py-3.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openSchoolWorkspace(sch)}
+                              className="min-h-8 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-bold inline-flex items-center gap-1.5 shadow-xs transition-colors"
+                            >
+                              <Settings size={13} />
+                              <span>Manage Billing &amp; Fees</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={saving === `reminder-${sch.id}`}
+                              onClick={() => void sendSchoolReminder(sch)}
+                              className="min-h-8 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-[11px] font-black inline-flex items-center gap-1 transition-colors"
+                            >
+                              {saving === `reminder-${sch.id}` ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />}
+                              <span>Send Notice</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="p-10 text-center text-slate-400">
+                      No partner schools found matching the search.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1715,12 +1920,14 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
   // SUB-VIEW: Tutor Allocations & Disbursals Page
   if (activeView === 'tutors') {
+    const tutorsList = data.staff || [];
+
     return (
       <div className="space-y-6">
         <SEO title="Tutor Allocations & Wallet Disbursals | Admin" description="Assign invoices to faculty and manage teaching credits." noindex={true} />
         
-        {/* Back Navigation */}
-        <div className="flex items-center justify-between">
+        {/* Back Navigation & Action Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setActiveView('hub')}
@@ -1730,15 +1937,155 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
             <span>Back to Financial Operations</span>
           </button>
           
-          <button
-            type="button"
-            onClick={() => setIsTransferToTutorOpen(true)}
-            className="min-h-9 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
-          >
-            <Send size={14} /> Transfer to Tutor Wallet
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDefaultAllocTutorId(undefined);
+                setDefaultAllocSchoolId(undefined);
+                setIsTutorAllocModalOpen(true);
+              }}
+              className="min-h-9 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-black dark:hover:bg-slate-700 text-white font-black text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
+            >
+              <School size={14} /> Allocate Tutor to Partner School &amp; Fee
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsTransferToTutorOpen(true)}
+              className="min-h-9 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
+            >
+              <Send size={14} /> Transfer to Tutor Wallet
+            </button>
+          </div>
         </div>
 
+        {/* Faculty Tutors & School Allocation Matrix */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Users size={20} className="text-sky-500" />
+                <span>Faculty Tutors &amp; Institutional Allocations</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Assign faculty mentors to specific partner schools, manage customized teaching stipends, and credit their wallets.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400">
+              {tutorsList.length} Active Instructors
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-[850px] w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
+                  <th className="p-3.5 text-left">Faculty Instructor</th>
+                  <th className="p-3.5 text-left">Role / Designation</th>
+                  <th className="p-3.5 text-left">Allocated Schools &amp; Tracks</th>
+                  <th className="p-3.5 text-left">Status</th>
+                  <th className="p-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {tutorsList.length ? (
+                  tutorsList.map((tutor: any) => {
+                    // Find all school programs where this tutor is assigned
+                    const assignedPrograms: Array<{ schoolName: string; programName: string; payoutRate: number; payoutType: string }> = [];
+                    schools.forEach(sch => {
+                      if (Array.isArray(sch.programs)) {
+                        sch.programs.forEach((prog: any) => {
+                          if (prog.tutorId === tutor.id) {
+                            assignedPrograms.push({
+                              schoolName: sch.name,
+                              programName: prog.name,
+                              payoutRate: Number(prog.tutorPayoutRate || 0),
+                              payoutType: prog.payoutType || 'per_term'
+                            });
+                          } else if (Array.isArray(prog.tutorAssignments)) {
+                            prog.tutorAssignments.forEach((ta: any) => {
+                              if (ta.tutorId === tutor.id) {
+                                assignedPrograms.push({
+                                  schoolName: sch.name,
+                                  programName: ta.programName || prog.name,
+                                  payoutRate: Number(ta.payoutRate || 0),
+                                  payoutType: ta.payoutType || 'per_term'
+                                });
+                              }
+                            });
+                          }
+                        });
+                      }
+                    });
+
+                    return (
+                      <tr key={tutor.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="p-3.5">
+                          <div className="font-bold text-slate-900 dark:text-white">{tutor.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{tutor.email}</div>
+                        </td>
+                        <td className="p-3.5 capitalize font-semibold text-slate-600 dark:text-slate-300">
+                          {tutor.role || 'Faculty Tutor'}
+                        </td>
+                        <td className="p-3.5">
+                          {assignedPrograms.length > 0 ? (
+                            <div className="space-y-1">
+                              {assignedPrograms.map((ap, i) => (
+                                <div key={i} className="flex items-center gap-1.5 text-[11px]">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{ap.schoolName}:</span>
+                                  <span className="text-slate-500">{ap.programName}</span>
+                                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                    ({formatCurrency(ap.payoutRate)})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No schools assigned yet</span>
+                          )}
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
+                            {tutor.accountStatus || 'ACTIVE'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDefaultAllocTutorId(tutor.id);
+                                setIsTutorAllocModalOpen(true);
+                              }}
+                              className="min-h-8 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 text-[11px] font-bold inline-flex items-center gap-1 border border-sky-200 dark:border-sky-800"
+                            >
+                              <School size={12} />
+                              <span>Allocate School &amp; Fee</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsTransferToTutorOpen(true)}
+                              className="min-h-8 px-3 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-[11px] font-black inline-flex items-center gap-1"
+                            >
+                              <Send size={12} />
+                              <span>Send Funds</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-slate-400">No active faculty instructors registered.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Invoice Allocation Ledger */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
           <div>
             <h2 className="text-xl font-black text-slate-900 dark:text-white">Tutor Allocation by Invoice</h2>
@@ -1789,7 +2136,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                             onChange={e => void assignTutor(p, e.target.value)} 
                             className="min-h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs font-semibold text-slate-900 dark:text-white"
                           >
-                            <option value="">Assign & Credit Tutor</option>
+                            <option value="">Assign &amp; Credit Tutor</option>
                             {(data.staff || []).map((s: any) => (
                               <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
@@ -1916,7 +2263,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
   // SUB-VIEW: Parent Enrollment & Tuition Billing Page
   if (activeView === 'parents') {
-    const parentEnrollments = data.enrollments || [];
+    const parentEnrollments: UnifiedParentStudent[] = data.enrollments || [];
     const pendingCount = parentEnrollments.filter((e: any) => String(e.status || '').toLowerCase() === 'pending').length;
     const approvedCount = parentEnrollments.filter((e: any) => String(e.status || '').toLowerCase() === 'approved').length;
     
@@ -1924,18 +2271,62 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     const parentPaymentsList = paid.filter((p: any) => !p.schoolId);
     const totalParentTuition = parentPaymentsList.reduce((acc: number, p: any) => acc + Number(p.customerTotal || p.amount || 0), 0);
 
-    const filteredEnrollments = parentEnrollments.filter((e: any) => {
+    // Group enrollments strictly by parent family account and independent self-registered scholars
+    const parentGroups: ParentFamilyGroup[] = [];
+    const groupsMap = new Map<string, ParentFamilyGroup>();
+
+    parentEnrollments.forEach((student: UnifiedParentStudent) => {
+      const pEmail = (student.parentEmail || '').trim().toLowerCase();
+      const pName = (student.parentName || '').trim();
+      const parentKey = pEmail || pName.toLowerCase();
+      const isParentAccount = Boolean(pEmail || (pName && pName.toLowerCase() !== 'scholar' && pName.toLowerCase() !== 'student'));
+
+      if (isParentAccount && parentKey) {
+        if (!groupsMap.has(parentKey)) {
+          const group: ParentFamilyGroup = {
+            id: `parent-${parentKey}`,
+            type: 'parent',
+            parentName: pName || (pEmail ? pEmail.split('@')[0] : 'Parent Family Account'),
+            parentEmail: student.parentEmail || '',
+            parentPhone: student.parentPhone || '',
+            children: [],
+            totalBilled: 0
+          };
+          groupsMap.set(parentKey, group);
+          parentGroups.push(group);
+        }
+        const grp = groupsMap.get(parentKey)!;
+        grp.children.push(student);
+        grp.totalBilled += Number(student.amount || 0);
+        if (!grp.parentPhone && student.parentPhone) grp.parentPhone = student.parentPhone;
+        if ((!grp.parentName || grp.parentName === 'Parent') && pName) grp.parentName = pName;
+      } else {
+        // Self-registered individual scholar
+        parentGroups.push({
+          id: `indiv-${student.id}`,
+          type: 'independent_student',
+          parentName: student.studentName || 'Self-Registered Scholar',
+          parentEmail: student.parentEmail || '',
+          parentPhone: student.parentPhone || '',
+          children: [student],
+          totalBilled: Number(student.amount || 0)
+        });
+      }
+    });
+
+    const filteredParentGroups = parentGroups.filter(g => {
       const q = parentSearch.toLowerCase().trim();
-      const matchesQuery = !q || 
-        (e.studentName && e.studentName.toLowerCase().includes(q)) ||
-        (e.parentName && e.parentName.toLowerCase().includes(q)) ||
-        (e.parentEmail && e.parentEmail.toLowerCase().includes(q)) ||
-        (e.plan && e.plan.toLowerCase().includes(q)) ||
-        (e.phone && e.phone.includes(q));
-      
-      const st = String(e.status || 'pending').toUpperCase();
-      const matchesStatus = parentStatusFilter === 'ALL' || st === parentStatusFilter;
-      return matchesQuery && matchesStatus;
+      const matchesQuery = !q ||
+        g.parentName.toLowerCase().includes(q) ||
+        g.parentEmail.toLowerCase().includes(q) ||
+        (g.parentPhone && g.parentPhone.includes(q)) ||
+        g.children.some(c => 
+          (c.studentName && c.studentName.toLowerCase().includes(q)) ||
+          (c.plan && c.plan.toLowerCase().includes(q))
+        );
+      if (!matchesQuery) return false;
+      if (parentStatusFilter === 'ALL') return true;
+      return g.children.some(c => String(c.status || '').toUpperCase() === parentStatusFilter);
     });
 
     return (
@@ -1970,12 +2361,12 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
             <div className="flex items-center gap-2 text-slate-400 text-xs font-bold uppercase">
               <Users size={16} className="text-brand-red" />
-              <span>Total Enrollments</span>
+              <span>Parent Accounts</span>
             </div>
             <div className="text-2xl font-black font-mono text-slate-900 dark:text-white mt-2">
-              {parentEnrollments.length}
+              {parentGroups.length}
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Active family &amp; cadet requests</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Active family &amp; scholar records</p>
           </div>
 
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -1986,7 +2377,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
             <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400 mt-2">
               {pendingCount}
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Awaiting tutor or batch dispatch</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Awaiting plan configuration or tutor</p>
           </div>
 
           <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -2017,10 +2408,10 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                Parent Enrollments &amp; Tuition Ledger
+                Parent Enrollment &amp; Tuition Billing
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Review child enrollments, tuition receipts, teaching modes, and faculty instructor allocations.
+                Manage parent family accounts, inspect registered children, assign dynamic program plans, and set custom tuition rates.
               </p>
             </div>
 
@@ -2032,7 +2423,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                   type="text"
                   value={parentSearch}
                   onChange={(e) => setParentSearch(e.target.value)}
-                  placeholder="Search student, parent, email..."
+                  placeholder="Search parent name, email, child..."
                   className="w-full pl-9 pr-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -2054,70 +2445,203 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
             <table className="min-w-[850px] w-full text-xs">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 uppercase font-black text-[10px]">
-                  <th className="p-3.5 text-left">Date</th>
-                  <th className="p-3.5 text-left">Cadet / Child</th>
-                  <th className="p-3.5 text-left">Parent Contact</th>
-                  <th className="p-3.5 text-left">Plan &amp; Mode</th>
-                  <th className="p-3.5 text-left">Tuition / Fee</th>
-                  <th className="p-3.5 text-left">Status</th>
-                  <th className="p-3.5 text-right">Action</th>
+                  <th className="p-3.5 text-left">Parent / Scholar Account</th>
+                  <th className="p-3.5 text-left">Contact Info</th>
+                  <th className="p-3.5 text-left">Enrolled Children</th>
+                  <th className="p-3.5 text-left">Total Configured Tuition</th>
+                  <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {filteredEnrollments.length ? (
-                  filteredEnrollments.map((enr: any) => {
-                    const st = String(enr.status || 'pending').toUpperCase();
-                    const isApproved = st === 'APPROVED' || st === 'PAID';
+                {filteredParentGroups.length ? (
+                  filteredParentGroups.map((group) => {
+                    const isExpanded = Boolean(expandedParents[group.id]);
+                    const isSelfRegistered = group.type === 'independent_student';
+
                     return (
-                      <tr key={enr.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="p-3.5 text-slate-500 font-mono whitespace-nowrap">
-                          {dateLabel(enr.createdAt || enr.date || new Date().toISOString())}
-                        </td>
-                        <td className="p-3.5 font-bold text-slate-900 dark:text-white">
-                          <div>{enr.studentName || enr.childName || 'Scholar'}</div>
-                          <div className="text-[10px] text-slate-400 font-normal">{enr.age ? `${enr.age} yrs` : ''} {enr.grade ? `• Grade ${enr.grade}` : ''}</div>
-                        </td>
-                        <td className="p-3.5 text-slate-600 dark:text-slate-300">
-                          <div>{enr.parentName || enr.guardianName || 'Parent'}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{enr.parentEmail || enr.email || enr.phone}</div>
-                        </td>
-                        <td className="p-3.5">
-                          <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                            {enr.plan || enr.courseName || enr.program || 'Standard Technology Track'}
-                          </span>
-                          <span className="text-[10px] text-slate-400 capitalize">
-                            {enr.teachingMode || enr.mode || 'Online 1-on-1'}
-                          </span>
-                        </td>
-                        <td className="p-3.5 font-mono font-bold text-slate-900 dark:text-white">
-                          {money(enr.amount || enr.tuitionFee || 45000)}
-                        </td>
-                        <td className="p-3.5">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1 ${
-                            isApproved 
-                              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                              : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
-                          }`}>
-                            {isApproved ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-                            {st}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <Link
-                            to="/admin/approvals"
-                            className="min-h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-bold inline-flex items-center gap-1"
-                          >
-                            <span>Manage in Approvals</span>
-                            <ExternalLink size={12} />
-                          </Link>
-                        </td>
-                      </tr>
+                      <React.Fragment key={group.id}>
+                        <tr 
+                          onClick={() => toggleParentExpand(group.id)}
+                          className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/40 cursor-pointer transition-colors ${
+                            isExpanded ? 'bg-slate-50/50 dark:bg-slate-800/30' : ''
+                          }`}
+                        >
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-950/50 text-brand-red flex items-center justify-center font-bold text-xs shrink-0">
+                                {isSelfRegistered ? <User size={14} /> : <Users size={14} />}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <span>{group.parentName}</span>
+                                  {isSelfRegistered ? (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300">
+                                      Independent Scholar
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-300">
+                                      Family Account
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-3.5 text-slate-600 dark:text-slate-300">
+                            <div className="font-mono text-[11px]">{group.parentEmail || 'No email provided'}</div>
+                            {group.parentPhone && (
+                              <div className="text-[10px] text-slate-400">{group.parentPhone}</div>
+                            )}
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {group.children.length} {group.children.length === 1 ? 'Child' : 'Children'}
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 font-mono font-black text-slate-900 dark:text-white">
+                            {group.totalBilled > 0 ? (
+                              formatNaira(group.totalBilled)
+                            ) : (
+                              <span className="text-slate-400 font-medium italic">Unset (₦0)</span>
+                            )}
+                          </td>
+
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleParentExpand(group.id);
+                                }}
+                                className="min-h-8 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold inline-flex items-center gap-1.5 transition-colors"
+                              >
+                                <span>{isExpanded ? 'Hide Details' : 'View Children & Fees'}</span>
+                                {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expandable Children & Plans Drawer */}
+                        {isExpanded && (
+                          <tr className="bg-slate-50/80 dark:bg-slate-950/50 border-b border-slate-200 dark:border-slate-800">
+                            <td colSpan={5} className="p-4 sm:p-5">
+                              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 space-y-4 shadow-inner">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                                  <div className="flex items-center gap-2">
+                                    <BookOpen size={16} className="text-brand-red" />
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                      Registered Children &amp; Program Plans for {group.parentName}
+                                    </h4>
+                                  </div>
+                                  <span className="text-[11px] text-slate-400">
+                                    Select a child below to set custom tuition fees, curriculum track, and assign a tutor.
+                                  </span>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {group.children.map((child) => {
+                                    const st = String(child.status || 'pending').toUpperCase();
+                                    const isApproved = st === 'APPROVED' || st === 'PAID';
+                                    const childFee = Number(child.amount || 0);
+
+                                    return (
+                                      <div
+                                        key={child.id}
+                                        className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                                      >
+                                        <div className="space-y-1 min-w-[200px]">
+                                          <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                                            <span>{child.studentName}</span>
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase inline-flex items-center gap-1 ${
+                                              isApproved 
+                                                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                                : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+                                            }`}>
+                                              {isApproved ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
+                                              {st}
+                                            </span>
+                                          </div>
+                                          <div className="text-[11px] text-slate-500">
+                                            {child.age ? `Age: ${child.age}` : 'Age not provided'} {child.grade ? `• Grade/Class: ${child.grade}` : ''}
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-0.5 min-w-[180px]">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase">Assigned Program</span>
+                                          <div>
+                                            {child.plan ? (
+                                              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 inline-block">
+                                                {child.plan}
+                                              </span>
+                                            ) : (
+                                              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 inline-block">
+                                                No Current Plan
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-slate-400 capitalize">
+                                            {child.teachingMode || 'Online 1-on-1'} • {child.cycle || 'Monthly'}
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-0.5 min-w-[140px]">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase">Configured Fee</span>
+                                          <div className="font-mono font-black text-sm text-slate-900 dark:text-white">
+                                            {childFee > 0 ? (
+                                              formatNaira(childFee)
+                                            ) : (
+                                              <span className="text-slate-400 font-normal italic text-xs">Fee Not Set (₦0)</span>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-slate-400">
+                                            Faculty: <strong className="text-slate-600 dark:text-slate-300">{child.tutorName || 'Unassigned'}</strong>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedParentStudent(child);
+                                              setIsParentModalOpen(true);
+                                            }}
+                                            className="min-h-8 px-3.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-[11px] font-bold inline-flex items-center gap-1.5 shadow-xs transition-colors"
+                                          >
+                                            <Sliders size={12} />
+                                            <span>Set Plan &amp; Billing</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setDefaultAllocTutorId(child.tutorId);
+                                              setIsTutorAllocModalOpen(true);
+                                            }}
+                                            className="min-h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                                          >
+                                            <UserCheck size={12} />
+                                            <span>Allocate Tutor</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="p-10 text-center text-slate-400">
-                      No parent enrollments found matching the filter.
+                    <td colSpan={5} className="p-10 text-center text-slate-400">
+                      No parent records or independent scholars found matching the filter.
                     </td>
                   </tr>
                 )}
@@ -2183,34 +2707,34 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         </div>
 
         {/* Card Center: Dynamic Balance & Main Action Buttons */}
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="text-3xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight text-white drop-shadow-xs">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="min-w-0">
+            <div className="text-2xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight text-white drop-shadow-xs break-words">
               {showBalance ? formatCurrency(calculatedAvailableBalance) : '₦••••••••'}
             </div>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Live Escrow Reconciled • {paid.length} verified invoices
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-1 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <span>Live Escrow Reconciled • {paid.length} verified invoices</span>
             </p>
           </div>
 
           {/* Action Buttons: Add Money, Transfer to Tutor, Bank Settlement */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <button
               type="button"
               onClick={() => setIsAddMoneyModalOpen(true)}
-              className="min-h-11 px-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-black transition-all flex items-center gap-2 shadow-lg shadow-sky-600/25 hover:scale-[1.02] active:scale-[0.98]"
+              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-sky-600/25 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Plus size={15} strokeWidth={2.5} />
+              <Plus size={14} strokeWidth={2.5} />
               <span>Direct Deposit</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsTransferToTutorOpen(true)}
-              className="min-h-11 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-black transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-300 hover:text-white border border-sky-500/30 text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Send size={15} />
+              <Send size={14} />
               <span>Transfer to Tutor</span>
             </button>
 
@@ -2220,16 +2744,16 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                 setWithdrawMode('bank');
                 setIsWithdrawModalOpen(true);
               }}
-              className="min-h-11 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-black transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+              className="min-h-9 sm:min-h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-[11px] sm:text-xs font-black transition-all flex items-center gap-1.5 sm:gap-2 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <Building2 size={15} />
+              <Building2 size={14} />
               <span>Bank Settlement</span>
             </button>
           </div>
         </div>
 
         {/* Card Bottom: The 5 Integrated Platform Metric Cards */}
-        <div className="relative z-10 pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="relative z-10 pt-4 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           {/* Metric 1: Gross Collections */}
           <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:border-slate-700 transition-colors">
             <div className="flex items-center gap-2 text-slate-400 text-[11px] font-semibold">
@@ -2464,6 +2988,33 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
         </div>
       </div>
+
+      {/* Parent Tuition & Program Schedule Modal */}
+      <ParentTuitionModal
+        isOpen={isParentModalOpen}
+        onClose={() => {
+          setIsParentModalOpen(false);
+          setSelectedParentStudent(null);
+        }}
+        student={selectedParentStudent}
+        tutors={data.staff || []}
+        onSaved={load}
+      />
+
+      {/* Tutor School & Program Allocation Modal */}
+      <TutorAllocationModal
+        isOpen={isTutorAllocModalOpen}
+        onClose={() => {
+          setIsTutorAllocModalOpen(false);
+          setDefaultAllocTutorId(undefined);
+          setDefaultAllocSchoolId(undefined);
+        }}
+        tutors={data.staff || []}
+        schools={schools}
+        onSaved={load}
+        defaultTutorId={defaultAllocTutorId}
+        defaultSchoolId={defaultAllocSchoolId}
+      />
 
       {/* Transfer to Tutor Wallet Modal */}
       <TransferToTutorModal

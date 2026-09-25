@@ -21,6 +21,7 @@ const AdminProgramForm: React.FC = () => {
     slug: '',
     categoryId: '',
     image: '',
+    bannerUrl: '',
     shortDescription: '',
     longDescription: '',
     status: 'DRAFT',
@@ -29,6 +30,11 @@ const AdminProgramForm: React.FC = () => {
     deliveryFormat: 'ONLINE',
     targetAudience: '',
     curriculum: [] as string[],
+    hasEdclub: false,
+    hasResources: true,
+    hasAssessments: true,
+    hasLiveClasses: true,
+    isGeneralProgram: false,
   });
 
   useEffect(() => {
@@ -245,6 +251,106 @@ const AdminProgramForm: React.FC = () => {
               placeholder="Module 1: Introduction to Programming\nModule 2: Variables & Data Types\nModule 3: Practical Project"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">These topics are displayed in the learner course portal. Leave empty only when the program has no published syllabus yet.</p>
+          </div>
+
+          {/* Program Features & Access Control */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">
+              Program Modules & Feature Access Control
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Control which tools, portals, and materials are unlocked for students enrolled in this program. If a feature is disabled, it will be grayed out in their portal.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {/* EdClub Toggle */}
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-900/60 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-indigo-950 dark:text-indigo-200">
+                    ⌨️ Assign EdClub to Program
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="hasEdclub"
+                      checked={formData.hasEdclub}
+                      onChange={handleChange}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                  When enabled, all students under this program can access the Typing Masters Academy & EdClub workspace. If disabled, the EdClub card will be locked.
+                </p>
+              </div>
+
+              {/* General School Program Toggle */}
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-amber-950 dark:text-amber-200">
+                    🎓 General School Curriculum
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="isGeneralProgram"
+                      checked={formData.isGeneralProgram}
+                      onChange={handleChange}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                  If checked, all learners in a partner school offering this program will automatically inherit it by default unless assigned a specialized track.
+                </p>
+              </div>
+
+              {/* Resources Toggle */}
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-900 dark:text-white">
+                    📚 Learning Resources & Library
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="hasResources"
+                      checked={formData.hasResources}
+                      onChange={handleChange}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-red"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                  Enables access to curriculum downloads, study guides, and worksheets assigned to this program track.
+                </p>
+              </div>
+
+              {/* Assessments / Exams Toggle */}
+              <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-900 dark:text-white">
+                    📝 Examination & Assessment Center
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      name="hasAssessments"
+                      checked={formData.hasAssessments}
+                      onChange={handleChange}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-10 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                  Enables online tests, logic quizzes, and invigilated exams assigned to this program track.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-8 py-4 border-t border-gray-100">
