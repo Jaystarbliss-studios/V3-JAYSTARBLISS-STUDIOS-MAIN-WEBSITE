@@ -161,14 +161,21 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
     return values.some(value => {
       if (!value || ['all classes', 'all', 'general', 'universal'].includes(value)) return true;
       if (value === target) return true;
-      // Treat only deliberate class ranges/aliases as matches; avoid Year 1 matching Year 10.
-      const targetNumber = target.match(/(?:year|primary|grade|jss|sss)\s*(\d+)/)?.[1];
-      const valueNumber = value.match(/(?:year|primary|grade|jss|sss)\s*(\d+)/)?.[1];
-      if (targetNumber && valueNumber && targetNumber === valueNumber) {
-        const targetPrefix = target.match(/^(year|primary|grade|jss|sss)/)?.[1];
-        const valuePrefix = value.match(/^(year|primary|grade|jss|sss)/)?.[1];
-        return targetPrefix === valuePrefix;
+
+      const targetMatch = target.match(/^(year|primary|grade|jss|sss)\s*(\d+)$/);
+      const valueMatch = value.match(/^(year|primary|grade|jss|sss)\s*(\d+)$/);
+      if (targetMatch && valueMatch && targetMatch[1] === valueMatch[1] && targetMatch[2] === valueMatch[2]) return true;
+
+      // A resource may be assigned to a deliberate class range such as "Year 1 - Year 5".
+      // Match a selected class only when it falls inside the same named range.
+      const rangeMatch = value.match(/^(year|primary|grade|jss|sss)\s*(\d+)\s*-\s*(year|primary|grade|jss|sss)\s*(\d+)$/);
+      if (targetMatch && rangeMatch && rangeMatch[1] === rangeMatch[3] && targetMatch[1] === rangeMatch[1]) {
+        const targetNumber = Number(targetMatch[2]);
+        const startNumber = Number(rangeMatch[2]);
+        const endNumber = Number(rangeMatch[4]);
+        return targetNumber >= Math.min(startNumber, endNumber) && targetNumber <= Math.max(startNumber, endNumber);
       }
+
       return false;
     });
   };
