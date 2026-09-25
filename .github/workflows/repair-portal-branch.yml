@@ -1,0 +1,97 @@
+name: Portal hardening and verification
+
+on:
+  push:
+    branches: [fix/parent-billing-schedule-auth-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/parent-billing-schedule-auth-hardening
+          fetch-depth: 0
+
+      - name: Apply safe portal hardening patches
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+
+          def patch(path, transforms):
+              p = root / path
+              if not p.exists():
+                  print(f'SKIP missing {path}')
+                  return False
+              text = p.read_text(encoding='utf-8')
+              original = text
+              for label, fn in transforms:
+                  before = text
+                  text = fn(text)
+                  if text != before:
+                      print(f'  {path}: {label}')
+              if text != original:
+                  p.write_text(text, encoding='utf-8')
+                  return True
+              return False
+
+          changed = False
+
+          # 1) Never ship demo/static schools or fake student identity fallbacks.
+          changed |= patch('src/pages/admin/AdminStudents.tsx', [
+              ('remove STATIC_SCHOOLS', lambda s: re.sub(r"\nconst STATIC_SCHOOLS = \[[\s\S]*?\];\n", "\n", s, count=1)),
+              ('dynamic school state', lambda s: s.replace("useState<{ id: string; name: string }[]>(STATIC_SCHOOLS)", "useState<{ id: string; name: string }[]>([])")),
+              ('remove static school seeding', lambda s: s.replace("      const schoolMap = new Map<string, string>();\n      STATIC_SCHOOLS.forEach(s => schoolMap.set(s.id, s.name));\n      const loadedSchools = [...STATIC_SCHOOLS];", "      const schoolMap = new Map<string, string>();\n      const loadedSchools: { id: string; name: string }[] = [];")),
+              ('neutral student fallback', lambda s: s.replace("'Student Cadet'", "'Student'")),
+              ('neutral username fallback', lambda s: s.replace('`cadet_${id.slice(-4)}`', '`student_${id.slice(-4)}`')),
+              ('no fake default track', lambda s: s.replace("data.track || data.learningTrack || data.program || data.course || 'Technology & Coding'", "data.track || data.learningTrack || data.program || data.course || ''")),
+              ('no fake default subjects', lambda s: s.replace("(data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics')", "(data.subjects || data.track || data.course || '')")),
+          ])
+
+          # 2) Withdrawal is bank-only in the new UX. Do not pass an obsolete Opay mode.
+          for path in root.glob('src/**/*.tsx'):
+              changed |= patch(str(path), [
+                  ('bank-only withdrawal mode', lambda s: s.replace('initialMode={withdrawMode}', 'initialMode="bank"')),
+              ])
+
+          # 3) Keep date filter types consistent with the actual viewer options.
+          changed |= patch('src/utils/resourceTracking.ts', [
+              ('complete DateFilterType', lambda s: re.sub(r"export type DateFilterType = [^;]+;", "export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';", s, count=1)),
+          ])
+
+          # 4) Make resource filtering deterministic: 'recent' and 'oldest' are sort modes,
+          # while date-window filters remain predicates. This helper is consumed by existing UI code.
+          helper = root / 'src/utils/resourceDateFilters.ts'
+          helper.write_text("""export type ResourceDateSort = 'recent' | 'oldest';\n\nexport function resourceDateMs(value: any): number {\n  if (!value) return 0;\n  if (typeof value === 'number') return value;\n  if (typeof value === 'string') { const n = Date.parse(value); return Number.isFinite(n) ? n : 0; }\n  if (value?.toDate instanceof Function) return value.toDate().getTime();\n  if (typeof value?.seconds === 'number') return value.seconds * 1000;\n  if (value instanceof Date) return value.getTime();\n  return 0;\n}\n\nexport function sortResourcesByDate<T extends Record<string, any>>(items: T[], mode: ResourceDateSort): T[] {\n  return [...items].sort((a, b) => {\n    const delta = resourceDateMs(b.createdAt ?? b.updatedAt ?? b.timestamp ?? b.date) - resourceDateMs(a.createdAt ?? a.updatedAt ?? a.timestamp ?? a.date);\n    return mode === 'oldest' ? -delta : delta;\n  });\n}\n""", encoding='utf-8')
+          changed = True
+
+          if changed:
+              print('Portal hardening patches applied.')
+          else:
+              print('No source changes were necessary.')
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript and production build verification
+        run: npm run build
+
+      - name: Commit verified repairs
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src .github/workflows/repair-portal-branch.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: harden portal data and withdrawal flow"
+          git push origin HEAD:fix/parent-billing-schedule-auth-hardening
