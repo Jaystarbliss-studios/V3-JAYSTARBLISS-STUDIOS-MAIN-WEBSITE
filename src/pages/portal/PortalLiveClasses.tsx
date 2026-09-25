@@ -111,7 +111,7 @@ const PortalLiveClasses: React.FC = () => {
           if (sch.tutorId === staffUid || sch.assignedTutorId === staffUid || sch.assignedStaffId === staffUid) return true;
           if (Array.isArray(sch.assignedTutors) && sch.assignedTutors.includes(staffUid)) return true;
           if (Array.isArray(sch.tutors) && sch.tutors.some((t: any) => t.id === staffUid || t.email === currentUser?.email)) return true;
-          return true;
+          return false;
         });
         setAssignedSchools(mySchools);
 
