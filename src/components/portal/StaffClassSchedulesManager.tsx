@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -10,31 +10,37 @@ import {
   RotateCcw, 
   Plus, 
   ChevronRight, 
+  ChevronDown,
   Search, 
   Filter, 
   Radio, 
   Video, 
-  PlayCircle,
-  FileText
+  ExternalLink,
+  BookOpen,
+  UserCheck
 } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
-import { collection, doc, getDocs, setDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, doc, getDocs, updateDoc, writeBatch, serverTimestamp, query, where } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 interface ScheduleOccurrence {
   id: string;
   scheduleGroupId?: string;
-  targetType?: 'SCHOOL' | 'STUDENT';
+  targetType?: 'SCHOOL' | 'STUDENT' | 'school' | 'student' | 'parent' | 'individual';
   schoolId?: string;
   schoolName?: string;
   studentId?: string;
   studentName?: string;
   parentId?: string;
+  programId?: string;
+  programName?: string;
   classLevel?: string;
   classLevels?: string[];
   title: string;
   tutorId?: string;
   tutorName?: string;
+  meetingLink?: string;
   date: string;
   startDate?: string;
   startTime: string;
@@ -47,8 +53,32 @@ interface ScheduleOccurrence {
   rescheduledEndTime?: string;
   cancellationReason?: string;
   recurring?: boolean;
-  occurrenceNumber?: number;
+  occurrenceIndex?: number;
   occurrenceTotal?: number;
+}
+
+interface GroupedSession {
+  sessionKey: string;
+  scheduleGroupId?: string;
+  date: string;
+  formattedDate: string;
+  dayName: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  programName: string;
+  programId?: string;
+  targetType?: string;
+  schoolName?: string;
+  studentName?: string;
+  tutorName?: string;
+  meetingLink?: string;
+  overallStatus: string;
+  classRangeBadge: string;
+  classLevels: string[];
+  occurrences: ScheduleOccurrence[];
+  isLiveNow: boolean;
+  isAutoCompleted: boolean;
 }
 
 interface StaffClassSchedulesManagerProps {
@@ -65,10 +95,16 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
   assignedStudents = []
 }) => {
   const { toast } = useToast();
+  const effective = getEffectiveAuth();
+  const canUpdateStatus = ['admin', 'tutor', 'staff', 'superadmin'].includes(effective.effectiveRole.toLowerCase());
+
   const [schedules, setSchedules] = useState<ScheduleOccurrence[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'recurring' | 'upcoming' | 'rescheduled'>('upcoming');
+  const [viewTab, setViewTab] = useState<'UPCOMING' | 'HISTORY'>('UPCOMING');
   const [filterTarget, setFilterTarget] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedSessionKeys, setExpandedSessionKeys] = useState<Record<string, boolean>>({});
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Status Action Modal State
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleOccurrence | null>(null);
@@ -79,239 +115,325 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
   const [rescheduleEndTime, setRescheduleEndTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New Schedule Creation Modal
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createTargetType, setCreateTargetType] = useState<'SCHOOL' | 'STUDENT'>('SCHOOL');
-  const [createSchoolId, setCreateSchoolId] = useState('');
-  const [createStudentId, setCreateStudentId] = useState('');
-  const [createClassLevel, setCreateClassLevel] = useState('JSS 1');
-  const [createTitle, setCreateTitle] = useState('');
-  const [createStartDate, setCreateStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [createStartTime, setCreateStartTime] = useState('10:00');
-  const [createEndTime, setCreateEndTime] = useState('11:30');
-  const [createWeeks, setCreateWeeks] = useState(12);
-  const [createRecurring, setCreateRecurring] = useState(true);
-
-  const fetchSchedules = async () => {
+  const fetchSchedules = React.useCallback(async () => {
     setLoading(true);
     try {
       const user = auth.currentUser;
-      const currentUid = tutorId || user?.uid;
+      const currentUid = tutorId || effective.effectiveUid || user?.uid;
       const token = user ? await user.getIdToken() : '';
 
-      const res = await fetch('/.netlify/functions/class-schedules', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      let loadedList: ScheduleOccurrence[] = [];
+      try {
+        const res = await fetch('/.netlify/functions/class-schedules', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.schedules) && data.schedules.length > 0) {
+            loadedList = data.schedules;
+          }
+        }
+      } catch {
+        // Fallback to Firestore
+      }
+
+      if (loadedList.length === 0) {
+        const snap = await getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any));
+        loadedList = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as ScheduleOccurrence));
+      }
+
+      // Filter by tutor identity if faculty tutor
+      const currentName = tutorName || effective.effectiveName || user?.displayName;
+      const filtered = loadedList.filter(s => {
+        if (!currentUid) return true;
+        if (s.tutorId === currentUid) return true;
+        if (currentName && s.tutorName && s.tutorName.toLowerCase() === currentName.toLowerCase()) return true;
+        return true; // Keep visible in staff workspace
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSchedules(data.schedules || []);
-      } else {
-        // Fallback to direct Firestore collection
-        const snap = await getDocs(collection(db, 'classSchedules'));
-        const directList = snap.docs.map(d => ({ id: d.id, ...d.data() } as ScheduleOccurrence));
-        const filtered = directList.filter(s => {
-          if (!currentUid) return true;
-          return s.tutorId === currentUid || s.tutorName === tutorName;
-        });
-        setSchedules(filtered);
-      }
+      setSchedules(filtered);
     } catch (err) {
       console.warn('Error fetching class schedules:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [tutorId, tutorName, effective.effectiveUid, effective.effectiveName]);
 
   useEffect(() => {
     fetchSchedules();
-  }, [tutorId]);
+  }, [fetchSchedules]);
 
-  const handleUpdateStatus = async (e: React.FormEvent) => {
+  const toggleExpand = (key: string) => {
+    setExpandedSessionKeys(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Direct status update handler
+  const handleUpdateOccurrenceStatus = async (occurrenceIds: string[], newStatus: string) => {
+    if (!canUpdateStatus) {
+      toast.error('Only assigned tutors and administrators can update class status.');
+      return;
+    }
+    setUpdatingId(occurrenceIds[0]);
+    try {
+      const batch = writeBatch(db);
+      occurrenceIds.forEach(id => {
+        batch.update(doc(db, 'classSchedules', id), {
+          status: newStatus,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+      toast.success(`Session status updated to ${newStatus}.`);
+      await fetchSchedules();
+    } catch (e: any) {
+      console.error('Update status error:', e);
+      toast.error(e.message || 'Failed to update status.');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Detailed status modal submission (for absence, reschedule reason)
+  const handleSubmitDetailedAction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSchedule || !actionType) return;
     setIsSubmitting(true);
     try {
-      const user = auth.currentUser;
-      const token = user ? await user.getIdToken() : '';
-
-      const payload: any = {
-        scheduleId: selectedSchedule.id,
+      const updateData: any = {
         status: actionType,
-        reason: statusReason
+        updatedAt: serverTimestamp()
       };
-
-      if (actionType === 'ABSENT') {
-        payload.absenceReason = statusReason || 'Tutor / Scholar marked absent';
-      } else if (actionType === 'RESCHEDULED') {
-        payload.rescheduleReason = statusReason || 'Class rescheduled';
-        payload.rescheduledDate = rescheduleDate;
-        payload.rescheduledStartTime = rescheduleStartTime;
-        payload.rescheduledEndTime = rescheduleEndTime;
-      } else if (actionType === 'CANCELLED') {
-        payload.cancellationReason = statusReason || 'Class cancelled';
+      if (actionType === 'ABSENT') updateData.absenceReason = statusReason || 'Marked Absent';
+      if (actionType === 'RESCHEDULED') {
+        updateData.rescheduleReason = statusReason || 'Class Rescheduled';
+        updateData.rescheduledDate = rescheduleDate;
+        updateData.rescheduledStartTime = rescheduleStartTime;
+        updateData.rescheduledEndTime = rescheduleEndTime;
       }
+      if (actionType === 'CANCELLED') updateData.cancellationReason = statusReason || 'Class Cancelled';
 
-      const res = await fetch('/.netlify/functions/class-schedules', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        toast.success(`Class status updated to ${actionType}.`);
-      } else {
-        // Direct Firestore fallback
-        const updateData: any = {
-          status: actionType,
-          updatedAt: serverTimestamp()
-        };
-        if (actionType === 'ABSENT') updateData.absenceReason = statusReason;
-        if (actionType === 'RESCHEDULED') {
-          updateData.rescheduleReason = statusReason;
-          updateData.rescheduledDate = rescheduleDate;
-          updateData.rescheduledStartTime = rescheduleStartTime;
-          updateData.rescheduledEndTime = rescheduleEndTime;
-        }
-        if (actionType === 'CANCELLED') updateData.cancellationReason = statusReason;
-
-        await updateDoc(doc(db, 'classSchedules', selectedSchedule.id), updateData);
-        toast.success(`Class status recorded.`);
-      }
-
+      await updateDoc(doc(db, 'classSchedules', selectedSchedule.id), updateData);
+      toast.success(`Session status marked as ${actionType}.`);
       setSelectedSchedule(null);
       setActionType(null);
       setStatusReason('');
       await fetchSchedules();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update class schedule.');
+      toast.error(err.message || 'Failed to record action.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleCreateSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      const user = auth.currentUser;
-      const token = user ? await user.getIdToken() : '';
-      const currentUid = tutorId || user?.uid;
-      const currentName = tutorName || user?.displayName || 'Faculty Tutor';
+  // Group occurrences on each date into unified sessions with range badge & expandable list
+  const groupedDaySessions = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      let targetSchoolName = '';
-      if (createTargetType === 'SCHOOL') {
-        const found = assignedSchools.find(s => s.id === createSchoolId);
-        targetSchoolName = found?.name || 'Assigned School';
+    // 1. Filter raw occurrences
+    const filteredRaw = schedules.filter(item => {
+      if (filterTarget !== 'ALL') {
+        if (item.schoolId !== filterTarget && item.studentId !== filterTarget) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = item.title?.toLowerCase().includes(q);
+        const matchProg = item.programName?.toLowerCase().includes(q);
+        const matchTutor = item.tutorName?.toLowerCase().includes(q);
+        const matchSchool = item.schoolName?.toLowerCase().includes(q);
+        const matchStudent = item.studentName?.toLowerCase().includes(q);
+        const matchClass = item.classLevel?.toLowerCase().includes(q) || (item.classLevels || []).some(c => c.toLowerCase().includes(q));
+        if (!matchTitle && !matchProg && !matchTutor && !matchSchool && !matchStudent && !matchClass) return false;
+      }
+      return true;
+    });
+
+    // 2. Group items on each date
+    const sessionMap = new Map<string, GroupedSession>();
+
+    filteredRaw.forEach(item => {
+      const itemDate = item.date || todayStr;
+      const startTime = item.startTime || '09:00';
+      const endTime = item.endTime || '10:00';
+      const programName = item.programName || item.title || 'Curriculum Session';
+
+      const groupKey = `${itemDate}_${item.scheduleGroupId || `${programName}_${startTime}_${endTime}_${item.schoolName || ''}`}`;
+
+      if (!sessionMap.has(groupKey)) {
+        let formattedDate = itemDate;
+        let dayName = '';
+        try {
+          const d = new Date(itemDate + 'T00:00:00');
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
+            dayName = d.toLocaleDateString('en-NG', { weekday: 'long' });
+          }
+        } catch {
+          // fallback
+        }
+
+        sessionMap.set(groupKey, {
+          sessionKey: groupKey,
+          scheduleGroupId: item.scheduleGroupId,
+          date: itemDate,
+          formattedDate,
+          dayName,
+          startTime,
+          endTime,
+          title: item.title || programName,
+          programName,
+          programId: item.programId,
+          targetType: item.targetType,
+          schoolName: item.schoolName,
+          studentName: item.studentName,
+          tutorName: item.tutorName,
+          meetingLink: item.meetingLink,
+          overallStatus: item.status || 'SCHEDULED',
+          classRangeBadge: item.classLevel || 'All Classes',
+          classLevels: [],
+          occurrences: [],
+          isLiveNow: false,
+          isAutoCompleted: false
+        });
       }
 
-      let targetStudentName = '';
-      if (createTargetType === 'STUDENT') {
-        const found = assignedStudents.find(s => s.id === createStudentId);
-        targetStudentName = found?.fullName || found?.studentName || 'Private Student';
+      const session = sessionMap.get(groupKey)!;
+      session.occurrences.push(item);
+
+      if (item.classLevel && !session.classLevels.includes(item.classLevel)) {
+        session.classLevels.push(item.classLevel);
+      }
+      if (Array.isArray(item.classLevels)) {
+        item.classLevels.forEach(lvl => {
+          if (lvl && !session.classLevels.includes(lvl)) {
+            session.classLevels.push(lvl);
+          }
+        });
+      }
+    });
+
+    // 3. Post-process sessions to compute accurate class range badge, live state, and auto-completion
+    const sessionsList = Array.from(sessionMap.values()).map(sess => {
+      sess.classLevels.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      if (sess.classLevels.length > 1) {
+        const first = sess.classLevels[0];
+        const last = sess.classLevels[sess.classLevels.length - 1];
+        if (sess.classLevels.length >= 3 && first.startsWith('Year') && last.startsWith('Year')) {
+          sess.classRangeBadge = `${first} – ${last} (${sess.classLevels.length} Classes)`;
+        } else if (sess.classLevels.length >= 3 && first.startsWith('JSS') && last.startsWith('JSS')) {
+          sess.classRangeBadge = `${first} – ${last} (${sess.classLevels.length} Classes)`;
+        } else {
+          sess.classRangeBadge = `${sess.classLevels.join(', ')} (${sess.classLevels.length} Classes)`;
+        }
+      } else if (sess.classLevels.length === 1) {
+        sess.classRangeBadge = sess.classLevels[0];
       }
 
-      const payload = {
-        targetType: createTargetType,
-        schoolId: createTargetType === 'SCHOOL' ? createSchoolId : undefined,
-        schoolName: createTargetType === 'SCHOOL' ? targetSchoolName : undefined,
-        classLevels: createTargetType === 'SCHOOL' ? [createClassLevel] : undefined,
-        studentId: createTargetType === 'STUDENT' ? createStudentId : undefined,
-        studentName: createTargetType === 'STUDENT' ? targetStudentName : undefined,
-        title: createTitle.trim(),
-        tutorId: currentUid,
-        tutorName: currentName,
-        startDate: createStartDate,
-        startTime: createStartTime,
-        endTime: createEndTime,
-        recurring: createRecurring,
-        weeks: createWeeks
-      };
+      // Live & auto-completion check
+      const isToday = sess.date === todayStr;
+      const isPastDate = sess.date < todayStr;
+      const isPastTimeToday = isToday && sess.endTime < currentTimeStr;
+      const isCurrentTimeSlot = isToday && sess.startTime <= currentTimeStr && currentTimeStr <= sess.endTime;
 
-      const res = await fetch('/.netlify/functions/class-schedules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(payload)
-      });
+      const hasExplicitOngoing = sess.occurrences.some(o => o.status === 'ONGOING');
+      const allExplicitCompleted = sess.occurrences.every(o => o.status === 'COMPLETED' || o.status === 'ATTENDED');
+      const anyAbsent = sess.occurrences.some(o => o.status === 'ABSENT');
+      const anyRescheduled = sess.occurrences.some(o => o.status === 'RESCHEDULED');
+      const anyCancelled = sess.occurrences.some(o => o.status === 'CANCELLED');
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Failed to create schedule.');
+      if (hasExplicitOngoing || (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled)) {
+        sess.overallStatus = 'ONGOING';
+        sess.isLiveNow = true;
+      } else if (allExplicitCompleted || isPastDate || isPastTimeToday) {
+        sess.overallStatus = anyAbsent ? 'ABSENT' : anyRescheduled ? 'RESCHEDULED' : anyCancelled ? 'CANCELLED' : 'COMPLETED';
+        sess.isAutoCompleted = isPastDate || isPastTimeToday;
+      } else {
+        sess.overallStatus = sess.occurrences[0]?.status || 'SCHEDULED';
       }
 
-      toast.success('New class schedule setup successfully created.');
-      setIsCreateModalOpen(false);
-      setCreateTitle('');
-      await fetchSchedules();
-    } catch (err: any) {
-      toast.error(err.message || 'Schedule creation failed.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      return sess;
+    });
 
-  const filteredSchedules = schedules.filter(s => {
-    if (filterTarget !== 'ALL') {
-      if (s.schoolId !== filterTarget && s.studentId !== filterTarget) return false;
-    }
-    if (activeTab === 'rescheduled') {
-      return s.status === 'RESCHEDULED';
-    }
-    if (activeTab === 'recurring') {
-      return s.recurring !== false;
-    }
-    return true;
-  });
+    // 4. Tab filtering: Upcoming vs History
+    const filteredByTab = sessionsList.filter(sess => {
+      const isDone = sess.overallStatus === 'COMPLETED' || sess.overallStatus === 'ATTENDED';
+      const isPast = sess.date < todayStr && sess.overallStatus !== 'ONGOING';
 
-  const getStatusBadge = (status: ScheduleOccurrence['status'], _schedule?: ScheduleOccurrence) => {
+      if (viewTab === 'UPCOMING') {
+        if (sess.overallStatus === 'ONGOING') return true;
+        if (isDone || isPast) return false;
+        return true;
+      } else {
+        if (sess.overallStatus === 'ONGOING') return false;
+        return isDone || isPast || sess.overallStatus === 'CANCELLED' || sess.overallStatus === 'ABSENT';
+      }
+    });
+
+    filteredByTab.sort((a, b) => {
+      const dateA = `${a.date}T${a.startTime}`;
+      const dateB = `${b.date}T${b.startTime}`;
+      return viewTab === 'UPCOMING' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+    });
+
+    // 5. Group by Date Header
+    const dateGroups: Array<{ date: string; formattedDate: string; dayName: string; sessions: GroupedSession[] }> = [];
+
+    filteredByTab.forEach(sess => {
+      let group = dateGroups.find(g => g.date === sess.date);
+      if (!group) {
+        group = {
+          date: sess.date,
+          formattedDate: sess.formattedDate,
+          dayName: sess.dayName,
+          sessions: []
+        };
+        dateGroups.push(group);
+      }
+      group.sessions.push(sess);
+    });
+
+    return dateGroups;
+  }, [schedules, filterTarget, searchQuery, viewTab]);
+
+  const renderStatusBadge = (status: string, isAutoCompleted = false) => {
     switch (status) {
       case 'ONGOING':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase animate-pulse">
-            <Radio size={12} className="animate-spin text-emerald-400" />
-            Class In Session
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500 text-white shadow-xs animate-pulse">
+            <Radio size={12} className="animate-spin" /> Live In Session
           </span>
         );
       case 'COMPLETED':
       case 'ATTENDED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px] font-black uppercase">
-            <CheckCircle2 size={12} />
-            Completed
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+            <CheckCircle2 size={11} /> {isAutoCompleted ? 'Completed (Ended)' : 'Completed'}
           </span>
         );
       case 'ABSENT':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black uppercase">
-            <XCircle size={12} />
-            Absent
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+            <XCircle size={11} /> Absent
           </span>
         );
       case 'RESCHEDULED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-black uppercase">
-            <RotateCcw size={12} />
-            Rescheduled
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+            <RotateCcw size={11} /> Rescheduled
           </span>
         );
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-black uppercase">
-            <AlertCircle size={12} />
-            Cancelled
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+            <AlertCircle size={11} /> Cancelled
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-black uppercase">
-            <Clock size={12} />
-            Scheduled
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+            <Clock size={11} /> Scheduled
           </span>
         );
     }
@@ -319,77 +441,59 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
 
   return (
     <div className="space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header & Controls Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-indigo-500" />
+            <Calendar className="w-5 h-5 text-brand-red" />
             <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-              Scheduled Classes & Teaching Rosters
+              Teaching Timetable & Class Schedules
             </h3>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Monitor ongoing sessions, log attendance, reschedule classes, and manage school/student time-slots.
+            Combined daily list of school programmes and private learner sessions. Tutors can update attendance statuses and session progress.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-all shadow-md shadow-indigo-600/20"
-        >
-          <Plus size={15} />
-          <span>Set Class Schedule</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Upcoming vs History Switcher */}
+          <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+            <button
+              type="button"
+              onClick={() => setViewTab('UPCOMING')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                viewTab === 'UPCOMING'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Upcoming ({schedules.filter(s => s.status !== 'COMPLETED' && s.status !== 'ATTENDED').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab('HISTORY')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                viewTab === 'HISTORY'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Session History
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Navigation tabs & filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+      {/* Filter and Search Row */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('upcoming')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'upcoming'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            All Scheduled Occurrences
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('recurring')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'recurring'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            Recurring Schedules
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('rescheduled')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-              activeTab === 'rescheduled'
-                ? 'bg-indigo-600 text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            Rescheduled Classes
-          </button>
-        </div>
-
-        {/* Filter Dropdown */}
-        <div className="flex items-center gap-2">
-          <Filter size={13} className="text-slate-400" />
+          <Filter size={14} className="text-slate-400" />
           <select
             value={filterTarget}
             onChange={e => setFilterTarget(e.target.value)}
-            className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+            className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-brand-red"
           >
-            <option value="ALL">All Schools & Students</option>
+            <option value="ALL">All Schools & Learners</option>
             {assignedSchools.map(sch => (
               <option key={sch.id} value={sch.id}>🏫 {sch.name || sch.schoolName}</option>
             ))}
@@ -398,407 +502,316 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
             ))}
           </select>
         </div>
+
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by topic, school, class..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+          />
+        </div>
       </div>
 
-      {/* Schedule list */}
+      {/* Grouped Chronological Schedule List */}
       {loading ? (
-        <div className="text-center py-12 text-xs text-slate-500">
+        <div className="text-center py-14 text-xs text-slate-500">
           Loading assigned class schedules...
         </div>
-      ) : filteredSchedules.length === 0 ? (
-        <div className="text-center py-12 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 p-6">
-          <Calendar className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-700 mb-2" />
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No scheduled classes found</p>
-          <p className="text-xs text-slate-500 mt-1">
-            {activeTab === 'rescheduled'
-              ? 'No classes have been marked as rescheduled.'
-              : 'Create a new recurring schedule or contact your administrator.'}
+      ) : groupedDaySessions.length === 0 ? (
+        <div className="text-center py-16 px-4 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+          <Calendar size={32} className="mx-auto text-slate-300 dark:text-slate-600" />
+          <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300">
+            {viewTab === 'UPCOMING' ? 'No upcoming class sessions found' : 'No past schedule history recorded'}
+          </h4>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            {filterTarget === 'ALL'
+              ? 'No timetable occurrences currently assigned to your faculty profile.'
+              : 'No sessions found for the selected institution or student filter.'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredSchedules.map(item => (
-            <div
-              key={item.id}
-              className={`p-4 rounded-3xl border transition-all flex flex-col justify-between space-y-4 ${
-                item.status === 'ONGOING'
-                  ? 'border-emerald-500/60 bg-emerald-500/5 shadow-md shadow-emerald-500/10'
-                  : item.status === 'RESCHEDULED'
-                  ? 'border-amber-500/40 bg-amber-500/5'
-                  : item.status === 'ABSENT'
-                  ? 'border-rose-500/30 bg-rose-500/5'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs'
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    {item.targetType === 'STUDENT' ? (
-                      <span className="flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">
-                        <User size={13} /> Private Scholar
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 font-semibold text-sky-600 dark:text-sky-400">
-                        <School size={13} /> {item.schoolName || 'School'}
-                      </span>
-                    )}
-                  </div>
-                  {getStatusBadge(item.status, item)}
+        <div className="space-y-6">
+          {groupedDaySessions.map(group => (
+            <div key={group.date} className="space-y-3">
+              {/* Date Header Badge */}
+              <div className="flex items-center gap-3">
+                <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-black tracking-tight inline-flex items-center gap-2 shadow-xs">
+                  <Calendar size={14} className="text-brand-red" />
+                  <span>{group.dayName ? `${group.dayName}, ` : ''}{group.formattedDate}</span>
                 </div>
-
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
-                  {item.title}
-                </h4>
-
-                <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={13} className="text-slate-400 shrink-0" />
-                    <span>{item.date}</span>
-                    {item.occurrenceNumber && item.occurrenceTotal && (
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        (Session {item.occurrenceNumber}/{item.occurrenceTotal})
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock size={13} className="text-slate-400 shrink-0" />
-                    <span>{item.startTime} - {item.endTime}</span>
-                  </div>
-                  {item.classLevel && (
-                    <div className="text-[11px] text-slate-500 font-medium">
-                      Class: <span className="font-bold text-slate-800 dark:text-slate-200">{item.classLevel}</span>
-                    </div>
-                  )}
-                  {item.studentName && (
-                    <div className="text-[11px] text-slate-500 font-medium">
-                      Student: <span className="font-bold text-slate-800 dark:text-slate-200">{item.studentName}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Reschedule Reason Box */}
-                {item.status === 'RESCHEDULED' && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
-                    <p className="font-bold flex items-center gap-1">
-                      <RotateCcw size={12} /> Rescheduled Reason:
-                    </p>
-                    <p className="text-[11px]">{item.rescheduleReason || 'Rescheduled'}</p>
-                    {item.rescheduledDate && (
-                      <p className="text-[10px] font-mono font-bold pt-1">
-                        New Time: {item.rescheduledDate} @ {item.rescheduledStartTime} - {item.rescheduledEndTime}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Absent Reason Box */}
-                {item.status === 'ABSENT' && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300">
-                    <p className="font-bold flex items-center gap-1">
-                      <XCircle size={12} /> Absence Reason:
-                    </p>
-                    <p className="text-[11px] mt-0.5">{item.absenceReason || 'Marked Absent'}</p>
-                  </div>
-                )}
+                <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
               </div>
 
-              {/* Action Buttons for Tutor */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSchedule(item);
-                    setActionType('ONGOING');
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold transition-colors"
-                >
-                  Start / Ongoing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSchedule(item);
-                    setActionType('COMPLETED');
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/40 text-sky-700 dark:text-sky-400 text-[11px] font-bold transition-colors"
-                >
-                  Completed
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSchedule(item);
-                    setActionType('RESCHEDULED');
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[11px] font-bold transition-colors"
-                >
-                  Reschedule
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSchedule(item);
-                    setActionType('ABSENT');
-                  }}
-                  className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 text-[11px] font-bold transition-colors"
-                >
-                  Absent
-                </button>
+              {/* Day's Consolidated Sessions List */}
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/40">
+                {group.sessions.map(session => {
+                  const isExpanded = Boolean(expandedSessionKeys[session.sessionKey]);
+                  const hasMultipleClasses = session.classLevels.length > 1;
+
+                  return (
+                    <div 
+                      key={session.sessionKey} 
+                      className={`p-4 transition-colors ${
+                        session.overallStatus === 'ONGOING' 
+                          ? 'bg-emerald-50/30 dark:bg-emerald-950/20' 
+                          : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/30'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        {/* Time & Class Range & Programme Details */}
+                        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                          {/* Time Block */}
+                          <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-xs font-bold shrink-0 text-center min-w-[110px]">
+                            <span className="block text-[10px] uppercase text-slate-400 font-sans">TIME</span>
+                            {session.startTime} – {session.endTime}
+                          </div>
+
+                          <div className="min-w-0">
+                            {/* Range Badge, Target Badge, Status Badge */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase bg-red-50 dark:bg-red-950/40 text-brand-red border border-red-100 dark:border-red-900/30">
+                                {session.classRangeBadge}
+                              </span>
+
+                              {session.schoolName && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-900/30 flex items-center gap-1">
+                                  <School size={11} /> {session.schoolName}
+                                </span>
+                              )}
+
+                              {session.studentName && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-100 dark:border-purple-900/30 flex items-center gap-1">
+                                  <User size={11} /> {session.studentName}
+                                </span>
+                              )}
+
+                              {renderStatusBadge(session.overallStatus, session.isAutoCompleted)}
+                            </div>
+
+                            {/* Title / Programme Name */}
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white mt-1.5 tracking-tight">
+                              {session.title}
+                            </h4>
+
+                            {/* Additional metadata row */}
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-slate-600 dark:text-slate-300">
+                              {session.tutorName && (
+                                <span className="inline-flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300 text-[11px]">
+                                  <UserCheck size={12} className="text-emerald-500" /> Tutor: {session.tutorName}
+                                </span>
+                              )}
+
+                              {session.meetingLink && (
+                                <a
+                                  href={session.meetingLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sky-600 font-bold hover:underline inline-flex items-center gap-1 text-[11px]"
+                                >
+                                  <ExternalLink size={12} /> Live Room
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions: Expand Range Button & Status Controller */}
+                        <div className="flex items-center gap-2.5 self-end lg:self-center shrink-0">
+                          {hasMultipleClasses && (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpand(session.sessionKey)}
+                              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs cursor-pointer"
+                            >
+                              <span>{isExpanded ? 'Hide Cohort Breakdown' : `Expand Range (${session.classLevels.length})`}</span>
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                          )}
+
+                          {canUpdateStatus && (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                disabled={Boolean(updatingId)}
+                                value={session.overallStatus}
+                                onChange={e => handleUpdateOccurrenceStatus(session.occurrences.map(o => o.id), e.target.value)}
+                                className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                              >
+                                <option value="SCHEDULED">Scheduled</option>
+                                <option value="ONGOING">Live Now</option>
+                                <option value="COMPLETED">Completed</option>
+                                <option value="ABSENT">Mark Absent</option>
+                                <option value="RESCHEDULED">Rescheduled</option>
+                                <option value="CANCELLED">Cancelled</option>
+                              </select>
+
+                              {session.occurrences[0] && (
+                                <button
+                                  type="button"
+                                  title="Log absence or reschedule reason"
+                                  onClick={() => {
+                                    setSelectedSchedule(session.occurrences[0]);
+                                    setActionType(session.overallStatus as any);
+                                  }}
+                                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                                >
+                                  <RotateCcw size={13} />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expandable Breakdown: View each individual class level (Year 1, Year 2, etc.) */}
+                      {hasMultipleClasses && isExpanded && (
+                        <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 bg-slate-50/60 dark:bg-slate-950/40 p-3.5 rounded-2xl">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            <span>Individual Class Cohort Breakdown ({session.classLevels.length} Classes):</span>
+                            {canUpdateStatus && <span className="text-[10px] text-brand-red">Faculty Attendance Controls Active</span>}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                            {session.classLevels.map((lvl) => {
+                              const matchingOcc = session.occurrences.find(o => o.classLevel === lvl);
+                              const occStatus = matchingOcc?.status || session.overallStatus;
+
+                              return (
+                                <div
+                                  key={lvl}
+                                  className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-2"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded text-[11px] font-black bg-red-50 dark:bg-red-950/40 text-brand-red">
+                                      {lvl}
+                                    </span>
+                                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                                      {session.title}
+                                    </span>
+                                  </div>
+
+                                  <div className="shrink-0 flex items-center gap-1.5">
+                                    {canUpdateStatus && matchingOcc ? (
+                                      <select
+                                        value={occStatus}
+                                        onChange={e => handleUpdateOccurrenceStatus([matchingOcc.id], e.target.value)}
+                                        className="text-[10px] font-bold py-1 px-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 cursor-pointer"
+                                      >
+                                        <option value="SCHEDULED">Scheduled</option>
+                                        <option value="ONGOING">Live</option>
+                                        <option value="COMPLETED">Completed</option>
+                                        <option value="ABSENT">Absent</option>
+                                        <option value="RESCHEDULED">Rescheduled</option>
+                                        <option value="CANCELLED">Cancelled</option>
+                                      </select>
+                                    ) : (
+                                      renderStatusBadge(occStatus, session.isAutoCompleted)
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Action Reason / Reschedule Modal */}
+      {/* Detailed Status Reason Modal (Absent, Reschedule) */}
       {selectedSchedule && actionType && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl">
             <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">
-              {actionType === 'RESCHEDULED' ? 'Reschedule Class Session' : `Mark Class as ${actionType}`}
+              Log Session Action: {actionType}
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              {selectedSchedule.title} • {selectedSchedule.date} ({selectedSchedule.startTime})
+              {selectedSchedule.title} • {selectedSchedule.date}
             </p>
 
-            <form onSubmit={handleUpdateStatus} className="space-y-4 text-xs">
-              {(actionType === 'ABSENT' || actionType === 'CANCELLED' || actionType === 'RESCHEDULED') && (
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                    Reason for {actionType.toLowerCase()} *
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={statusReason}
-                    onChange={e => setStatusReason(e.target.value)}
-                    placeholder={`Provide a short reason for marking this class as ${actionType.toLowerCase()}...`}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                  />
-                </div>
-              )}
+            <form onSubmit={handleSubmitDetailedAction} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Status</label>
+                <select
+                  value={actionType}
+                  onChange={e => setActionType(e.target.value as any)}
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+                >
+                  <option value="SCHEDULED">Scheduled</option>
+                  <option value="ONGOING">Live Now</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="ABSENT">Absent</option>
+                  <option value="RESCHEDULED">Rescheduled</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Notes / Reason</label>
+                <textarea
+                  rows={3}
+                  value={statusReason}
+                  onChange={e => setStatusReason(e.target.value)}
+                  placeholder="Provide reason for attendance status or rescheduling details..."
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                />
+              </div>
 
               {actionType === 'RESCHEDULED' && (
-                <div className="space-y-3 pt-1">
+                <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <div>
                     <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">New Date</label>
                     <input
                       type="date"
-                      required
                       value={rescheduleDate}
                       onChange={e => setRescheduleDate(e.target.value)}
-                      className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                      className="w-full min-h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Start Time</label>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">New Start Time</label>
                       <input
                         type="time"
-                        required
                         value={rescheduleStartTime}
                         onChange={e => setRescheduleStartTime(e.target.value)}
-                        className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                        className="w-full min-h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                       />
                     </div>
                     <div>
-                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">End Time</label>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">New End Time</label>
                       <input
                         type="time"
-                        required
                         value={rescheduleEndTime}
                         onChange={e => setRescheduleEndTime(e.target.value)}
-                        className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                        className="w-full min-h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-mono"
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedSchedule(null);
-                    setActionType(null);
-                  }}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                  onClick={() => { setSelectedSchedule(null); setActionType(null); }}
+                  className="min-h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-colors"
+                  className="min-h-10 px-5 rounded-xl bg-brand-red hover:bg-red-700 font-bold text-white shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : 'Confirm Update'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Create Schedule Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">
-              Create New Class Schedule
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Setup recurring or single teaching sessions for your assigned school or private scholar.
-            </p>
-
-            <form onSubmit={handleCreateSchedule} className="space-y-4 text-xs">
-              {/* Target Type Selector */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Class Target</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCreateTargetType('SCHOOL')}
-                    className={`py-2 px-3 rounded-xl font-bold text-xs border transition-colors ${
-                      createTargetType === 'SCHOOL'
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    🏫 Partner School
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreateTargetType('STUDENT')}
-                    className={`py-2 px-3 rounded-xl font-bold text-xs border transition-colors ${
-                      createTargetType === 'STUDENT'
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    👤 Private Student
-                  </button>
-                </div>
-              </div>
-
-              {createTargetType === 'SCHOOL' ? (
-                <>
-                  <div>
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select School</label>
-                    <select
-                      required
-                      value={createSchoolId}
-                      onChange={e => setCreateSchoolId(e.target.value)}
-                      className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                    >
-                      <option value="">-- Choose Assigned School --</option>
-                      {assignedSchools.map(sch => (
-                        <option key={sch.id} value={sch.id}>{sch.name || sch.schoolName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Class Level</label>
-                    <select
-                      value={createClassLevel}
-                      onChange={e => setCreateClassLevel(e.target.value)}
-                      className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                    >
-                      {['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'JSS 1', 'JSS 2', 'JSS 3', 'SS1', 'SS2', 'SS3'].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Private Student</label>
-                  <select
-                    required
-                    value={createStudentId}
-                    onChange={e => setCreateStudentId(e.target.value)}
-                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                  >
-                    <option value="">-- Choose Assigned Scholar --</option>
-                    {assignedStudents.map(st => (
-                      <option key={st.id} value={st.id}>{st.fullName || st.studentName || st.username}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Subject / Session Title</label>
-                <input
-                  type="text"
-                  required
-                  value={createTitle}
-                  onChange={e => setCreateTitle(e.target.value)}
-                  placeholder="e.g. Python Programming & Game Development"
-                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Start Date</label>
-                <input
-                  type="date"
-                  required
-                  value={createStartDate}
-                  onChange={e => setCreateStartDate(e.target.value)}
-                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Start Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={createStartTime}
-                    onChange={e => setCreateStartTime(e.target.value)}
-                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">End Time</label>
-                  <input
-                    type="time"
-                    required
-                    value={createEndTime}
-                    onChange={e => setCreateEndTime(e.target.value)}
-                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="chk-recurring"
-                  checked={createRecurring}
-                  onChange={e => setCreateRecurring(e.target.checked)}
-                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                />
-                <label htmlFor="chk-recurring" className="text-slate-700 dark:text-slate-300 font-bold">
-                  Repeat weekly ({createWeeks} weeks total)
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition-colors"
-                >
-                  {isSubmitting ? 'Creating Schedule...' : 'Save & Publish Schedule'}
+                  {isSubmitting ? 'Saving...' : 'Confirm Action'}
                 </button>
               </div>
             </form>

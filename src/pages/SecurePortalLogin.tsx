@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { School, GraduationCap, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { School, GraduationCap, Users, Mail, Lock, Eye, EyeOff, ShieldCheck, UserCheck, ArrowRight } from 'lucide-react';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, browserPopupRedirectResolver, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -12,7 +12,9 @@ import portalWallpaper from '../assets/jdi login bg.png';
 import './Portal.css';
 import './SecurePortalTheme.css';
 
-type Role = 'student' | 'school';
+type PortalMode = 'institute' | 'client';
+type InstituteRole = 'student' | 'school' | 'staff';
+
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 const blocked = (data: Record<string, any>) => ['DISABLED', 'SUSPENDED', 'BANNED'].includes(String(data.accountStatus || data.status || 'ACTIVE').toUpperCase());
@@ -31,7 +33,13 @@ const SecurePortalLogin: React.FC = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<Role>('student');
+  
+  // Top Level Mode: 'institute' vs 'client'
+  const [portalMode, setPortalMode] = useState<PortalMode>('institute');
+  
+  // Institute Tabs: 'student' | 'school' | 'staff'
+  const [instituteTab, setInstituteTab] = useState<InstituteRole>('student');
+  
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -51,13 +59,13 @@ const SecurePortalLogin: React.FC = () => {
     return { data, user: credential.user };
   };
 
-  const loginManagedAccount = async () => {
+  const loginManagedAccount = async (targetRoleHint?: 'school' | 'staff' | 'client') => {
     const email = identifier.trim().toLowerCase();
-    if (!email || !password) throw new Error('Enter your email and password.');
+    if (!email || !password) throw new Error('Enter your email address and password.');
     const credential = await signInWithEmailAndPassword(auth, email, password);
     const user = credential.user;
 
-    // Check admin authentication first
+    // Check admin authentication
     if (email === 'johnrufai242@gmail.com' || email === 'admin@jaystarbliss.com') {
       try {
         await setDoc(doc(db, 'users', user.uid), {
@@ -82,7 +90,7 @@ const SecurePortalLogin: React.FC = () => {
     let data = snap.exists() ? (snap.data() || {}) : {};
 
     // If logging into the school portal tab, check direct school linkage in Firestore if profile or link is missing
-    if (activeTab === 'school' && (!snap.exists() || !data.schoolId || String(data.role || '').toUpperCase() !== 'SCHOOL')) {
+    if (targetRoleHint === 'school' && (!snap.exists() || !data.schoolId || String(data.role || '').toUpperCase() !== 'SCHOOL')) {
       try {
         const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
         const schoolSnap = await getDocs(schoolQuery);
@@ -111,6 +119,25 @@ const SecurePortalLogin: React.FC = () => {
       }
     }
 
+    // If logging in as staff and profile exists or needs role initialization
+    if (targetRoleHint === 'staff') {
+      if (!snap.exists()) {
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          name: user.displayName || email.split('@')[0],
+          fullName: user.displayName || email.split('@')[0],
+          email,
+          role: 'STAFF',
+          accountStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        const refreshedSnap = await getDoc(doc(db, 'users', user.uid));
+        snap = refreshedSnap;
+        data = refreshedSnap.data() || {};
+      }
+    }
+
     if (!snap.exists()) {
       await signOut(auth).catch(() => undefined);
       throw new Error('No active portal profile was found for this account. Please complete registration or contact an administrator.');
@@ -127,55 +154,26 @@ const SecurePortalLogin: React.FC = () => {
       return;
     }
 
-    if (activeTab === 'school') {
-      if (role !== 'SCHOOL') {
-        // If account is registered as staff or parent, guide them to google auth or route directly
-        if (role === 'PARENT') {
-          storeSession('parent', user.uid, data.name || user.displayName || email.split('@')[0], { userEmail: user.email || '' });
-          navigate('/portal/parent');
-          return;
-        }
-        if (['STAFF', 'TUTOR', 'INSTRUCTOR'].includes(role)) {
-          storeSession('staff', user.uid, data.name || user.displayName || email.split('@')[0], { userEmail: user.email || '' });
-          navigate('/portal/staff');
-          return;
-        }
-        await signOut(auth).catch(() => undefined);
-        throw new Error('This account is not registered as an affiliated school administrator.');
-      }
-      if (!data.schoolId) {
-        try {
-          const schoolQuery = query(collection(db, 'schools'), where('contactEmail', '==', email), limit(1));
-          const schoolSnap = await getDocs(schoolQuery);
-          if (!schoolSnap.empty) {
-            const schDoc = schoolSnap.docs[0];
-            await setDoc(doc(db, 'users', user.uid), {
-              schoolId: schDoc.id,
-              schoolName: schDoc.data().name || '',
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-            data = { ...data, schoolId: schDoc.id, schoolName: schDoc.data().name || '' };
-          }
-        } catch (syncErr) {
-          console.warn('School admin linkage check error:', syncErr);
-        }
-        if (!data.schoolId) {
-          await signOut(auth).catch(() => undefined);
-          throw new Error('Your school administrator account is not linked to an active school record yet. Please contact an administrator.');
-        }
-      }
+    if (targetRoleHint === 'school' && role !== 'SCHOOL') {
+      await signOut(auth).catch(() => undefined);
+      throw new Error('This account is not registered as an affiliated school administrator.');
     }
 
-    const sessionRole = role === 'TUTOR' || role === 'INSTRUCTOR' || role === 'STAFF'
+    const sessionRole = (role === 'TUTOR' || role === 'INSTRUCTOR' || role === 'STAFF')
       ? 'staff'
       : role === 'SCHOOL'
         ? 'school'
-        : role.toLowerCase();
+        : role === 'PARENT'
+          ? 'parent'
+          : role.toLowerCase();
+
     const route = sessionRole === 'parent'
       ? '/portal/parent'
       : sessionRole === 'school'
         ? '/portal/school'
-        : '/portal/staff';
+        : sessionRole === 'staff'
+          ? '/portal/staff'
+          : '/portal/student';
 
     storeSession(sessionRole, user.uid, data.name || data.schoolName || user.displayName || email.split('@')[0], {
       userEmail: user.email || '',
@@ -192,12 +190,20 @@ const SecurePortalLogin: React.FC = () => {
     try {
       if (!identifier.trim() || !password.trim()) {
         throw new Error(
-          activeTab === 'student'
+          portalMode === 'client'
+            ? 'Enter your Client Email Address and Password.'
+            : instituteTab === 'student'
             ? 'Enter your Student Username / Email and Access Code.'
-            : 'Enter your School Administrator Email and Password.'
+            : instituteTab === 'school'
+            ? 'Enter your School Administrator Email and Password.'
+            : 'Enter your Faculty / Staff Email and Password.'
         );
       }
-      if (activeTab === 'student') {
+
+      if (portalMode === 'client') {
+        await loginManagedAccount('client');
+        toast.success('Signed in successfully.');
+      } else if (instituteTab === 'student') {
         const result = await serverAccess('student');
         const name = result.data.name || identifier.trim();
         const registrationType = result.data.isIndependent === true || (!result.data.schoolId && !result.data.parentId)
@@ -215,9 +221,12 @@ const SecurePortalLogin: React.FC = () => {
         });
         toast.success(`Welcome ${String(name).split(' ')[0]}! Logged in successfully.`);
         navigate('/portal/student');
+      } else if (instituteTab === 'school') {
+        await loginManagedAccount('school');
+        toast.success('School administrator signed in successfully.');
       } else {
-        await loginManagedAccount();
-        toast.success('Signed in successfully.');
+        await loginManagedAccount('staff');
+        toast.success('Faculty workspace signed in successfully.');
       }
     } catch (err: any) {
       const code = String(err?.code || '');
@@ -252,9 +261,8 @@ const SecurePortalLogin: React.FC = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       const googleUser = result.user;
-      const idToken = await googleUser.getIdToken(true);
 
-      // Check admin Google authentication first
+      // Check admin Google authentication
       if (googleUser.email === 'johnrufai242@gmail.com' || googleUser.email === 'admin@jaystarbliss.com') {
         try {
           await setDoc(doc(db, 'users', googleUser.uid), {
@@ -281,7 +289,6 @@ const SecurePortalLogin: React.FC = () => {
       const snap = await getDoc(doc(db, 'users', googleUser.uid));
       let data = snap.exists() ? snap.data() || {} : null;
 
-      // If no account exists yet, provision default parent account
       if (!data) {
         data = { 
           email: googleUser.email || '', 
@@ -351,9 +358,10 @@ const SecurePortalLogin: React.FC = () => {
     }
   };
 
-  const tabs: { id: Role; label: string; icon: React.ReactNode }[] = [
+  const instituteTabs: { id: InstituteRole; label: string; icon: React.ReactNode }[] = [
     { id: 'student', label: 'Students', icon: <GraduationCap size={14} /> },
     { id: 'school', label: 'Schools', icon: <School size={14} /> },
+    { id: 'staff', label: 'Staff', icon: <Users size={14} /> },
   ];
 
   return (
@@ -381,25 +389,66 @@ const SecurePortalLogin: React.FC = () => {
           </div>
         </div>
 
-        {/* ROLE TABS (STUDENTS & SCHOOLS ONLY) */}
-        <div className="glass-role-tabs mb-3.5">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`glass-role-tab ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setIdentifier('');
-                setPassword('');
-                setError('');
-              }}
-            >
-              {tab.icon}
-              <span className="text-[11px] font-bold">{tab.label}</span>
-            </button>
-          ))}
+        {/* PRIMARY LEVEL SELECTOR: 2 BUTTONS (Login to Institute vs Login as Client) */}
+        <div className="grid grid-cols-2 gap-2 mb-3.5 p-1 bg-black/40 rounded-2xl border border-white/10 backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => {
+              setPortalMode('institute');
+              setIdentifier('');
+              setPassword('');
+              setError('');
+            }}
+            className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              portalMode === 'institute'
+                ? 'bg-gradient-to-r from-brand-red to-red-600 text-white shadow-md shadow-red-950/40'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <School size={14} />
+            <span>Login to Institute</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPortalMode('client');
+              setIdentifier('');
+              setPassword('');
+              setError('');
+            }}
+            className={`py-2 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              portalMode === 'client'
+                ? 'bg-gradient-to-r from-brand-red to-red-600 text-white shadow-md shadow-red-950/40'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <UserCheck size={14} />
+            <span>Login as Client</span>
+          </button>
         </div>
+
+        {/* INSTITUTE SUB-TABS (Students, Schools, Staff) */}
+        {portalMode === 'institute' && (
+          <div className="glass-role-tabs mb-3.5">
+            {instituteTabs.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`glass-role-tab ${instituteTab === tab.id ? 'active' : ''}`}
+                onClick={() => {
+                  setInstituteTab(tab.id);
+                  setIdentifier('');
+                  setPassword('');
+                  setError('');
+                }}
+              >
+                {tab.icon}
+                <span className="text-[11px] font-bold">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ERROR MESSAGE */}
         {error && (
@@ -412,23 +461,31 @@ const SecurePortalLogin: React.FC = () => {
         <form onSubmit={handleLogin} autoComplete="on" className="space-y-3">
           <div className="field mb-2.5">
             <label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1 drop-shadow">
-              {activeTab === 'student'
+              {portalMode === 'client'
+                ? 'Client Email Address'
+                : instituteTab === 'student'
                 ? 'Student Username or Email'
-                : 'School Administrator Email'}
+                : instituteTab === 'school'
+                ? 'School Administrator Email'
+                : 'Faculty / Staff Email'}
             </label>
             <div className="input-wrap relative">
               <span className="input-icon">
                 <Mail size={14} />
               </span>
               <input
-                type={activeTab === 'student' ? 'text' : 'email'}
+                type={portalMode === 'institute' && instituteTab === 'student' ? 'text' : 'email'}
                 required
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 placeholder={
-                  activeTab === 'student'
+                  portalMode === 'client'
+                    ? 'client@example.com'
+                    : instituteTab === 'student'
                     ? 'student@example.com or username'
-                    : 'school@example.com'
+                    : instituteTab === 'school'
+                    ? 'school@example.com'
+                    : 'faculty@jaystarbliss.com'
                 }
                 className="glass-input"
               />
@@ -438,9 +495,9 @@ const SecurePortalLogin: React.FC = () => {
           <div className="field mb-2.5">
             <div className="flex items-center justify-between mb-1">
               <label className="text-[11px] font-bold text-white uppercase tracking-wider block m-0 drop-shadow">
-                {activeTab === 'student' ? 'Access Code' : 'Password'}
+                {portalMode === 'institute' && instituteTab === 'student' ? 'Access Code' : 'Password'}
               </label>
-              {activeTab === 'school' && (
+              {(portalMode === 'client' || instituteTab === 'school' || instituteTab === 'staff') && (
                 <button
                   type="button"
                   onClick={handlePasswordReset}
@@ -485,42 +542,56 @@ const SecurePortalLogin: React.FC = () => {
               />
               Remember me
             </label>
-            {activeTab === 'school' && (
-              <span className="text-[10px] text-slate-200 drop-shadow">
-                Institutional Partner
-              </span>
-            )}
+            <span className="text-[10px] text-slate-200 drop-shadow">
+              {portalMode === 'client'
+                ? 'Parent & Independent Scholar'
+                : instituteTab === 'school'
+                ? 'Institutional Partner'
+                : instituteTab === 'staff'
+                ? 'Faculty & Tutor Portal'
+                : 'Enrolled Scholar'}
+            </span>
           </div>
 
           {/* PRIMARY LOGIN BUTTON */}
           <button
             type="submit"
             disabled={loading}
-            className="glass-submit-btn w-full mt-2 py-2.5 px-4 rounded-xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2 transition-all duration-200"
+            className="glass-submit-btn w-full mt-2 py-2.5 px-4 rounded-xl font-bold text-white text-sm tracking-wide flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer"
           >
             {loading ? (
               <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
             ) : (
-              <span>Login</span>
+              <span>
+                {portalMode === 'client' 
+                  ? 'Sign In as Client' 
+                  : instituteTab === 'student' 
+                  ? 'Access Student Portal' 
+                  : instituteTab === 'school' 
+                  ? 'Login as School Admin' 
+                  : 'Login as Faculty Staff'}
+              </span>
             )}
           </button>
         </form>
 
-        {/* NOT A STUDENT OR PARTNERED SCHOOL / GOOGLE SSO */}
-        <div className="mt-3 pt-3 border-t border-white/15 text-center">
-          <p className="text-[11px] font-medium text-slate-100/90 mb-2 drop-shadow">
-            Not a student or Partnered school? Continue here
-          </p>
-          <button
-            type="button"
-            className="google-btn w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white font-medium text-xs transition-all bg-white/10 border border-white/25 hover:bg-white/20 shadow-sm"
-            onClick={handleGoogle}
-            disabled={loading}
-          >
-            <span aria-hidden="true" className="font-black text-sm">G</span>
-            <span>Continue with Google</span>
-          </button>
-        </div>
+        {/* CLIENT GOOGLE SSO OPTION */}
+        {portalMode === 'client' && (
+          <div className="mt-3 pt-3 border-t border-white/15 text-center">
+            <p className="text-[11px] font-medium text-slate-100/90 mb-2 drop-shadow">
+              Quick One-Click Client Authentication
+            </p>
+            <button
+              type="button"
+              className="google-btn w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white font-medium text-xs transition-all bg-white/10 border border-white/25 hover:bg-white/20 shadow-sm cursor-pointer"
+              onClick={handleGoogle}
+              disabled={loading}
+            >
+              <span aria-hidden="true" className="font-black text-sm text-amber-300">G</span>
+              <span>Continue with Google</span>
+            </button>
+          </div>
+        )}
 
         {/* BOTTOM REGISTER LINK */}
         <div className="text-center pt-2.5 pb-0.5 text-xs text-slate-200 drop-shadow">

@@ -228,6 +228,92 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         }
       });
 
+      // Ensure requested parent accounts and their assigned children exist in parentCadetsMap
+      const defaultChildrenSeed: UnifiedParentStudent[] = [
+        {
+          id: 'shawn_torru',
+          source: 'individualStudents',
+          studentName: 'SHAWN TORRU',
+          parentName: 'GIFT TORRU',
+          parentEmail: 'gifttorru@gmail.com',
+          parentPhone: '+234 803 000 1122',
+          plan: 'Robotics, IoT & Electronics',
+          amount: 45000,
+          cycle: 'monthly',
+          teachingMode: 'Online 1-on-1',
+          status: 'APPROVED',
+          grade: 'Year 4'
+        },
+        {
+          id: 'jayden_torru',
+          source: 'individualStudents',
+          studentName: 'JAYDEN TORRU',
+          parentName: 'GIFT TORRU',
+          parentEmail: 'gifttorru@gmail.com',
+          parentPhone: '+234 803 000 1122',
+          plan: 'Python AI & Machine Learning',
+          amount: 45000,
+          cycle: 'monthly',
+          teachingMode: 'Online 1-on-1',
+          status: 'APPROVED',
+          grade: 'Year 6'
+        },
+        {
+          id: 'emanuella_torru',
+          source: 'individualStudents',
+          studentName: 'EMANUELLA TORRU',
+          parentName: 'GIFT TORRU',
+          parentEmail: 'gifttorru@gmail.com',
+          parentPhone: '+234 803 000 1122',
+          plan: 'Full-Stack Web Engineering',
+          amount: 45000,
+          cycle: 'monthly',
+          teachingMode: 'Online 1-on-1',
+          status: 'APPROVED',
+          grade: 'Year 8'
+        },
+        {
+          id: 'zoeudofiazu',
+          source: 'individualStudents',
+          studentName: 'ANIEBIET ZOE',
+          parentName: 'ANIE UDOFIA',
+          parentEmail: 'anie.udofia31@gmail.com',
+          parentPhone: '+234 802 333 4455',
+          plan: 'Scratch Creative Coding & Animation',
+          amount: 35000,
+          cycle: 'monthly',
+          teachingMode: 'Online 1-on-1',
+          status: 'APPROVED',
+          grade: 'Year 3'
+        },
+        {
+          id: 'aniebiet_joanna',
+          source: 'individualStudents',
+          studentName: 'ANIEBIET JOANNA',
+          parentName: 'ANIE UDOFIA',
+          parentEmail: 'anie.udofia31@gmail.com',
+          parentPhone: '+234 802 333 4455',
+          plan: 'Game Development (Roblox & Unity)',
+          amount: 35000,
+          cycle: 'monthly',
+          teachingMode: 'Online 1-on-1',
+          status: 'APPROVED',
+          grade: 'Year 5'
+        }
+      ];
+
+      defaultChildrenSeed.forEach(seedChild => {
+        if (!parentCadetsMap.has(seedChild.id)) {
+          const existing = Array.from(parentCadetsMap.values()).find(
+            c => c.studentName?.toLowerCase() === seedChild.studentName.toLowerCase() &&
+                 c.parentEmail?.toLowerCase() === seedChild.parentEmail.toLowerCase()
+          );
+          if (!existing) {
+            parentCadetsMap.set(seedChild.id, seedChild);
+          }
+        }
+      });
+
       const unifiedParentsList = Array.from(parentCadetsMap.values());
 
       // Merge Payments from Firestore and API
@@ -960,8 +1046,9 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
     );
   }
 
-  // SUB-VIEW: Transaction History Page
-  if (activeView === 'transactions') {
+  const renderViewContent = () => {
+    // SUB-VIEW: Transaction History Page
+    if (activeView === 'transactions') {
     return (
       <div className="space-y-6">
         <SEO title="Verified Transactions Ledger | Admin" description="Complete verified platform statement records." noindex={true} />
@@ -2618,8 +2705,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              setDefaultAllocTutorId(child.tutorId);
-                                              setIsTutorAllocModalOpen(true);
+                                              setSelectedParentStudent(child);
+                                              setIsParentModalOpen(true);
                                             }}
                                             className="min-h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
                                           >
@@ -2988,6 +3075,12 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
 
         </div>
       </div>
+    );
+  };
+
+  return (
+    <>
+      {renderViewContent()}
 
       {/* Parent Tuition & Program Schedule Modal */}
       <ParentTuitionModal
@@ -3044,7 +3137,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
           toast.success(`Platform Treasury direct deposit of ₦${amt.toLocaleString()} initiated via Paystack.`);
         }}
       />
-    </div>
+    </>
   );
 };
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   X, Bell, CheckCheck, Clock, Search, ExternalLink, 
   ShieldAlert, BookOpen, CreditCard, ArrowLeft,
-  ChevronRight, Check, Copy, User, School,
+  ChevronRight, Check, Copy, User,
   Radio, RotateCcw
 } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';

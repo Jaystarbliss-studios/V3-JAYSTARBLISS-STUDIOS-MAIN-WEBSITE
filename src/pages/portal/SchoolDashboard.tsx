@@ -5,6 +5,7 @@ import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink
 import SEO from '../../components/ui/SEO';
 import DashboardGreeting from '../../components/portal/DashboardGreeting';
 import ResourceLibrary from './ResourceLibrary';
+import SchoolClassScheduleTimeline from '../../components/portal/SchoolClassScheduleTimeline';
 import { auth, db } from '../../lib/firebase';
 import { formatNaira } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
@@ -63,6 +64,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const effective = getEffectiveAuth();
   const [tab, setTab] = useState<SchoolDashboardTab>(initialTab || 'overview');
   const [school, setSchool] = useState<SchoolRecord | null>(null);
   const [studentCount, setStudentCount] = useState(0);
@@ -187,11 +189,40 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           throw new Error('Impersonation mode using client-side Firestore query');
         }
       } catch {
-        const [studSnap, indivSnap] = await Promise.all([
+        const [studSnap, indivSnap, allStudSnap, allIndivSnap] = await Promise.all([
           getDocs(query(collection(db, 'students'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
-          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] }))
+          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] }))
         ]);
-        fetchedStudentCount = (studSnap.docs?.length || 0) + (indivSnap.docs?.length || 0);
+
+        const seenIds = new Set<string>();
+        const targetLow = activeSchoolId.toLowerCase();
+        const nameLow = (schoolRecordData.name || '').toLowerCase();
+        const codeLow = ((schoolRecordData as any).schoolCode || '').toLowerCase();
+
+        const checkDoc = (d: any) => {
+          if (seenIds.has(d.id)) return;
+          const data = d.data();
+          const sIdField = String(data.schoolId || data.school_id || '').trim().toLowerCase();
+          const sNameField = String(data.schoolName || data.school || data.institutionName || data.institution || '').trim().toLowerCase();
+          const sCodeField = String(data.schoolCode || '').trim().toLowerCase();
+
+          const isMatch = (
+            (targetLow && (sIdField === targetLow || sIdField.includes(targetLow) || targetLow.includes(sIdField))) ||
+            (nameLow && (sNameField === nameLow || sNameField.includes(nameLow) || nameLow.includes(sNameField) || sIdField === nameLow || sIdField.includes(nameLow))) ||
+            (codeLow && (sCodeField === codeLow || sCodeField === targetLow || sIdField === codeLow))
+          );
+
+          if (isMatch) seenIds.add(d.id);
+        };
+
+        studSnap.docs.forEach(checkDoc);
+        indivSnap.docs.forEach(checkDoc);
+        allStudSnap.docs.forEach(checkDoc);
+        allIndivSnap.docs.forEach(checkDoc);
+
+        fetchedStudentCount = seenIds.size;
       }
 
       try {
@@ -267,158 +298,227 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
             subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
           />
 
-          {/* Top Banner / Program Status */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-xs border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-red text-white">
-                Active Partner Institution
-              </span>
-              <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">{schoolName}</h2>
-              <p className="text-xs text-slate-300 mt-1">
-                Program Track: <strong className="text-white">{school?.plan || 'Standard Coding & Technology Curriculum'}</strong> • Coordinator: <span className="text-slate-200">{school?.coordinator || 'Academic Directorate'}</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-2.5 shrink-0">
-              <button
-                onClick={() => changeTab('roster')}
-                className="px-4 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-2"
-              >
-                <span>Manage Roster</span>
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </div>
+          {/* Top Overview: Active Programmes Card & Today's Schedule Summary */}
+          {(() => {
+            const programsList: any[] = Array.isArray(school?.programs) ? school.programs : [];
+            const activeProgs = programsList.filter(p => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL');
+            const completedProgs = programsList.filter(p => p.status === 'COMPLETED' || p.status === 'HISTORICAL');
+            
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const todaySessions = classSchedules.filter(s => s.date === todayStr);
+            const liveNowSession = classSchedules.find(s => s.status === 'ONGOING');
+            const nextUpcoming = classSchedules.find(s => s.status === 'SCHEDULED' && s.date >= todayStr);
 
-          {/* Compact 4-Stat Metrics Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Enrolled Students</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{studentCount}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Active school learners</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">CBT Exams</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{exams.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Active test papers</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Passcodes</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{passcodes.filter(p=>p.isActive).length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Invigilation keys</p>
-            </div>
-            <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Class Schedules</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{classSchedules.length}</p>
-              <p className="mt-0.5 text-[10px] text-slate-500">Active sessions logged</p>
-            </div>
-          </div>
+            return (
+              <div className="space-y-6">
+                {/* 🔴 Today's Live Class / Schedule Overview Banner */}
+                {liveNowSession ? (
+                  <div className="rounded-3xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-6 border-2 border-emerald-500/50 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500 text-white animate-pulse">
+                          🔴 Live Class In Session
+                        </span>
+                        <span className="text-xs text-emerald-300 font-bold">{liveNowSession.date}</span>
+                      </div>
+                      <h3 className="text-lg font-black text-white">{liveNowSession.title}</h3>
+                      <p className="text-xs text-slate-300">
+                        Cohort: <strong className="text-white">{liveNowSession.classLevel || 'All Classes'}</strong> • Time: <strong className="text-emerald-400 font-mono">{liveNowSession.startTime} – {liveNowSession.endTime}</strong> • Tutor: <strong className="text-white">{liveNowSession.tutorName || 'Faculty Instructor'}</strong>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => changeTab('schedules')}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black transition-all shadow-xs"
+                      >
+                        View Full Timetable
+                      </button>
+                    </div>
+                  </div>
+                ) : nextUpcoming ? (
+                  <div className="rounded-3xl bg-slate-900 text-white p-6 border border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-brand-red text-white">
+                          Next Upcoming Class
+                        </span>
+                        <span className="text-xs text-slate-300 font-bold">{nextUpcoming.date}</span>
+                      </div>
+                      <h3 className="text-base font-black text-white">{nextUpcoming.title}</h3>
+                      <p className="text-xs text-slate-300">
+                        Cohort: <strong className="text-white">{nextUpcoming.classLevel || 'All Classes'}</strong> • Time: <strong className="text-amber-400 font-mono">{nextUpcoming.startTime} – {nextUpcoming.endTime}</strong> • Tutor: <strong className="text-white">{nextUpcoming.tutorName || 'Faculty Instructor'}</strong>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => changeTab('schedules')}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all border border-slate-700"
+                    >
+                      View Timetable
+                    </button>
+                  </div>
+                ) : null}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 md:col-span-2 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institutional Quick Actions</h2>
-                <span className="text-xs text-slate-500 font-medium">Fast navigation</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  onClick={() => changeTab('roster')}
-                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
-                >
-                  <Users className="text-brand-red mb-2" size={18} />
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Student Roster</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Manage learner accounts</div>
-                </button>
-                <button
-                  onClick={() => changeTab('passcodes')}
-                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
-                >
-                  <Key className="text-brand-red mb-2" size={18} />
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Exam Passcodes</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Generate invigilator keys</div>
-                </button>
-                <button
-                  onClick={() => changeTab('schedules')}
-                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
-                >
-                  <Calendar className="text-brand-red mb-2" size={18} />
-                  <div className="text-xs font-bold text-slate-900 dark:text-white">Class Schedule</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">Upcoming class occurrences</div>
-                </button>
-              </div>
-            </div>
+                {/* 4-Metric Operations Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-[#161B26] rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Enrolled</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tracking-tight">{studentCount}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Learners in school</p>
+                  </div>
+                  <div className="bg-white dark:bg-[#161B26] rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Programmes</p>
+                    <p className="mt-1 text-2xl font-black text-brand-red tracking-tight">{activeProgs.length || 1}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Curriculum streams</p>
+                  </div>
+                  <div className="bg-white dark:bg-[#161B26] rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Today's Sessions</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tracking-tight">{todaySessions.length}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Scheduled for today</p>
+                  </div>
+                  <div className="bg-white dark:bg-[#161B26] rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Timetable</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white tracking-tight">{classSchedules.length}</p>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Logged class sessions</p>
+                  </div>
+                </div>
 
-            <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Institution Details</h2>
-                <button onClick={() => navigate('/portal/school/payments')} className="text-xs font-bold text-brand-red hover:underline inline-flex items-center gap-1">
-                  Subscription & Fees <ChevronRight size={12}/>
-                </button>
-              </div>
-              <div className="mt-3 space-y-2 text-xs">
-                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Plan Track</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{school?.plan || 'Active Curriculum'}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Institutional Fee</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                    {school?.billing?.baseAmount ? `${formatNaira(school.billing.baseAmount)} / ${school.billing.cycle || 'Term'}` : 'Custom Institutional Plan'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Billing Status</span>
-                  <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
-                    school?.billing?.status === 'OVERDUE' 
-                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
-                      : school?.billing?.status === 'DUE' 
-                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
-                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                  }`}>
-                    {school?.billing?.status || 'ACTIVE'}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Coordinator</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{school?.coordinator || 'Assigned Lead'}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-500">Class Schedule</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">{school?.labDays || 'Standard Schedule'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+                {/* Main 2-Column Overview Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-white dark:bg-[#161B26] rounded-3xl p-6 md:col-span-2 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Institutional Quick Actions</h2>
+                      <span className="text-xs text-slate-500 font-medium">Operations Shortcuts</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <button
+                        onClick={() => changeTab('roster')}
+                        className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                      >
+                        <Users className="text-brand-red mb-2" size={20} />
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">View Student Roster</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">Learner credentials &amp; status</div>
+                      </button>
+                      <button
+                        onClick={() => changeTab('schedules')}
+                        className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                      >
+                        <Calendar className="text-brand-red mb-2" size={20} />
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">Class Timetable</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">Assigned tutors &amp; sessions</div>
+                      </button>
+                      <button
+                        onClick={() => changeTab('passcodes')}
+                        className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 text-left transition-all"
+                      >
+                        <Key className="text-brand-red mb-2" size={20} />
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">Exam Passcodes</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">CBT invigilation keys</div>
+                      </button>
+                    </div>
+                  </div>
 
-          {/* Program History & Completed Milestones */}
-          <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                  <Award size={18} className="text-brand-red" />
-                  Program History & Completed Milestones
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Review completed academic terms, modules, and institutional milestones.</p>
-              </div>
-            </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
-              <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">Current Term</span>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{school?.plan || 'Full-Stack Web & Logic Masterclass'}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Module 2: Database Schema Design & Real-Time Logic • {studentCount} Enrolled Students</p>
+                  <div className="bg-white dark:bg-[#161B26] rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Institution Details</h2>
+                      <button onClick={() => changeTab('partnership')} className="text-xs font-bold text-brand-red hover:underline inline-flex items-center gap-1">
+                        Subscription <ChevronRight size={12}/>
+                      </button>
+                    </div>
+                    <div className="mt-4 space-y-2.5 text-xs">
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500">Plan Track</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{school?.plan || activeProgs[0]?.name || 'Active Curriculum'}</span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500">Institutional Fee</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          {school?.billing?.baseAmount ? `${formatNaira(school.billing.baseAmount)} / ${school.billing.cycle || 'Term'}` : 'Configured In Plan'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500">Billing Status</span>
+                        <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                          school?.billing?.status === 'OVERDUE' 
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
+                            : school?.billing?.status === 'DUE' 
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                        }`}>
+                          {school?.billing?.status || 'ACTIVE'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500">Coordinator</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{school?.coordinator || 'Assigned Lead'}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">In Progress (Term 1)</span>
-              </div>
-              <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">Completed Prior Term</span>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-1">Foundation Computing, Algorithms & Scratch</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">100% Practical Milestones & CBT Final Assessments Completed</p>
+
+                {/* Section 3: Genuine Programme History & Milestone Records (No Hardcoded Mock Data) */}
+                <div className="bg-white dark:bg-[#161B26] rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <Award size={18} className="text-brand-red" />
+                        Undergoing Programmes &amp; Historical Records
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Database records of active curriculum tracks and completed historical terms for {schoolName}.</p>
+                    </div>
+                  </div>
+
+                  {programsList.length === 0 ? (
+                    <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-500">
+                      No programme history recorded yet for this institution.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+                      {activeProgs.map(prog => (
+                        <div key={prog.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                Current Active Programme
+                              </span>
+                              {prog.durationMode === 'admin_controlled' && (
+                                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full">
+                                  Admin-Controlled Duration
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1.5">{prog.name}</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {prog.description || 'Active curriculum stream'} • Cohort: {prog.level || 'All Classes'}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            {prog.startDate ? `Started: ${prog.startDate}` : 'Active In Session'}
+                          </span>
+                        </div>
+                      ))}
+
+                      {completedProgs.map(prog => (
+                        <div key={prog.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-80">
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                              Completed Historical Record
+                            </span>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1.5">{prog.name}</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {prog.description || 'Completed institutional milestone'} • Cohort: {prog.level || 'All Classes'}
+                            </p>
+                          </div>
+                          <span className="text-xs font-bold text-slate-500">
+                            {prog.completedAt ? `Completed: ${prog.completedAt}` : 'Archived Record'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs font-bold text-emerald-600">Completed &amp; Certified</span>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       )}
 
@@ -589,29 +689,14 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       )}
 
       {tab === 'schedules' && (
-        <div className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Calendar size={18} className="text-brand-red"/> Class Schedule & History
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Recurring classes and laboratory sessions published for this institution.</p>
-          <div className="space-y-2.5">
-            {classSchedules.length ? classSchedules.map(item => (
-              <div key={item.id} className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-brand-red">{item.classLevel} • {item.status}</div>
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">{item.title}</h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{new Date(item.date + 'T00:00:00').toLocaleDateString('en-NG',{dateStyle:'full'})} • {item.startTime}–{item.endTime}</p>
-                  {item.tutorName && <p className="text-[10px] text-slate-500 mt-0.5">Tutor: {item.tutorName}</p>}
-                </div>
-                <span className="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{item.status}</span>
-              </div>
-            )) : (
-              <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center text-xs text-slate-500">
-                No class schedule has been published for this school yet.
-              </div>
-            )}
-          </div>
-        </div>
+        <SchoolClassScheduleTimeline
+          schoolId={school?.id || ''}
+          schoolName={schoolName}
+          programs={school?.programs || []}
+          schedules={classSchedules as any}
+          onRefresh={() => void load()}
+          readOnly={false}
+        />
       )}
 
       {tab === 'partnership' && (
@@ -619,16 +704,23 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <CreditCard size={18} className="text-brand-red"/> Institutional Subscription & Fees
+                <CreditCard size={18} className="text-brand-red"/> Institutional Subscription &amp; Fees
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">Admin-configured institutional curriculum billing and payment schedule.</p>
             </div>
-            <button 
-              onClick={() => navigate('/portal/school/payments')} 
-              className="px-4 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold inline-flex items-center gap-2 shadow-xs transition-colors"
-            >
-              <CreditCard size={14}/> Complete Payment / Invoices
-            </button>
+            {effective.isMasquerading ? (
+              <div className="px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={14} />
+                <span>Payment execution disabled during Impersonation Mode</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => navigate('/portal/school/payments')} 
+                className="px-4 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold inline-flex items-center gap-2 shadow-xs transition-colors"
+              >
+                <CreditCard size={14}/> Complete Payment / Invoices
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

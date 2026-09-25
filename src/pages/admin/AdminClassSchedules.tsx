@@ -24,6 +24,7 @@ interface SchoolItem {
   id: string;
   name: string;
   code?: string;
+  programs?: Array<{ id: string; name: string; level?: string; assignedTutors?: Array<{ tutorId: string; tutorName: string }> }>;
 }
 
 interface ParentItem {
@@ -47,6 +48,8 @@ interface ScheduleOccurrence {
   startTime: string;
   endTime: string;
   title: string;
+  programId?: string;
+  programName?: string;
   tutorName?: string;
   tutorId?: string;
   status: string;
@@ -67,7 +70,10 @@ interface ScheduleOccurrence {
 interface ScheduleGroup {
   scheduleGroupId: string;
   title: string;
+  programId?: string;
+  programName?: string;
   tutorName?: string;
+  tutorId?: string;
   startTime: string;
   endTime: string;
   targetType: TargetType;
@@ -88,6 +94,7 @@ const AdminClassSchedules: React.FC = () => {
   const [schools, setSchools] = useState<SchoolItem[]>([]);
   const [parents, setParents] = useState<ParentItem[]>([]);
   const [individuals, setIndividuals] = useState<IndividualItem[]>([]);
+  const [staffTutors, setStaffTutors] = useState<Array<{ id: string; name: string; email: string }>>([]);
   const [groups, setGroups] = useState<ScheduleGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +108,8 @@ const AdminClassSchedules: React.FC = () => {
   const [form, setForm] = useState<{
     targetType: TargetType;
     schoolId: string;
+    programId: string;
+    programName: string;
     scope: 'all' | 'range' | 'specific';
     rangeStart: string;
     rangeEnd: string;
@@ -108,6 +117,7 @@ const AdminClassSchedules: React.FC = () => {
     parentId: string;
     studentId: string;
     title: string;
+    tutorId: string;
     tutorName: string;
     meetingLink: string;
     startDate: string;
@@ -118,6 +128,8 @@ const AdminClassSchedules: React.FC = () => {
   }>({
     targetType: 'school',
     schoolId: '',
+    programId: '',
+    programName: '',
     scope: 'all',
     rangeStart: 'Year 1',
     rangeEnd: 'Year 5',
@@ -125,6 +137,7 @@ const AdminClassSchedules: React.FC = () => {
     parentId: '',
     studentId: '',
     title: 'Robotics & Web Engineering Lab',
+    tutorId: '',
     tutorName: '',
     meetingLink: '',
     startDate: new Date().toISOString().slice(0, 10),
@@ -147,16 +160,32 @@ const AdminClassSchedules: React.FC = () => {
         getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any))
       ]);
 
-      // 1. Process Schools
+      // 1. Process Schools & their programmes
       const loadedSchools = schoolSnap.docs.map((d: any) => {
         const data = d.data();
         return {
           id: d.id,
           name: String(data.name || data.schoolName || data.institutionName || d.id),
-          code: data.code || data.schoolCode
+          code: data.code || data.schoolCode,
+          programs: Array.isArray(data.programs) ? data.programs : []
         };
       }).sort((a: SchoolItem, b: SchoolItem) => a.name.localeCompare(b.name));
       setSchools(loadedSchools);
+
+      // Extract faculty tutors
+      const tutorsList: Array<{ id: string; name: string; email: string }> = [];
+      usersSnap.docs.forEach((d: any) => {
+        const u = d.data();
+        const r = String(u.role || '').toLowerCase();
+        if (['tutor', 'staff', 'instructor', 'faculty'].includes(r)) {
+          tutorsList.push({
+            id: d.id,
+            name: u.name || u.displayName || u.fullName || u.email || 'Instructor',
+            email: u.email || ''
+          });
+        }
+      });
+      setStaffTutors(tutorsList);
 
       // 2. Process Parents and their Children
       const parentMap = new Map<string, ParentItem>();
@@ -291,17 +320,23 @@ const AdminClassSchedules: React.FC = () => {
 
   const openCreate = () => {
     setEditing(null);
+    const defaultSchool = filterSchool ? schools.find(s => s.id === filterSchool) : schools[0];
+    const defaultProg = defaultSchool?.programs?.[0];
+
     setForm({
       targetType: 'school',
-      schoolId: filterSchool || (schools[0]?.id || ''),
+      schoolId: defaultSchool?.id || '',
+      programId: defaultProg?.id || '',
+      programName: defaultProg?.name || '',
       scope: 'all',
       rangeStart: 'Year 1',
       rangeEnd: 'Year 5',
       classLevels: ['Year 1'],
       parentId: parents[0]?.id || '',
       studentId: '',
-      title: 'Robotics & Software Engineering',
-      tutorName: '',
+      title: defaultProg?.name || 'Robotics & Software Engineering',
+      tutorId: defaultProg?.assignedTutors?.[0]?.tutorId || '',
+      tutorName: defaultProg?.assignedTutors?.[0]?.tutorName || '',
       meetingLink: '',
       startDate: new Date().toISOString().slice(0, 10),
       startTime: '10:00',
@@ -316,9 +351,14 @@ const AdminClassSchedules: React.FC = () => {
     setEditing(g);
     const firstOcc = g.occurrences[0];
     const levels = g.classLevels?.length ? g.classLevels : ['Year 1'];
+    const distinctDates = Array.from(new Set(g.occurrences.map(o => o.date).filter(Boolean))).sort();
+    const distinctWeeks = distinctDates.length;
+
     setForm({
       targetType: g.targetType || 'school',
       schoolId: g.schoolId || '',
+      programId: g.programId || firstOcc?.programId || '',
+      programName: g.programName || firstOcc?.programName || '',
       scope: levels.length === CLASS_OPTIONS.length ? 'all' : 'specific',
       rangeStart: levels[0] || 'Year 1',
       rangeEnd: levels[levels.length - 1] || 'Year 5',
@@ -326,13 +366,14 @@ const AdminClassSchedules: React.FC = () => {
       parentId: g.parentId || '',
       studentId: g.studentId || '',
       title: g.title || '',
-      tutorName: g.tutorName || '',
+      tutorId: g.tutorId || firstOcc?.tutorId || '',
+      tutorName: g.tutorName || firstOcc?.tutorName || '',
       meetingLink: firstOcc?.meetingLink || '',
-      startDate: firstOcc?.date || new Date().toISOString().slice(0, 10),
+      startDate: distinctDates[0] || firstOcc?.date || new Date().toISOString().slice(0, 10),
       startTime: g.startTime || '09:00',
       endTime: g.endTime || '11:00',
-      recurring: g.occurrences.length > 1,
-      weeks: String(g.occurrences.length || 12)
+      recurring: distinctWeeks > 1,
+      weeks: String(distinctWeeks || 12)
     });
     setShowForm(true);
   };
@@ -365,18 +406,29 @@ const AdminClassSchedules: React.FC = () => {
       const scheduleGroupId = editing?.scheduleGroupId || `grp-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
       const classLevels = form.targetType === 'school' ? resolvedClasses() : [];
 
-      const batch = writeBatch(db);
-
       // If editing, delete previous occurrences in this group first
       if (editing) {
-        for (const occ of editing.occurrences) {
-          const ref = doc(db, 'classSchedules', occ.id);
-          batch.delete(ref);
+        try {
+          const oldSnap = await getDocs(query(collection(db, 'classSchedules'), where('scheduleGroupId', '==', scheduleGroupId)));
+          const idsToDelete = new Set<string>();
+          oldSnap.docs.forEach(d => idsToDelete.add(d.id));
+          editing.occurrences.forEach(occ => idsToDelete.add(occ.id));
+
+          const delArray = Array.from(idsToDelete);
+          for (let i = 0; i < delArray.length; i += 400) {
+            const chunk = delArray.slice(i, i + 400);
+            const batch = writeBatch(db);
+            chunk.forEach(id => batch.delete(doc(db, 'classSchedules', id)));
+            await batch.commit();
+          }
+        } catch (delErr) {
+          console.warn('Error deleting old occurrences before write:', delErr);
         }
       }
 
       // Generate occurrence dates
       const baseDate = new Date(form.startDate + 'T00:00:00');
+      const newOccDocs: Array<{ id: string; data: any }> = [];
 
       for (let w = 0; w < numWeeks; w++) {
         const occDate = new Date(baseDate);
@@ -387,78 +439,99 @@ const AdminClassSchedules: React.FC = () => {
           // One occurrence per target class level
           for (const lvl of classLevels) {
             const occId = `${scheduleGroupId}-w${w}-${lvl.replace(/\s+/g, '_')}`;
-            const occRef = doc(db, 'classSchedules', occId);
-            batch.set(occRef, {
+            newOccDocs.push({
+              id: occId,
+              data: {
+                id: occId,
+                scheduleGroupId,
+                title: form.title,
+                programId: form.programId || undefined,
+                programName: form.programName || form.title,
+                tutorId: form.tutorId || undefined,
+                tutorName: form.tutorName,
+                meetingLink: form.meetingLink,
+                startTime: form.startTime,
+                endTime: form.endTime,
+                date: dateStr,
+                status: 'SCHEDULED',
+                targetType: 'school',
+                schoolId: form.schoolId,
+                schoolName: selectedSchool?.name || 'Partner School',
+                classLevel: lvl,
+                classLevels,
+                occurrenceIndex: w + 1,
+                occurrenceTotal: numWeeks,
+                createdAt: new Date().toISOString()
+              }
+            });
+          }
+        } else if (form.targetType === 'parent') {
+          const occId = `${scheduleGroupId}-w${w}`;
+          newOccDocs.push({
+            id: occId,
+            data: {
               id: occId,
               scheduleGroupId,
               title: form.title,
+              programId: form.programId || undefined,
+              programName: form.programName || form.title,
+              tutorId: form.tutorId || undefined,
               tutorName: form.tutorName,
               meetingLink: form.meetingLink,
               startTime: form.startTime,
               endTime: form.endTime,
               date: dateStr,
               status: 'SCHEDULED',
-              targetType: 'school',
-              schoolId: form.schoolId,
-              schoolName: selectedSchool?.name || 'Partner School',
-              classLevel: lvl,
-              classLevels,
+              targetType: 'parent',
+              parentId: form.parentId,
+              parentName: selectedParent?.name || 'Parent',
+              parentEmail: selectedParent?.email || '',
+              studentId: form.studentId || undefined,
+              studentName: selectedChild?.name || 'Child',
               occurrenceIndex: w + 1,
               occurrenceTotal: numWeeks,
               createdAt: new Date().toISOString()
-            });
-          }
-        } else if (form.targetType === 'parent') {
-          const occId = `${scheduleGroupId}-w${w}`;
-          const occRef = doc(db, 'classSchedules', occId);
-          batch.set(occRef, {
-            id: occId,
-            scheduleGroupId,
-            title: form.title,
-            tutorName: form.tutorName,
-            meetingLink: form.meetingLink,
-            startTime: form.startTime,
-            endTime: form.endTime,
-            date: dateStr,
-            status: 'SCHEDULED',
-            targetType: 'parent',
-            parentId: form.parentId,
-            parentName: selectedParent?.name || 'Parent',
-            parentEmail: selectedParent?.email || '',
-            studentId: form.studentId || undefined,
-            studentName: selectedChild?.name || 'Child',
-            occurrenceIndex: w + 1,
-            occurrenceTotal: numWeeks,
-            createdAt: new Date().toISOString()
+            }
           });
         } else {
           // Individual Cadet
           const occId = `${scheduleGroupId}-w${w}`;
-          const occRef = doc(db, 'classSchedules', occId);
-          batch.set(occRef, {
+          newOccDocs.push({
             id: occId,
-            scheduleGroupId,
-            title: form.title,
-            tutorName: form.tutorName,
-            meetingLink: form.meetingLink,
-            startTime: form.startTime,
-            endTime: form.endTime,
-            date: dateStr,
-            status: 'SCHEDULED',
-            targetType: 'individual',
-            studentId: form.studentId,
-            studentName: selectedIndiv?.name || 'Scholar',
-            studentEmail: selectedIndiv?.email || '',
-            occurrenceIndex: w + 1,
-            occurrenceTotal: numWeeks,
-            createdAt: new Date().toISOString()
+            data: {
+              id: occId,
+              scheduleGroupId,
+              title: form.title,
+              programId: form.programId || undefined,
+              programName: form.programName || form.title,
+              tutorId: form.tutorId || undefined,
+              tutorName: form.tutorName,
+              meetingLink: form.meetingLink,
+              startTime: form.startTime,
+              endTime: form.endTime,
+              date: dateStr,
+              status: 'SCHEDULED',
+              targetType: 'individual',
+              studentId: form.studentId,
+              studentName: selectedIndiv?.name || 'Scholar',
+              studentEmail: selectedIndiv?.email || '',
+              occurrenceIndex: w + 1,
+              occurrenceTotal: numWeeks,
+              createdAt: new Date().toISOString()
+            }
           });
         }
       }
 
-      await batch.commit();
+      // Commit new occurrences in chunks of 400
+      for (let i = 0; i < newOccDocs.length; i += 400) {
+        const chunk = newOccDocs.slice(i, i + 400);
+        const batch = writeBatch(db);
+        chunk.forEach(item => batch.set(doc(db, 'classSchedules', item.id), item.data));
+        await batch.commit();
+      }
 
-      toast.success(editing ? 'Class schedule updated successfully.' : `Schedule generated for ${numWeeks} week(s).`);
+      toast.success(editing ? `Updated recurring schedule (${numWeeks} weeks).` : `Created recurring schedule with ${numWeeks} weeks.`);
       setShowForm(false);
       setEditing(null);
       await load();
@@ -674,12 +747,49 @@ const AdminClassSchedules: React.FC = () => {
                   </label>
                   <select
                     value={form.schoolId}
-                    onChange={e => setForm({ ...form, schoolId: e.target.value })}
+                    onChange={e => {
+                      const selSchool = schools.find(s => s.id === e.target.value);
+                      const defaultProg = selSchool?.programs?.[0];
+                      setForm({ 
+                        ...form, 
+                        schoolId: e.target.value,
+                        programId: defaultProg?.id || '',
+                        programName: defaultProg?.name || '',
+                        title: defaultProg?.name || form.title,
+                        tutorName: defaultProg?.assignedTutors?.[0]?.tutorName || form.tutorName
+                      });
+                    }}
                     className={inputClass}
                   >
                     <option value="">Select partner school...</option>
                     {schools.map(s => (
                       <option key={s.id} value={s.id}>{s.name} {s.code ? `(${s.code})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    School Programme
+                  </label>
+                  <select
+                    value={form.programId || ''}
+                    onChange={e => {
+                      const selSchool = schools.find(s => s.id === form.schoolId);
+                      const selProg = selSchool?.programs?.find(p => p.id === e.target.value);
+                      setForm({
+                        ...form,
+                        programId: e.target.value,
+                        programName: selProg?.name || (e.target.value ? e.target.value : ''),
+                        title: selProg?.name || form.title,
+                        tutorName: selProg?.assignedTutors?.[0]?.tutorName || form.tutorName
+                      });
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">-- General / Custom Schedule --</option>
+                    {(schools.find(s => s.id === form.schoolId)?.programs || []).map(p => (
+                      <option key={p.id} value={p.id}>{p.name} {p.level ? `(${p.level})` : ''}</option>
                     ))}
                   </select>
                 </div>

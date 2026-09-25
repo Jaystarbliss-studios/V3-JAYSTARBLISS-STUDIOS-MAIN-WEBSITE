@@ -102,56 +102,103 @@ const SchoolRoster: React.FC = () => {
       if (roster.length === 0) {
         // Direct client-side Firestore query for the school
         let targetSchoolId = sId;
+        let schoolNameCandidate = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name') || '';
+        let schoolCodeCandidate = '';
+
+        // 1. Resolve school metadata if available
+        if (targetSchoolId) {
+          try {
+            const schDoc = await getDoc(doc(db, 'schools', targetSchoolId));
+            if (schDoc.exists()) {
+              const sd = schDoc.data();
+              if (sd.name) schoolNameCandidate = sd.name;
+              if (sd.schoolCode) schoolCodeCandidate = sd.schoolCode;
+            }
+          } catch (e) {
+            console.warn('SchoolRoster direct school lookup:', e);
+          }
+        }
+
         if (!targetSchoolId && effective.effectiveUid) {
           const uSnap = await getDoc(doc(db, 'users', effective.effectiveUid)).catch(() => null);
           const uData = uSnap?.data() || {};
           targetSchoolId = uData.schoolId || '';
+          if (uData.schoolName) schoolNameCandidate = uData.schoolName;
+          if (uData.schoolCode) schoolCodeCandidate = uData.schoolCode;
         }
 
-        if (targetSchoolId) {
-          const [sSnap, iSnap] = await Promise.all([
-            getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })),
-            getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] }))
+        // If targetSchoolId is still missing, lookup schools collection
+        if (!targetSchoolId) {
+          try {
+            const schoolsSnap = await getDocs(collection(db, 'schools'));
+            const found = schoolsSnap.docs.find(d => 
+              d.id === effective.effectiveUid ||
+              d.data().email?.toLowerCase() === effective.effectiveEmail?.toLowerCase() ||
+              d.data().adminUid === effective.effectiveUid ||
+              d.data().firebaseUid === effective.effectiveUid
+            );
+            if (found) {
+              targetSchoolId = found.id;
+              schoolNameCandidate = found.data().name || schoolNameCandidate;
+              schoolCodeCandidate = found.data().schoolCode || '';
+            }
+          } catch (e) {
+            console.warn('School collection lookup in roster:', e);
+          }
+        }
+
+        if (targetSchoolId || schoolNameCandidate) {
+          const [sSnap, iSnap, allStudSnap, allIndivSnap] = await Promise.all([
+            targetSchoolId ? getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })) : { docs: [] },
+            targetSchoolId ? getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })) : { docs: [] },
+            getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
+            getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] }))
           ]);
+
           const list: Student[] = [];
-          sSnap.docs.forEach((d: any) => {
+          const seen = new Set<string>();
+          const targetLow = (targetSchoolId || '').toLowerCase();
+          const nameLow = (schoolNameCandidate || '').toLowerCase();
+          const codeLow = (schoolCodeCandidate || '').toLowerCase();
+
+          const addCandidate = (d: any, collName: 'students' | 'individualStudents') => {
+            if (seen.has(d.id)) return;
             const data = d.data();
-            list.push({
-              id: d.id,
-              collection: 'students',
-              fullName: data.fullName || data.name || 'Student',
-              username: data.username || d.id,
-              email: data.email || null,
-              class: data.class || data.grade || 'General',
-              track: data.track || 'Coding & Tech',
-              parentId: data.parentId || null,
-              tutorId: data.tutorId || null,
-              staffId: data.staffId || null,
-              portalAccessEnabled: data.portalAccessEnabled !== false,
-              accountStatus: data.accountStatus || 'ACTIVE',
-              source: 'school_portal'
-            });
-          });
-          iSnap.docs.forEach((d: any) => {
-            const data = d.data();
-            if (!list.some(item => item.id === d.id)) {
+            const sIdField = String(data.schoolId || data.school_id || '').trim().toLowerCase();
+            const sNameField = String(data.schoolName || data.school || data.institutionName || data.institution || '').trim().toLowerCase();
+            const sCodeField = String(data.schoolCode || '').trim().toLowerCase();
+
+            const isMatch = (
+              (targetLow && (sIdField === targetLow || sIdField.includes(targetLow) || targetLow.includes(sIdField))) ||
+              (nameLow && (sNameField === nameLow || sNameField.includes(nameLow) || nameLow.includes(sNameField) || sIdField === nameLow || sIdField.includes(nameLow))) ||
+              (codeLow && (sCodeField === codeLow || sCodeField === targetLow || sIdField === codeLow))
+            );
+
+            if (isMatch) {
+              seen.add(d.id);
               list.push({
                 id: d.id,
-                collection: 'individualStudents',
+                collection: collName,
                 fullName: data.fullName || data.studentName || data.name || 'Student',
                 username: data.username || d.id,
                 email: data.email || null,
                 class: data.class || data.grade || 'General',
-                track: data.track || 'Coding & Tech',
+                track: data.track || data.programName || 'Coding & Tech',
                 parentId: data.parentId || null,
                 tutorId: data.tutorId || null,
                 staffId: data.staffId || null,
                 portalAccessEnabled: data.portalAccessEnabled !== false,
                 accountStatus: data.accountStatus || 'ACTIVE',
-                source: 'individualStudents'
+                source: collName
               });
             }
-          });
+          };
+
+          sSnap.docs.forEach((d: any) => addCandidate(d, 'students'));
+          iSnap.docs.forEach((d: any) => addCandidate(d, 'individualStudents'));
+          allStudSnap.docs.forEach((d: any) => addCandidate(d, 'students'));
+          allIndivSnap.docs.forEach((d: any) => addCandidate(d, 'individualStudents'));
+
           roster = list;
         }
       }

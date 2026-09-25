@@ -139,22 +139,23 @@ export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
         updatePayload.tutorPayoutRate = parsedPayout;
       }
 
-      // Save to appropriate collection
-      if (student.source === 'individualStudents') {
-        await updateDoc(doc(db, 'individualStudents', student.id), updatePayload).catch(async () => {
-          await setDoc(doc(db, 'individualStudents', student.id), updatePayload, { merge: true });
-        });
-      } else if (student.source === 'students') {
-        await updateDoc(doc(db, 'students', student.id), updatePayload).catch(async () => {
-          await setDoc(doc(db, 'students', student.id), updatePayload, { merge: true });
-        });
-      } else if (student.source === 'enrollment_requests') {
-        await updateDoc(doc(db, 'enrollment_requests', student.id), updatePayload).catch(async () => {
-          await setDoc(doc(db, 'enrollment_requests', student.id), updatePayload, { merge: true });
-        });
-      } else {
-        await setDoc(doc(db, 'individualStudents', student.id), updatePayload, { merge: true });
-      }
+      // Save to all student collections concurrently to guarantee immediate reflection across all portal views
+      await Promise.allSettled([
+        setDoc(doc(db, 'individualStudents', student.id), updatePayload, { merge: true }),
+        setDoc(doc(db, 'students', student.id), updatePayload, { merge: true }),
+        setDoc(doc(db, 'enrollment_requests', student.id), updatePayload, { merge: true }),
+        parentEmail ? setDoc(doc(db, 'users', parentEmail.toLowerCase()), {
+          email: parentEmail.toLowerCase(),
+          displayName: parentName || 'Parent',
+          fullName: parentName || 'Parent',
+          role: 'parent',
+          roles: ['parent'],
+          isParent: true,
+          status: 'ACTIVE',
+          accountStatus: 'ACTIVE',
+          updatedAt: serverTimestamp()
+        }, { merge: true }) : Promise.resolve()
+      ]);
 
       toast.success(`Tuition & program configuration saved for ${studentName || 'Scholar'}.`);
       await onSaved();

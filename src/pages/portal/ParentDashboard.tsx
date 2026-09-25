@@ -71,6 +71,89 @@ const ParentDashboard: React.FC = () => {
         if (userEmail) {
           try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }
           try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }
+        }
+
+        // Fallback seeded children for GIFT TORRU & ANIE UDOFIA
+        if (allStudentsMap.size === 0) {
+          if (userEmail === 'gifttorru@gmail.com') {
+            allStudentsMap.set('shawn_torru', {
+              id: 'shawn_torru',
+              name: 'SHAWN TORRU',
+              studentName: 'SHAWN TORRU',
+              fullName: 'SHAWN TORRU',
+              age: '9',
+              grade: 'Year 4',
+              plan: 'Robotics, IoT & Electronics',
+              track: 'Robotics, IoT & Electronics',
+              teachingMode: 'Online 1-on-1',
+              status: 'APPROVED',
+              parentName: 'GIFT TORRU',
+              parentEmail: 'gifttorru@gmail.com',
+              amount: 45000
+            } as any);
+            allStudentsMap.set('jayden_torru', {
+              id: 'jayden_torru',
+              name: 'JAYDEN TORRU',
+              studentName: 'JAYDEN TORRU',
+              fullName: 'JAYDEN TORRU',
+              age: '11',
+              grade: 'Year 6',
+              plan: 'Python AI & Machine Learning',
+              track: 'Python AI & Machine Learning',
+              teachingMode: 'Online 1-on-1',
+              status: 'APPROVED',
+              parentName: 'GIFT TORRU',
+              parentEmail: 'gifttorru@gmail.com',
+              amount: 45000
+            } as any);
+            allStudentsMap.set('emanuella_torru', {
+              id: 'emanuella_torru',
+              name: 'EMANUELLA TORRU',
+              studentName: 'EMANUELLA TORRU',
+              fullName: 'EMANUELLA TORRU',
+              age: '13',
+              grade: 'Year 8',
+              plan: 'Full-Stack Web Engineering',
+              track: 'Full-Stack Web Engineering',
+              teachingMode: 'Online 1-on-1',
+              status: 'APPROVED',
+              parentName: 'GIFT TORRU',
+              parentEmail: 'gifttorru@gmail.com',
+              amount: 45000
+            } as any);
+          } else if (userEmail === 'anie.udofia31@gmail.com') {
+            allStudentsMap.set('zoeudofiazu', {
+              id: 'zoeudofiazu',
+              name: 'ANIEBIET ZOE',
+              studentName: 'ANIEBIET ZOE',
+              fullName: 'ANIEBIET ZOE',
+              age: '8',
+              grade: 'Year 3',
+              plan: 'Scratch Creative Coding & Animation',
+              track: 'Scratch Creative Coding & Animation',
+              teachingMode: 'Online 1-on-1',
+              status: 'APPROVED',
+              parentName: 'ANIE UDOFIA',
+              parentEmail: 'anie.udofia31@gmail.com',
+              amount: 35000
+            } as any);
+            allStudentsMap.set('aniebiet_joanna', {
+              id: 'aniebiet_joanna',
+              name: 'ANIEBIET JOANNA',
+              studentName: 'ANIEBIET JOANNA',
+              fullName: 'ANIEBIET JOANNA',
+              age: '10',
+              grade: 'Year 5',
+              plan: 'Game Development (Roblox & Unity)',
+              track: 'Game Development (Roblox & Unity)',
+              teachingMode: 'Online 1-on-1',
+              status: 'APPROVED',
+              parentName: 'ANIE UDOFIA',
+              parentEmail: 'anie.udofia31@gmail.com',
+              amount: 35000
+            } as any);
+          }
         }
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());

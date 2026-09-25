@@ -14,6 +14,7 @@ import { FintechWithdrawalModal } from '../../components/portal/FintechWithdrawa
 import { FintechAddMoneyModal } from '../../components/portal/FintechAddMoneyModal';
 import { auth, db } from '../../lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs, getDoc, doc, query, where, limit } from 'firebase/firestore';
+import { getEffectiveAuth, isMasqueradingActive } from '../../utils/impersonation';
 
 export type BillingCenterRole = 'student' | 'parent' | 'staff' | 'school';
 type PaymentRecord = Record<string, any> & { id: string };
@@ -86,6 +87,10 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
     fee: number;
     netAmount: number;
   }) => {
+    if (isMasqueradingActive()) {
+      toast.error('Payout withdrawals are disabled in Superadmin Impersonation Mode.');
+      return;
+    }
     try {
       await billingPost('wallet-withdraw', { 
         action: 'withdraw', 
@@ -300,6 +305,10 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
   // Start checkout handler
   const startCheckout = (opts?: { plan?: Plan; studentId?: string; planName?: string }) => {
+    if (isMasqueradingActive()) {
+      toast.error('Payment checkout is disabled in Impersonation Mode. You are viewing records in read-only mode.');
+      return;
+    }
     if (role === 'school') {
       setSelectedPlanId('custom_school_billing');
       setTeachingMode('Standard Institutional Curriculum Delivery');
@@ -316,6 +325,10 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
   const processPayment = async (event: React.FormEvent) => { 
     event.preventDefault(); 
+    if (isMasqueradingActive()) {
+      toast.error('Payment authorization is disabled in Superadmin Impersonation Mode.');
+      return;
+    }
     if (role === 'parent' && !selectedStudentId) { 
       toast.error('Please select the child this payment is for.'); 
       return; 
@@ -501,6 +514,22 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
                 {schoolBilling?.nextDueDate && ` Scheduled Due Date: ${new Date(schoolBilling.nextDueDate).toLocaleDateString('en-NG', { dateStyle: 'long' })}.`}
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Impersonation Notice */}
+        {isMasqueradingActive() && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck size={18} className="text-amber-600 shrink-0" />
+              <div>
+                <strong className="block font-black">Superadmin Impersonation Mode Active</strong>
+                <span>Payment authorization and Paystack checkouts are disabled while impersonating. Invoices, ledger breakdowns, and payment history are available in read-only mode.</span>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-100 shrink-0">
+              Payments Disabled
+            </span>
           </div>
         )}
 
@@ -701,10 +730,18 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
               <button
                 type="button"
+                disabled={isMasqueradingActive()}
                 onClick={() => startCheckout()}
-                className="w-full min-h-12 rounded-2xl bg-brand-red hover:bg-red-700 text-white font-black text-xs md:text-sm inline-flex items-center justify-center gap-2 shadow-sm transition-all"
+                className={`w-full min-h-12 rounded-2xl font-black text-xs md:text-sm inline-flex items-center justify-center gap-2 shadow-sm transition-all ${
+                  isMasqueradingActive()
+                    ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                    : 'bg-brand-red hover:bg-red-700 text-white cursor-pointer'
+                }`}
               >
-                <CreditCard size={17} /> Proceed to Paystack Checkout ({formatNaira(schoolFee)})
+                <CreditCard size={17} /> 
+                {isMasqueradingActive() 
+                  ? `Checkout Disabled in Impersonation Mode (${formatNaira(schoolFee)})` 
+                  : `Proceed to Paystack Checkout (${formatNaira(schoolFee)})`}
               </button>
             </div>
           )}
@@ -869,6 +906,22 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         </div>
       </div>
 
+      {/* Impersonation Notice */}
+      {isMasqueradingActive() && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck size={18} className="text-amber-600 shrink-0" />
+            <div>
+              <strong className="block font-black">Superadmin Impersonation Mode Active</strong>
+              <span>Payment processing and withdrawal requests are disabled while impersonating. All ledger histories and account details are available in read-only mode.</span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200/80 dark:bg-amber-900 text-amber-900 dark:text-amber-100 shrink-0">
+            Payments Disabled
+          </span>
+        </div>
+      )}
+
       {role !== 'staff' && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -943,10 +996,15 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
                   <button 
                     type="button" 
+                    disabled={isMasqueradingActive()}
                     onClick={() => startCheckout({ plan })} 
-                    className="mt-5 min-h-11 w-full rounded-xl bg-brand-red hover:bg-red-700 px-4 text-xs font-black text-white shadow-sm transition-all"
+                    className={`mt-5 min-h-11 w-full rounded-xl px-4 text-xs font-black shadow-sm transition-all ${
+                      isMasqueradingActive()
+                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                        : 'bg-brand-red hover:bg-red-700 text-white cursor-pointer'
+                    }`}
                   >
-                    Continue to Payment ({formatNaira(plan.baseAmount)})
+                    {isMasqueradingActive() ? `Payment Disabled in Impersonation Mode` : `Continue to Payment (${formatNaira(plan.baseAmount)})`}
                   </button>
                 </article>
               );
