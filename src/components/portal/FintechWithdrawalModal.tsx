@@ -58,6 +58,8 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
   const [accountVerified, setAccountVerified] = useState(hasSavedAccount);
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [directoryBanks, setDirectoryBanks] = useState<BankOption[]>(banksList || []);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
 
   useEffect(() => {
     setDirectoryBanks(banksList || []);
@@ -100,8 +102,8 @@ export const FintechWithdrawalModal: React.FC<FintechWithdrawalModalProps> = ({
   }, [isOpen, savedBankCode, savedAccountNumber, savedAccountLast4, savedAccountName]);
 
   const availableBanks = useMemo(
-    () => [...banksList].sort((a, b) => a.name.localeCompare(b.name)),
-    [banksList]
+    () => [...directoryBanks].sort((a, b) => a.name.localeCompare(b.name)),
+    [directoryBanks]
   );
 
   const filteredBanks = useMemo(() => {
