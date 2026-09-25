@@ -145,10 +145,10 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
       // Filter by tutor identity if faculty tutor
       const currentName = tutorName || effective.effectiveName || user?.displayName;
       const filtered = loadedList.filter(s => {
-        if (!currentUid) return true;
+        if (!currentUid) return false;
         if (s.tutorId === currentUid) return true;
         if (currentName && s.tutorName && s.tutorName.toLowerCase() === currentName.toLowerCase()) return true;
-        return true; // Keep visible in staff workspace
+        return false;
       });
 
       setSchedules(filtered);
@@ -228,7 +228,7 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
   // Group occurrences on each date into unified sessions with range badge & expandable list
   const groupedDaySessions = useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     // 1. Filter raw occurrences
@@ -266,8 +266,10 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
         try {
           const d = new Date(itemDate + 'T00:00:00');
           if (!isNaN(d.getTime())) {
-            formattedDate = d.toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
+            const day = d.getDate();
+            const suffix = day % 10 === 1 && day % 100 !== 11 ? 'st' : day % 10 === 2 && day % 100 !== 12 ? 'nd' : day % 10 === 3 && day % 100 !== 13 ? 'rd' : 'th';
             dayName = d.toLocaleDateString('en-NG', { weekday: 'long' });
+            formattedDate = `${dayName}, ${day}${suffix} ${d.toLocaleDateString('en-NG', { month: 'long' })} ${d.getFullYear()}`;
           }
         } catch {
           // fallback
@@ -337,13 +339,12 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
       const isPastTimeToday = isToday && sess.endTime < currentTimeStr;
       const isCurrentTimeSlot = isToday && sess.startTime <= currentTimeStr && currentTimeStr <= sess.endTime;
 
-      const hasExplicitOngoing = sess.occurrences.some(o => o.status === 'ONGOING');
       const allExplicitCompleted = sess.occurrences.every(o => o.status === 'COMPLETED' || o.status === 'ATTENDED');
       const anyAbsent = sess.occurrences.some(o => o.status === 'ABSENT');
       const anyRescheduled = sess.occurrences.some(o => o.status === 'RESCHEDULED');
       const anyCancelled = sess.occurrences.some(o => o.status === 'CANCELLED');
 
-      if (hasExplicitOngoing || (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled)) {
+      if (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled && !anyRescheduled) {
         sess.overallStatus = 'ONGOING';
         sess.isLiveNow = true;
       } else if (allExplicitCompleted || isPastDate || isPastTimeToday) {
@@ -495,10 +496,10 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
           >
             <option value="ALL">All Schools & Learners</option>
             {assignedSchools.map(sch => (
-              <option key={sch.id} value={sch.id}>🏫 {sch.name || sch.schoolName}</option>
+              <option key={sch.id} value={sch.id}>{sch.name || sch.schoolName}</option>
             ))}
             {assignedStudents.map(st => (
-              <option key={st.id} value={st.id}>👤 {st.fullName || st.studentName || st.username}</option>
+              <option key={st.id} value={st.id}>{st.fullName || st.studentName || st.username}</option>
             ))}
           </select>
         </div>
