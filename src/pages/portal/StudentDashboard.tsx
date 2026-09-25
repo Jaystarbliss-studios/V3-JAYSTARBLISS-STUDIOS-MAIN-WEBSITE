@@ -803,34 +803,6 @@ const StudentDashboard: React.FC = () => {
             </div>
           </section>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Programme Progress</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{overallProgress}%</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Learning Tracks</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{courseProgressList.length}</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Milestones</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{modules.length}</p>
-            </div>
-            <div className="pro-surface rounded-2xl p-4">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Completed</p>
-              <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{completedModulesCount}</p>
-            </div>
-          </div>
-
-          {/* Typing Masters Academy • In Collaboration with EdClub */}
-          <TypingMastersAcademyCard
-            studentName={student.fullName}
-            studentClass={student.class || student.grade}
-            schoolId={student.schoolId}
-            isAllowed={isEdclubAllowed}
-            enrolledProgramName={enrolledProgramName}
-          />
-
           <section className="pro-surface rounded-2xl p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
