@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { 
-  X, Save, DollarSign, BookOpen, Clock, UserCheck, 
-  CreditCard, ShieldCheck, CheckCircle2, Download, AlertCircle 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  X, Save, BookOpen, Clock, UserCheck, CreditCard, Download,
+  CheckCircle2, AlertCircle, ShieldCheck
 } from 'lucide-react';
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { formatCurrency, generatePdfReceipt } from '../../lib/receiptGenerator';
 
@@ -26,7 +26,13 @@ export interface UnifiedParentStudent {
   schoolName?: string;
   age?: string;
   grade?: string;
+  username?: string;
   createdAt?: string;
+}
+
+export interface ParentProgramOption {
+  id: string;
+  name: string;
 }
 
 export interface ParentTuitionModalProps {
@@ -34,92 +40,113 @@ export interface ParentTuitionModalProps {
   onClose: () => void;
   student: UnifiedParentStudent | null;
   tutors: Array<{ id: string; name: string; email?: string }>;
+  programs?: ParentProgramOption[];
   onSaved: () => Promise<void>;
 }
-
-const PROGRAM_OPTIONS = [
-  'Full-Stack Web Engineering',
-  'Python AI & Machine Learning',
-  'Robotics, IoT & Electronics',
-  'Game Development (Roblox & Unity)',
-  'Mobile App Development (Flutter)',
-  'Scratch Creative Coding & Animation',
-  'Data Science & Analytics',
-  'Cybersecurity Fundamentals',
-  'Creative Computing & Graphics'
-];
 
 export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
   isOpen,
   onClose,
   student,
   tutors,
+  programs = [],
   onSaved
 }) => {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'config' | 'payment'>('config');
+  const [provisionedPassword, setProvisionedPassword] = useState('');
 
-  // Form State
-  const [studentName, setStudentName] = useState(student?.studentName || '');
-  const [parentName, setParentName] = useState(student?.parentName || '');
-  const [parentEmail, setParentEmail] = useState(student?.parentEmail || '');
-  const [parentPhone, setParentPhone] = useState(student?.parentPhone || '');
-  const [plan, setPlan] = useState(student?.plan || '');
-  const [customPlan, setCustomPlan] = useState('');
-  const [amount, setAmount] = useState(student?.amount ? String(student.amount) : '');
-  const [cycle, setCycle] = useState<'monthly' | 'termly' | 'annual'>(student?.cycle || 'monthly');
-  const [teachingMode, setTeachingMode] = useState(student?.teachingMode || 'Online 1-on-1');
-  const [tutorId, setTutorId] = useState(student?.tutorId || '');
-  const [tutorPayoutRate, setTutorPayoutRate] = useState(student?.tutorPayoutRate ? String(student.tutorPayoutRate) : '');
-  const [status, setStatus] = useState(student?.status || 'PENDING');
+  const [studentName, setStudentName] = useState('');
+  const [parentName, setParentName] = useState('');
+  const [parentEmail, setParentEmail] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
+  const [plan, setPlan] = useState('');
+  const [amount, setAmount] = useState('');
+  const [cycle, setCycle] = useState<'monthly' | 'termly' | 'annual'>('monthly');
+  const [teachingMode, setTeachingMode] = useState('Online 1-on-1');
+  const [tutorId, setTutorId] = useState('');
+  const [tutorPayoutRate, setTutorPayoutRate] = useState('');
+  const [status, setStatus] = useState('PENDING');
 
-  // Payment Recording State
-  const [payAmount, setPayAmount] = useState(student?.amount ? String(student.amount) : '');
-  const [payReference, setPayReference] = useState(`TX-PARENT-${Date.now().toString().slice(-6)}`);
+  const [payAmount, setPayAmount] = useState('');
+  const [payReference, setPayReference] = useState('');
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
-  const [payNotes, setPayNotes] = useState('Direct Bank Settlement / Wire');
+  const [payNotes, setPayNotes] = useState('');
 
-  // Update form fields when student changes
-  React.useEffect(() => {
-    if (student) {
-      setStudentName(student.studentName || '');
-      setParentName(student.parentName || '');
-      setParentEmail(student.parentEmail || '');
-      setParentPhone(student.parentPhone || '');
-      setPlan(student.plan || '');
-      setCustomPlan('');
-      setAmount(student.amount ? String(student.amount) : '');
-      setCycle(student.cycle || 'monthly');
-      setTeachingMode(student.teachingMode || 'Online 1-on-1');
-      setTutorId(student.tutorId || '');
-      setTutorPayoutRate(student.tutorPayoutRate ? String(student.tutorPayoutRate) : '');
-      setStatus(student.status || 'PENDING');
-      setPayAmount(student.amount ? String(student.amount) : '');
-      setPayReference(`TX-PARENT-${Date.now().toString().slice(-6)}`);
-    }
+  useEffect(() => {
+    if (!student) return;
+    setProvisionedPassword('');
+    setStudentName(student.studentName || '');
+    setParentName(student.parentName || '');
+    setParentEmail(student.parentEmail || '');
+    setParentPhone(student.parentPhone || '');
+    setPlan(student.plan || '');
+    setAmount(student.amount ? String(student.amount) : '');
+    setCycle(student.cycle || 'monthly');
+    setTeachingMode(student.teachingMode || 'Online 1-on-1');
+    setTutorId(student.tutorId || '');
+    setTutorPayoutRate(student.tutorPayoutRate ? String(student.tutorPayoutRate) : '');
+    setStatus(student.status || 'PENDING');
+    setPayAmount(student.amount ? String(student.amount) : '');
+    setPayReference(`TX-PARENT-${Date.now().toString().slice(-8)}`);
+    setPayNotes('');
   }, [student]);
+
+  const inputClass = 'w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500';
+  const assignedTutor = useMemo(() => tutors.find(t => t.id === tutorId), [tutors, tutorId]);
 
   if (!isOpen || !student) return null;
 
-  const assignedTutorObj = tutors.find(t => t.id === tutorId);
-  const effectivePlanName = plan === 'OTHER' ? (customPlan || 'Custom Technology Track') : plan;
+  const provisionParentAndChild = async () => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Your administrator session has expired. Please sign in again.');
 
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const parsedAmount = Number(amount) || 0;
-      const parsedPayout = Number(tutorPayoutRate) || 0;
-      const assignedTutorName = assignedTutorObj ? assignedTutorObj.name : (student.tutorName || '');
-
-      const updatePayload: Record<string, any> = {
-        fullName: studentName,
-        studentName,
+    const token = await user.getIdToken();
+    const response = await fetch('/.netlify/functions/admin-parent-family', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
         parentName,
         parentEmail,
         parentPhone,
-        phone: parentPhone,
+        children: [{
+          id: student.id,
+          username: student.username,
+          fullName: studentName || student.studentName
+        }]
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Unable to create or link the parent account.');
+    if (result.temporaryPassword) setProvisionedPassword(result.temporaryPassword);
+    return result;
+  };
+
+  const handleSaveConfig = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      const parsedAmount = Number(amount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount < 0) throw new Error('Enter a valid tuition fee.');
+      if (!parentEmail.trim() || !parentEmail.includes('@')) throw new Error('Enter a valid parent email.');
+      if (!plan.trim()) throw new Error('Select or enter the programme assigned to this student.');
+
+      const parsedPayout = Number(tutorPayoutRate || 0);
+      const effectivePlanName = plan.trim();
+      const accountResult = await provisionParentAndChild();
+
+      const updatePayload: Record<string, any> = {
+        fullName: studentName.trim(),
+        studentName: studentName.trim(),
+        parentName: parentName.trim(),
+        parentEmail: parentEmail.trim().toLowerCase(),
+        parentPhone: parentPhone.trim(),
+        phone: parentPhone.trim(),
         plan: effectivePlanName,
         track: effectivePlanName,
         courseName: effectivePlanName,
@@ -129,48 +156,46 @@ export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
         teachingMode,
         mode: teachingMode,
         status,
-        accountStatus: status === 'APPROVED' || status === 'ACTIVE' || status === 'PAID' ? 'ACTIVE' : status,
+        accountStatus: ['APPROVED', 'ACTIVE', 'PAID'].includes(status) ? 'ACTIVE' : status,
         updatedAt: serverTimestamp()
       };
 
       if (tutorId) {
         updatePayload.tutorId = tutorId;
-        updatePayload.tutorName = assignedTutorName;
-        updatePayload.tutorPayoutRate = parsedPayout;
+        updatePayload.tutorName = assignedTutor?.name || '';
+        updatePayload.tutorPayoutRate = Number.isFinite(parsedPayout) ? parsedPayout : 0;
+      } else {
+        updatePayload.tutorId = null;
+        updatePayload.tutorName = null;
+        updatePayload.tutorPayoutRate = 0;
       }
 
-      // Save to all student collections concurrently to guarantee immediate reflection across all portal views
-      await Promise.allSettled([
+      // The admin endpoint establishes the parent/auth relationship. These writes only
+      // persist the actual programme, fee and tutor configuration, and failures are surfaced.
+      await Promise.all([
         setDoc(doc(db, 'individualStudents', student.id), updatePayload, { merge: true }),
         setDoc(doc(db, 'students', student.id), updatePayload, { merge: true }),
-        setDoc(doc(db, 'enrollment_requests', student.id), updatePayload, { merge: true }),
-        parentEmail ? setDoc(doc(db, 'users', parentEmail.toLowerCase()), {
-          email: parentEmail.toLowerCase(),
-          displayName: parentName || 'Parent',
-          fullName: parentName || 'Parent',
-          role: 'parent',
-          roles: ['parent'],
-          isParent: true,
-          status: 'ACTIVE',
-          accountStatus: 'ACTIVE',
-          updatedAt: serverTimestamp()
-        }, { merge: true }) : Promise.resolve()
+        setDoc(doc(db, 'enrollment_requests', student.id), updatePayload, { merge: true })
       ]);
 
-      toast.success(`Tuition & program configuration saved for ${studentName || 'Scholar'}.`);
       await onSaved();
+      if (accountResult.temporaryPassword) {
+        toast.success(`Parent account created. Temporary password: ${accountResult.temporaryPassword}`);
+      } else {
+        toast.success(`Programme, billing and tutor assignment saved for ${studentName || student.studentName}.`);
+      }
       onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update tuition settings.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save programme, billing and tutor settings.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRecordBankPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const numAmount = Number(payAmount) || 0;
-    if (numAmount <= 0) {
+  const handleRecordBankPayment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const numAmount = Number(payAmount);
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
       toast.error('Please enter a valid tuition fee amount.');
       return;
     }
@@ -178,6 +203,7 @@ export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
     setSaving(true);
     try {
       const txRef = payReference.trim() || `TX-PARENT-${Date.now()}`;
+      const paidAt = payDate ? new Date(payDate).toISOString() : new Date().toISOString();
       const paymentRecord = {
         reference: txRef,
         studentId: student.id,
@@ -195,36 +221,31 @@ export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
         status: 'PAID',
         channel: 'bank_transfer',
         method: 'bank_transfer',
-        plan: effectivePlanName,
-        description: `Tuition Settlement (${effectivePlanName}) - ${studentName}`,
+        plan: plan || student.plan || '',
+        description: `Tuition Settlement (${plan || student.plan || 'Programme'}) - ${studentName || student.studentName}`,
         teachingMode,
         cycle,
         notes: payNotes,
-        paidAt: payDate ? new Date(payDate).toISOString() : new Date().toISOString(),
+        paidAt,
         createdAt: serverTimestamp()
       };
 
-      // Save to payments collection
       await setDoc(doc(db, 'payments', txRef), paymentRecord);
 
-      // Also update student status to PAID / ACTIVE
       const studentUpdate = {
         status: 'PAID',
         accountStatus: 'ACTIVE',
         lastPaymentAmount: numAmount,
-        lastPaymentDate: paymentRecord.paidAt,
+        lastPaymentDate: paidAt,
         updatedAt: serverTimestamp()
       };
 
-      if (student.source === 'individualStudents') {
-        await updateDoc(doc(db, 'individualStudents', student.id), studentUpdate).catch(() => {});
-      } else if (student.source === 'enrollment_requests') {
-        await updateDoc(doc(db, 'enrollment_requests', student.id), studentUpdate).catch(() => {});
-      }
+      await Promise.all([
+        setDoc(doc(db, 'individualStudents', student.id), studentUpdate, { merge: true }),
+        setDoc(doc(db, 'students', student.id), studentUpdate, { merge: true }),
+        setDoc(doc(db, 'enrollment_requests', student.id), studentUpdate, { merge: true })
+      ]);
 
-      toast.success(`Tuition payment of ${formatCurrency(numAmount)} recorded successfully!`);
-
-      // Generate receipt
       generatePdfReceipt({
         id: txRef,
         reference: txRef,
@@ -233,387 +254,108 @@ export const ParentTuitionModal: React.FC<ParentTuitionModalProps> = ({
         amount: numAmount,
         customerTotal: numAmount,
         baseAmount: numAmount,
-        description: `Tuition Settlement (${effectivePlanName}) - ${studentName}`,
-        plan: effectivePlanName,
+        description: paymentRecord.description,
+        plan: plan || student.plan || '',
         category: 'parent_tuition',
         status: 'PAID',
         paymentMethod: 'Bank Transfer',
-        paidAt: paymentRecord.paidAt,
+        paidAt,
         studentName: studentName || student.studentName
       });
 
       await onSaved();
+      toast.success(`Tuition payment of ${formatCurrency(numAmount)} recorded successfully.`);
       onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Unable to record parent payment.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to record parent payment.');
     } finally {
       setSaving(false);
     }
   };
 
-  const inputClass = 'w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500';
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 my-8 animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center font-bold">
-              <BookOpen size={20} />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900 dark:text-white">
-                Manage Tuition &amp; Program Schedule
-              </h3>
-              <p className="text-xs text-slate-500">
-                Configure student fees, curriculum tracks, and assign faculty mentors
-              </p>
+      <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 my-8">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center shrink-0"><BookOpen size={20} /></div>
+            <div className="min-w-0">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">Manage Tuition &amp; Programme</h3>
+              <p className="text-xs text-slate-500">Set the real programme, billing plan and tutor assignment for this student.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <X size={18} />
-          </button>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white"><X size={18} /></button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <button
-            type="button"
-            onClick={() => setActiveTab('config')}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'config'
-                ? 'bg-brand-red text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            <BookOpen size={14} />
-            <span>Tuition &amp; Program Settings</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('payment')}
-            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'payment'
-                ? 'bg-brand-red text-white shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            <CreditCard size={14} />
-            <span>Record Bank Settlement</span>
-          </button>
+        {provisionedPassword && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-4 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={16} className="shrink-0 mt-0.5" />
+              <div>
+                <p className="font-black">Parent account created</p>
+                <p className="mt-1">Temporary password: <strong className="font-mono">{provisionedPassword}</strong>. The parent should change it immediately after signing in.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3 overflow-x-auto">
+          <button type="button" onClick={() => setActiveTab('config')} className={`px-4 py-2 rounded-2xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap ${activeTab === 'config' ? 'bg-brand-red text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}><BookOpen size={14} /> Tuition &amp; Programme</button>
+          <button type="button" onClick={() => setActiveTab('payment')} className={`px-4 py-2 rounded-2xl text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap ${activeTab === 'payment' ? 'bg-brand-red text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}><CreditCard size={14} /> Record Payment</button>
         </div>
 
-        {/* TAB 1: Config */}
         {activeTab === 'config' && (
           <form onSubmit={handleSaveConfig} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Student / Cadet Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={studentName}
-                  onChange={e => setStudentName(e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. Adeola Johnson"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Parent / Guardian Name
-                </label>
-                <input
-                  type="text"
-                  value={parentName}
-                  onChange={e => setParentName(e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. Mrs. Sarah Johnson"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Parent Email
-                </label>
-                <input
-                  type="email"
-                  value={parentEmail}
-                  onChange={e => setParentEmail(e.target.value)}
-                  className={inputClass}
-                  placeholder="parent@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Parent Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={parentPhone}
-                  onChange={e => setParentPhone(e.target.value)}
-                  className={inputClass}
-                  placeholder="+234 800 000 0000"
-                />
-              </div>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Student Name<input required value={studentName} onChange={e => setStudentName(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Parent / Guardian Name<input required value={parentName} onChange={e => setParentName(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Parent Email<input required type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Parent Phone<input value={parentPhone} onChange={e => setParentPhone(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
             </div>
 
-            {/* Program & Fee Details */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Assigned Curriculum Track
-                  </label>
-                  <select
-                    value={PROGRAM_OPTIONS.includes(plan) ? plan : (plan ? 'OTHER' : '')}
-                    onChange={e => {
-                      const val = e.target.value;
-                      if (val === 'OTHER') {
-                        setPlan('OTHER');
-                        setCustomPlan(plan && !PROGRAM_OPTIONS.includes(plan) ? plan : '');
-                      } else {
-                        setPlan(val);
-                        setCustomPlan('');
-                      }
-                    }}
-                    className={inputClass}
-                  >
-                    <option value="">-- Select Curriculum Track --</option>
-                    {PROGRAM_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                    <option value="OTHER">Other (Custom Program)</option>
-                  </select>
-                </div>
-
-                {(plan === 'OTHER' || (!PROGRAM_OPTIONS.includes(plan) && plan !== '')) && (
-                  <div>
-                    <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                      Specify Custom Program Name
-                    </label>
-                    <input
-                      type="text"
-                      value={customPlan || (plan !== 'OTHER' ? plan : '')}
-                      onChange={e => {
-                        setCustomPlan(e.target.value);
-                        setPlan('OTHER');
-                      }}
-                      placeholder="e.g. Advanced Embedded C++"
-                      className={inputClass}
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Tuition Fee (₦ NGN) <span className="text-brand-red">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step={1000}
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    className={inputClass}
-                    placeholder="45000"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Billing Cycle
-                  </label>
-                  <select
-                    value={cycle}
-                    onChange={e => setCycle(e.target.value as any)}
-                    className={inputClass}
-                  >
-                    <option value="monthly">Monthly (4 Weeks)</option>
-                    <option value="termly">Termly (12 Weeks)</option>
-                    <option value="annual">Annual Academic Year</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Teaching Delivery Mode
-                  </label>
-                  <select
-                    value={teachingMode}
-                    onChange={e => setTeachingMode(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="Online 1-on-1">Online 1-on-1 Live Class</option>
-                    <option value="Physical Home Tutoring">Physical Home Tutoring</option>
-                    <option value="Hybrid (Online + In-Studio)">Hybrid (Online + In-Studio)</option>
-                    <option value="Weekend Academy Group">Weekend Academy Group</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Enrollment Status
-                  </label>
-                  <select
-                    value={status}
-                    onChange={e => setStatus(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="APPROVED">APPROVED (Active Access)</option>
-                    <option value="PAID">PAID (Verified Settlement)</option>
-                    <option value="PENDING">PENDING (Awaiting Review)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Faculty Tutor Assignment */}
-              <div className="border-t border-slate-200 dark:border-slate-800 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Assign Faculty Tutor / Mentor
-                  </label>
-                  <select
-                    value={tutorId}
-                    onChange={e => setTutorId(e.target.value)}
-                    className={inputClass}
-                  >
-                    <option value="">-- No Tutor Assigned --</option>
-                    {tutors.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.email || 'Faculty'})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                    Tutor Payout Rate (₦ NGN per cycle)
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1000}
-                    value={tutorPayoutRate}
-                    onChange={e => setTutorPayoutRate(e.target.value)}
-                    className={inputClass}
-                    placeholder="15000"
-                  />
-                </div>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Programme
+                  {programs.length > 0 ? (
+                    <select value={programs.some(p => p.name === plan) ? plan : ''} onChange={e => setPlan(e.target.value)} className={`${inputClass} mt-1.5`}>
+                      <option value="">-- Select Programme --</option>
+                      {programs.map(program => <option key={program.id} value={program.name}>{program.name}</option>)}
+                    </select>
+                  ) : (
+                    <input required value={plan} onChange={e => setPlan(e.target.value)} placeholder="Enter the actual programme name" className={`${inputClass} mt-1.5`} />
+                  )}
+                </label>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Tuition Fee (₦)<input required type="number" min={0} step={1000} value={amount} onChange={e => setAmount(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Billing Cycle<select value={cycle} onChange={e => setCycle(e.target.value as 'monthly' | 'termly' | 'annual')} className={`${inputClass} mt-1.5`}><option value="monthly">Monthly</option><option value="termly">Termly</option><option value="annual">Annual</option></select></label>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Teaching Mode<select value={teachingMode} onChange={e => setTeachingMode(e.target.value)} className={`${inputClass} mt-1.5`}><option>Online 1-on-1</option><option>Physical Home Tutoring</option><option>Hybrid (Online + In-Studio)</option><option>Weekend Academy Group</option></select></label>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Enrollment Status<select value={status} onChange={e => setStatus(e.target.value)} className={`${inputClass} mt-1.5`}><option value="APPROVED">Approved</option><option value="PAID">Paid</option><option value="PENDING">Pending</option></select></label>
+                <label className="block text-[11px] font-black uppercase text-slate-500">Tutor<select value={tutorId} onChange={e => setTutorId(e.target.value)} className={`${inputClass} mt-1.5`}><option value="">-- No Tutor Assigned --</option>{tutors.map(t => <option key={t.id} value={t.id}>{t.name}{t.email ? ` (${t.email})` : ''}</option>)}</select></label>
+                <label className="block text-[11px] font-black uppercase text-slate-500 sm:col-span-2">Tutor Payout Rate (₦ / cycle)<input type="number" min={0} step={1000} value={tutorPayoutRate} onChange={e => setTutorPayoutRate(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2.5 rounded-2xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center gap-2 shadow-sm transition-all"
-              >
-                <Save size={15} />
-                <span>{saving ? 'Saving Changes...' : 'Save Tuition Settings'}</span>
-              </button>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold">Cancel</button>
+              <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-2xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center gap-2"><Save size={15} />{saving ? 'Saving…' : 'Save Programme, Billing & Tutor'}</button>
             </div>
           </form>
         )}
 
-        {/* TAB 2: Record Bank Payment */}
         {activeTab === 'payment' && (
           <form onSubmit={handleRecordBankPayment} className="space-y-4">
             <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-900 dark:text-emerald-200">
               <p className="font-bold">Direct Offline Bank Settlement</p>
-              <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-300 leading-relaxed">
-                Recording this payment marks the parent's tuition as PAID, updates their access status, and instantly triggers an official verifiable PDF receipt.
-              </p>
+              <p className="mt-1 text-[11px]">This records an actual payment against the selected student. No payment amount is invented.</p>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Payment Amount (₦ NGN) <span className="text-brand-red">*</span>
-                </label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={payAmount}
-                  onChange={e => setPayAmount(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Payment Reference / Bank Slip ID
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={payReference}
-                  onChange={e => setPayReference(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Settlement Date
-                </label>
-                <input
-                  type="date"
-                  value={payDate}
-                  onChange={e => setPayDate(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-black uppercase text-slate-500 mb-1.5">
-                  Payment Notes / Bank Name
-                </label>
-                <input
-                  type="text"
-                  value={payNotes}
-                  onChange={e => setPayNotes(e.target.value)}
-                  placeholder="e.g. Zenith Bank Transfer"
-                  className={inputClass}
-                />
-              </div>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Payment Amount (₦)<input required type="number" min={1} value={payAmount} onChange={e => setPayAmount(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Reference / Bank Slip ID<input required value={payReference} onChange={e => setPayReference(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Settlement Date<input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
+              <label className="block text-[11px] font-black uppercase text-slate-500">Payment Notes / Bank Name<input value={payNotes} onChange={e => setPayNotes(e.target.value)} className={`${inputClass} mt-1.5`} /></label>
             </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black inline-flex items-center gap-2 shadow-sm transition-all"
-              >
-                <Download size={15} />
-                <span>{saving ? 'Recording...' : `Record Payment & Issue Receipt (${formatCurrency(Number(payAmount) || 0)})`}</span>
-              </button>
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-bold">Cancel</button>
+              <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black inline-flex items-center gap-2"><Download size={15} />{saving ? 'Recording…' : `Record Payment (${formatCurrency(Number(payAmount) || 0)})`}</button>
             </div>
           </form>
         )}
