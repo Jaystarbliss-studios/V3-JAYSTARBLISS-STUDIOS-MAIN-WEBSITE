@@ -270,7 +270,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     event.preventDefault();
     if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
     const id = passcodeForm.id || `pc-${Date.now()}`;
-    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || 'Coding & Tech', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || 'End of Term', invigilatorName: passcodeForm.invigilatorName || 'School Invigilator', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    const payload = { classLevel: passcodeForm.classLevel || 'General', subject: passcodeForm.subject || '', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || '', invigilatorName: passcodeForm.invigilatorName || '', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
     try {
       await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
       const next = { id, ...payload } as Passcode;
