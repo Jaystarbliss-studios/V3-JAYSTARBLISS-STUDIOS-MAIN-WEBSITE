@@ -48,7 +48,7 @@ const PortalLayout: React.FC = () => {
   const pathParts = location.pathname.split('/');
   const role = pathParts[2] || 'student';
   
-  const [displayName, setDisplayName] = useState('Cadet');
+  const [displayName, setDisplayName] = useState('Student');
   const [userEmail, setUserEmail] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(true);
@@ -75,7 +75,7 @@ const PortalLayout: React.FC = () => {
       setUserEmail(user.email || '');
       setIsEmailVerified(user.emailVerified);
       setPhotoURL(user.photoURL);
-      setDisplayName(sessionStorage.getItem('userName') || user.displayName || user.email?.split('@')[0] || 'Cadet');
+      setDisplayName(sessionStorage.getItem('userName') || user.displayName || user.email?.split('@')[0] || 'Student');
     } else {
       setDisplayName(sessionStorage.getItem('userName') || 'Portal User');
     }
