@@ -71,14 +71,6 @@ interface Credentials {
   email?: string;
 }
 
-const STATIC_SCHOOLS = [
-  { id: 'peniel', name: 'Peniel Lily Montessori School' },
-  { id: 'southgold', name: 'South Gold Montessori School' },
-  { id: 'sapphire', name: 'Sapphire Explorer Montessori School' },
-  { id: 'easystars', name: 'Easy Stars Early Years Academy' },
-  { id: 'christycaleb', name: 'Christy Caleb International School' },
-  { id: 'royalbreed', name: 'Royal Breed Academy' },
-];
 
 const AdminStudents: React.FC = () => {
   const navigate = useNavigate();
@@ -86,7 +78,7 @@ const AdminStudents: React.FC = () => {
   
   // Data State
   const [students, setStudents] = useState<UnifiedStudent[]>([]);
-  const [schools, setSchools] = useState<{ id: string; name: string }[]>(STATIC_SCHOOLS);
+  const [schools, setSchools] = useState<{ id: string; name: string }[]>([]);
   const [tutors, setTutors] = useState<{ id: string; name: string; email: string }[]>([]);
   const [parents, setParents] = useState<{ id: string; name: string; email: string; phone?: string }[]>([]);
   const [dispatches, setDispatches] = useState<Dispatch[]>([]);
@@ -182,8 +174,7 @@ const AdminStudents: React.FC = () => {
       ]);
 
       const schoolMap = new Map<string, string>();
-      STATIC_SCHOOLS.forEach(s => schoolMap.set(s.id, s.name));
-      const loadedSchools = [...STATIC_SCHOOLS];
+      const loadedSchools: { id: string; name: string }[] = [];
       schoolsSnap.docs.forEach((d: any) => {
         const data = d.data();
         const name = data.name || data.schoolName || d.id;
@@ -264,17 +255,17 @@ const AdminStudents: React.FC = () => {
 
         const subjectsStr = Array.isArray(data.subjects)
           ? data.subjects.join(', ')
-          : (data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics');
+          : (data.subjects || data.track || data.course || '');
 
         return {
           id,
           docSource: defaultSource,
-          fullName: data.fullName || data.studentName || data.name || data.displayName || 'Student Cadet',
-          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `cadet_${id.slice(-4)}`),
+          fullName: data.fullName || data.studentName || data.name || data.displayName || 'Student',
+          username: data.username || data.studentUsername || (data.email ? data.email.split('@')[0] : `student_${id.slice(-4)}`),
           email: data.email || data.studentEmail || '',
           class: data.class || data.className || data.grade || 'General',
           grade: data.grade || data.class || 'General',
-          track: data.track || data.learningTrack || data.program || data.course || 'Technology & Coding',
+          track: data.track || data.learningTrack || data.program || data.course || '',
           subjects: subjectsStr,
           schoolId,
           schoolName: sName,

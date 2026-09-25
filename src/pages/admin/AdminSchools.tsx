@@ -167,7 +167,7 @@ const AdminSchools: React.FC = () => {
     phone: '',
     state: 'Lagos',
     address: '',
-    initialFee: '300000',
+    initialFee: '',
     cycle: 'termly' as 'monthly' | 'termly',
     mode: 'advance_termly' as any,
     initialProgramName: '',
@@ -177,7 +177,7 @@ const AdminSchools: React.FC = () => {
   // Selected school edit forms
   const [profileForm, setProfileForm] = useState<Partial<SchoolData>>({});
   const [billingForm, setBillingForm] = useState<SchoolBillingConfig>({
-    baseAmount: 300000,
+    baseAmount: 0,
     cycle: 'termly',
     allowedModes: ['advance_termly', 'advance_monthly', 'post_monthly', 'post_termly'],
     mode: 'advance_termly',
@@ -411,7 +411,13 @@ const AdminSchools: React.FC = () => {
 
     setDeletingSchool(true);
     try {
-      // Direct Firestore delete on school document
+      // Cascade the school's Firestore portal records before deleting the school document.
+      // Firebase Auth accounts are intentionally not deleted from the client; their portal profile is removed.
+      const linkedCollections = ['students', 'individualStudents', 'users', 'schoolPasscodes', 'schoolLinks', 'schoolExams', 'classSchedules', 'payments', 'schoolPrograms'];
+      for (const collectionName of linkedCollections) {
+        const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', selectedSchool.id))).catch(() => ({ docs: [] } as any));
+        for (const item of snap.docs) await deleteDoc(doc(db, collectionName, item.id));
+      }
       await deleteDoc(doc(db, 'schools', selectedSchool.id));
 
       const deletedName = selectedSchool.name;
