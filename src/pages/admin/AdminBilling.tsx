@@ -149,15 +149,15 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       });
       setSchools(loadedSchools);
 
-      // Build Unified Parents & Cadets List from enrollment_requests, individualStudents, and students
+      // Build Unified Parents & Students List from enrollment_requests, individualStudents, and students
       // Strictly ignore school-registered students (students with schoolId or studentType === 'school')
-      const parentCadetsMap = new Map<string, UnifiedParentStudent>();
+      const parentStudentsMap = new Map<string, UnifiedParentStudent>();
 
       // 1. From enrollment_requests
       enrollSnap.docs.forEach((d: any) => {
         const item = d.data();
         if (item.schoolId || item.studentType === 'school') return;
-        parentCadetsMap.set(d.id, {
+        parentStudentsMap.set(d.id, {
           id: d.id,
           source: 'enrollment_requests',
           studentName: item.studentName || item.childName || 'Scholar',
@@ -182,7 +182,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       indivSnap.docs.forEach((d: any) => {
         const item = d.data();
         if (item.schoolId || item.studentType === 'school') return;
-        parentCadetsMap.set(d.id, {
+        parentStudentsMap.set(d.id, {
           id: d.id,
           source: 'individualStudents',
           studentName: item.fullName || item.studentName || item.username || 'Scholar',
@@ -206,8 +206,8 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       // 3. From students collection (personal/parent)
       studSnap.docs.forEach((d: any) => {
         const item = d.data();
-        if (!parentCadetsMap.has(d.id) && item.studentType !== 'school' && !item.schoolId) {
-          parentCadetsMap.set(d.id, {
+        if (!parentStudentsMap.has(d.id) && item.studentType !== 'school' && !item.schoolId) {
+          parentStudentsMap.set(d.id, {
             id: d.id,
             source: 'students',
             studentName: item.fullName || item.name || 'Scholar',
@@ -229,7 +229,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
       });
 
       // Parent/student records are database-driven. Do not seed families, programmes or fees in the UI.
-      const unifiedParentsList = Array.from(parentCadetsMap.values());
+      const unifiedParentsList = Array.from(parentStudentsMap.values());
 
       // Merge Payments from Firestore and API
       const directPayments = paymentsSnap.docs.map((d: any) => {
