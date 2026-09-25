@@ -807,7 +807,7 @@ const AdminSchools: React.FC = () => {
           allowedModes: [onboardForm.mode || 'advance_termly', 'advance_termly', 'advance_monthly'],
           mode: onboardForm.mode || 'advance_termly',
           nextDueDate: initialFee > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) : '',
-          status: initialFee > 0 ? 'ACTIVE' : 'NOT_CONFIGURED',
+          status: initialFee > 0 ? 'ACTIVE' : undefined,
           notes: ''
         },
         createdAt: serverTimestamp(),
