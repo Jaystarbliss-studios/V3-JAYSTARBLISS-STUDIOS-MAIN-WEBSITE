@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Building2, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { Award, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
