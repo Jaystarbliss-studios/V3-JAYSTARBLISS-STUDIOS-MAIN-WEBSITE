@@ -338,6 +338,10 @@ const StudentDashboard: React.FC = () => {
           studentRecord.class = cachedClass;
         }
 
+        const registrationType = studentRecord.schoolId
+          ? 'school'
+          : (studentRecord.parentId || studentRecord.parentEmail ? 'parent' : 'individual');
+        sessionStorage.setItem('studentRegistrationType', registrationType);
         setStudent(studentRecord);
         setCertStudentName(studentRecord.fullName || '');
 
