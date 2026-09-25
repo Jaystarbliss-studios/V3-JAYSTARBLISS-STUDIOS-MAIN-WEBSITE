@@ -342,6 +342,7 @@ const StudentDashboard: React.FC = () => {
           ? 'school'
           : (studentRecord.parentId || studentRecord.parentEmail ? 'parent' : 'individual');
         sessionStorage.setItem('studentRegistrationType', registrationType);
+        window.dispatchEvent(new CustomEvent('jaystar-student-registration-type', { detail: registrationType }));
         setStudent(studentRecord);
         setCertStudentName(studentRecord.fullName || '');
 
