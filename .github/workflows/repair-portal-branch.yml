@@ -44,7 +44,7 @@ jobs:
 
           changed = False
 
-          # 1) Never ship demo/static schools or fake student identity fallbacks.
+          # Never ship demo/static schools or fake student identity fallbacks.
           changed |= patch('src/pages/admin/AdminStudents.tsx', [
               ('remove STATIC_SCHOOLS', lambda s: re.sub(r"\nconst STATIC_SCHOOLS = \[[\s\S]*?\];\n", "\n", s, count=1)),
               ('dynamic school state', lambda s: s.replace("useState<{ id: string; name: string }[]>(STATIC_SCHOOLS)", "useState<{ id: string; name: string }[]>([])")),
@@ -55,30 +55,25 @@ jobs:
               ('no fake default subjects', lambda s: s.replace("(data.subjects || data.track || data.course || 'Coding, Mathematics, Hardware & Electronics')", "(data.subjects || data.track || data.course || '')")),
           ])
 
-          # 2) Withdrawal is bank-only in the new UX. Do not pass an obsolete Opay mode.
+          # Withdrawal is bank-only in the new UX. Do not pass an obsolete Opay mode.
           for path in root.glob('src/**/*.tsx'):
               changed |= patch(str(path), [
                   ('bank-only withdrawal mode', lambda s: s.replace('initialMode={withdrawMode}', 'initialMode="bank"')),
               ])
 
-          # 3) Keep date filter types consistent with the actual viewer options.
+          # Keep date filter types consistent with the actual viewer options.
           changed |= patch('src/utils/resourceTracking.ts', [
               ('complete DateFilterType', lambda s: re.sub(r"export type DateFilterType = [^;]+;", "export type DateFilterType = 'all' | 'recent' | 'last_week' | 'last_month' | 'last_90_days' | 'oldest';", s, count=1)),
           ])
 
-          # 4) Make resource filtering deterministic: 'recent' and 'oldest' are sort modes,
-          # while date-window filters remain predicates. This helper is consumed by existing UI code.
+          # Deterministic date sorting helper for resource viewers.
           helper = root / 'src/utils/resourceDateFilters.ts'
           helper.write_text("""export type ResourceDateSort = 'recent' | 'oldest';\n\nexport function resourceDateMs(value: any): number {\n  if (!value) return 0;\n  if (typeof value === 'number') return value;\n  if (typeof value === 'string') { const n = Date.parse(value); return Number.isFinite(n) ? n : 0; }\n  if (value?.toDate instanceof Function) return value.toDate().getTime();\n  if (typeof value?.seconds === 'number') return value.seconds * 1000;\n  if (value instanceof Date) return value.getTime();\n  return 0;\n}\n\nexport function sortResourcesByDate<T extends Record<string, any>>(items: T[], mode: ResourceDateSort): T[] {\n  return [...items].sort((a, b) => {\n    const delta = resourceDateMs(b.createdAt ?? b.updatedAt ?? b.timestamp ?? b.date) - resourceDateMs(a.createdAt ?? a.updatedAt ?? a.timestamp ?? a.date);\n    return mode === 'oldest' ? -delta : delta;\n  });\n}\n""", encoding='utf-8')
           changed = True
+          print('Portal hardening patches applied.')
 
-          if changed:
-              print('Portal hardening patches applied.')
-          else:
-              print('No source changes were necessary.')
-
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies and reconcile the existing lockfile
+        run: npm install --no-audit --no-fund
 
       - name: TypeScript and production build verification
         run: npm run build
@@ -88,7 +83,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src .github/workflows/repair-portal-branch.yml
+          git add src package.json package-lock.json .github/workflows/repair-portal-branch.yml
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
