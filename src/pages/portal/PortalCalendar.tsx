@@ -35,7 +35,7 @@ const ordinal = (day: number) => {
 const dateLabel = (ms: number) => {
   if (!ms) return 'Date not set';
   const d = new Date(ms);
-  return `${d.toLocaleDateString('en-US', { weekday: 'long' })} ${ordinal(d.getDate())} ${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`;
+  return `${d.toLocaleDateString('en-US', { weekday: 'long' })}, ${ordinal(d.getDate())} ${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`;
 };
 
 const categoryOf = (value: any): TimetableEvent['category'] => {
@@ -136,6 +136,9 @@ export const PortalCalendar: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({});
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const currentRole = String(sessionStorage.getItem('userRole') || '').toUpperCase();
+  const canUpdateStatus = ['STAFF', 'TUTOR', 'INSTRUCTOR', 'FACULTY', 'ADMIN', 'SUPER_ADMIN', 'SUPERADMIN'].includes(currentRole);
 
   useEffect(() => {
     const loadSchedule = async () => {
@@ -220,6 +223,28 @@ export const PortalCalendar: React.FC = () => {
 
   const toggleWeek = (week: string) => setExpandedWeeks(prev => ({ ...prev, [week]: prev[week] === false ? true : false }));
 
+  const updateScheduleStatus = async (event: TimetableEvent, status: 'COMPLETED' | 'ABSENT' | 'CANCELLED' | 'RESCHEDULED') => {
+    if (!canUpdateStatus || event.source !== 'classSchedule') return;
+    setUpdatingStatusId(event.id);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Please sign in again.');
+      const token = await user.getIdToken();
+      const response = await fetch('/.netlify/functions/class-schedules', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ scheduleId: event.id, status })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Unable to update class status.');
+      setEvents(previous => previous.map(item => item.id === event.id ? { ...item, explicitStatus: status, status: status.toLowerCase() as ScheduleStatus } : item));
+    } catch (error) {
+      console.error('Schedule status update failed:', error);
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <SEO title="Class Schedules | Jaystarbliss Studios" description="View programme-based class schedules and current class status." noindex={true} />
@@ -259,7 +284,18 @@ export const PortalCalendar: React.FC = () => {
               {open && <div className="divide-y divide-slate-100 dark:divide-slate-800">{weekEvents.map(event => <article key={event.id} className="p-4 md:p-5 flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="w-full lg:w-36 shrink-0"><div className="text-xs font-black text-slate-900 dark:text-white">{event.dateLabel}</div><div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1"><Clock size={12} /> {event.startTime}{event.endTime ? ` – ${event.endTime}` : ''}</div></div>
                 <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black uppercase text-slate-600 dark:text-slate-300">{event.category}</span><span className="px-2 py-1 rounded-md bg-brand-red/10 text-brand-red text-[9px] font-black uppercase">{event.className}</span></div><h3 className="mt-2 text-sm font-black text-slate-900 dark:text-white">{event.title}</h3><div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1"><Users size={12} /> {event.instructor}</span>{event.programmeName && <span className="inline-flex items-center gap-1"><BookOpen size={12} /> {event.programmeName}</span>}{event.schoolName && <span>{event.schoolName}</span>}</div></div>
-                <div className="flex items-center justify-between lg:justify-end gap-3"><span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">{statusMeta[event.status].icon}{statusMeta[event.status].label}</span>{event.isOnline && event.roomOrLink && <a href={event.roomOrLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-red text-white text-[10px] font-black hover:bg-red-700"><Video size={13} /> Join <ExternalLink size={11} /></a>}{!event.isOnline && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"><MapPin size={12} /> {event.roomOrLink || 'Location pending'}</span>}</div>
+                <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">{statusMeta[event.status].icon}{statusMeta[event.status].label}</span>
+                  {event.isOnline && event.roomOrLink && <a href={event.roomOrLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-red text-white text-[10px] font-black hover:bg-red-700"><Video size={13} /> Join <ExternalLink size={11} /></a>}
+                  {!event.isOnline && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500"><MapPin size={12} /> {event.roomOrLink || 'Location pending'}</span>}
+                  {canUpdateStatus && event.source === 'classSchedule' && !['completed','absent','cancelled','rescheduled'].includes(event.status) && (
+                    <div className="flex items-center gap-1">
+                      <button type="button" disabled={updatingStatusId === event.id} onClick={() => void updateScheduleStatus(event, 'COMPLETED')} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[9px] font-black disabled:opacity-50">Complete</button>
+                      <button type="button" disabled={updatingStatusId === event.id} onClick={() => void updateScheduleStatus(event, 'ABSENT')} className="px-2.5 py-1.5 rounded-lg bg-rose-600 text-white text-[9px] font-black disabled:opacity-50">Absent</button>
+                      <button type="button" disabled={updatingStatusId === event.id} onClick={() => void updateScheduleStatus(event, 'CANCELLED')} className="px-2.5 py-1.5 rounded-lg bg-slate-700 text-white text-[9px] font-black disabled:opacity-50">Cancel</button>
+                    </div>
+                  )}
+                </div>
               </article>)}</div>}
             </section>;
           })}
