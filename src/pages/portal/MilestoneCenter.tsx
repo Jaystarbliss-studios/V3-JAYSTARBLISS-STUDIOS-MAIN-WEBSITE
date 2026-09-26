@@ -16,9 +16,55 @@ const MilestoneCenter: React.FC<{ role: MilestoneCenterRole }> = ({ role }) => {
   const [milestones, setMilestones] = useState<Milestone[]>([]); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false);
   const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [showBuilder, setShowBuilder] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', dueDate: '' });
-  const loadTargets = useCallback(async () => { try { const [studentData, schoolData] = await Promise.all([api('/api/academic-students'), api('/api/academic-schools')]); setStudents((studentData.students || []).map((s: any) => ({ id: s.id, name: s.fullName, plan: s.plan }))); setSchools((schoolData.schools || []).map((s: any) => ({ id: s.id, name: s.name }))); if (role === 'school' && !targetId && schoolData.schools?.[0]?.id) setTargetId(schoolData.schools[0].id); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load targets.'); } }, [role, targetId]);
-  const loadMilestones = useCallback(async () => { if (!targetId) { setMilestones([]); setLoading(false); return; } setLoading(true); setError(''); try { const data = await api(`/api/academic-milestones?targetType=${targetType}&targetId=${encodeURIComponent(targetId)}`); setMilestones(data.milestones || []); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load milestones.'); } finally { setLoading(false); } }, [targetId, targetType]);
-  useEffect(() => { loadTargets(); }, [loadTargets]); useEffect(() => { if (role === 'staff' && targetType === 'STUDENT' && students.length && !targetId) setTargetId(students[0].id); if (role === 'staff' && targetType === 'SCHOOL' && schools.length && !targetId) setTargetId(schools[0].id); }, [role, targetId, targetType, students, schools]); useEffect(() => { loadMilestones(); }, [loadMilestones]);
+  const loadTargets = useCallback(async () => {
+    try {
+      const [studentData, schoolData] = await Promise.all([api('/api/academic-students'), api('/api/academic-schools')]);
+      const stList = (studentData.students || []).map((s: any) => ({ id: s.id, name: s.fullName, plan: s.plan }));
+      const scList = (schoolData.schools || []).map((s: any) => ({ id: s.id, name: s.name }));
+      setStudents(stList);
+      setSchools(scList);
+      if (role === 'school' && schoolData.schools?.[0]?.id) {
+        setTargetId(prev => prev || schoolData.schools[0].id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load targets.');
+    }
+  }, [role]);
+
+  const loadMilestones = useCallback(async () => {
+    if (!targetId) {
+      setMilestones([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api(`/api/academic-milestones?targetType=${targetType}&targetId=${encodeURIComponent(targetId)}`);
+      setMilestones(data.milestones || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load milestones.');
+    } finally {
+      setLoading(false);
+    }
+  }, [targetId, targetType]);
+
+  useEffect(() => {
+    loadTargets();
+  }, [loadTargets]);
+
+  useEffect(() => {
+    if (role === 'staff' && targetType === 'STUDENT' && students.length) {
+      setTargetId(prev => prev || students[0].id);
+    }
+    if (role === 'staff' && targetType === 'SCHOOL' && schools.length) {
+      setTargetId(prev => prev || schools[0].id);
+    }
+  }, [role, targetType, students.length, schools.length]);
+
+  useEffect(() => {
+    loadMilestones();
+  }, [loadMilestones]);
   const activeTarget = useMemo(() => (targetType === 'STUDENT' ? students : schools).find(t => t.id === targetId), [targetType, students, schools, targetId]); const completed = milestones.filter(m => m.status === 'COMPLETED').length;
   const create = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); setError(''); try { await api('/api/academic-milestones', { method: 'POST', body: JSON.stringify({ action: 'create', targetType, targetId, title: form.title, description: form.description, dueDate: form.dueDate || null, position: milestones.length + 1 }) }); setSuccess('Milestone added to the learning plan.'); setForm({ title: '', description: '', dueDate: '' }); setShowBuilder(false); await loadMilestones(); } catch (x) { setError(x instanceof Error ? x.message : 'Could not create milestone.'); } finally { setSaving(false); } };
   const changeStatus = async (m: Milestone, status: string) => { setError(''); try { await api('/api/academic-milestones', { method: 'POST', body: JSON.stringify({ action: status === 'COMPLETED' ? 'complete' : 'status', milestoneId: m.id, status }) }); setSuccess(status === 'COMPLETED' ? 'Milestone completed and the connected portals were notified.' : 'Milestone status updated.'); await loadMilestones(); } catch (x) { setError(x instanceof Error ? x.message : 'Could not update milestone.'); } };

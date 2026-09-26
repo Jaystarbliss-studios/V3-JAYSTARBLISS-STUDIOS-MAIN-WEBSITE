@@ -285,25 +285,38 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
         sess.classRangeBadge = sess.classLevels[0];
       }
 
-      // Check live status
+      // Check live status strictly based on today's calendar date and active time window
       const isToday = sess.date === todayStr;
       const isPastDate = sess.date < todayStr;
       const isPastTimeToday = isToday && sess.endTime < currentTimeStr;
       const isCurrentTimeSlot = isToday && sess.startTime <= currentTimeStr && currentTimeStr <= sess.endTime;
 
-      const allExplicitCompleted = sess.occurrences.every(o => o.status === 'COMPLETED' || o.status === 'ATTENDED');
+      const allExplicitCompleted = sess.occurrences.length > 0 && sess.occurrences.every(o => o.status === 'COMPLETED' || o.status === 'ATTENDED');
       const anyAbsent = sess.occurrences.some(o => o.status === 'ABSENT');
       const anyRescheduled = sess.occurrences.some(o => o.status === 'RESCHEDULED');
       const anyCancelled = sess.occurrences.some(o => o.status === 'CANCELLED');
+      const tutorMarkedLiveToday = isToday && sess.occurrences.some(o => o.status === 'ONGOING') && currentTimeStr <= sess.endTime;
 
-      if (isCurrentTimeSlot && !allExplicitCompleted && !anyAbsent && !anyCancelled && !anyRescheduled) {
+      sess.isLiveNow = false;
+      sess.isAutoCompleted = false;
+
+      if (anyCancelled) {
+        sess.overallStatus = 'CANCELLED';
+      } else if (anyRescheduled) {
+        sess.overallStatus = 'RESCHEDULED';
+      } else if (anyAbsent) {
+        sess.overallStatus = 'ABSENT';
+      } else if (allExplicitCompleted || isPastDate || isPastTimeToday) {
+        sess.overallStatus = 'COMPLETED';
+        sess.isAutoCompleted = isPastDate || isPastTimeToday;
+      } else if (isToday && (isCurrentTimeSlot || tutorMarkedLiveToday)) {
+        // ONLY mark as ONGOING/Live if the class is scheduled for TODAY and within its active time window!
         sess.overallStatus = 'ONGOING';
         sess.isLiveNow = true;
-      } else if (allExplicitCompleted || isPastDate || isPastTimeToday) {
-        sess.overallStatus = anyAbsent ? 'ABSENT' : anyRescheduled ? 'RESCHEDULED' : anyCancelled ? 'CANCELLED' : 'COMPLETED';
-        sess.isAutoCompleted = isPastDate || isPastTimeToday;
       } else {
-        sess.overallStatus = sess.occurrences[0]?.status || 'SCHEDULED';
+        // Any future date OR today before start time is strictly SCHEDULED (Upcoming)
+        sess.overallStatus = 'SCHEDULED';
+        sess.isLiveNow = false;
       }
 
       return sess;
@@ -353,10 +366,13 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
     return dateGroups;
   }, [schedules, selectedProgramId, programs, selectedClassFilter, searchQuery, viewTab]);
 
-  // Find currently live session for prominent banner
+  // Find currently live session for prominent banner (ONLY if scheduled for today and is currently live)
   const liveSession = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     for (const group of groupedDaySessions) {
-      const found = group.sessions.find(s => s.overallStatus === 'ONGOING' || s.isLiveNow);
+      if (group.date !== todayStr) continue;
+      const found = group.sessions.find(s => s.isLiveNow && s.overallStatus === 'ONGOING' && s.date === todayStr);
       if (found) return found;
     }
     return null;
@@ -427,7 +443,7 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
                   <Radio size={13} className="animate-spin" /> LIVE CLASS IN SESSION
                 </span>
                 <span className="text-xs text-emerald-300 font-bold">
-                  {liveSession.dayName ? `${liveSession.dayName}, ` : ''}{liveSession.formattedDate}
+                  {liveSession.formattedDate}
                 </span>
               </div>
 
@@ -662,7 +678,7 @@ export const SchoolClassScheduleTimeline: React.FC<SchoolClassScheduleTimelinePr
                 <div className="flex items-center gap-3">
                   <div className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-800 text-xs font-black tracking-tight inline-flex items-center gap-2 shadow-xs">
                     <Calendar size={14} className="text-brand-red" />
-                    <span>{group.dayName ? `${group.dayName}, ` : ''}{group.formattedDate}</span>
+                    <span>{group.formattedDate}</span>
                   </div>
                   <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                 </div>

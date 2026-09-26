@@ -35,6 +35,14 @@ const AdminProgramForm: React.FC = () => {
     hasAssessments: true,
     hasLiveClasses: true,
     isGeneralProgram: false,
+    sessionsPerWeek: 2,
+    sessionDuration: '1 hour',
+    seriesName: '',
+    stageNumber: 1,
+    nextProgramTitle: '',
+    curriculumPdfUrl: '',
+    curriculumTitle: '',
+    curriculumSummary: '',
   });
 
   useEffect(() => {
@@ -44,7 +52,16 @@ const AdminProgramForm: React.FC = () => {
           const docRef = doc(db, 'programs', id);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setFormData(docSnap.data() as any);
+            const data = docSnap.data();
+            setFormData(prev => ({
+              ...prev,
+              ...data,
+              sessionsPerWeek: data.sessionsPerWeek !== undefined ? data.sessionsPerWeek : 2,
+              sessionDuration: data.sessionDuration || '1 hour',
+              seriesName: data.seriesName || '',
+              stageNumber: data.stageNumber || 1,
+              nextProgramTitle: data.nextProgramTitle || '',
+            }));
           } else {
             setError('Program not found');
           }
@@ -207,6 +224,107 @@ const AdminProgramForm: React.FC = () => {
             </div>
           </div>
 
+          {/* SESSIONS & SCHEDULE CONFIGURATION */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">
+              📅 Delivery Schedule &amp; Session Frequency
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Configure how often sessions occur per week and the standard duration of each session for this curriculum track.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Sessions Per Week
+                </label>
+                <select
+                  name="sessionsPerWeek"
+                  value={formData.sessionsPerWeek}
+                  onChange={e => setFormData(prev => ({ ...prev, sessionsPerWeek: Number(e.target.value) || 1 }))}
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                >
+                  <option value={1}>1 Session / Week</option>
+                  <option value={2}>2 Sessions / Week</option>
+                  <option value={3}>3 Sessions / Week</option>
+                  <option value={4}>4 Sessions / Week</option>
+                  <option value={5}>5 Sessions / Week (Daily Intensive)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Duration of Each Session
+                </label>
+                <input
+                  type="text"
+                  name="sessionDuration"
+                  value={formData.sessionDuration}
+                  onChange={handleChange}
+                  placeholder="e.g. 45 minutes, 1 hour, 1 hr 30 mins, 2 hours"
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* PROGRAM SERIES & STAGES BRANCHING */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-4">
+            <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">
+              🚀 Curriculum Series &amp; Stage Branching (Stage 1 → Stage 2 → Stage 3)
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Group related programs into continuous learning tracks or stages. When enrolled, the school and student dashboards will highlight the current milestone and the upcoming next stage in the series.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Series / Track Name
+                </label>
+                <input
+                  type="text"
+                  name="seriesName"
+                  value={formData.seriesName}
+                  onChange={handleChange}
+                  placeholder="e.g. Full-Stack Web Engineering Series"
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Current Stage Number
+                </label>
+                <select
+                  name="stageNumber"
+                  value={formData.stageNumber}
+                  onChange={e => setFormData(prev => ({ ...prev, stageNumber: Number(e.target.value) || 1 }))}
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                >
+                  <option value={1}>Stage 1 (Beginner / Foundation)</option>
+                  <option value={2}>Stage 2 (Intermediate / Core Concepts)</option>
+                  <option value={3}>Stage 3 (Advanced / Specialization)</option>
+                  <option value={4}>Stage 4 (Mastery / Capstone)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Next / Upcoming Stage in Series
+                </label>
+                <input
+                  type="text"
+                  name="nextProgramTitle"
+                  value={formData.nextProgramTitle}
+                  onChange={handleChange}
+                  placeholder="e.g. Stage 2: React &amp; Cloud Backend"
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
           <PhotoUpload
             label="Program Cover Photo"
             value={formData.image || ''}
@@ -237,6 +355,62 @@ const AdminProgramForm: React.FC = () => {
               />
             </div>
           </div>
+          {/* CURRICULUM SYLLABUS & DOCUMENT ATTACHMENT */}
+          <div className="p-5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 space-y-4">
+            <div>
+              <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-200 uppercase tracking-wider">
+                📄 Program Curriculum &amp; Syllabus Document
+              </h3>
+              <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">
+                Attach an official PDF or Google Drive curriculum syllabus. Learners, tutors, and schools can preview or read the complete curriculum in their portal.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Curriculum Document Title
+                </label>
+                <input
+                  type="text"
+                  name="curriculumTitle"
+                  value={formData.curriculumTitle || ''}
+                  onChange={handleChange}
+                  placeholder="e.g. Weekend Coding 2026 Core Syllabus"
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                  Curriculum PDF / Google Drive Link
+                </label>
+                <input
+                  type="url"
+                  name="curriculumPdfUrl"
+                  value={formData.curriculumPdfUrl || ''}
+                  onChange={handleChange}
+                  placeholder="https://drive.google.com/... or https://..."
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                Curriculum Short Overview / Notes
+              </label>
+              <textarea
+                name="curriculumSummary"
+                rows={2}
+                value={formData.curriculumSummary || ''}
+                onChange={handleChange}
+                placeholder="Key competencies, term milestones, and project goals covered in this syllabus..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-red dark:bg-slate-900 dark:border-slate-800 dark:text-white text-xs resize-none"
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Curriculum Topics (One item per line)</label>
             <textarea

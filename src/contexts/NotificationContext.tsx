@@ -418,28 +418,54 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [currentUser]);
 
+  const handleSetActiveFilter = useCallback((filter: NotificationFilter) => {
+    setActiveFilter(filter);
+  }, []);
+
+  const handleSetSearchQuery = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    notifications,
+    unreadCount,
+    loading,
+    isDrawerOpen,
+    selectedNotification,
+    activeFilter,
+    searchQuery,
+    setActiveFilter: handleSetActiveFilter,
+    setSearchQuery: handleSetSearchQuery,
+    openDrawer,
+    closeDrawer,
+    selectNotification,
+    markAsRead,
+    markAsUnread,
+    markAllAsRead,
+    isNotificationRead,
+    refreshNotifications
+  }), [
+    notifications,
+    unreadCount,
+    loading,
+    isDrawerOpen,
+    selectedNotification,
+    activeFilter,
+    searchQuery,
+    handleSetActiveFilter,
+    handleSetSearchQuery,
+    openDrawer,
+    closeDrawer,
+    selectNotification,
+    markAsRead,
+    markAsUnread,
+    markAllAsRead,
+    isNotificationRead,
+    refreshNotifications
+  ]);
+
   return (
-    <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        loading,
-        isDrawerOpen,
-        selectedNotification,
-        activeFilter,
-        searchQuery,
-        setActiveFilter,
-        setSearchQuery,
-        openDrawer,
-        closeDrawer,
-        selectNotification,
-        markAsRead,
-        markAsUnread,
-        markAllAsRead,
-        isNotificationRead,
-        refreshNotifications
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

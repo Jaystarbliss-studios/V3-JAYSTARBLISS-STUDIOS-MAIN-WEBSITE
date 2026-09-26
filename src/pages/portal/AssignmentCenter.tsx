@@ -51,7 +51,11 @@ const AssignmentCenter: React.FC<{ role: AssignmentCenterRole }> = ({ role }) =>
   }, [selectedStudentId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (role === 'parent' && !selectedStudentId && students.length) setSelectedStudentId(students[0].id); }, [role, selectedStudentId, students]);
+  useEffect(() => {
+    if (role === 'parent' && students.length) {
+      setSelectedStudentId(prev => prev || students[0].id);
+    }
+  }, [role, students.length]);
 
   const pendingReview = useMemo(() => assignments.filter(a => a.status === 'SUBMITTED').length, [assignments]);
   const completed = useMemo(() => assignments.filter(a => a.status === 'COMPLETED').length, [assignments]);

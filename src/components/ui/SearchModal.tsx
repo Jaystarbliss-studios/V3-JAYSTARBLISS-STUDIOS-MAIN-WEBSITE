@@ -520,7 +520,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => {
                 const isSelected = idx === selectedIndex;
                 return (
                   <button
-                    key={`${result.type}-${result.id}`}
+                    key={`${result.type}-${result.id}-${idx}`}
                     onClick={() => handleSelect(result)}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`w-full text-left px-3.5 py-2.5 rounded-xl transition-all group flex items-start gap-3 select-none ${

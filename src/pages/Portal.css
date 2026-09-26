@@ -841,22 +841,22 @@ html:not(.dark) .jdh-portal .cyber-liquid-button .btn-label-text {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    padding: 0 !important;
+    padding: 1rem 0.75rem !important;
     background: transparent !important;
   }
 
   .jdh-portal .card.glass-modal-card {
-    width: 70vw !important;
-    max-width: 70vw !important;
+    width: calc(100vw - 1.5rem) !important;
+    max-width: 440px !important;
     min-width: 0 !important;
     height: auto !important;
-    max-height: 70vh !important;
-    max-height: 70dvh !important;
+    max-height: 94vh !important;
+    max-height: 94dvh !important;
     min-height: 0 !important;
     margin: auto !important;
     align-self: center !important;
-    padding: 0.75rem 0.65rem 0.6rem 0.65rem !important;
-    border-radius: 16px !important;
+    padding: 1.25rem 1.15rem 1.1rem 1.15rem !important;
+    border-radius: 20px !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: flex-start !important;
@@ -881,124 +881,124 @@ html:not(.dark) .jdh-portal .cyber-liquid-button .btn-label-text {
   }
 
   .jdh-portal .card.glass-modal-card .glass-header {
-    padding-top: 0 !important;
-    padding-bottom: 0.2rem !important;
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.45rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-header h1 {
-    font-size: 0.95rem !important;
-    line-height: 1.15 !important;
+    font-size: 1.2rem !important;
+    line-height: 1.2 !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-header img,
   .jdh-portal .card.glass-modal-card .glass-header svg {
-    width: 20px !important;
-    height: 20px !important;
+    width: 24px !important;
+    height: 24px !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-role-tabs {
-    gap: 2px !important;
-    padding: 2.5px !important;
-    border-radius: 8px !important;
-    margin-bottom: 0.45rem !important;
+    gap: 4px !important;
+    padding: 3px !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.65rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-role-tab {
-    padding: 0.32rem 0.1rem !important;
-    font-size: 0.58rem !important;
-    border-radius: 5px !important;
-    gap: 2px !important;
+    padding: 0.45rem 0.3rem !important;
+    font-size: 0.72rem !important;
+    border-radius: 7px !important;
+    gap: 4px !important;
     white-space: nowrap !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-role-tab svg {
-    width: 10px !important;
-    height: 10px !important;
+    width: 13px !important;
+    height: 13px !important;
   }
 
   .jdh-portal .card.glass-modal-card .msg {
-    padding: 0.35rem 0.5rem !important;
-    font-size: 0.65rem !important;
-    margin-bottom: 0.35rem !important;
+    padding: 0.45rem 0.65rem !important;
+    font-size: 0.72rem !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .field {
-    margin-bottom: 0.35rem !important;
+    margin-bottom: 0.55rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .field label {
-    font-size: 0.58rem !important;
-    margin-bottom: 0.12rem !important;
-    letter-spacing: 0.03em !important;
+    font-size: 0.68rem !important;
+    margin-bottom: 0.25rem !important;
+    letter-spacing: 0.04em !important;
   }
 
   .jdh-portal .card.glass-modal-card .field button {
-    font-size: 0.58rem !important;
+    font-size: 0.68rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-input {
-    padding: 0.38rem 0.55rem 0.38rem 1.7rem !important;
-    font-size: 0.72rem !important;
-    border-radius: 7px !important;
-    min-height: 30px !important;
-    height: 30px !important;
+    padding: 0.55rem 0.75rem 0.55rem 2.2rem !important;
+    font-size: 0.84rem !important;
+    border-radius: 9px !important;
+    min-height: 40px !important;
+    height: 40px !important;
   }
 
   .jdh-portal .card.glass-modal-card .input-icon {
-    left: 0.45rem !important;
+    left: 0.65rem !important;
     top: 50% !important;
     transform: translateY(-50%) !important;
   }
 
   .jdh-portal .card.glass-modal-card .input-icon svg {
-    width: 11px !important;
-    height: 11px !important;
+    width: 14px !important;
+    height: 14px !important;
   }
 
   .jdh-portal .card.glass-modal-card .pw-eye {
-    right: 0.4rem !important;
+    right: 0.6rem !important;
     top: 50% !important;
     transform: translateY(-50%) !important;
-    padding: 1px !important;
+    padding: 2px !important;
   }
 
   .jdh-portal .card.glass-modal-card .pw-eye svg {
-    width: 11px !important;
-    height: 11px !important;
+    width: 14px !important;
+    height: 14px !important;
   }
 
   .jdh-portal .card.glass-modal-card label[for="rememberMe"] {
-    font-size: 0.6rem !important;
-    gap: 3px !important;
+    font-size: 0.72rem !important;
+    gap: 5px !important;
   }
 
   .jdh-portal .card.glass-modal-card label[for="rememberMe"] input {
-    width: 11px !important;
-    height: 11px !important;
+    width: 13px !important;
+    height: 13px !important;
   }
 
   .jdh-portal .card.glass-modal-card .glass-submit-btn {
-    padding: 0.42rem 0.65rem !important;
-    font-size: 0.75rem !important;
-    border-radius: 7px !important;
-    margin-top: 0.3rem !important;
-    min-height: 30px !important;
+    padding: 0.6rem 0.85rem !important;
+    font-size: 0.88rem !important;
+    border-radius: 9px !important;
+    margin-top: 0.5rem !important;
+    min-height: 42px !important;
   }
 
   .jdh-portal .card.glass-modal-card .auth-divider {
-    margin: 0.3rem 0 !important;
-    font-size: 0.5rem !important;
+    margin: 0.5rem 0 !important;
+    font-size: 0.62rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .google-btn {
-    padding: 0.35rem 0.5rem !important;
-    font-size: 0.65rem !important;
-    border-radius: 7px !important;
-    min-height: 28px !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.78rem !important;
+    border-radius: 9px !important;
+    min-height: 38px !important;
   }
 
   .jdh-portal .card.glass-modal-card .text-slate-200 {
-    font-size: 0.6rem !important;
+    font-size: 0.72rem !important;
   }
 
   .jdh-portal .card.glass-modal-card .drop-shadow {

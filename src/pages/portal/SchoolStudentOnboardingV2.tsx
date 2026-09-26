@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, limit } from 'firebase/firestore';
 import { Download, FileText, Loader2, UserPlus, Printer, ShieldCheck, BookOpen } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
@@ -8,7 +8,41 @@ import { useToast } from '../../contexts/ToastContext';
 const SchoolStudentOnboardingV2: React.FC = () => {
   const { toast } = useToast();
   const [programs, setPrograms] = useState<any[]>([]); const [form, setForm] = useState({ fullName:'', username:'', email:'', class:'JSS 1', programId:'', parentId:'' }); const [saving,setSaving]=useState(false); const [credentials,setCredentials]=useState<any>(null);
-  useEffect(()=>{ getDocs(collection(db,'programs')).then(s=>setPrograms(s.docs.map(d=>({id:d.id,...d.data()})))).catch(()=>undefined); },[]);
+  useEffect(() => {
+    const fetchSchoolPrograms = async () => {
+      try {
+        const schoolId = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || localStorage.getItem('jaystar_cached_school_id') || auth.currentUser?.uid || '';
+        let list: any[] = [];
+        if (schoolId) {
+          const schSnap = await getDoc(doc(db, 'schools', schoolId)).catch(() => null);
+          if (schSnap && schSnap.exists()) {
+            const sd = schSnap.data();
+            const raw = sd.programs || sd.undergoingPrograms || sd.assignedPrograms || [];
+            if (Array.isArray(raw) && raw.length > 0) {
+              list = raw.map((p: any) => ({ id: p.id || p.name || p.title, name: p.name || p.title || p.programName || 'Program Track' }));
+            }
+          }
+        }
+        if (list.length === 0 && auth.currentUser) {
+          const schSnap = await getDocs(query(collection(db, 'schools'), limit(50))).catch(() => ({ docs: [] } as any));
+          for (const d of schSnap.docs) {
+            const sd = d.data();
+            if (d.id === schoolId || sd.adminUid === auth.currentUser?.uid || sd.email === auth.currentUser?.email) {
+              const raw = sd.programs || sd.undergoingPrograms || sd.assignedPrograms || [];
+              if (Array.isArray(raw) && raw.length > 0) {
+                list = raw.map((p: any) => ({ id: p.id || p.name || p.title, name: p.name || p.title || p.programName || 'Program Track' }));
+                break;
+              }
+            }
+          }
+        }
+        setPrograms(list);
+      } catch {
+        setPrograms([]);
+      }
+    };
+    fetchSchoolPrograms();
+  }, []);
   const update=(key:string,value:string)=>setForm(p=>({...p,[key]:value}));
   const onboard=async(e:React.FormEvent)=>{e.preventDefault();if(!auth.currentUser)return toast.error('Your school session has expired.');if(!form.fullName||!form.username||!form.class)return toast.error('Complete the required student fields.');setSaving(true);try{const token=await auth.currentUser.getIdToken();const program=programs.find(p=>p.id===form.programId);const response=await fetch('/.netlify/functions/school-student-onboard',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({...form,programName:program?.name||''})});const result=await response.json();if(!response.ok)throw new Error(result.error||'Unable to onboard student.');setCredentials(result.credentials);setForm({fullName:'',username:'',email:'',class:'JSS 1',programId:'',parentId:''});toast.success(`Student account created${result.student?.programName?` and enrolled in ${result.student.programName}`:''}.`);}catch(error){toast.error(error instanceof Error?error.message:'Unable to onboard student.');}finally{setSaving(false);}};
   const text=credentials?`JAYSTARBLISS STUDIOS — STUDENT ACCESS\n\nUsername: ${credentials.username}\nAccess Code: ${credentials.accessCode}\nStudent Portal: ${window.location.origin}${credentials.portal}\n\nKeep these credentials private.`:'';

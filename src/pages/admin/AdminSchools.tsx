@@ -44,13 +44,29 @@ export interface SchoolProgram {
   isHistorical?: boolean;
   notes?: string;
   assignedTutors?: AssignedTutorAllocation[];
-  baseFee?: number;
+  
+  // Independent Multi-Model Program Billing Configuration
+  billingModel?: 'package' | 'per_head'; // package = fixed fee, per_head = amountPerHead * student count
+  baseFee?: number; // package fixed fee (e.g. 180,000 NGN)
+  amountPerHead?: number; // per student rate (e.g. 3,500 NGN)
+  classRange?: string; // target class range (e.g. "Primary 1 - Primary 6" or "All Cadets")
+  studentAdjustment?: number; // student count offset / subtraction (e.g. -2 for withdrawn students)
+  billingFrequency?: 'termly' | 'monthly' | 'per_session' | 'annual';
+  defaultPaymentMode?: 'advance_termly' | 'advance_monthly' | 'post_termly' | 'post_monthly' | 'bank_transfer' | 'paystack_card';
+  nextBillingDueDate?: string;
+  billingTermsAndNotes?: string;
+
   costPerStudent?: number;
   hasEdclub?: boolean;
   hasResources?: boolean;
   hasAssessments?: boolean;
   hasLiveClasses?: boolean;
   isGeneralProgram?: boolean;
+  sessionsPerWeek?: number;
+  sessionDuration?: string;
+  seriesName?: string;
+  nextProgramTitle?: string;
+  stageNumber?: number;
   historicalMilestones?: Array<{
     id: string;
     title: string;
@@ -1253,7 +1269,15 @@ const AdminSchools: React.FC = () => {
                         status: 'ACTIVE',
                         durationMode: 'admin_controlled',
                         startDate: '',
-                        baseFee: 0,
+                        billingModel: 'package',
+                        baseFee: 180000,
+                        amountPerHead: 3500,
+                        classRange: 'All Enrolled Cadets',
+                        studentAdjustment: 0,
+                        billingFrequency: 'termly',
+                        defaultPaymentMode: 'advance_termly',
+                        nextBillingDueDate: '',
+                        billingTermsAndNotes: '',
                         hasEdclub: true,
                         hasResources: true,
                         hasAssessments: true,
@@ -1431,24 +1455,13 @@ const AdminSchools: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Lab Days &amp; Timetable Schedule</label>
                         <input
                           value={editingProgram.schedule || ''}
                           onChange={e => setEditingProgram(p => p ? { ...p, schedule: e.target.value } : null)}
                           placeholder="e.g. Tuesdays & Thursdays, 10am - 12pm"
-                          className={inputClass}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Programme Fee (Optional ₦)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={editingProgram.baseFee || ''}
-                          onChange={e => setEditingProgram(p => p ? { ...p, baseFee: Number(e.target.value) || 0 } : null)}
-                          placeholder="e.g. 150000"
                           className={inputClass}
                         />
                       </div>
@@ -1462,6 +1475,270 @@ const AdminSchools: React.FC = () => {
                           <option value="yes">Yes (General track inherited by default)</option>
                           <option value="no">No (Specialized stream track)</option>
                         </select>
+                      </div>
+                    </div>
+
+                    {/* 💳 INDEPENDENT PROGRAMME PRICING & BILLING CONFIGURATION */}
+                    <div className="p-5 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-md space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-3">
+                        <div>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-brand-red text-white">
+                            Programme Billing Engine
+                          </span>
+                          <h4 className="text-sm font-black text-white mt-1 flex items-center gap-2">
+                            <CreditCard size={15} className="text-brand-red" />
+                            Tuition Pricing &amp; Billing Model
+                          </h4>
+                          <p className="text-[11px] text-slate-400">
+                            Configure whether this specific programme is billed as a Fixed Package or automatically calculated Per-Head based on onboarded school learners.
+                          </p>
+                        </div>
+
+                        {/* Model Switcher */}
+                        <div className="flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setEditingProgram(p => p ? { ...p, billingModel: 'package' } : null)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              (editingProgram.billingModel || 'package') === 'package'
+                                ? 'bg-brand-red text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            📦 Fixed Package Fee
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingProgram(p => p ? { ...p, billingModel: 'per_head' } : null)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                              editingProgram.billingModel === 'per_head'
+                                ? 'bg-brand-red text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            👥 Per-Head (Per Student)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Package Fee Model Inputs */}
+                      {(editingProgram.billingModel || 'package') === 'package' ? (
+                        <div className="space-y-3 bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
+                          <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                              Fixed Programme Fee (₦ NGN)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1000"
+                                value={editingProgram.baseFee || ''}
+                                onChange={e => setEditingProgram(p => p ? { ...p, baseFee: Number(e.target.value) || 0 } : null)}
+                                placeholder="e.g. 180000"
+                                className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-brand-red"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              Standard lump-sum package tuition charged specifically for this curriculum track.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Per-Head Calculation Model Inputs */
+                        <div className="space-y-4 bg-slate-950/70 p-4 rounded-2xl border border-slate-800">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                Amount Per Head (₦ / Learner)
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₦</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="500"
+                                  value={editingProgram.amountPerHead || ''}
+                                  onChange={e => setEditingProgram(p => p ? { ...p, amountPerHead: Number(e.target.value) || 0 } : null)}
+                                  placeholder="e.g. 3500"
+                                  className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-brand-red"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                Target Class Range
+                              </label>
+                              <input
+                                type="text"
+                                value={editingProgram.classRange || ''}
+                                onChange={e => setEditingProgram(p => p ? { ...p, classRange: e.target.value } : null)}
+                                placeholder="e.g. Primary 1 - Primary 6 or All"
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-red"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                Student Count Adjustment (±)
+                              </label>
+                              <input
+                                type="number"
+                                value={editingProgram.studentAdjustment || 0}
+                                onChange={e => setEditingProgram(p => p ? { ...p, studentAdjustment: Number(e.target.value) || 0 } : null)}
+                                placeholder="e.g. -2 for withdrawn students"
+                                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-brand-red"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Live Dynamic Calculation Banner */}
+                          {(() => {
+                            const rawCount = cadets.length;
+                            const adj = Number(editingProgram.studentAdjustment || 0);
+                            const netCount = Math.max(0, rawCount + adj);
+                            const rate = Number(editingProgram.amountPerHead || 0);
+                            const calculatedFee = netCount * rate;
+
+                            return (
+                              <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    Live Automated Fee Computation:
+                                  </span>
+                                  <div className="mt-0.5 text-slate-300 font-mono text-[11px]">
+                                    {rawCount} Enrolled Cadets {adj !== 0 ? `(${adj > 0 ? `+${adj}` : adj} adjustment)` : ''} = <strong className="text-white">{netCount} billable learners</strong> × ₦{rate.toLocaleString()}
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] text-emerald-400 uppercase font-black block">Computed Total</span>
+                                  <span className="text-base font-black text-emerald-400 font-mono">
+                                    ₦{calculatedFee.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Billing frequency, mode, due date, terms */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                            Billing Frequency / Cycle
+                          </label>
+                          <select
+                            value={editingProgram.billingFrequency || 'termly'}
+                            onChange={e => setEditingProgram(p => p ? { ...p, billingFrequency: e.target.value as any } : null)}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-medium"
+                          >
+                            <option value="termly">Termly (12 Weeks Full Term)</option>
+                            <option value="monthly">Monthly (4 Weeks Cycle)</option>
+                            <option value="per_session">Per Academic Session (Annual)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                            Default Payment Mode
+                          </label>
+                          <select
+                            value={editingProgram.defaultPaymentMode || 'advance_termly'}
+                            onChange={e => setEditingProgram(p => p ? { ...p, defaultPaymentMode: e.target.value as any } : null)}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-medium"
+                          >
+                            <option value="advance_termly">Advance Termly (Upfront)</option>
+                            <option value="advance_monthly">Advance Monthly (Upfront)</option>
+                            <option value="post_termly">Post Termly (End of Term Invoice)</option>
+                            <option value="post_monthly">Post Monthly (End of Month Invoice)</option>
+                            <option value="bank_transfer">Direct Institutional Remittance</option>
+                            <option value="paystack_card">Online Card / Paystack</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                            Next Billing Due Date
+                          </label>
+                          <input
+                            type="date"
+                            value={editingProgram.nextBillingDueDate || ''}
+                            onChange={e => setEditingProgram(p => p ? { ...p, nextBillingDueDate: e.target.value } : null)}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs font-medium"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                          Programme Billing Terms &amp; Special Notes
+                        </label>
+                        <input
+                          type="text"
+                          value={editingProgram.billingTermsAndNotes || ''}
+                          onChange={e => setEditingProgram(p => p ? { ...p, billingTermsAndNotes: e.target.value } : null)}
+                          placeholder="e.g. Includes physical robotics hardware kit and EdClub typing lab access."
+                          className="w-full px-3.5 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sessions per week & Session Duration */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                          Sessions / Week
+                        </label>
+                        <select
+                          value={editingProgram.sessionsPerWeek || 2}
+                          onChange={e => setEditingProgram(p => p ? { ...p, sessionsPerWeek: Number(e.target.value) || 1 } : null)}
+                          className={inputClass}
+                        >
+                          <option value={1}>1 Session / Week</option>
+                          <option value={2}>2 Sessions / Week</option>
+                          <option value={3}>3 Sessions / Week</option>
+                          <option value={4}>4 Sessions / Week</option>
+                          <option value={5}>5 Sessions / Week</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                          Session Duration
+                        </label>
+                        <input
+                          value={editingProgram.sessionDuration || '1 hour'}
+                          onChange={e => setEditingProgram(p => p ? { ...p, sessionDuration: e.target.value } : null)}
+                          placeholder="e.g. 45 mins, 1 hour"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                          Series / Track Name
+                        </label>
+                        <input
+                          value={editingProgram.seriesName || ''}
+                          onChange={e => setEditingProgram(p => p ? { ...p, seriesName: e.target.value } : null)}
+                          placeholder="e.g. Primary Coding Track"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 block mb-1">
+                          Next Stage in Series
+                        </label>
+                        <input
+                          value={editingProgram.nextProgramTitle || ''}
+                          onChange={e => setEditingProgram(p => p ? { ...p, nextProgramTitle: e.target.value } : null)}
+                          placeholder="e.g. Stage 2: Web Dev"
+                          className={inputClass}
+                        />
                       </div>
                     </div>
 
@@ -2047,193 +2324,235 @@ const AdminSchools: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 3: Billing, Fees & Payment Plans */}
-          {activeSchoolTab === 'billing' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-5">
-                  <div>
-                    <h2 className="text-base font-black text-slate-900 dark:text-white">Admin-Controlled Institutional Billing</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Configure custom pricing, billing cycles (Monthly / Termly), and payment modes for this partner school.
-                    </p>
-                  </div>
-                  <CreditCard className="text-brand-red" size={20} />
-                </div>
+          {/* TAB 3: Multi-Program Institutional Invoicing & Payment Operations */}
+          {activeSchoolTab === 'billing' && (() => {
+            const activePrograms = programsList.filter(p => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL');
+            
+            // Calculate program fees independently without sharing or overriding
+            const programBillingItems = activePrograms.map(p => {
+              let computedFee = 0;
+              let details = '';
+              let billableCount = 0;
 
-                <form onSubmit={handleSaveBilling} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Custom Base Fee (₦ NGN)</label>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        step="1000"
-                        value={billingForm.baseAmount}
-                        onChange={e => setBillingForm(b => ({ ...b, baseAmount: Number(e.target.value) }))}
-                        className={inputClass}
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">This exact amount will appear on the school's billing panel.</p>
-                    </div>
+              if (p.billingModel === 'per_head') {
+                const rawCount = cadets.length;
+                const adj = Number(p.studentAdjustment || 0);
+                billableCount = Math.max(0, rawCount + adj);
+                const rate = Number(p.amountPerHead || 0);
+                computedFee = billableCount * rate;
+                details = `${billableCount} students (${rawCount} onboarded ${adj !== 0 ? (adj > 0 ? `+${adj}` : adj) : ''}) × ₦${rate.toLocaleString()}`;
+              } else {
+                computedFee = Number(p.baseFee || 0);
+                details = 'Fixed Curriculum Package Fee';
+              }
 
-                    <div>
-                      <label className={labelClass}>Billing Frequency / Cycle</label>
-                      <select
-                        value={billingForm.cycle}
-                        onChange={e => setBillingForm(b => ({ ...b, cycle: e.target.value as any }))}
-                        className={inputClass}
+              return {
+                ...p,
+                computedFee,
+                details,
+                billableCount
+              };
+            });
+
+            const totalInstitutionalFee = programBillingItems.reduce((sum, item) => sum + item.computedFee, 0);
+            
+            // Find earliest due date
+            const nearestDueDate = programBillingItems.find(p => p.nextBillingDueDate)?.nextBillingDueDate || billingForm.nextDueDate || '';
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Multi-Program Invoicing Card */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+                      <div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-brand-red text-white">
+                          Multi-Track Invoicing
+                        </span>
+                        <h2 className="text-base font-black text-slate-900 dark:text-white mt-1 flex items-center gap-2">
+                          <CreditCard className="text-brand-red" size={18} />
+                          Active Programmes &amp; Institutional Fee Breakdown
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Each undergoing programme is calculated independently. Package fees and Per-Head student totals are never blended or overridden.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveSchoolTab('programs')}
+                        className="min-h-9 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs inline-flex items-center gap-1.5 transition-all self-start sm:self-auto"
                       >
-                        <option value="monthly">Monthly Plan (4 Weeks Cycle)</option>
-                        <option value="termly">Termly Plan (12 Weeks / Full Term)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Default Payment Mode</label>
-                      <select
-                        value={billingForm.mode}
-                        onChange={e => setBillingForm(b => ({ ...b, mode: e.target.value as any }))}
-                        className={inputClass}
-                      >
-                        <option value="advance_monthly">Advance Monthly (Upfront 4 weeks)</option>
-                        <option value="advance_termly">Advance Termly (Upfront 12 weeks)</option>
-                        <option value="post_monthly">Post Month (End of month invoice)</option>
-                        <option value="post_termly">Post Term (End of term invoice)</option>
-                      </select>
+                        <Edit3 size={13} /> Edit Program Fees in Lifecycle Tab
+                      </button>
                     </div>
 
-                    <div>
-                      <label className={labelClass}>Next Billing Due Date</label>
-                      <input
-                        type="date"
-                        value={billingForm.nextDueDate || ''}
-                        onChange={e => setBillingForm(b => ({ ...b, nextDueDate: e.target.value }))}
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
+                    {programBillingItems.length === 0 ? (
+                      <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-500">
+                        No active programmes configured for {selectedSchool.name}. Switch to the <strong>Undergoing Programmes</strong> tab to deploy curriculum tracks and set their billing.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {programBillingItems.map((item, idx) => (
+                          <div 
+                            key={item.id || idx}
+                            className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                                  item.billingModel === 'per_head' 
+                                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20' 
+                                    : 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                                }`}>
+                                  {item.billingModel === 'per_head' ? 'Per-Head Rate' : 'Package Fee'}
+                                </span>
+                                <h4 className="text-xs font-black text-slate-900 dark:text-white">
+                                  {item.name}
+                                </h4>
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-mono">
+                                {item.details} {item.classRange ? `• Cohort: ${item.classRange}` : ''}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 pt-0.5">
+                                <span>Cycle: <strong className="text-slate-600 dark:text-slate-300 capitalize">{item.billingFrequency || 'Termly'}</strong></span>
+                                <span>Mode: <strong className="text-slate-600 dark:text-slate-300 capitalize">{(item.defaultPaymentMode || 'advance_termly').replace(/_/g, ' ')}</strong></span>
+                                {item.nextBillingDueDate && (
+                                  <span>Due: <strong className="text-brand-red">{new Date(item.nextBillingDueDate).toLocaleDateString('en-NG', { dateStyle: 'medium' })}</strong></span>
+                                )}
+                              </div>
+                            </div>
 
-                  <div>
-                    <label className={labelClass}>Allowed Payment Mode Options for School Admin</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      {[
-                        { id: 'advance_monthly', label: 'Advance Monthly' },
-                        { id: 'advance_termly', label: 'Advance Termly' },
-                        { id: 'post_monthly', label: 'Post Monthly' },
-                        { id: 'post_termly', label: 'Post Termly' }
-                      ].map(modeOpt => {
-                        const isChecked = billingForm.allowedModes.includes(modeOpt.id as any);
-                        return (
-                          <label key={modeOpt.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={e => {
-                                const current = billingForm.allowedModes;
-                                const next = e.target.checked
-                                  ? [...current, modeOpt.id as any]
-                                  : current.filter(m => m !== modeOpt.id);
-                                setBillingForm(b => ({ ...b, allowedModes: next.length ? next : [modeOpt.id as any] }));
-                              }}
-                              className="rounded text-brand-red focus:ring-brand-red"
-                            />
-                            <span>{modeOpt.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Billing Terms & Notes</label>
-                    <textarea
-                      rows={2}
-                      value={billingForm.notes || ''}
-                      onChange={e => setBillingForm(b => ({ ...b, notes: e.target.value }))}
-                      placeholder="Special discount terms, physical workspace kit allocation, or payment invoice notes..."
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div className="pt-3 flex justify-end gap-3">
-                    <button
-                      type="submit"
-                      disabled={savingAction}
-                      className="min-h-11 px-6 rounded-xl bg-brand-red hover:bg-red-700 text-white font-black text-xs inline-flex items-center gap-2 shadow-sm transition-all"
-                    >
-                      {savingAction ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
-                      Save Billing Settings
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Reminders & Invoice Status */}
-              <div className="space-y-6">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                  <div className="flex items-center gap-2 text-brand-red font-black text-xs uppercase tracking-wider mb-2">
-                    <Bell size={14} /> Due Date & Reminders
-                  </div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Issue Payment Reminder</h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Dispatches a prominent renewal notification banner to this school's billing center and sends an email notification.
-                  </p>
-
-                  <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Scheduled Due Date:</span>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {billingForm.nextDueDate ? new Date(billingForm.nextDueDate).toLocaleDateString('en-NG', { dateStyle: 'medium' }) : 'Not Scheduled'}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Last Reminder Sent:</span>
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {billingForm.lastReminderSentAt ? new Date(billingForm.lastReminderSentAt).toLocaleString('en-NG', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={sendingReminder}
-                    onClick={handleSendReminder}
-                    className="mt-4 w-full min-h-11 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-black text-xs inline-flex items-center justify-center gap-2 transition-all shadow-sm"
-                  >
-                    {sendingReminder ? <Loader2 className="animate-spin" size={16} /> : <Send size={15} />}
-                    Issue / Send Payment Reminder
-                  </button>
-                </div>
-
-                {/* Verified Transactions */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white mb-3">Recorded Payment Invoices</h3>
-                  {payments.length ? (
-                    <div className="space-y-2.5 max-h-60 overflow-y-auto">
-                      {payments.map(p => (
-                        <div key={p.id} className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-                          <div className="flex justify-between font-bold">
-                            <span>{formatNaira(p.customerTotal || p.baseAmount || 0)}</span>
-                            <span className="text-emerald-600 font-mono text-[10px] uppercase">{p.status || 'PAID'}</span>
+                            <div className="text-right shrink-0">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase block">Programme Tuition</span>
+                              <span className="text-lg font-black text-slate-900 dark:text-white font-mono">
+                                ₦{item.computedFee.toLocaleString()}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-slate-400 mt-1">
-                            {p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-NG') : 'Recent'} • {p.reference || p.id}
+                        ))}
+
+                        {/* Grand Total Institutional Invoiced Summary */}
+                        <div className="p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4 shadow-md">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Consolidated Institutional Invoiced Total:
+                            </span>
+                            <p className="text-xs text-slate-300 mt-0.5">
+                              Grand total payable by {selectedSchool.name} across all {programBillingItems.length} active programme tracks.
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[10px] uppercase font-black text-emerald-400 block">Total Due</span>
+                            <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                              ₦{totalInstitutionalFee.toLocaleString()}
+                            </span>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Reminders & Invoice Status */}
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                    <div className="flex items-center gap-2 text-brand-red font-black text-xs uppercase tracking-wider mb-2">
+                      <Bell size={14} /> Due Date & Reminders
                     </div>
-                  ) : (
-                    <div className="text-xs text-slate-400 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                      No recorded payment invoices for this school yet.
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Issue Payment Reminder</h3>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Dispatches a prominent renewal notification banner to this school's billing center and sends an email notification.
+                    </p>
+
+                    <div className="mt-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Calculated Invoice:</span>
+                        <strong className="text-slate-900 dark:text-white font-mono font-black">
+                          ₦{totalInstitutionalFee.toLocaleString()}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Scheduled Due Date:</span>
+                        <strong className="text-slate-800 dark:text-slate-200">
+                          {nearestDueDate ? new Date(nearestDueDate).toLocaleDateString('en-NG', { dateStyle: 'medium' }) : 'Not Scheduled'}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Last Reminder Sent:</span>
+                        <strong className="text-slate-800 dark:text-slate-200">
+                          {billingForm.lastReminderSentAt ? new Date(billingForm.lastReminderSentAt).toLocaleString('en-NG', { dateStyle: 'short', timeStyle: 'short' }) : 'Never'}
+                        </strong>
+                      </div>
                     </div>
-                  )}
+
+                    <button
+                      type="button"
+                      disabled={sendingReminder}
+                      onClick={async () => {
+                        if (!selectedSchool) return;
+                        setSendingReminder(true);
+                        try {
+                          const nowIso = new Date().toISOString();
+                          await billingPost('billing-admin', {
+                            action: 'send_payment_reminder',
+                            targetType: 'SCHOOL',
+                            targetId: selectedSchool.id,
+                            recipientId: selectedSchool.adminUid || selectedSchool.id,
+                            email: selectedSchool.contactEmail || selectedSchool.email,
+                            amount: totalInstitutionalFee,
+                            nextDueDate: nearestDueDate,
+                            title: `Tuition & Workspace Subscription Due - ${selectedSchool.name}`
+                          });
+
+                          setBillingForm(prev => ({ ...prev, lastReminderSentAt: nowIso }));
+                          setSchools(prev => prev.map(s => s.id === selectedSchool.id ? {
+                            ...s,
+                            billing: { ...(s.billing || billingForm), lastReminderSentAt: nowIso }
+                          } : s));
+
+                          toast.success(`Payment reminder for ₦${totalInstitutionalFee.toLocaleString()} issued to ${selectedSchool.name}.`);
+                        } catch (err) {
+                          console.error('Send reminder failed:', err);
+                          toast.error(err instanceof Error ? err.message : 'Unable to dispatch payment reminder.');
+                        } finally {
+                          setSendingReminder(false);
+                        }
+                      }}
+                      className="mt-4 w-full min-h-11 rounded-xl bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-black text-xs inline-flex items-center justify-center gap-2 transition-all shadow-sm"
+                    >
+                      {sendingReminder ? <Loader2 className="animate-spin" size={16} /> : <Send size={15} />}
+                      Issue / Send Payment Reminder (₦{totalInstitutionalFee.toLocaleString()})
+                    </button>
+                  </div>
+
+                  {/* Verified Transactions */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white mb-3">Recorded Payment Invoices</h3>
+                    {payments.length ? (
+                      <div className="space-y-2.5 max-h-60 overflow-y-auto">
+                        {payments.map(p => (
+                          <div key={p.id} className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                            <div className="flex justify-between font-bold">
+                              <span>{formatNaira(p.customerTotal || p.baseAmount || 0)}</span>
+                              <span className="text-emerald-600 font-mono text-[10px] uppercase">{p.status || 'PAID'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-1">
+                              {p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-NG') : 'Recent'} • {p.reference || p.id}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-400 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                        No recorded payment invoices for this school yet.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB 4: Exam Unlock Passcodes for this School */}
           {activeSchoolTab === 'passcodes' && (

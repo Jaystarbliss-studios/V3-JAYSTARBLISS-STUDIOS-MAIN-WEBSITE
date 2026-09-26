@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Download, FileText, Image as ImageIcon, Loader2, UserPlus, Printer, ShieldCheck } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, query, limit } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
 
 const SchoolStudentOnboarding: React.FC = () => {
@@ -14,9 +14,50 @@ const SchoolStudentOnboarding: React.FC = () => {
   const [programId, setProgramId] = useState('');
 
   useEffect(() => {
-    getDocs(collection(db, 'programs')).then(snap => {
-      setPrograms(snap.docs.map(d => ({ id: d.id, name: String((d.data() as any).name || (d.data() as any).title || d.id) })));
-    }).catch(() => setPrograms([]));
+    const fetchSchoolPrograms = async () => {
+      try {
+        const schoolId = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || localStorage.getItem('jaystar_cached_school_id') || auth.currentUser?.uid || '';
+        let list: { id: string; name: string }[] = [];
+
+        if (schoolId) {
+          const schSnap = await getDoc(doc(db, 'schools', schoolId)).catch(() => null);
+          if (schSnap && schSnap.exists()) {
+            const sd = schSnap.data();
+            const rawProgs = sd.programs || sd.undergoingPrograms || sd.assignedPrograms || [];
+            if (Array.isArray(rawProgs) && rawProgs.length > 0) {
+              list = rawProgs.map((p: any) => ({
+                id: p.id || p.name || p.title,
+                name: p.name || p.title || p.programName || 'Program Track'
+              }));
+            }
+          }
+        }
+
+        if (list.length === 0 && auth.currentUser) {
+          const schSnap = await getDocs(query(collection(db, 'schools'), limit(50))).catch(() => ({ docs: [] } as any));
+          for (const d of schSnap.docs) {
+            const sd = d.data();
+            if (d.id === schoolId || sd.adminUid === auth.currentUser?.uid || sd.email === auth.currentUser?.email) {
+              const rawProgs = sd.programs || sd.undergoingPrograms || sd.assignedPrograms || [];
+              if (Array.isArray(rawProgs) && rawProgs.length > 0) {
+                list = rawProgs.map((p: any) => ({
+                  id: p.id || p.name || p.title,
+                  name: p.name || p.title || p.programName || 'Program Track'
+                }));
+                break;
+              }
+            }
+          }
+        }
+
+        setPrograms(list);
+      } catch (err) {
+        console.warn('Error fetching school programs:', err);
+        setPrograms([]);
+      }
+    };
+
+    fetchSchoolPrograms();
   }, []);
 
   const update = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }));

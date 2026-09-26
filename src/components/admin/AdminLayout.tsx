@@ -1,73 +1,52 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Users, Settings, LogOut, LayoutDashboard, 
+  CreditCard, UserCheck, School,
+  Sun, Moon, Menu, X, ChevronDown, 
+  MessageSquare, Layers, BookOpen, 
+  Briefcase, FolderOpen, Gamepad2, FileText, 
+  Bell, Activity, Search, ChevronsUpDown,
+  ExternalLink, CalendarDays, Library, ShieldCheck,
+  SlidersHorizontal, Trophy, Radio, GraduationCap, Award
+} from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import SearchModal from '../ui/SearchModal';
 import { Tooltip } from '../ui/Tooltip';
-import { JaystarblissIcon } from '../common/JaystarblissLogo';
-import SEO from '../ui/SEO';
-import NotificationBell from '../common/NotificationBell';
+import SearchModal from '../ui/SearchModal';
 import ImpersonateUserModal from './ImpersonateUserModal';
-import adminBgWallpaper from '../../assets/jdi login bg.png';
-import { 
-  LayoutDashboard, 
-  Users, 
-  BookOpen, 
-  Briefcase, 
-  FolderOpen, 
-  FileText, 
-  MessageSquare, 
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  Gamepad2,
-  Search,
-  ExternalLink,
-  UserCheck,
-  School,
-  CreditCard,
-  Bell,
-  Activity,
-  Layers,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronsUpDown,
-  Sun,
-  Moon
-} from 'lucide-react';
+import { JaystarblissIcon } from '../common/JaystarblissLogo';
+import NotificationBell from '../common/NotificationBell';
+import SEO from '../ui/SEO';
+import adminBgWallpaper from '../../assets/landscape hex design.png';
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  desc: string;
+  badge?: string;
+}
 
 interface NavGroup {
   sectionTitle: string;
-  items: {
-    name: string;
-    href: string;
-    icon: any;
-    desc: string;
-    badge?: string;
-  }[];
+  items: NavItem[];
 }
 
 const AdminLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [impersonateModalOpen, setImpersonateModalOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    return localStorage.getItem('admin_sidebar_collapsed') === 'true';
-  });
+  const [isHovered, setIsHovered] = useState(false);
 
-  // Collapsible Section Accordion State - Persists user choice and keeps active section open
+  // Collapsible Section Accordion State
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('admin_expanded_nav_sections');
-      if (saved) {
-        return JSON.parse(saved);
-      }
+      if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Error reading admin expanded nav sections:', e);
     }
@@ -93,17 +72,8 @@ const AdminLayout: React.FC = () => {
     sessionStorage.clear();
     localStorage.removeItem('jaystar_cached_user_role');
     localStorage.removeItem('jaystar_cached_user_id');
-    localStorage.removeItem('admin_sidebar_collapsed');
     toast.success('Admin session terminated');
     navigate('/portal');
-  };
-
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      localStorage.setItem('admin_sidebar_collapsed', String(next));
-      return next;
-    });
   };
 
   const currentRole = (sessionStorage.getItem('userRole') || 'super_admin').toUpperCase();
@@ -132,21 +102,21 @@ const AdminLayout: React.FC = () => {
       sectionTitle: "Portals & Academic Hub",
       items: [
         { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Student, tutor & enrollment approvals" },
-        { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
+        { name: "Scholars & Students", href: "/admin/students", icon: GraduationCap, desc: "Student credentials & individual dispatches" },
         { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
-        { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
-        { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: BookOpen, desc: "Approve subjects & find matching tutors" },
+        { name: "Faculty & Staff", href: "/admin/staff", icon: Users, desc: "Staff invitations & faculty curriculum" },
+        { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: Award, desc: "Approve subjects & find matching tutors" },
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
-        { name: "Learning Resources", href: "/admin/resources", icon: FolderOpen, desc: "General downloads, links & tests" },
+        { name: "Learning Resources", href: "/admin/resources", icon: Library, desc: "General downloads, links & tests" },
       ]
     },
     {
       sectionTitle: "System & Management",
       items: [
         { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
-        { name: "Users & RBAC", href: "/admin/users", icon: Users, desc: "User accounts & role permissions" },
-        { name: "Settings & Cloud", href: "/admin/settings", icon: Settings, desc: "Cloudinary & system configuration" },
+        { name: "Users & RBAC", href: "/admin/users", icon: ShieldCheck, desc: "User accounts & role permissions" },
+        { name: "Settings & Cloud", href: "/admin/settings", icon: SlidersHorizontal, desc: "Cloudinary & system configuration" },
       ]
     }
   ];
@@ -185,296 +155,190 @@ const AdminLayout: React.FC = () => {
       ];
     }
 
-    if (currentRole === 'ACADEMIC_ADMIN' || currentRole === 'EDUCATION_ADMIN') {
-      return [
-        {
-          sectionTitle: "Overview & Operations",
-          items: [
-            { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
-            { name: "Inquiries & Leads", href: "/admin/inquiries", icon: MessageSquare, desc: "Public inquiries & contact requests" },
-          ]
-        },
-        {
-          sectionTitle: "Portals & Academic Hub",
-          items: [
-            { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Student, tutor & enrollment approvals" },
-            { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
-            { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
-            { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: BookOpen, desc: "Approve subjects & find matching tutors" },
-            { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
-            { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
-            { name: "Learning Resources", href: "/admin/resources", icon: FolderOpen, desc: "General downloads, links & tests" },
-          ]
-        },
-        {
-          sectionTitle: "Website & Pages CMS",
-          items: [
-            { name: "Programs & Courses", href: "/admin/programs", icon: BookOpen, desc: "Curriculum tracks, stages & syllabi" },
-          ]
-        },
-        {
-          sectionTitle: "System & Management",
-          items: [
-            { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
-          ]
-        }
-      ];
-    }
-
-    if (currentRole === 'FINANCE_ADMIN') {
-      return [
-        {
-          sectionTitle: "Overview & Operations",
-          items: [
-            { name: "Dashboard", href: "/admin", icon: LayoutDashboard, desc: "System KPIs, metrics & analytics" },
-            { name: "Activity Logs", href: "/admin/activity", icon: Activity, desc: "Real-time authentication & operation audit" },
-          ]
-        },
-        {
-          sectionTitle: "Portals & Academic Hub",
-          items: [
-            { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
-            { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Payment approvals & fee adjustments" },
-          ]
-        },
-        {
-          sectionTitle: "System & Management",
-          items: [
-            { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
-          ]
-        }
-      ];
-    }
-
     return allNavigationGroups;
   }, [currentRole]);
 
-  // Auto-expand section containing current active route on route changes if not explicitly tracked
-  useEffect(() => {
-    navigationGroups.forEach(group => {
-      const hasActive = group.items.some(
-        item => location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
-      );
-      if (hasActive) {
-        setExpandedSections(prev => {
-          if (prev[group.sectionTitle] === false) return prev; // User explicitly collapsed it
-          if (prev[group.sectionTitle] === true) return prev;
-          const next = { ...prev, [group.sectionTitle]: true };
-          try {
-            localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
-          } catch (e) {
-            console.warn('Could not save expanded nav sections:', e);
-          }
-          return next;
-        });
-      }
-    });
-  }, [location.pathname]);
+  const flatNavList = useMemo(() => {
+    return navigationGroups.flatMap(g => g.items);
+  }, [navigationGroups]);
 
-  const toggleSection = (sectionTitle: string) => {
+  const toggleSection = (title: string) => {
     setExpandedSections(prev => {
-      const next = {
-        ...prev,
-        [sectionTitle]: !prev[sectionTitle]
-      };
-      try {
-        localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save expanded nav sections:', e);
-      }
+      const next = { ...prev, [title]: !prev[title] };
+      localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
       return next;
     });
   };
 
-  const areAllSectionsExpanded = navigationGroups.every(g => expandedSections[g.sectionTitle] === true);
+  const areAllSectionsExpanded = useMemo(() => {
+    return navigationGroups.every(g => expandedSections[g.sectionTitle] !== false);
+  }, [navigationGroups, expandedSections]);
 
   const toggleAllSections = () => {
-    setExpandedSections(() => {
-      const nextState = !areAllSectionsExpanded;
-      const next: Record<string, boolean> = {};
-      navigationGroups.forEach(g => {
-        next[g.sectionTitle] = nextState;
-      });
-      try {
-        localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(next));
-      } catch (e) {
-        console.warn('Could not save expanded nav sections:', e);
-      }
-      return next;
+    const nextState = !areAllSectionsExpanded;
+    const updated: Record<string, boolean> = {};
+    navigationGroups.forEach(g => {
+      updated[g.sectionTitle] = nextState;
     });
+    setExpandedSections(updated);
+    localStorage.setItem('admin_expanded_nav_sections', JSON.stringify(updated));
   };
 
-  const closeSidebar = () => setSidebarOpen(false);
-  
-  const allNavItems = navigationGroups.flatMap(g => g.items);
-  const currentNav = allNavItems.find(n => n.href === location.pathname);
-  const currentTitle = currentNav ? `Admin ${currentNav.name}` : 'Admin Management Panel';
+  const currentNav = flatNavList.find(item => 
+    location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
+  );
 
   return (
-    <div className="digital-canvas h-screen w-full flex overflow-hidden">
+    <div className="h-screen w-full bg-[#f8fafc] dark:bg-[#070b14] text-slate-900 dark:text-slate-100 flex overflow-hidden font-sans select-none">
       <SEO 
-        title={currentTitle} 
-        description="Jaystarbliss Studios Administration and Content Management System." 
-        noindex={true}
+        title="Admin Console | Jaystarbliss Studios" 
+        description="Command center for Jaystarbliss Studios administrative operations, portals, billing and educational ecosystem." 
+        noindex={true} 
       />
 
-      {/* Mobile sidebar overlay backdrop */}
-      <div 
-        className={`fixed inset-0 z-40 bg-gray-900/80 backdrop-blur-xs transition-opacity lg:hidden ${
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={closeSidebar}
-      />
+      {/* Mobile Side Menu (Opens from LEFT, Occupies ~70% screen width, dim backdrop, tap outside to close) */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 overflow-hidden">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              transition={{ duration: 0.2 }}
+              onClick={() => setSidebarOpen(false)}
+              className="fixed inset-0 bg-black/65 backdrop-blur-xs"
+            />
 
-      {/* Mobile Drawer (Independent Scroll) */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-brand-slate text-white flex flex-col h-full overflow-hidden transform transition-transform duration-300 ease-in-out lg:hidden ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="flex items-center justify-between h-16 px-6 bg-brand-slate border-b border-white/10 shrink-0">
-          <Link to="/" className="flex items-center gap-2.5 group" onClick={closeSidebar}>
-            <JaystarblissIcon className="w-8 h-8 shrink-0" />
-            <div className="flex flex-col min-w-0">
-              <span className="font-bold text-xs sm:text-sm tracking-tight text-white whitespace-nowrap">
-                JAYSTARBLISS STUDIOS
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono font-semibold">Admin Console</span>
-            </div>
-          </Link>
-          <button 
-            className="text-white/70 hover:text-white p-1.5 rounded-lg hover:bg-white/10" 
-            onClick={closeSidebar}
-            aria-label="Close Sidebar"
-          >
-            <X size={20} />
-          </button>
-        </div>
+            {/* Side Drawer from Left */}
+            <motion.div 
+              initial={{ x: '-100%' }} 
+              animate={{ x: 0 }} 
+              exit={{ x: '-100%' }} 
+              transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+              className="fixed inset-y-0 left-0 w-[72vw] max-w-[290px] bg-white dark:bg-[#0c1220] text-slate-900 dark:text-white p-4 shadow-2xl border-r border-slate-200 dark:border-white/10 flex flex-col justify-between overflow-y-auto custom-scrollbar"
+            >
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-white/10">
+                  <Link to="/" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2">
+                    <JaystarblissIcon className="w-7 h-7 shrink-0" />
+                    <span className="font-bold text-xs tracking-tight uppercase">JAYSTARBLISS ADMIN</span>
+                  </Link>
+                  <button 
+                    type="button" 
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:text-white"
+                    aria-label="Close menu"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain py-4 px-3 space-y-4 custom-scrollbar">
-          {navigationGroups.map((group, gIdx) => {
-            const isExpanded = expandedSections[group.sectionTitle] !== false;
-            const hasActiveItem = group.items.some(
-              item => location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin')
-            );
+                {/* Impersonation Quick Button on Mobile */}
+                <div className="my-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSidebarOpen(false);
+                      setImpersonateModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold"
+                  >
+                    <UserCheck size={14} />
+                    <span>Log in as Scholar / School / Tutor</span>
+                  </button>
+                </div>
 
-            return (
-              <div key={gIdx} className="space-y-1">
+                {/* Nav items */}
+                <div className="space-y-4 pt-1">
+                  {navigationGroups.map((group, idx) => (
+                    <div key={idx} className="space-y-1">
+                      <p className="text-[10px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase px-2">
+                        {group.sectionTitle}
+                      </p>
+                      <div className="space-y-0.5">
+                        {group.items.map(item => {
+                          const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
+                          const Icon = item.icon;
+                          return (
+                            <Link
+                              key={item.name}
+                              to={item.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                                isActive
+                                  ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30'
+                                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                              }`}
+                            >
+                              <Icon size={15} className="shrink-0" />
+                              <span className="truncate">{item.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Logout button at bottom of drawer */}
+              <div className="pt-3 border-t border-slate-200 dark:border-white/10">
                 <button
                   type="button"
-                  onClick={() => toggleSection(group.sectionTitle)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] font-mono font-bold tracking-wider text-slate-300 hover:text-white uppercase transition-colors rounded-xl hover:bg-white/5 cursor-pointer select-none group"
-                  aria-expanded={isExpanded}
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600/90 text-white text-xs font-bold shadow-xs hover:bg-red-600"
                 >
-                  <span className="flex items-center gap-2 truncate">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${hasActiveItem ? 'bg-brand-red' : 'bg-slate-600 group-hover:bg-slate-400'}`} />
-                    <span className="truncate">{group.sectionTitle}</span>
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/10 text-slate-400 font-mono font-medium">
-                      {group.items.length}
-                    </span>
-                    <ChevronDown 
-                      size={14} 
-                      className={`text-slate-400 group-hover:text-white transition-transform duration-200 ${
-                        isExpanded ? 'rotate-0' : '-rotate-90'
-                      }`} 
-                    />
-                  </div>
+                  <LogOut size={14} />
+                  <span>Exit Session</span>
                 </button>
-
-                <AnimatePresence initial={false}>
-                  {isExpanded && (
-                    <motion.nav
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      className="space-y-0.5 overflow-hidden pl-1.5"
-                    >
-                      {group.items.map((item) => {
-                        const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
-                        const Icon = item.icon;
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            onClick={closeSidebar}
-                            className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all ${
-                              isActive 
-                                ? 'bg-brand-red text-white shadow-sm' 
-                                : 'text-gray-300 hover:bg-white/5 hover:text-white'
-                            }`}
-                          >
-                            <Icon 
-                              className={`flex-shrink-0 mr-2.5 h-4 w-4 transition-colors ${
-                                isActive ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                              }`} 
-                            />
-                            <span className="truncate">{item.name}</span>
-                          </Link>
-                        );
-                      })}
-                    </motion.nav>
-                  )}
-                </AnimatePresence>
               </div>
-            );
-          })}
-        </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-        <div className="p-4 border-t border-white/10 shrink-0">
-          <button 
-            id="btn-admin-mobile-logout"
-            type="button"
-            onClick={() => {
-              closeSidebar();
-              handleLogout();
-            }}
-            className="flex items-center w-full px-3 py-2 text-xs font-bold text-gray-300 rounded-xl hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
-          >
-            <LogOut className="mr-2.5 h-4 w-4 text-gray-400" />
-            <span>Exit Session</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Desktop Sidebar (Collapsible, Frosted Glass & Independently Scrollable) */}
-      <aside 
-        className={`hidden lg:flex bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-2xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-slate-200/80 dark:border-white/10 shrink-0 select-none transition-all duration-300 ease-in-out relative z-30 shadow-lg shadow-black/5 ${
-          sidebarCollapsed ? 'w-20' : 'w-72'
-        }`}
+      {/* Desktop Sidebar: Framer Motion fluid Chrome-style hover expansion (w-20 -> w-72) */}
+      <motion.aside 
+        initial={false}
+        animate={{ width: isHovered ? 280 : 80 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 32, mass: 0.8 }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="hidden lg:flex bg-white/95 dark:bg-[#0c1220]/95 backdrop-blur-2xl text-slate-900 dark:text-white flex-col h-full max-h-screen border-r border-slate-200/80 dark:border-white/10 shrink-0 select-none overflow-hidden relative z-30 shadow-lg"
       >
-        {/* Header with Logo and Collapse Toggle */}
-        <div className={`flex items-center justify-between h-16 px-4 border-b border-slate-200/60 dark:border-white/10 shrink-0 ${sidebarCollapsed ? 'flex-col justify-center gap-1 px-2' : ''}`}>
+        {/* Header with Logo */}
+        <div className="flex items-center h-16 px-4 border-b border-slate-200/60 dark:border-white/10 shrink-0 overflow-hidden">
           <Tooltip content="Return to Public Website" placement="right">
-            <Link to="/" className="flex items-center gap-2.5 group">
-              <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0 drop-shadow-sm" />
-              {!sidebarCollapsed && (
-                <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-xs sm:text-sm tracking-tight text-gray-900 dark:text-white flex items-center gap-1 whitespace-nowrap">
-                    JAYSTARBLISS STUDIOS
-                    <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity text-slate-400" />
-                  </span>
-                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono font-semibold">Admin Console</span>
-                </div>
-              )}
+            <Link to="/" className="flex items-center gap-3 group w-full">
+              <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                <JaystarblissIcon className="w-8 h-8 group-hover:scale-105 transition-transform shrink-0 drop-shadow-sm" />
+              </div>
+              <motion.div 
+                animate={{ opacity: isHovered ? 1 : 0 }}
+                transition={{ duration: 0.2 }}
+                className={`flex flex-col min-w-0 whitespace-nowrap ${isHovered ? 'pointer-events-auto' : 'pointer-events-none'}`}
+              >
+                <span className="font-bold text-xs sm:text-sm tracking-tight text-gray-900 dark:text-white flex items-center gap-1">
+                  JAYSTARBLISS
+                  <ExternalLink size={12} className="opacity-0 group-hover:opacity-70 transition-opacity text-slate-400" />
+                </span>
+                <span className="text-[10px] text-sky-600 dark:text-sky-400 font-mono font-semibold">Admin Console</span>
+              </motion.div>
             </Link>
           </Tooltip>
-
-          <Tooltip content={sidebarCollapsed ? "Expand Sidebar Menu" : "Collapse Sidebar Menu"} placement="right">
-            <button 
-              className="text-gray-400 dark:text-white/60 hover:text-gray-900 dark:hover:text-white p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors" 
-              onClick={toggleSidebarCollapse}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            </button>
-          </Tooltip>
         </div>
 
-        {/* Sidebar Nav Items - Independently Scrollable */}
-        <div className="flex-1 overflow-y-auto overscroll-contain py-3 px-2.5 space-y-3 custom-scrollbar">
-          {!sidebarCollapsed && (
-            <div className="flex items-center justify-between px-2 pb-1">
+        {/* Sidebar Nav Items */}
+        <div className="flex-1 overflow-y-auto overscroll-contain py-3 px-2 space-y-3 custom-scrollbar overflow-x-hidden">
+          {isHovered && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center justify-between px-2 pb-1"
+            >
               <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-slate-500">
                 Navigation
               </span>
@@ -486,7 +350,7 @@ const AdminLayout: React.FC = () => {
                 <ChevronsUpDown size={11} />
                 <span>{areAllSectionsExpanded ? 'Collapse All' : 'Expand All'}</span>
               </button>
-            </div>
+            </motion.div>
           )}
 
           {navigationGroups.map((group, gIdx) => {
@@ -497,7 +361,7 @@ const AdminLayout: React.FC = () => {
 
             return (
               <div key={gIdx} className="space-y-1">
-                {!sidebarCollapsed ? (
+                {isHovered ? (
                   <button
                     type="button"
                     onClick={() => toggleSection(group.sectionTitle)}
@@ -521,193 +385,165 @@ const AdminLayout: React.FC = () => {
                     </div>
                   </button>
                 ) : (
-                  <div className="h-px bg-gray-100 dark:bg-white/10 mx-2 my-2" />
+                  <div className="h-px bg-gray-200 dark:bg-white/10 mx-2 my-2" />
                 )}
                 
-                {sidebarCollapsed ? (
-                  <nav className="space-y-0.5">
-                    {group.items.map((item) => {
-                      const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
-                      const Icon = item.icon;
-                      return (
-                        <Tooltip 
-                          key={item.name} 
-                          content={`${item.name} • ${item.desc}`} 
-                          placement="right" 
-                          delay={200}
+                {/* Nav Items List */}
+                <nav className={`space-y-0.5 ${isHovered && !isExpanded ? 'hidden' : 'block'}`}>
+                  {group.items.map((item) => {
+                    const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
+                    const Icon = item.icon;
+                    return (
+                      <Tooltip 
+                        key={item.name} 
+                        content={!isHovered ? `${item.name} • ${item.desc}` : item.desc} 
+                        placement="right" 
+                        delay={200}
+                      >
+                        <Link
+                          to={item.href}
+                          className={`group flex items-center h-10 px-2 rounded-xl transition-colors ${
+                            isActive 
+                              ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs' 
+                              : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
+                          }`}
                         >
-                          <Link
-                            to={item.href}
-                            className={`group flex items-center px-2 py-2 text-xs font-bold rounded-xl transition-all justify-center ${
-                              isActive 
-                                ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
-                                : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
-                            }`}
-                          >
+                          <div className="w-8 h-8 flex items-center justify-center shrink-0">
                             <Icon 
-                              className={`flex-shrink-0 h-4 w-4 transition-colors ${
+                              className={`h-4 w-4 transition-colors ${
                                 isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
                               }`} 
                             />
-                          </Link>
-                        </Tooltip>
-                      );
-                    })}
-                  </nav>
-                ) : (
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.nav
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="space-y-0.5 overflow-hidden pl-1"
-                      >
-                        {group.items.map((item) => {
-                          const isActive = location.pathname === item.href || (location.pathname.startsWith(item.href) && item.href !== '/admin');
-                          const Icon = item.icon;
-                          return (
-                            <Tooltip 
-                              key={item.name} 
-                              content={item.desc} 
-                              placement="right" 
-                              delay={200}
-                            >
-                              <Link
-                                to={item.href}
-                                className={`group flex items-center px-3 py-2 text-xs font-bold rounded-xl transition-all justify-start ${
-                                  isActive 
-                                    ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-400/30 dark:border-sky-500/30 shadow-xs backdrop-blur-md' 
-                                    : 'text-gray-600 dark:text-slate-300 hover:bg-slate-900/5 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'
-                                }`}
-                              >
-                                <Icon 
-                                  className={`flex-shrink-0 h-4 w-4 transition-colors mr-2.5 ${
-                                    isActive ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-white'
-                                  }`} 
-                                />
-                                <span className="truncate">{item.name}</span>
-                              </Link>
-                            </Tooltip>
-                          );
-                        })}
-                      </motion.nav>
-                    )}
-                  </AnimatePresence>
-                )}
+                          </div>
+                          <motion.span 
+                            animate={{ opacity: isHovered ? 1 : 0 }}
+                            transition={{ duration: 0.15 }}
+                            className={`text-xs font-bold truncate pl-2 whitespace-nowrap ${
+                              isHovered ? 'pointer-events-auto' : 'pointer-events-none'
+                            }`}
+                          >
+                            {item.name}
+                          </motion.span>
+                        </Link>
+                      </Tooltip>
+                    );
+                  })}
+                </nav>
               </div>
             );
           })}
         </div>
 
         {/* Desktop Sidebar Footer */}
-        <div className={`p-3 border-t border-slate-200/60 dark:border-white/10 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
-          <Tooltip content="End administrative session" placement={sidebarCollapsed ? "right" : "top"}>
+        <div className="p-3 border-t border-slate-200/60 dark:border-white/10 shrink-0 overflow-hidden">
+          <Tooltip content="End administrative session" placement={!isHovered ? "right" : "top"}>
             <button 
               id="btn-admin-sidebar-logout"
               type="button"
               onClick={handleLogout}
-              className={`flex items-center text-xs font-bold text-gray-500 dark:text-slate-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer ${
-                sidebarCollapsed ? 'w-10 h-10 justify-center p-0' : 'w-full px-3 py-2'
-              }`}
+              className="flex items-center h-10 w-full px-2 text-xs font-bold text-gray-500 dark:text-slate-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
             >
-              <LogOut className={`h-4 w-4 text-gray-400 dark:text-slate-500 ${sidebarCollapsed ? '' : 'mr-2.5'}`} />
-              {!sidebarCollapsed && <span>Exit Session</span>}
+              <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                <LogOut className="h-4 w-4 text-gray-400 dark:text-slate-500" />
+              </div>
+              <motion.span 
+                animate={{ opacity: isHovered ? 1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className={`truncate pl-2 whitespace-nowrap ${
+                  isHovered ? 'pointer-events-auto' : 'pointer-events-none'
+                }`}
+              >
+                Exit Session
+              </motion.span>
             </button>
           </Tooltip>
         </div>
-      </aside>
+      </motion.aside>
 
-      {/* Main content Area with Blurred Background Image */}
+      {/* Main content Area with Ambient Background */}
       <div className="flex-1 h-full max-h-screen flex flex-col min-w-0 overflow-hidden relative">
-        {/* Ambient Blurred Background Wallpaper */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden select-none" aria-hidden="true">
           <img 
             src={adminBgWallpaper} 
             alt="" 
-            className="w-full h-full object-cover filter blur-[28px] scale-110 opacity-30 dark:opacity-40 transition-opacity" 
+            className="w-full h-full object-cover filter blur-[28px] scale-110 opacity-20 dark:opacity-40 transition-opacity" 
           />
-          <div className="absolute inset-0 bg-slate-100/75 dark:bg-[#070b14]/80 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-slate-100/80 dark:bg-[#070b14]/85 backdrop-blur-xs" />
         </div>
 
         {/* Topbar */}
-        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-13 sm:h-16 bg-white/70 dark:bg-[#0c1220]/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-white/10 px-2.5 sm:px-6 lg:px-8 transition-colors shadow-xs">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-            {/* Mobile Menu Button */}
+        <div className="relative z-20 flex-shrink-0 flex items-center justify-between h-14 sm:h-16 bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/10 px-3 sm:px-6 lg:px-8 transition-colors shadow-xs">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Tooltip content="Open navigation menu" placement="right">
               <button 
-                className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors shrink-0" 
+                className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors shrink-0" 
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open navigation menu"
               >
-                <Menu size={18} className="sm:w-[22px] sm:h-[22px]" />
+                <Menu size={20} />
               </button>
             </Tooltip>
 
-            <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate max-w-[100px] xs:max-w-[150px] sm:max-w-none">
-              {currentNav?.name || 'Overview'}
+            <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate max-w-[130px] sm:max-w-none">
+              {currentNav?.name || 'Admin Overview'}
             </span>
           </div>
-          
-          <div className="flex items-center gap-1 sm:gap-2.5">
-            {/* Quick User Impersonator Button */}
-            <Tooltip content="Direct Dashboard Login & User Search" placement="bottom">
-              <button
-                type="button"
-                onClick={() => setImpersonateModalOpen(true)}
-                className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-[11px] sm:text-xs transition-colors shrink-0"
-                aria-label="Direct Dashboard Login"
-              >
-                <UserCheck size={13} className="sm:w-[15px] sm:h-[15px]" />
-                <span className="hidden xs:inline">Log in as User</span>
-              </button>
-            </Tooltip>
 
-            <Tooltip content="Search admin workspace" placement="bottom">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Log in as / Impersonate Button with Rich Contrast */}
+            <button
+              type="button"
+              onClick={() => setImpersonateModalOpen(true)}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-xs transition-transform active:scale-95 flex items-center gap-1.5 shrink-0"
+              title="Log in directly as student, school admin or tutor"
+            >
+              <UserCheck size={14} />
+              <span className="hidden sm:inline">Log in as</span>
+            </button>
+
+            {/* Global Search Button */}
+            <Tooltip content="Global search" placement="bottom">
               <button 
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 onClick={() => setSearchOpen(true)}
-                className="p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-lg sm:rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                aria-label="Search content"
+                aria-label="Search"
               >
-                <Search size={15} className="sm:w-[18px] sm:h-[18px]" />
+                <Search size={17} />
               </button>
             </Tooltip>
 
-            {/* Admin Theme Toggle */}
-            <Tooltip content={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} placement="bottom">
-              <button
+            {/* Theme Toggle */}
+            <Tooltip content={theme === 'dark' ? 'Light Theme' : 'Dark Theme'} placement="bottom">
+              <button 
                 type="button"
                 onClick={toggleTheme}
-                className="p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-lg sm:rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? <Sun size={15} className="text-amber-400 sm:w-[18px] sm:h-[18px]" /> : <Moon size={15} className="sm:w-[18px] sm:h-[18px]" />}
+                {theme === 'dark' ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} />}
               </button>
             </Tooltip>
 
-            {/* Persistent Real-time Notification Bell */}
+            {/* Notification Bell */}
             <NotificationBell role="admin" />
 
-            <div className="h-4 sm:h-6 w-px bg-slate-200/80 dark:bg-slate-800"></div>
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
             
-            <Tooltip content="Administrator Profile" placement="bottom">
-              <div className="flex items-center gap-1.5 sm:gap-2.5 py-1 px-1.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-gray-800 dark:text-gray-200 leading-tight">Admin Officer</div>
-                </div>
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-[10px] sm:text-xs shadow-xs">
-                  JD
-                </div>
+            <div className="flex items-center gap-2 py-1 px-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10">
+              <div className="text-right hidden sm:block">
+                <div className="text-xs font-bold text-gray-900 dark:text-gray-100 leading-tight">Admin Officer</div>
               </div>
-            </Tooltip>
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-sky-600 to-blue-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                JD
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Main Content Area - Isolated independent scroll */}
-        <main className="flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar">
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+        {/* Main Content Area */}
+        <main className="flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar pb-16 lg:pb-0">
+          <div className="py-5 sm:py-6">
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 md:px-8">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}
@@ -724,6 +560,28 @@ const AdminLayout: React.FC = () => {
         </main>
       </div>
 
+      {/* Horizontally Scrollable Mobile Bottom Navigation for Admin */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0c1220]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar gap-1 z-30 shadow-lg select-none">
+        {flatNavList.map(item => {
+          const isActive = location.pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.name}
+              to={item.href}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all shrink-0 min-w-[62px] ${
+                isActive
+                  ? 'text-sky-600 dark:text-sky-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon size={18} />
+              <span className="text-[9px] mt-0.5 tracking-tight truncate max-w-[65px]">{item.name}</span>
+            </Link>
+          );
+        })}
+      </div>
+
       <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
       <ImpersonateUserModal isOpen={impersonateModalOpen} onClose={() => setImpersonateModalOpen(false)} />
     </div>
@@ -731,4 +589,3 @@ const AdminLayout: React.FC = () => {
 };
 
 export default AdminLayout;
-

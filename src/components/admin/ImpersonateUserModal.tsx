@@ -5,8 +5,8 @@ import { db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { 
   Search, X, UserCheck, Shield, GraduationCap, 
-  Briefcase, School, Users, ExternalLink, ArrowRight, 
-  CheckCircle2, AlertCircle, RefreshCw, Key
+  Briefcase, School, Users, ArrowRight, 
+  AlertCircle, RefreshCw
 } from 'lucide-react';
 import { startImpersonation, type ImpersonationTarget } from '../../utils/impersonation';
 
@@ -45,9 +45,11 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
             const d = docSnap.data();
             const id = docSnap.id;
             seenIds.add(id);
-            if (d.email) seenIds.add(d.email.toLowerCase());
+            if (d.userId) seenIds.add(d.userId);
+            if (d.studentDocId) seenIds.add(d.studentDocId);
+            if (d.email) seenIds.add(d.email.toLowerCase().trim());
 
-            let role = String(d.role || 'STUDENT').toUpperCase();
+            const role = String(d.role || 'STUDENT').toUpperCase();
             usersList.push({
               id: id,
               uid: id,
@@ -76,7 +78,11 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           schoolStudents.docs.forEach(docSnap => {
             const d = docSnap.data();
             const id = docSnap.id;
-            if (!seenIds.has(id)) {
+            const emailKey = (d.email || d.parentEmail || '').toLowerCase().trim();
+            if (!seenIds.has(id) && (!emailKey || !seenIds.has(emailKey))) {
+              seenIds.add(id);
+              if (d.userId) seenIds.add(d.userId);
+              if (emailKey) seenIds.add(emailKey);
               usersList.push({
                 id: id,
                 uid: d.userId || id,
@@ -96,7 +102,11 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           indivStudents.docs.forEach(docSnap => {
             const d = docSnap.data();
             const id = docSnap.id;
-            if (!seenIds.has(id)) {
+            const emailKey = (d.email || d.parentEmail || '').toLowerCase().trim();
+            if (!seenIds.has(id) && (!emailKey || !seenIds.has(emailKey))) {
+              seenIds.add(id);
+              if (d.userId) seenIds.add(d.userId);
+              if (emailKey) seenIds.add(emailKey);
               usersList.push({
                 id: id,
                 uid: d.userId || id,
@@ -120,16 +130,23 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           schoolSnaps.forEach(docSnap => {
             const d = docSnap.data();
             const id = docSnap.id;
-            usersList.push({
-              id: id,
-              uid: d.adminUid || d.userId || id,
-              name: d.name || d.schoolName || 'School Administrator',
-              email: d.email || d.adminEmail || d.contactEmail || '',
-              role: 'SCHOOL',
-              schoolId: id,
-              schoolName: d.name || d.schoolName || '',
-              phone: d.phone || ''
-            });
+            const emailKey = (d.email || d.adminEmail || d.contactEmail || '').toLowerCase().trim();
+            if (!seenIds.has(id) && (!emailKey || !seenIds.has(emailKey))) {
+              seenIds.add(id);
+              if (d.adminUid) seenIds.add(d.adminUid);
+              if (d.userId) seenIds.add(d.userId);
+              if (emailKey) seenIds.add(emailKey);
+              usersList.push({
+                id: id,
+                uid: d.adminUid || d.userId || id,
+                name: d.name || d.schoolName || 'School Administrator',
+                email: d.email || d.adminEmail || d.contactEmail || '',
+                role: 'SCHOOL',
+                schoolId: id,
+                schoolName: d.name || d.schoolName || '',
+                phone: d.phone || ''
+              });
+            }
           });
         } catch (e) {
           console.warn('Error fetching schools:', e);
@@ -141,7 +158,11 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           staffSnaps.forEach(docSnap => {
             const d = docSnap.data();
             const id = docSnap.id;
-            if (!seenIds.has(id)) {
+            const emailKey = (d.email || '').toLowerCase().trim();
+            if (!seenIds.has(id) && (!emailKey || !seenIds.has(emailKey))) {
+              seenIds.add(id);
+              if (d.userId) seenIds.add(d.userId);
+              if (emailKey) seenIds.add(emailKey);
               usersList.push({
                 id: id,
                 uid: d.userId || id,
@@ -202,24 +223,25 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl relative max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden">
+      {/* Modal Container with strict max height to prevent mobile screen pass-through */}
+      <div className="bg-white dark:bg-[#0c1220] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full mx-auto p-4 sm:p-6 shadow-2xl relative max-h-[85dvh] sm:max-h-[88vh] flex flex-col overflow-hidden text-slate-900 dark:text-white">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 shrink-0">
-              <UserCheck size={20} />
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shrink-0">
+              <UserCheck size={18} />
             </div>
-            <div>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
                 <span>Direct Dashboard Impersonation</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                   Instant View-As
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Log into any student, tutor, or school account without passwords to troubleshoot or view their interface.
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                Log into any student, tutor, or school account without passwords.
               </p>
             </div>
           </div>
@@ -227,23 +249,24 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 ml-2"
+            aria-label="Close modal"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Search & Filter Controls */}
-        <div className="py-4 space-y-3">
+        <div className="py-3 space-y-2.5 shrink-0">
           <div className="relative">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               autoFocus
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by student/tutor name, Gmail, school code, or class..."
-              className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              placeholder="Search student, tutor, school, email, or class..."
+              className="w-full pl-9 pr-9 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-slate-400"
             />
             {searchQuery && (
               <button
@@ -251,13 +274,13 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             )}
           </div>
 
           {/* Role Filter Badges */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {[
               { id: 'ALL', label: `All Users (${allUsers.length})`, icon: Users },
               { id: 'STUDENT', label: 'Students', icon: GraduationCap },
@@ -271,13 +294,13 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setRoleFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 shrink-0 ${
                     roleFilter === tab.id
                       ? 'bg-amber-500 text-white shadow-xs font-black'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800'
                   }`}
                 >
-                  <Icon size={13} />
+                  <Icon size={12} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -285,46 +308,46 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           </div>
         </div>
 
-        {/* Directory List Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pr-1 min-h-[280px]">
+        {/* Directory List Area - Scrollable */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-2 pr-1">
           {loading ? (
-            <div className="py-16 text-center space-y-3">
-              <RefreshCw size={24} className="mx-auto text-amber-500 animate-spin" />
-              <p className="text-xs text-slate-400 font-mono">Scanning user directory & rosters...</p>
+            <div className="py-12 text-center space-y-2">
+              <RefreshCw size={22} className="mx-auto text-amber-500 animate-spin" />
+              <p className="text-xs text-slate-400 font-mono">Scanning user directory &amp; rosters...</p>
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="py-14 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-6">
-              <AlertCircle size={28} className="mx-auto text-slate-400 mb-2" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No matching accounts found</p>
-              <p className="text-xs text-slate-400 mt-1">Try searching with a different name, Gmail address, or role category.</p>
+            <div className="py-10 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-5">
+              <AlertCircle size={24} className="mx-auto text-slate-400 mb-1.5" />
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No matching accounts found</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Try searching with a different name or role category.</p>
             </div>
           ) : (
-            filteredUsers.map((item) => {
+            filteredUsers.map((item, idx) => {
               const uRole = String(item.role).toUpperCase();
               return (
                 <div
-                  key={`${item.role}-${item.id}`}
-                  className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-850 hover:border-amber-500/60 dark:hover:border-amber-500/60 transition-all flex items-center justify-between gap-3 group"
+                  key={`${item.role}-${item.id}-${idx}`}
+                  className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#111726] hover:border-amber-500/60 dark:hover:border-amber-500/60 transition-all flex items-center justify-between gap-2.5 group"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-sm shrink-0 ${
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                       uRole === 'STUDENT'
-                        ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
                         : uRole === 'SCHOOL'
-                        ? 'bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
                         : uRole === 'TUTOR' || uRole === 'STAFF'
-                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
-                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                     }`}>
                       {uRole === 'STUDENT' ? '🎓' : uRole === 'SCHOOL' ? '🏫' : uRole === 'TUTOR' ? '👨‍🏫' : '👤'}
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
                           {item.name}
                         </h4>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase shrink-0 ${
+                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase shrink-0 ${
                           uRole === 'STUDENT'
                             ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
                             : uRole === 'SCHOOL'
@@ -337,10 +360,10 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        <span className="truncate">{item.email || 'No email registered'}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 dark:text-slate-300 mt-0.5">
+                        <span className="truncate max-w-[170px] sm:max-w-xs">{item.email || 'No email registered'}</span>
                         {item.class && <span className="font-medium text-slate-600 dark:text-slate-300 font-mono">Class: {item.class}</span>}
-                        {item.schoolName && <span className="font-medium text-purple-600 dark:text-purple-400">{item.schoolName}</span>}
+                        {item.schoolName && <span className="font-semibold text-purple-600 dark:text-purple-400 truncate max-w-[120px]">{item.schoolName}</span>}
                       </div>
                     </div>
                   </div>
@@ -348,11 +371,11 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSelectUser(item)}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs inline-flex items-center gap-1.5 shadow-xs transition-transform active:scale-95 shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs inline-flex items-center gap-1 shadow-xs transition-transform active:scale-95 shrink-0"
                     title={`Log in directly as ${item.name}`}
                   >
                     <span>Log In</span>
-                    <ArrowRight size={13} />
+                    <ArrowRight size={12} />
                   </button>
                 </div>
               );
@@ -360,13 +383,13 @@ export const ImpersonateUserModal: React.FC<ImpersonateUserModalProps> = ({
           )}
         </div>
 
-        {/* Footer Note */}
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-          <span>Admin privileged tool. All view-as actions will render a top banner to easily return to admin.</span>
+        {/* Footer */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-400 shrink-0">
+          <span className="truncate mr-2">Admin View-As Tool • Renders top exit banner</span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-slate-600 dark:text-slate-300 transition-colors"
+            className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-slate-700 dark:text-slate-200 transition-colors shrink-0"
           >
             Close
           </button>

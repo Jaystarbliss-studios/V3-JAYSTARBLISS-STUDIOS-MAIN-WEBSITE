@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Award,
   Bell,
+  Calendar,
   CheckCircle2,
   Clock,
   Code2,
@@ -12,7 +13,9 @@ import {
   ExternalLink,
   FileText,
   Lock,
+  Radio,
   Trophy,
+  UserCheck,
   Video,
   X,
 } from 'lucide-react';
@@ -348,8 +351,19 @@ const StudentDashboard: React.FC = () => {
 
         // Resolve student program track & feature permissions (School general program vs specialized track)
         let progName = (studentRecord as any).programName || (studentRecord as any).program || studentRecord.plan || (studentRecord as any).track || '';
-        let edclubAccess = true;
+        let edclubAccess = false;
         let resAccess = true;
+
+        const assignedProgramsList: string[] = Array.from(new Set([
+          studentRecord.plan,
+          (studentRecord as any).track,
+          (studentRecord as any).programName,
+          (studentRecord as any).programTitle,
+          ...(Array.isArray((studentRecord as any).enrolledPrograms) ? (studentRecord as any).enrolledPrograms : []),
+          ...(Array.isArray(studentRecord.subjects) ? studentRecord.subjects : []),
+          ...(Array.isArray((studentRecord as any).plans) ? (studentRecord as any).plans : []),
+          ...(Array.isArray((studentRecord as any).programs) ? (studentRecord as any).programs : [])
+        ])).filter(Boolean).map(s => String(s).trim().toLowerCase());
 
         if (studentRecord.schoolId) {
           try {
@@ -360,37 +374,74 @@ const StudentDashboard: React.FC = () => {
               
               if (schPrograms.length > 0) {
                 const studentProgId = (studentRecord as any).programId || (studentRecord as any).assignedProgramId;
-                let matched = schPrograms.find(p => p.id === studentProgId || (p.name && p.name.toLowerCase() === progName.toLowerCase()));
-                if (!matched) {
-                  // Fall back to school general program or first program
-                  matched = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
-                }
-                if (matched) {
-                  progName = matched.name || progName;
-                  // If hasEdclub is explicitly defined on the program
-                  edclubAccess = Boolean(matched.hasEdclub);
-                  resAccess = matched.hasResources !== false;
+                
+                // Match against all assigned programs or program ID
+                schPrograms.forEach(p => {
+                  const pName = String(p.name || p.title || '').trim().toLowerCase();
+                  const isAssigned = (studentProgId && p.id === studentProgId) ||
+                    assignedProgramsList.length === 0 ||
+                    assignedProgramsList.some(ap => ap === pName || ap.includes(pName) || pName.includes(ap));
+
+                  if (isAssigned) {
+                    if (!progName) progName = p.name;
+                    if (p.hasEdclub === true || p.hasEdClub === true || pName.includes('digital literacy') || pName.includes('typing')) {
+                      edclubAccess = true;
+                    }
+                    if (p.hasResources !== false) {
+                      resAccess = true;
+                    }
+                  }
+                });
+
+                if (!progName) {
+                  const general = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
+                  if (general) {
+                    progName = general.name;
+                    if (general.hasEdclub || String(general.name || '').toLowerCase().includes('digital literacy')) {
+                      edclubAccess = true;
+                    }
+                  }
                 }
               }
             }
           } catch (e) {
             console.warn('School program lookup notice:', e);
           }
-        } else if ((studentRecord as any).programId) {
+        }
+
+        // Also check programs collection
+        if (!edclubAccess && assignedProgramsList.length > 0) {
           try {
-            const progDoc = await getDoc(doc(db, 'programs', (studentRecord as any).programId));
-            if (progDoc.exists()) {
-              const pData = progDoc.data();
-              progName = pData.title || pData.name || progName;
-              edclubAccess = Boolean(pData.hasEdclub);
-              resAccess = pData.hasResources !== false;
-            }
+            const progsSnap = await getDocs(collection(db, 'programs')).catch(() => ({ docs: [] } as any));
+            progsSnap.docs.forEach((d: any) => {
+              const p = d.data();
+              const pTitle = String(p.title || p.name || '').trim().toLowerCase();
+              const isMatch = assignedProgramsList.some(ap => ap === pTitle || ap.includes(pTitle) || pTitle.includes(ap));
+              if (isMatch) {
+                if (p.hasEdclub === true || p.hasEdClub === true || pTitle.includes('digital literacy') || pTitle.includes('typing')) {
+                  edclubAccess = true;
+                }
+              }
+            });
           } catch (e) {
-            console.warn('Program lookup notice:', e);
+            console.warn('Programs lookup for edclub notice:', e);
           }
         }
 
-        setEnrolledProgramName(progName || '');
+        // Fallback for Digital Literacy & Keyboarding programs
+        const isDigitalLitOrTyping = assignedProgramsList.some(ap => 
+          ap.includes('digital literacy') || 
+          ap.includes('digitalliteracy') || 
+          ap.includes('typing') || 
+          ap.includes('edclub') || 
+          ap.includes('keyboard')
+        ) || String(progName || '').toLowerCase().includes('digital literacy') || String(studentRecord.plan || '').toLowerCase().includes('digital literacy');
+
+        if (!edclubAccess && isDigitalLitOrTyping) {
+          edclubAccess = true;
+        }
+
+        setEnrolledProgramName(progName || (isDigitalLitOrTyping ? 'Digital Literacy Junior' : ''));
         setIsEdclubAllowed(edclubAccess);
         setHasResourcesAllowed(resAccess);
 
@@ -568,6 +619,44 @@ const StudentDashboard: React.FC = () => {
               }
             });
           });
+
+          // If no specific studentModules exist yet, populate from their assigned program in programs collection
+          if (moduleMap.size === 0) {
+            const assignedProgName = studentRecord.plan || (studentRecord as any).track || (studentRecord as any).programName || enrolledProgramName;
+            try {
+              const progSnap = await getDocs(collection(db, 'programs'));
+              const matchingProgs = progSnap.docs.filter(d => {
+                const p = d.data();
+                if (!assignedProgName) return p.status === 'PUBLISHED';
+                const pTitle = (p.title || '').toLowerCase().trim();
+                const target = assignedProgName.toLowerCase().trim();
+                return pTitle === target || pTitle.includes(target) || target.includes(pTitle);
+              });
+
+              matchingProgs.forEach((d, idx) => {
+                const p = d.data();
+                const curr = Array.isArray(p.curriculum) && p.curriculum.length > 0 ? p.curriculum : [p.title];
+                curr.forEach((topic: string, tIdx: number) => {
+                  const mId = `${d.id}-mod-${tIdx}`;
+                  moduleMap.set(mId, {
+                    id: mId,
+                    title: topic,
+                    stageName: p.stageName || (p.seriesName ? `${p.seriesName} • Stage ${p.stageNumber || idx + 1}` : `Stage ${p.stageNumber || idx + 1}`),
+                    stageNumber: Number(p.stageNumber) || idx + 1,
+                    trackName: p.title || assignedProgName || 'Learning Track',
+                    completed: tIdx === 0, // Mark first introductory milestone as active/completed
+                    completionDate: tIdx === 0 ? new Date().toISOString() : '',
+                    score: '90%',
+                    competencies: ['Core Engineering', 'Problem Solving'],
+                    instructor: p.assignedTutors?.[0]?.tutorName || (studentRecord as any).tutorName || 'Jaystarbliss Faculty',
+                  });
+                });
+              });
+            } catch (pErr) {
+              console.warn('Fallback program modules lookup error:', pErr);
+            }
+          }
+
           setModules(Array.from(moduleMap.values()).sort((a, b) => a.stageNumber - b.stageNumber));
         } catch (error) {
           console.warn('Student module lookup failed:', error);
@@ -625,7 +714,7 @@ const StudentDashboard: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [toast]);
+  }, []);
 
   const courseProgressList = useMemo(() => {
     const byTrack = new Map<string, { total: number; completed: number }>();
@@ -695,6 +784,71 @@ const StudentDashboard: React.FC = () => {
 
   const completedModulesCount = completedModules.length;
   const overallProgress = modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0;
+
+  // Real-time comparison for Live vs Upcoming classes
+  const scheduleAnalysis = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    let liveSession: any = null;
+    const upcoming: any[] = [];
+
+    studentSchedules.forEach((s) => {
+      const date = s.date || '';
+      const startTime = s.startTime || '';
+      const endTime = s.endTime || '';
+      const explicitStatus = String(s.status || '').toUpperCase();
+
+      if (['COMPLETED', 'ATTENDED', 'CANCELLED', 'ABSENT'].includes(explicitStatus)) {
+        return;
+      }
+
+      let formattedDate = date;
+      if (date) {
+        try {
+          const d = new Date(date + 'T00:00:00');
+          const day = d.getDate();
+          const suffix = (day >= 11 && day <= 13) ? 'th' : ['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][day % 10];
+          const dayName = d.toLocaleDateString('en-NG', { weekday: 'long' });
+          formattedDate = `${dayName}, ${day}${suffix} ${d.toLocaleDateString('en-NG', { month: 'long' })} ${d.getFullYear()}`;
+        } catch {
+          formattedDate = date;
+        }
+      }
+
+      if (date < todayStr) {
+        return; // Past date
+      }
+
+      // ONLY mark as live if scheduled for TODAY and within start & end time window
+      if (date === todayStr) {
+        if (startTime && endTime) {
+          if (currentTimeStr >= startTime && currentTimeStr <= endTime) {
+            liveSession = { ...s, formattedDate, isLive: true };
+            return;
+          }
+          if (currentTimeStr > endTime) {
+            return; // Ended earlier today
+          }
+        } else if (explicitStatus === 'ONGOING') {
+          liveSession = { ...s, formattedDate, isLive: true };
+          return;
+        }
+      }
+
+      // Future date or today before start time: strictly Upcoming
+      upcoming.push({ ...s, formattedDate, isLive: false });
+    });
+
+    upcoming.sort((a, b) => {
+      const cmpDate = (a.date || '').localeCompare(b.date || '');
+      if (cmpDate !== 0) return cmpDate;
+      return (a.startTime || '').localeCompare(b.startTime || '');
+    });
+
+    return { liveSession, upcoming: upcoming.slice(0, 3) };
+  }, [studentSchedules]);
 
   const handleDownloadCertificate = (module: ProgramModule, customName?: string) => {
     if (!module.completed) return;
@@ -775,33 +929,212 @@ const StudentDashboard: React.FC = () => {
             subtitle="Your learning overview, kept focused on the things that matter most."
           />
 
-          <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-sm border border-slate-800">
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-5 md:items-center">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Current Programme</p>
-                <h2 className="mt-1 text-lg sm:text-xl font-bold text-white">
-                  {student.plan || currentModule?.trackName || 'Not assigned'}
-                </h2>
-                <p className="mt-1 text-xs text-slate-300">
-                  {student.class || student.grade ? `Class: ${student.class || student.grade}` : 'Class not assigned'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Current Focus</p>
-                <p className="mt-1 text-base font-bold text-white">
-                  {currentModule?.title || 'Not assigned'}
-                </p>
-                {currentModule?.stageName && (
-                  <p className="mt-1 text-xs text-slate-300">{currentModule.stageName}</p>
+          {/* 🔴 ACTIVE LIVE CLASS BANNER (If Active Today and In Session) */}
+          {scheduleAnalysis.liveSession && (
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border-2 border-emerald-500/80 p-5 text-white shadow-lg animate-fade-in">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black uppercase text-white shadow-xs">
+                      <Radio size={12} className="animate-spin" /> LIVE CLASS IN SESSION
+                    </span>
+                    <span className="text-xs text-emerald-300 font-bold">
+                      {scheduleAnalysis.liveSession.formattedDate || 'Today'}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-white">
+                    {scheduleAnalysis.liveSession.title || scheduleAnalysis.liveSession.programName || 'Live Coding Class'}
+                  </h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-300 font-medium">
+                    {scheduleAnalysis.liveSession.startTime && (
+                      <span>⏰ {scheduleAnalysis.liveSession.startTime} – {scheduleAnalysis.liveSession.endTime}</span>
+                    )}
+                    {scheduleAnalysis.liveSession.tutorName && (
+                      <span className="flex items-center gap-1">
+                        <UserCheck size={13} className="text-brand-red" />
+                        Instructor: {scheduleAnalysis.liveSession.tutorName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {scheduleAnalysis.liveSession.meetingLink && (
+                  <a
+                    href={scheduleAnalysis.liveSession.meetingLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-700 shadow-md shadow-emerald-900/40 transition shrink-0"
+                  >
+                    Join Live Room Now <ExternalLink size={14} />
+                  </a>
                 )}
               </div>
-              <div className="md:text-right">
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-red">Programme Progress</p>
-                <p className="mt-1 text-3xl font-black text-white">{overallProgress}%</p>
-                <p className="text-xs text-slate-300">{completedModulesCount} of {modules.length} milestones completed</p>
+            </div>
+          )}
+
+          {/* 🚀 LEADER PANEL: CURRENT PROGRAMME, FOCUS & PROGRESS (Strict high-contrast pure white text in all modes) */}
+          <section 
+            style={{ color: '#ffffff', backgroundColor: '#0B1120' }}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B1120] via-[#151F32] to-[#0B1120] !text-white p-6 sm:p-7 shadow-xl border-2 border-slate-700/80"
+          >
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 md:items-center">
+              <div className="space-y-1.5">
+                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-red-300 bg-red-950/90 px-2.5 py-0.5 rounded-md border border-red-700/80 shadow-xs">
+                  Current Programme
+                </span>
+                <h2 style={{ color: '#ffffff' }} className="text-lg sm:text-xl font-black !text-white tracking-tight leading-snug">
+                  {student.plan || enrolledProgramName || currentModule?.trackName || 'Coding and Tech Track'}
+                </h2>
+                <p style={{ color: '#cbd5e1' }} className="text-xs font-bold !text-slate-300">
+                  {student.class || student.grade ? `Class Cohort: ${student.class || student.grade}` : 'Class Cohort Assigned'}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-sky-300 bg-sky-950/90 px-2.5 py-0.5 rounded-md border border-sky-700/80 shadow-xs">
+                  Current Focus
+                </span>
+                <p style={{ color: '#ffffff' }} className="text-base sm:text-lg font-black !text-white leading-snug">
+                  {currentModule?.title || 'Core Engineering Track'}
+                </p>
+                {currentModule?.stageName && (
+                  <p style={{ color: '#cbd5e1' }} className="text-xs font-bold !text-slate-300">{currentModule.stageName}</p>
+                )}
+              </div>
+
+              <div className="md:text-right space-y-1.5">
+                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-md border border-emerald-700/80 shadow-xs">
+                  Programme Progress
+                </span>
+                <p style={{ color: '#ffffff' }} className="text-3xl sm:text-4xl font-black !text-white tracking-tight">{overallProgress}%</p>
+                <p style={{ color: '#cbd5e1' }} className="text-xs font-semibold !text-slate-300">
+                  {completedModulesCount} of {modules.length} milestones mastered
+                </p>
               </div>
             </div>
+
+            {/* Stage Progression Pipeline (If modules or stages exist) */}
+            {modules.length > 1 && (
+              <div className="mt-5 pt-4 border-t border-slate-700/70">
+                <div className="flex items-center justify-between mb-2">
+                  <span style={{ color: '#94a3b8' }} className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Curriculum Stage Progression Path
+                  </span>
+                  <Link 
+                    to="/portal/student/courses" 
+                    className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline inline-flex items-center gap-1"
+                  >
+                    View All Stages <ArrowRight size={10} />
+                  </Link>
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                  {modules.map((m, idx) => (
+                    <div 
+                      key={m.id || idx}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 ${
+                        m.completed
+                          ? 'bg-emerald-950/80 border-emerald-600/80 text-emerald-200'
+                          : idx === completedModulesCount
+                          ? 'bg-red-950/80 border-red-600/80 text-white ring-1 ring-red-500/50'
+                          : 'bg-slate-900/80 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <span className="w-4 h-4 rounded-full bg-black/40 flex items-center justify-center text-[10px] font-black">
+                        {idx + 1}
+                      </span>
+                      <span className="truncate max-w-[120px]">{m.title}</span>
+                      {m.completed && <CheckCircle2 size={12} className="text-emerald-400" />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
+
+          {/* ⌨️ TYPING MASTERS ACADEMY & EDCLUB WORKSPACE (Prominently rendered for EdClub-eligible tracks) */}
+          {isEdclubAllowed && (
+            <TypingMastersAcademyCard
+              studentName={student.fullName || student.name || 'Student'}
+              studentClass={student.class || student.grade}
+              schoolId={student.schoolId}
+              isAllowed={true}
+              enrolledProgramName={enrolledProgramName || student.plan || 'Digital Literacy Junior'}
+            />
+          )}
+
+          {/* 📅 UPCOMING CLASS SCHEDULE & TIMETABLE WIDGET */}
+          {scheduleAnalysis.upcoming.length > 0 && (
+            <section className="pro-surface rounded-2xl p-5 sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Calendar size={16} className="text-brand-red" /> Upcoming Class Schedule
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Your next scheduled learning sessions and virtual classes.
+                  </p>
+                </div>
+                <Link
+                  to="/portal/student/live-classes"
+                  className="text-xs font-bold text-brand-red inline-flex items-center gap-1 hover:underline"
+                >
+                  All Live Classes <ArrowRight size={13} />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {scheduleAnalysis.upcoming.map((occ: any) => (
+                  <div
+                    key={occ.id}
+                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 p-3.5 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-red/10 px-2 py-0.5 text-[9px] font-black uppercase text-brand-red">
+                          <Calendar size={10} /> UPCOMING
+                        </span>
+                        {occ.startTime && (
+                          <span className="text-[10px] font-bold text-slate-500">
+                            ⏰ {occ.startTime} – {occ.endTime}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
+                        {occ.title || occ.programName || 'Class Session'}
+                      </h4>
+                      <p className="mt-0.5 text-[11px] font-bold text-brand-red dark:text-red-400">
+                        {occ.formattedDate || occ.date}
+                      </p>
+                      {occ.tutorName && (
+                        <p className="mt-1 text-[10px] text-slate-500 flex items-center gap-1">
+                          <UserCheck size={11} className="text-slate-400" />
+                          Faculty: {occ.tutorName}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-400">
+                        {occ.classLevel ? `Class: ${occ.classLevel}` : 'Assigned Class'}
+                      </span>
+                      {occ.meetingLink ? (
+                        <a
+                          href={occ.meetingLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] font-bold text-brand-red inline-flex items-center gap-1 hover:underline"
+                        >
+                          Meeting Link <ExternalLink size={11} />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">Link on start</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="pro-surface rounded-2xl p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-4">

@@ -728,14 +728,15 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
                       </a>
                     )}
 
-                    {/* Open / Preview Primary Button */}
+                    {/* Read / Preview Primary Button */}
                     <button
                       type="button"
                       onClick={() => handleOpenResource(item)}
                       className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-brand-red dark:hover:bg-brand-red text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Read resource document"
                     >
-                      <Eye size={13} />
-                      <span>Open</span>
+                      <BookOpen size={13} />
+                      <span>Read</span>
                     </button>
 
                     {/* Delete button for Admin */}

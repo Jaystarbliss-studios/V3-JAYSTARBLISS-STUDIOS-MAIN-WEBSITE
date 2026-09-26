@@ -92,7 +92,10 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     return ['overview','roster','exams','passcodes','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
   }, [initialTab, location.pathname, searchParams]);
 
-  useEffect(() => setTab(resolvedTab()), [resolvedTab]);
+  useEffect(() => {
+    const nextTab = resolvedTab();
+    setTab(prev => (prev !== nextTab ? nextTab : prev));
+  }, [resolvedTab]);
   const changeTab = (next: SchoolDashboardTab) => { setTab(next); navigate(next === 'overview' ? '/portal/school' : `/portal/school/${next}`); };
 
   const load = useCallback(async () => {
@@ -258,7 +261,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       setSchool(null); setStudentCount(0); setExams([]); setLinks([]); setPasscodes([]); setClassSchedules([]);
       toast.error(error instanceof Error ? error.message : 'Unable to load school operations.');
     } finally { setLoading(false); }
-  }, [toast]);
+  }, []);
   useEffect(() => { void load(); }, [load]);
 
   const filteredExams = useMemo(() => { const q = search.trim().toLowerCase(); return q ? exams.filter(e => [e.title,e.subject,e.term,e.targetClass].some(v => String(v || '').toLowerCase().includes(q))) : exams; }, [exams, search]);
@@ -528,58 +531,122 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-xl bg-slate-900 text-white p-5 border border-slate-800 space-y-2 md:col-span-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">Undergoing Curriculum Plan</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                  school?.billing?.status === 'OVERDUE' 
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
-                    : school?.billing?.status === 'DUE' 
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                }`}>
-                  {school?.billing?.status || 'NOT CONFIGURED'}
-                </span>
-              </div>
-              <h3 className="text-lg font-black text-white">{school?.plan || (Array.isArray(school?.programs) ? school.programs.find((p: any) => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL')?.name : '') || 'Not configured'}</h3>
-              <p className="text-xs text-slate-300">
-                Covers hands-on computer science lab instructions, STEM curriculum kits, and learner CBT assessment portals.
-              </p>
-              {school?.billing?.notes && (
-                <div className="text-[11px] text-slate-400 bg-slate-800/60 p-2.5 rounded-lg border border-slate-700 mt-2">
-                  <strong className="text-slate-300">Administrative Note:</strong> {school.billing.notes}
-                </div>
-              )}
-            </div>
+          {(() => {
+            const activePrograms: any[] = (Array.isArray(school?.programs) ? school.programs : [])
+              .filter((p: any) => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL');
 
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-5 border border-slate-200/80 dark:border-slate-800 space-y-3">
-              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Institutional Fee</span>
-              <div className="text-2xl font-black text-slate-900 dark:text-white">
-                {school?.billing?.baseAmount ? formatNaira(school.billing.baseAmount) : 'Custom Fee'}
-              </div>
-              <div className="text-xs text-slate-500 space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
-                <div className="flex justify-between">
-                  <span>Cycle:</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{school?.billing?.cycle || 'Not configured'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Mode:</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">
-                    {school?.billing?.mode ? school.billing.mode.replace(/_/g, ' ') : 'Not configured'}
-                  </span>
-                </div>
-                {school?.billing?.nextDueDate && (
-                  <div className="flex justify-between">
-                    <span>Due Date:</span>
-                    <span className="font-bold text-brand-red">
-                      {new Date(school.billing.nextDueDate).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
-                    </span>
+            const progsWithFee = activePrograms.map((p: any) => {
+              let fee = 0;
+              let calculationNote = '';
+              if (p.billingModel === 'per_head') {
+                const adj = Number(p.studentAdjustment || 0);
+                const net = Math.max(0, studentCount + adj);
+                const rate = Number(p.amountPerHead || 0);
+                fee = net * rate;
+                calculationNote = `${net} learners × ₦${rate.toLocaleString()}`;
+              } else {
+                fee = Number(p.baseFee ?? p.fee ?? p.amount ?? 0);
+                calculationNote = 'Fixed Package';
+              }
+              return { ...p, computedFee: fee, calculationNote };
+            });
+
+            const totalInvoiceAmount = progsWithFee.reduce((sum: number, p: any) => sum + p.computedFee, 0) || Number(school?.billing?.baseAmount || 0);
+            const earliestDue = progsWithFee.find((p: any) => p.nextBillingDueDate)?.nextBillingDueDate || school?.billing?.nextDueDate;
+
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-2xl bg-slate-900 text-white p-5 sm:p-6 border border-slate-800 space-y-4 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-widest font-black text-slate-400">Undergoing Curriculum Tracks</span>
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                        school?.billing?.status === 'OVERDUE' 
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                          : school?.billing?.status === 'DUE' 
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      }`}>
+                        {school?.billing?.status || 'ACTIVE PARTNERSHIP'}
+                      </span>
+                    </div>
+
+                    {progsWithFee.length === 0 ? (
+                      <div>
+                        <h3 className="text-base font-black text-white">{school?.plan || 'General Technology Curriculum'}</h3>
+                        <p className="text-xs text-slate-300 mt-1">Covers hands-on computer science lab instructions, STEM curriculum kits, and learner CBT assessment portals.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {progsWithFee.map((p: any, idx: number) => (
+                          <div key={p.id || idx} className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${p.billingModel === 'per_head' ? 'bg-blue-500/20 text-blue-300' : 'bg-purple-500/20 text-purple-300'}`}>
+                                  {p.billingModel === 'per_head' ? 'Per-Head' : 'Package'}
+                                </span>
+                                <span className="text-xs font-black text-white">{p.name}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {p.calculationNote} {p.level ? `• ${p.level}` : ''}
+                              </p>
+                            </div>
+                            <span className="text-sm font-black font-mono text-emerald-400 shrink-0">
+                              ₦{p.computedFee.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {school?.billing?.notes && (
+                      <div className="text-[11px] text-slate-400 bg-slate-800/60 p-2.5 rounded-lg border border-slate-700">
+                        <strong className="text-slate-300">Administrative Note:</strong> {school.billing.notes}
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-900/60 p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 space-y-4 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider font-black text-slate-500">Total Invoiced Amount</span>
+                      <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono mt-1">
+                        ₦{totalInvoiceAmount.toLocaleString()}
+                      </div>
+                      <div className="text-xs text-slate-500 space-y-1.5 pt-3 mt-3 border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex justify-between">
+                          <span>Billing Cycle:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{school?.billing?.cycle || 'Termly'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Default Mode:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">
+                            {(school?.billing?.mode || 'advance_termly').replace(/_/g, ' ')}
+                          </span>
+                        </div>
+                        {earliestDue && (
+                          <div className="flex justify-between">
+                            <span>Next Due Date:</span>
+                            <span className="font-bold text-brand-red">
+                              {new Date(earliestDue).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {!effective.isMasquerading && (
+                      <button 
+                        onClick={() => navigate('/portal/school/payments')} 
+                        className="w-full min-h-10 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center justify-center gap-2 shadow-xs transition-colors mt-2"
+                      >
+                        <CreditCard size={14}/> Pay Tuition &amp; Invoices
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       )}
 

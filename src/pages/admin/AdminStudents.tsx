@@ -11,7 +11,7 @@ import {
   Users, UserPlus, Search, KeyRound, Copy, CheckCircle2, 
   Trash2, Send, RefreshCw, ShieldCheck, X, School, 
   GraduationCap, UserCheck, Download, Link as LinkIcon,
-  Filter, ChevronDown, Plus, Settings, ArrowRight, ChevronRight
+  Filter, ChevronDown, Plus, Settings, ChevronRight
 } from 'lucide-react';
 
 export interface AssignedStudentTutor {
@@ -1358,11 +1358,11 @@ const AdminStudents: React.FC = () => {
         <section className="pro-surface rounded-3xl border border-slate-200/80 p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900/80">
           <h2 className="text-base font-black text-slate-900 dark:text-white">Recent Learning Dispatches</h2>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {dispatches.slice(0, 6).map(item => {
+            {dispatches.slice(0, 6).map((item, idx) => {
               const targetStudent = students.find(s => s.id === item.studentId);
               return (
                 <div
-                  key={`${item.collectionName}-${item.id}`}
+                  key={`${item.collectionName}-${item.id}-${idx}`}
                   className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/50"
                 >
                   <div>

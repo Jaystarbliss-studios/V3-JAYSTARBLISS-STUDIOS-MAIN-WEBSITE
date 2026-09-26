@@ -19,9 +19,11 @@ import {
   Download, 
   FileText, 
   X,
-  Sparkles
+  Sparkles,
+  Edit3,
+  BookOpen
 } from 'lucide-react';
-import { collection, doc, getDoc, getDocs, query as fsQuery, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc, query as fsQuery, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
@@ -42,6 +44,11 @@ type Student = {
   portalAccessEnabled: boolean; 
   accountStatus: string; 
   source: string; 
+  subjects?: string[];
+  enrolledPrograms?: string[];
+  plans?: string[];
+  programs?: string[];
+  [key: string]: any;
 };
 
 type IssuedCredential = {
@@ -65,6 +72,21 @@ const SchoolRoster: React.FC = () => {
   const [isIssuing, setIsIssuing] = useState(false);
   const [revealedCredential, setRevealedCredential] = useState<IssuedCredential | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Student Edit & Program/Teacher Assignment State
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    class: '',
+    selectedPrograms: [] as string[],
+    customProgram: '',
+    email: '',
+    tutorId: '',
+    tutorName: ''
+  });
+  const [schoolPrograms, setSchoolPrograms] = useState<Array<{ id: string; name: string }>>([]);
+  const [schoolTutors, setSchoolTutors] = useState<Array<{ id: string; name: string }>>([]);
+  const [savingStudent, setSavingStudent] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     const effective = getEffectiveAuth();
@@ -201,6 +223,31 @@ const SchoolRoster: React.FC = () => {
 
           roster = list;
         }
+
+        // Fetch strictly the programs assigned to this school by administration
+        try {
+          const availableProgsMap = new Map<string, { id: string; name: string }>();
+
+          if (targetSchoolId) {
+            const schDoc = await getDoc(doc(db, 'schools', targetSchoolId));
+            if (schDoc.exists()) {
+              const sd = schDoc.data();
+              if (Array.isArray(sd.programs) && sd.programs.length > 0) {
+                sd.programs.forEach((p: any) => {
+                  const pName = p.name || p.title || 'Program Track';
+                  availableProgsMap.set(pName.toLowerCase().trim(), { id: p.id || pName, name: pName });
+                });
+              }
+              if (Array.isArray(sd.assignedStaff)) {
+                setSchoolTutors(sd.assignedStaff.map((s: any) => ({ id: s.id || s.uid || s.email, name: s.name || s.fullName || s.email })));
+              }
+            }
+          }
+
+          setSchoolPrograms(Array.from(availableProgsMap.values()));
+        } catch (pErr) {
+          console.warn('School programs lookup error in roster:', pErr);
+        }
       }
       setStudents(roster);
     } catch (error) {
@@ -210,6 +257,76 @@ const SchoolRoster: React.FC = () => {
       setRefreshing(false);
     }
   }, [toast]);
+
+  const openEditModal = (student: Student) => {
+    setEditingStudent(student);
+    const existingProgs = Array.isArray((student as any).enrolledPrograms) && (student as any).enrolledPrograms.length > 0
+      ? (student as any).enrolledPrograms
+      : Array.isArray(student.subjects) && student.subjects.length > 0
+      ? student.subjects
+      : student.track
+      ? student.track.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : ['Coding & Tech'];
+
+    setEditForm({
+      fullName: student.fullName || '',
+      class: student.class || 'Year 1',
+      selectedPrograms: existingProgs,
+      customProgram: '',
+      email: student.email || '',
+      tutorId: student.tutorId || '',
+      tutorName: (student as any).tutorName || (student as any).assignedTutor || ''
+    });
+  };
+
+  const saveStudentEdits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setSavingStudent(true);
+    try {
+      const collectionName = editingStudent.collection || 'students';
+      const targetDoc = doc(db, collectionName, editingStudent.id);
+
+      const combinedSelected = Array.from(new Set([
+        ...editForm.selectedPrograms,
+        ...(editForm.customProgram ? [editForm.customProgram.trim()] : [])
+      ])).filter(Boolean);
+
+      const finalPrograms = combinedSelected.length > 0 ? combinedSelected : ['Coding & Tech'];
+      const primaryProgram = finalPrograms[0];
+      const trackString = finalPrograms.join(', ');
+
+      const payload: any = {
+        fullName: editForm.fullName.trim(),
+        name: editForm.fullName.trim(),
+        class: editForm.class.trim(),
+        grade: editForm.class.trim(),
+        track: trackString,
+        plan: primaryProgram,
+        programName: primaryProgram,
+        enrolledPrograms: finalPrograms,
+        subjects: finalPrograms,
+        plans: finalPrograms,
+        programs: finalPrograms,
+        email: editForm.email ? editForm.email.trim().toLowerCase() : null,
+        tutorId: editForm.tutorId || null,
+        tutorName: editForm.tutorName || null,
+        assignedTutor: editForm.tutorName || null,
+        updatedAt: new Date().toISOString()
+      };
+
+      await updateDoc(targetDoc, payload);
+
+      toast.success(`Updated ${editForm.fullName} and assigned ${finalPrograms.length} program(s).`);
+      setEditingStudent(null);
+      await load(true);
+    } catch (err) {
+      console.error('Error saving student edits:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save student details.');
+    } finally {
+      setSavingStudent(false);
+    }
+  };
 
   const updateAccess = async (student: Student, action: 'disable' | 'enable') => {
     try {
@@ -536,10 +653,31 @@ Important Security Notice:
                   {student.class || 'Not assigned'}
                 </div>
 
-                {/* Track */}
-                <div className="text-sm text-slate-600 dark:text-slate-300">
+                {/* Track / Programs */}
+                <div className="text-xs text-slate-600 dark:text-slate-300">
                   <span className="md:hidden text-[10px] uppercase text-slate-400 mr-2 font-normal">Track:</span>
-                  {student.track || 'General Tech'}
+                  {(() => {
+                    const progList = Array.isArray((student as any).enrolledPrograms) && (student as any).enrolledPrograms.length > 0
+                      ? (student as any).enrolledPrograms
+                      : Array.isArray(student.subjects) && student.subjects.length > 0
+                      ? student.subjects
+                      : student.track
+                      ? student.track.split(',').map((s: string) => s.trim()).filter(Boolean)
+                      : ['General Tech'];
+
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {progList.map((pName: string, pIdx: number) => (
+                          <span 
+                            key={pIdx} 
+                            className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-red-50 dark:bg-red-950/40 text-brand-red border border-red-100 dark:border-red-900/30 truncate max-w-[160px]"
+                          >
+                            {pName}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Status */}
@@ -556,6 +694,15 @@ Important Security Notice:
 
                 {/* Actions */}
                 <div className="flex items-center justify-start md:justify-end gap-2 flex-wrap">
+                  <button 
+                    type="button" 
+                    onClick={() => openEditModal(student)} 
+                    className="min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-xs font-black inline-flex items-center gap-1.5 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+                    title="Edit student details & assign track/faculty"
+                  >
+                    <Edit3 size={13}/> Edit &amp; Assign Track
+                  </button>
+
                   <button 
                     type="button" 
                     onClick={() => void handleIssueCredentials(student)} 
@@ -590,6 +737,205 @@ Important Security Notice:
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Edit Student & Assign Learning Track Modal */}
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-150">
+          <form 
+            onSubmit={saveStudentEdits}
+            className="w-full max-w-lg rounded-3xl bg-white dark:bg-[#161B26] border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-7 space-y-4 text-slate-900 dark:text-white max-h-[85dvh] flex flex-col"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-brand-red">
+                    <Edit3 size={16}/>
+                  </span>
+                  <h3 className="font-black text-base">Edit Student &amp; Assign Track</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Update learner profile, class cohort, and assign curriculum track / faculty tutor.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X size={18}/>
+              </button>
+            </div>
+
+            <div className="space-y-3.5 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.fullName}
+                  onChange={e => setEditForm({ ...editForm, fullName: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Class Cohort
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.class}
+                    onChange={e => setEditForm({ ...editForm, class: e.target.value })}
+                    placeholder="e.g. Year 1, JSS 2..."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Student Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                    placeholder="student@school.edu"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Assigned Learning Programs ({editForm.selectedPrograms.length} Selected)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, selectedPrograms: schoolPrograms.map(p => p.name) }))}
+                      className="text-[10px] font-bold text-brand-red hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, selectedPrograms: [] }))}
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {schoolPrograms.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 custom-scrollbar">
+                      {schoolPrograms.map(p => {
+                        const isChecked = editForm.selectedPrograms.includes(p.name);
+                        return (
+                          <label 
+                            key={p.id} 
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-xs font-bold cursor-pointer transition-all ${
+                              isChecked 
+                                ? 'border-brand-red bg-red-50/50 dark:bg-red-950/30 text-brand-red ring-1 ring-brand-red/30' 
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                setEditForm(prev => ({
+                                  ...prev,
+                                  selectedPrograms: e.target.checked
+                                    ? Array.from(new Set([...prev.selectedPrograms, p.name]))
+                                    : prev.selectedPrograms.filter(name => name !== p.name)
+                                }));
+                              }}
+                              className="rounded border-slate-300 text-brand-red focus:ring-brand-red"
+                            />
+                            <span className="truncate">{p.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 text-xs text-slate-400 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                      No active institutional programs found. Enter a custom track name below.
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                      + Add Custom Program Track (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.customProgram}
+                      onChange={e => setEditForm({ ...editForm, customProgram: e.target.value })}
+                      placeholder="e.g. Robotics &amp; AI Engineering..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Assigned Faculty Mentor / Tutor (Optional)
+                </label>
+                {schoolTutors.length > 0 ? (
+                  <select
+                    value={editForm.tutorName}
+                    onChange={e => {
+                      const sel = schoolTutors.find(t => t.name === e.target.value);
+                      setEditForm({ ...editForm, tutorName: e.target.value, tutorId: sel?.id || '' });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none"
+                  >
+                    <option value="">-- Select faculty instructor --</option>
+                    {schoolTutors.map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={editForm.tutorName}
+                    onChange={e => setEditForm({ ...editForm, tutorName: e.target.value })}
+                    placeholder="e.g. Instructor John Doe"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red"
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingStudent}
+                className="px-5 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                {savingStudent ? <Loader2 size={13} className="animate-spin"/> : <Check size={13}/>}
+                <span>Save Changes &amp; Assign</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

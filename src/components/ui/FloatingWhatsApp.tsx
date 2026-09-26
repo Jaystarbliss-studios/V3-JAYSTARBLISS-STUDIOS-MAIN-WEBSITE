@@ -7,8 +7,13 @@ export const FloatingWhatsApp: React.FC = () => {
   const location = useLocation();
   const [phoneNumber, setPhoneNumber] = useState('2349136518194');
 
-  // Hide on admin and portal dashboards
-  const isPortalOrAdmin = location.pathname.startsWith('/portal/') || location.pathname.startsWith('/admin');
+  // Show ONLY on the main public website, never on login, portal, or admin dashboards
+  const isExcluded = 
+    location.pathname === '/portal' ||
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname.startsWith('/portal') || 
+    location.pathname.startsWith('/admin');
 
   useEffect(() => {
     const fetchNumber = async () => {
@@ -28,7 +33,7 @@ export const FloatingWhatsApp: React.FC = () => {
     fetchNumber();
   }, []);
 
-  if (isPortalOrAdmin) return null;
+  if (isExcluded) return null;
 
   const defaultMsg = encodeURIComponent(
     'Hello Jaystarbliss Studios! I would like to make an inquiry regarding your coding programs and services.'
@@ -36,17 +41,17 @@ export const FloatingWhatsApp: React.FC = () => {
   const whatsappUrl = `https://wa.me/${phoneNumber}?text=${defaultMsg}`;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex items-center justify-center pointer-events-auto">
+    <div className="fixed bottom-6 right-6 z-40 flex items-center justify-center pointer-events-auto animate-in fade-in slide-in-from-bottom-6 duration-500 ease-out">
       <a
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat with us on WhatsApp"
         title="Chat with us on WhatsApp"
-        className="w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/20 flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 group"
+        className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 group"
       >
         <svg
-          className="w-7 h-7 fill-current transition-transform group-hover:scale-105"
+          className="w-6.5 h-6.5 sm:w-7 sm:h-7 fill-current transition-transform group-hover:scale-105"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
         >

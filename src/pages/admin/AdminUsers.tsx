@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { Shield, User, Download, Plus, X, KeyRound, Copy, Check, Search, Filter, ChevronDown, UserCheck, ArrowRight } from 'lucide-react';
+import { Shield, User, Download, Plus, X, KeyRound, Copy, Check, Search, Filter, ChevronDown, UserCheck } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { startImpersonation } from '../../utils/impersonation';

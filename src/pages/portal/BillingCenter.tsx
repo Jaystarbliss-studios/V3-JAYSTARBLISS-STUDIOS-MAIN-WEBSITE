@@ -262,20 +262,47 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
 
   // Calculate fee based on selected programs or default fee
   const activeProgramsList = useMemo(() => {
+    const rawStudentCount = Number(data.students?.length || 0);
+
     if (!schoolPrograms.length) {
       if (configuredFee > 0) {
-        return [{ id: 'core_prog', name: 'Institutional Technology Partnership', fee: configuredFee, status: 'ACTIVE' }];
+        return [{ id: 'core_prog', name: 'Institutional Technology Partnership', fee: configuredFee, billingModel: 'package', status: 'ACTIVE' }];
       }
       return [];
     }
-    return schoolPrograms.map((p: any, idx: number) => ({
-      id: p.id || `prog_${idx}`,
-      name: p.name || `Program Track ${idx + 1}`,
-      fee: Number(p.fee || p.amount || (configuredFee > 0 ? Math.round(configuredFee / schoolPrograms.length) : 0)),
-      status: p.status || 'ACTIVE',
-      description: p.description || ''
-    }));
-  }, [schoolPrograms, configuredFee]);
+    return schoolPrograms
+      .filter((p: any) => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL')
+      .map((p: any, idx: number) => {
+        let fee = 0;
+        let details = '';
+        if (p.billingModel === 'per_head') {
+          const adj = Number(p.studentAdjustment || 0);
+          const netStudents = Math.max(0, rawStudentCount + adj);
+          const rate = Number(p.amountPerHead || 0);
+          fee = netStudents * rate;
+          details = `${netStudents} learners × ₦${rate.toLocaleString()}`;
+        } else {
+          fee = Number(p.baseFee ?? p.fee ?? p.amount ?? 0);
+          details = 'Fixed Package Fee';
+        }
+
+        return {
+          id: p.id || `prog_${idx}`,
+          name: p.name || `Program Track ${idx + 1}`,
+          fee,
+          details,
+          billingModel: p.billingModel || 'package',
+          amountPerHead: p.amountPerHead,
+          classRange: p.classRange,
+          studentAdjustment: p.studentAdjustment,
+          billingFrequency: p.billingFrequency || schoolCycle,
+          defaultPaymentMode: p.defaultPaymentMode || 'advance_termly',
+          nextBillingDueDate: p.nextBillingDueDate || schoolBilling?.nextDueDate,
+          status: p.status || 'ACTIVE',
+          description: p.description || ''
+        };
+      });
+  }, [schoolPrograms, configuredFee, data.students, schoolCycle, schoolBilling]);
 
   const selectedPrograms = useMemo(() => {
     if (!selectedProgramIds.length) return activeProgramsList;

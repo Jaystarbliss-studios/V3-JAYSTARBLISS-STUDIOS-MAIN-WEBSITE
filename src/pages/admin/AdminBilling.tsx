@@ -471,7 +471,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         payerName: p.payerName || p.customerName || p.schoolName || p.studentName || 'Guardian',
         payerEmail: p.payerEmail || p.customerEmail || '',
         payerRole: p.payerRole || (p.schoolId ? 'School' : (p.parentId ? 'Parent' : undefined)),
-        studentName: p.studentName || p.studentName || '',
+        studentName: p.studentName || p.metadata?.studentName || '',
         schoolName: p.schoolName || '',
         tutorName: p.tutorName || '',
         students: p.students || p.metadata?.students || [],
