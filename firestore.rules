@@ -122,9 +122,9 @@ service cloud.firestore {
     match /exams/{examId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /schoolResources/{resourceId} { 
       allow read: if true; 
-      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.schoolId);
-      allow update: if isAnyAdmin() || isSchoolUser() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
-      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.schoolId);
+      allow create: if isStaffOrTutor() || isAnyAdmin();
+      allow update: if isStaffOrTutor() || isAnyAdmin();
+      allow delete: if isStaffOrTutor() || isAnyAdmin();
     }
     match /schoolLinks/{linkId} { 
       allow read: if true; 

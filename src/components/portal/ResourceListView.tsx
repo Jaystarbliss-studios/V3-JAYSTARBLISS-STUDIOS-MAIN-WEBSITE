@@ -719,12 +719,13 @@ export const ResourceListView: React.FC<ResourceListViewProps> = ({
                         href={item.fileUrl || item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        download
-                        title="Direct Download / File Link"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-red hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Read curriculum"
+                        aria-label={`Read ${item.title}`}
+                        className="px-2 py-1.5 rounded-lg text-slate-500 hover:text-brand-red hover:bg-slate-100 dark:text-slate-400 dark:hover:text-brand-red dark:hover:bg-slate-800 transition-colors cursor-pointer inline-flex items-center gap-1.5 text-[11px] font-bold"
                         onClick={() => markRead(item.id)}
                       >
-                        <Download size={15} />
+                        <Eye size={15} />
+                        <span>Read</span>
                       </a>
                     )}
 

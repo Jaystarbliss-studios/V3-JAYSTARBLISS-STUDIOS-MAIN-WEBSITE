@@ -562,6 +562,10 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
 
   // Save Class Assignment to Firestore
   const handleSaveClassAssignment = async () => {
+    if (role !== 'staff') {
+      toast.error('Only tutors/staff can manage curriculum assignments.');
+      return;
+    }
     if (!assignModalDoc) return;
     if (assignSelectedClasses.length === 0) {
       toast.error('Please select at least one target class or choose "All Classes".');
@@ -633,6 +637,10 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   // Upload New School Resource
   const handleCreateSchoolResource = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (role !== 'staff') {
+      toast.error('Only tutors/staff can upload curriculum resources.');
+      return;
+    }
     if (!uploadForm.title.trim() || !uploadForm.fileUrl.trim()) {
       toast.error('Please enter a lesson title and document/file URL.');
       return;
@@ -737,7 +745,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
               <div className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Total Resources</div>
             </div>
 
-            {(role === 'school' || role === 'all') && (
+            {role === 'staff' && (
               <button
                 onClick={() => setIsUploadModalOpen(true)}
                 className="px-4 py-3 bg-brand-red hover:bg-red-700 text-white rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-red/20 transition-all cursor-pointer"
@@ -786,7 +794,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             const docItem = resources.find(r => r.id === res.id);
             if (docItem) setPreviewDoc(docItem);
           }}
-          showAssignButton={role === 'school'}
+          showAssignButton={role === 'staff'}
           emptyMessage="No curriculum resources found for your enrolled program track. Lessons and study notes uploaded by educators will appear here."
         />
       )}
