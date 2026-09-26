@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { 
   BookOpen, Code, CheckCircle2, ExternalLink, Award, Layers, 
-  Loader2, PlayCircle, ClipboardList, Flag, Sparkles, GraduationCap,
+  Loader2, PlayCircle, ClipboardList, Flag, GraduationCap,
   Calendar, Check, UserCheck, ArrowRight, FileText, Upload, Eye,
   Download, Printer, X, Plus, AlertCircle, Send
 } from 'lucide-react';

@@ -17,7 +17,6 @@ import {
   History, 
   Search, 
   GraduationCap,
-  Sparkles,
   School,
   Video,
   PlayCircle

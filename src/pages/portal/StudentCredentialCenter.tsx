@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Download, FileText, KeyRound, Loader2, RefreshCw, 
   ShieldCheck, Users, ChevronRight, Search, Check, Copy,
-  School, GraduationCap, Sparkles, AlertCircle
+  School, GraduationCap, AlertCircle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import { billingGet, billingPost } from '../../lib/billing';
+import { billingPost } from '../../lib/billing';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
@@ -45,18 +45,8 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
     const combinedMap = new Map<string, Student>();
 
     try {
-      // 1. Fetch from billing-data
-      try {
-        const data = await billingGet<any>('billing-data');
-        const list = (data?.students || []) as Student[];
-        list.forEach(s => {
-          if (s && s.id) combinedMap.set(s.id, s);
-        });
-      } catch (err) {
-        console.warn('billing-data fetch in CredentialCenter:', err);
-      }
-
-      // 2. Fetch from school-students endpoint if school role or context
+      // Load only the authorised school/tutor roster.
+      // 1. Fetch from scoped school-students endpoint
       const currentUser = auth.currentUser;
       if (currentUser) {
         try {
@@ -89,7 +79,7 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
         }
 
         // 3. Direct Firestore Fallback if list is still small or empty
-        if (combinedMap.size === 0) {
+        if (combinedMap.size === 0 && isSchool) {
           try {
             const schoolId = sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_cached_school_id') || currentUser.uid;
             const queries = [
@@ -435,7 +425,7 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
                   <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30 animate-fadeIn">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                        <Sparkles size={13} className="text-amber-600" /> Fresh Credentials Issued
+                         Fresh Credentials Issued
                       </span>
                       <button 
                         type="button" 
