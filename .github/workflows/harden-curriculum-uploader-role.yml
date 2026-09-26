@@ -1,0 +1,69 @@
+name: Harden curriculum uploader role
+
+on:
+  push:
+    branches:
+      - fix/curriculum-resource-permissions
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply tutor-only curriculum permissions
+        shell: python
+        run: |
+          from pathlib import Path
+
+          rules = Path('firestore.rules')
+          text = rules.read_text()
+          marker = "    function isStaffOrTutor() {"
+          helper = '''    function isTutorOrSuperAdmin() {\n      return isAuth() && (\n        isSuperAdmin() ||\n        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&\n          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['TUTOR','tutor','INSTRUCTOR','instructor'])\n      );\n    }\n'''
+          if 'function isTutorOrSuperAdmin()' not in text:
+              if marker not in text:
+                  raise SystemExit('Could not locate the existing staff/tutor helper; refusing speculative rules edits.')
+              text = text.replace(marker, helper + marker, 1)
+
+          old = '''    match /schoolResources/{resourceId} { \n      allow read: if true; \n      allow create: if isStaffOrTutor() || isAnyAdmin();\n      allow update: if isStaffOrTutor() || isAnyAdmin();\n      allow delete: if isStaffOrTutor() || isAnyAdmin();\n    }'''
+          new = '''    match /schoolResources/{resourceId} { \n      allow read: if true; \n      allow create: if isTutorOrSuperAdmin();\n      allow update: if isTutorOrSuperAdmin();\n      allow delete: if isTutorOrSuperAdmin();\n    }'''
+          if old not in text:
+              raise SystemExit('Current schoolResources rule block was not found; refusing speculative rules edits.')
+          rules.write_text(text.replace(old, new, 1))
+
+          library = Path('src/pages/portal/ResourceLibrary.tsx')
+          text = library.read_text()
+          anchor = "  const [loading, setLoading] = useState(true);\n"
+          state = '''  const [loading, setLoading] = useState(true);\n  const [canManageCurriculum, setCanManageCurriculum] = useState(false);\n\n  useEffect(() => {\n    let active = true;\n    const resolveCurriculumPermission = async () => {\n      if (role !== 'staff' || !auth.currentUser) {\n        if (active) setCanManageCurriculum(false);\n        return;\n      }\n      try {\n        const uid = auth.currentUser.uid;\n        const [userSnap, adminSnap] = await Promise.all([\n          getDoc(doc(db, 'users', uid)).catch(() => null),\n          getDoc(doc(db, 'admins', uid)).catch(() => null)\n        ]);\n        const userRole = String(userSnap?.data()?.role || '').toLowerCase();\n        const isTutor = ['tutor', 'instructor'].includes(userRole);\n        const isSuperAdmin = Boolean(adminSnap?.exists()) || Boolean((await auth.currentUser.getIdTokenResult()).claims.super_admin);\n        if (active) setCanManageCurriculum(isTutor || isSuperAdmin);\n      } catch (error) {\n        console.warn('Curriculum upload permission check failed:', error);\n        if (active) setCanManageCurriculum(false);\n      }\n    };\n    void resolveCurriculumPermission();\n    return () => { active = false; };\n  }, [role]);\n'''
+          if anchor not in text:
+              raise SystemExit('Could not locate ResourceLibrary loading state.')
+          text = text.replace(anchor, state, 1)
+          text = text.replace("    if (role !== 'staff') {\n      toast.error('Only tutors/staff can manage curriculum assignments.');", "    if (!canManageCurriculum) {\n      toast.error('Only tutors and the super admin can manage curriculum assignments.');", 1)
+          text = text.replace("    if (role !== 'staff') {\n      toast.error('Only tutors/staff can upload curriculum resources.');", "    if (!canManageCurriculum) {\n      toast.error('Only tutors and the super admin can upload curriculum resources.');", 1)
+          text = text.replace("{role === 'staff' && (", "{canManageCurriculum && (", 1)
+          text = text.replace("showAssignButton={role === 'staff'}", "showAssignButton={canManageCurriculum}", 1)
+          text = text.replace("}, [role]);", "}, [role, canManageCurriculum]);", 1)
+          library.write_text(text)
+
+      - name: Typecheck and build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firestore.rules src/pages/portal/ResourceLibrary.tsx
+          git diff --cached --quiet && { echo "No changes produced"; exit 1; }
+          git commit -m "fix: restrict curriculum uploads to tutors and super admins"
+          git rm .github/workflows/harden-curriculum-uploader-role.yml
+          git commit -m "chore: remove temporary curriculum hardening workflow"
+          git push origin HEAD:fix/curriculum-resource-permissions
