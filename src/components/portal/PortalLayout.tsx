@@ -92,6 +92,7 @@ const PortalLayout: React.FC = () => {
     if (role === 'student') {
       items.push(
         { name: 'Learning & Tracks', path: '/portal/student/courses', icon: <GraduationCap size={18} />, desc: 'Curriculum & Series' },
+        { name: 'Class Schedules', path: '/portal/student/calendar', icon: <CalendarDays size={18} />, desc: 'Programme timetable & class status' },
         { name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live lessons & sessions' },
         { name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' },
         { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' },
