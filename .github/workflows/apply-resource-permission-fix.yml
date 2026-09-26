@@ -1,0 +1,71 @@
+name: Apply resource permission fix
+
+on:
+  push:
+    branches:
+      - fix/curriculum-resource-permissions
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply resource permission and UI fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          rules = Path('firestore.rules')
+          text = rules.read_text()
+          old = '''    match /schoolResources/{resourceId} { \n      allow read: if true; \n      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.schoolId);\n      allow update: if isAnyAdmin() || isSchoolUser() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));\n      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.schoolId);\n    }'''
+          new = '''    match /schoolResources/{resourceId} { \n      allow read: if true; \n      allow create: if isStaffOrTutor() || isAnyAdmin();\n      allow update: if isStaffOrTutor() || isAnyAdmin();\n      allow delete: if isStaffOrTutor() || isAnyAdmin();\n    }'''
+          if old not in text:
+              raise SystemExit('Expected schoolResources rule block was not found; refusing to make a speculative rules change.')
+          rules.write_text(text.replace(old, new, 1))
+
+          library = Path('src/pages/portal/ResourceLibrary.tsx')
+          text = library.read_text()
+          replacements = [
+              ("    if (!assignModalDoc) return;\n", "    if (role !== 'staff') {\n      toast.error('Only tutors/staff can manage curriculum assignments.');\n      return;\n    }\n    if (!assignModalDoc) return;\n", 1),
+              ("  const handleCreateSchoolResource = async (e: React.FormEvent) => {\n    e.preventDefault();", "  const handleCreateSchoolResource = async (e: React.FormEvent) => {\n    e.preventDefault();\n    if (role !== 'staff') {\n      toast.error('Only tutors/staff can upload curriculum resources.');\n      return;\n    }", 1),
+              ("{(role === 'school' || role === 'all') && (", "{role === 'staff' && (", 1),
+              ("showAssignButton={role === 'school'}", "showAssignButton={role === 'staff'}", 1),
+          ]
+          for old, new, count in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected ResourceLibrary text was not found: {old[:80]!r}')
+              text = text.replace(old, new, count)
+          library.write_text(text)
+
+          list_view = Path('src/components/portal/ResourceListView.tsx')
+          text = list_view.read_text()
+          old = '''                      <a\n                        href={item.fileUrl || item.url}\n                        target="_blank"\n                        rel="noopener noreferrer"\n                        download\n                        title="Direct Download / File Link"\n                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-red hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"\n                        onClick={() => markRead(item.id)}\n                      >\n                        <Download size={15} />\n                      </a>'''
+          new = '''                      <a\n                        href={item.fileUrl || item.url}\n                        target="_blank"\n                        rel="noopener noreferrer"\n                        title="Read curriculum"\n                        aria-label={`Read ${item.title}`}\n                        className="px-2 py-1.5 rounded-lg text-slate-500 hover:text-brand-red hover:bg-slate-100 dark:text-slate-400 dark:hover:text-brand-red dark:hover:bg-slate-800 transition-colors cursor-pointer inline-flex items-center gap-1.5 text-[11px] font-bold"\n                        onClick={() => markRead(item.id)}\n                      >\n                        <Eye size={15} />\n                        <span>Read</span>\n                      </a>'''
+          if old not in text:
+              raise SystemExit('Expected resource download action was not found; refusing to make a speculative UI replacement.')
+          list_view.write_text(text.replace(old, new, 1))
+
+      - name: Typecheck and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit changes and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firestore.rules src/pages/portal/ResourceLibrary.tsx src/components/portal/ResourceListView.tsx
+          git diff --cached --quiet && { echo "No changes were produced"; exit 1; }
+          git commit -m "fix: restrict curriculum uploads to staff and admins"
+          git rm .github/workflows/apply-resource-permission-fix.yml
+          git commit -m "chore: remove temporary resource permission patch workflow"
+          git push origin HEAD:fix/curriculum-resource-permissions
