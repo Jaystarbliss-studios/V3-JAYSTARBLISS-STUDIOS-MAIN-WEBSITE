@@ -1,0 +1,319 @@
+name: Secure student scope and portal polish
+on:
+  push:
+    branches:
+      - fix/student-access-scope-and-portal-polish
+jobs:
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+
+      - name: Apply access-control and UI fixes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          # ---------------- Firestore security ----------------
+          rules_path = Path('firestore.rules')
+          rules = rules_path.read_text()
+
+          old_same_school = re.compile(r"    function isSameSchool\(schoolId\) \{.*?\n    \}\n    function isOwnStudent", re.S)
+          new_same_school = '''    function isSameSchool(schoolId) {
+              return isAuth() && schoolId != null && schoolId != '' && (
+                isSuperAdmin() ||
+                schoolId == request.auth.uid ||
+                schoolId == userSchoolId() ||
+                (exists(/databases/$(database)/documents/schools/$(schoolId)) && (
+                  get(/databases/$(database)/documents/schools/$(schoolId)).data.get('email', '') == request.auth.token.email ||
+                  get(/databases/$(database)/documents/schools/$(schoolId)).data.get('contactEmail', '') == request.auth.token.email ||
+                  get(/databases/$(database)/documents/schools/$(schoolId)).data.get('adminUid', '') == request.auth.uid ||
+                  get(/databases/$(database)/documents/schools/$(schoolId)).data.get('firebaseUid', '') == request.auth.uid ||
+                  get(/databases/$(database)/documents/schools/$(schoolId)).data.get('userId', '') == request.auth.uid
+                )) ||
+                hasStaffSchoolAccess(schoolId)
+              );
+            }
+            function isOwnStudent'''
+          rules, count = old_same_school.subn(new_same_school, rules, count=1)
+          if count != 1:
+              raise SystemExit('Could not locate isSameSchool block')
+
+          old_individual = re.compile(r"    match /individualStudents/\{studentId\} \{.*?\n    \}\n    match /students/\{studentId\}", re.S)
+          new_individual = '''    match /individualStudents/{studentId} {
+              allow read: if isSuperAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && (hasStaffSchoolAccess(resource.data.get('schoolId', null)) || isAssignedStaffToStudent(studentId)));
+              allow create: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+              allow update: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)) && isSameSchool(request.resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+              allow delete: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
+            }
+            match /students/{studentId}'''
+          rules, count = old_individual.subn(new_individual, rules, count=1)
+          if count != 1:
+              raise SystemExit('Could not locate individualStudents rules block')
+
+          old_students = re.compile(r"    match /students/\{studentId\} \{.*?\n    \}\n    match /studentModules", re.S)
+          new_students = '''    match /students/{studentId} {
+              allow read: if isSuperAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && (hasStaffSchoolAccess(resource.data.get('schoolId', null)) || isAssignedStaffToStudent(studentId)));
+              allow create: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+              allow update: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)) && isSameSchool(request.resource.data.get('schoolId', null))) ||
+                (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+              allow delete: if isSuperAdmin() ||
+                (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
+            }
+            match /studentModules'''
+          rules, count = old_students.subn(new_students, rules, count=1)
+          if count != 1:
+              raise SystemExit('Could not locate students rules block')
+          rules_path.write_text(rules)
+
+          # ---------------- Staff/school roster endpoint ----------------
+          school_fn = Path('netlify/functions/school-students.ts')
+          school_fn.write_text(r'''import type { Handler } from '@netlify/functions';
+          import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+
+          const json = (statusCode: number, body: Record<string, unknown>) => ({
+            statusCode,
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+            body: JSON.stringify(body),
+          });
+
+          const tokenFromEvent = (event: any) => {
+            const header = event.headers?.authorization || event.headers?.Authorization || '';
+            return header.startsWith('Bearer ') ? header.slice(7) : '';
+          };
+
+          const blocked = (value: unknown) => ['SUSPENDED', 'BANNED', 'DISABLED'].includes(String(value || 'ACTIVE').toUpperCase());
+          const teachingRoles = ['staff', 'tutor', 'instructor', 'teacher'];
+          const adminRoles = ['admin', 'super_admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'];
+
+          const serialise = (data: Record<string, any>) => ({
+            fullName: data.fullName || data.studentName || data.name || '',
+            username: data.username || '',
+            email: data.email || null,
+            class: data.class || data.grade || '',
+            track: data.track || '',
+            schoolId: data.schoolId || data.school_id || null,
+            schoolName: data.schoolName || data.school || '',
+            parentId: data.parentId || data.parent_id || null,
+            tutorId: data.tutorId || data.assignedTutorId || data.instructorId || null,
+            staffId: data.staffId || data.assignedStaffId || null,
+            portalAccessEnabled: data.portalAccessEnabled !== false,
+            accountStatus: data.accountStatus || data.status || 'ACTIVE',
+            source: data.source || 'existing',
+          });
+
+          const isAssignedTo = (data: any, uid: string) => {
+            if ([data.tutorId, data.staffId, data.assignedTutorId, data.assignedStaffId, data.instructorId].some(v => String(v || '') === uid)) return true;
+            if (Array.isArray(data.assignedTutors)) {
+              return data.assignedTutors.some((t: any) => String(t?.tutorId || '') === uid || String(t?.staffId || '') === uid);
+            }
+            return false;
+          };
+
+          export const handler: Handler = async (event) => {
+            if (event.httpMethod !== 'GET') return json(405, { error: 'Method Not Allowed' });
+            try {
+              const token = tokenFromEvent(event);
+              if (!token) return json(401, { error: 'Authentication required.' });
+              const decoded = await adminAuth.verifyIdToken(token);
+              const callerSnap = await adminDb.collection('users').doc(decoded.uid).get();
+              if (!callerSnap.exists) return json(403, { error: 'Portal profile not found.' });
+              const caller = callerSnap.data() || {};
+              const role = String(caller.role || '').trim().toLowerCase();
+              if (blocked(caller.accountStatus || caller.status)) return json(403, { error: 'Your account is not active.' });
+
+              const isAdmin = adminRoles.includes(role);
+              const isSchool = role === 'school';
+              const isTeachingStaff = teachingRoles.includes(role);
+              if (!isAdmin && !isSchool && !isTeachingStaff) {
+                return json(403, { error: 'Only an active school, tutor, staff, or administrative account can view a roster.' });
+              }
+
+              const params = event.queryStringParameters || {};
+              const requestedSchoolId = String(params.schoolId || '').trim();
+              let accessibleSchoolIds: string[] = [];
+
+              if (isAdmin) {
+                if (requestedSchoolId) accessibleSchoolIds = [requestedSchoolId];
+                else {
+                  const schools = await adminDb.collection('schools').limit(500).get();
+                  accessibleSchoolIds = schools.docs.map(d => d.id);
+                }
+              } else if (isSchool) {
+                let schoolId = String(caller.schoolId || caller.school_id || caller.schoolDocId || '').trim();
+                if (!schoolId) {
+                  const sDoc = await adminDb.collection('schools').doc(decoded.uid).get();
+                  if (sDoc.exists) schoolId = sDoc.id;
+                  if (!schoolId) {
+                    const email = String(caller.email || decoded.email || '').toLowerCase();
+                    if (email) {
+                      const byContact = await adminDb.collection('schools').where('contactEmail', '==', email).limit(1).get();
+                      const byEmail = byContact.empty ? await adminDb.collection('schools').where('email', '==', email).limit(1).get() : byContact;
+                      if (!byEmail.empty) schoolId = byEmail.docs[0].id;
+                    }
+                  }
+                }
+                if (!schoolId) return json(403, { error: 'This school account is not linked to a school.' });
+                if (requestedSchoolId && requestedSchoolId !== schoolId) return json(403, { error: 'You can only view students in your school.' });
+                accessibleSchoolIds = [schoolId];
+              } else {
+                const accessSnap = await adminDb.collection('staffSchoolAccess').doc(decoded.uid).get();
+                const access = accessSnap.exists ? accessSnap.data() || {} : {};
+                const fromAccess = Array.isArray(access.schoolIds) ? access.schoolIds.map(String) : [];
+                if (access.schoolId) fromAccess.push(String(access.schoolId));
+                if (caller.schoolId) fromAccess.push(String(caller.schoolId));
+                accessibleSchoolIds = Array.from(new Set(fromAccess.filter(Boolean)));
+                if (requestedSchoolId) {
+                  if (!accessibleSchoolIds.includes(requestedSchoolId)) return json(403, { error: 'You are not assigned to this school.' });
+                  accessibleSchoolIds = [requestedSchoolId];
+                }
+              }
+
+              const students = new Map<string, any>();
+              const addDoc = (id: string, data: any, source: string) => {
+                const key = id || `${source}_${Math.random()}`;
+                if (!students.has(key)) students.set(key, { id: key, studentId: key, collection: source, ...serialise(data) });
+              };
+
+              for (const schoolId of accessibleSchoolIds) {
+                const [individualSnap, legacySnap, usersSnap] = await Promise.all([
+                  adminDb.collection('individualStudents').where('schoolId', '==', schoolId).limit(500).get(),
+                  adminDb.collection('students').where('schoolId', '==', schoolId).limit(500).get(),
+                  adminDb.collection('users').where('schoolId', '==', schoolId).limit(500).get(),
+                ]);
+                individualSnap.docs.forEach(d => addDoc(d.id, d.data() || {}, 'individualStudents'));
+                legacySnap.docs.forEach(d => addDoc(d.id, d.data() || {}, 'students'));
+                usersSnap.docs.forEach(d => {
+                  const data = d.data() || {};
+                  const userRole = String(data.role || '').toUpperCase();
+                  if (['STUDENT', 'SCHOLAR', 'CADET'].includes(userRole) || data.studentDocId) addDoc(String(data.studentDocId || d.id), { ...data, firebaseUid: d.id }, 'users');
+                });
+              }
+
+              if (isTeachingStaff) {
+                const [individualAssigned, legacyAssigned] = await Promise.all([
+                  adminDb.collection('individualStudents').where('tutorId', '==', decoded.uid).limit(500).get(),
+                  adminDb.collection('students').where('tutorId', '==', decoded.uid).limit(500).get(),
+                ]);
+                individualAssigned.docs.forEach(d => addDoc(d.id, d.data() || {}, 'individualStudents'));
+                legacyAssigned.docs.forEach(d => addDoc(d.id, d.data() || {}, 'students'));
+
+                // Catch staffId/assignedTutorId variants without exposing unrelated students.
+                for (const field of ['staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId']) {
+                  const [a, b] = await Promise.all([
+                    adminDb.collection('individualStudents').where(field, '==', decoded.uid).limit(500).get(),
+                    adminDb.collection('students').where(field, '==', decoded.uid).limit(500).get(),
+                  ]);
+                  a.docs.forEach(d => addDoc(d.id, d.data() || {}, 'individualStudents'));
+                  b.docs.forEach(d => addDoc(d.id, d.data() || {}, 'students'));
+                }
+              }
+
+              const result = Array.from(students.values())
+                .filter(s => !blocked(s.accountStatus))
+                .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName)));
+              return json(200, { schoolIds: accessibleSchoolIds, count: result.length, students: result });
+            } catch (error) {
+              console.error('Scoped school roster lookup failed:', error);
+              return json(500, { error: 'Unable to load the authorised student roster.' });
+            }
+          };
+          ''')
+
+          # ---------------- Credential issuance authorization ----------------
+          cred_path = Path('netlify/functions/student-credential-issue.ts')
+          cred = cred_path.read_text()
+          cred = cred.replace(
+              "const isAssigned = (student: any, uid: string) => [student.tutorId, student.staffId, student.assignedTutorId, student.assignedStaffId, student.instructorId].some(value => String(value || '') === uid);",
+              "const isAssigned = (student: any, uid: string) => [student.tutorId, student.staffId, student.assignedTutorId, student.assignedStaffId, student.instructorId].some(value => String(value || '') === uid) || (Array.isArray(student.assignedTutors) && student.assignedTutors.some((t: any) => String(t?.tutorId || '') === uid || String(t?.staffId || '') === uid));\nconst hasSchoolAccess = async (uid: string, schoolId: string) => {\n  if (!schoolId) return false;\n  const snap = await adminDb.collection('staffSchoolAccess').doc(uid).get();\n  if (!snap.exists) return false;\n  const data = snap.data() || {};\n  const ids = Array.isArray(data.schoolIds) ? data.schoolIds.map(String) : [];\n  if (data.schoolId) ids.push(String(data.schoolId));\n  return ids.includes(String(schoolId));\n};"
+          )
+          cred = cred.replace(
+              "if (isTeachingStaff && !isAssigned(student, decoded.uid)) return json(403, { error: 'You can only issue credentials for students assigned to you.' });",
+              "if (isTeachingStaff) {\n      const directlyAssigned = isAssigned(student, decoded.uid);\n      const schoolAssigned = await hasSchoolAccess(decoded.uid, String(student.schoolId || '').trim());\n      if (!directlyAssigned && !schoolAssigned) return json(403, { error: 'You can only issue credentials for students in your assigned school(s) or students assigned to you.' });\n    }"
+          )
+          cred_path.write_text(cred)
+
+          # ---------------- Credential center: never preload an unrestricted billing roster ----------------
+          center_path = Path('src/pages/portal/StudentCredentialCenter.tsx')
+          center = center_path.read_text()
+          center = center.replace("import { billingGet, billingPost } from '../../lib/billing';", "import { billingPost } from '../../lib/billing';")
+          old_block = re.compile(r"      // 1\. Fetch from billing-data.*?      // 2\. Fetch from school-students endpoint if school role or context", re.S)
+          new_block = '''      // Load only the roster authorised for the current school/tutor account.
+      // Do not preload billing-data here because it can contain students outside this account's scope.
+      // 1. Fetch the scoped school/tutor roster endpoint'''
+          center, count = old_block.subn(new_block, center, count=1)
+          if count != 1:
+              raise SystemExit('Could not locate credential-center unrestricted roster block')
+          center = center.replace("const url = '/.netlify/functions/school-students' + (schoolParam ? `?schoolId=${encodeURIComponent(schoolParam)}` : '');", "const url = '/.netlify/functions/school-students' + (schoolParam ? `?schoolId=${encodeURIComponent(schoolParam)}` : '');")
+          center = center.replace("        // 3. Direct Firestore Fallback if list is still small or empty", "        // 2. Direct Firestore fallback only for a school account if the scoped endpoint is temporarily unavailable")
+          center = center.replace("        if (combinedMap.size === 0) {", "        if (combinedMap.size === 0 && isSchool) {")
+          # Remove unused sparkle import/JSX from this page.
+          center = re.sub(r',\s*Sparkles(?=\s*[,}])', '', center)
+          center = re.sub(r'<Sparkles\b[^>]*/>', '', center)
+          center_path.write_text(center)
+
+          # ---------------- Portal sidebar polish ----------------
+          layout_path = Path('src/components/portal/PortalLayout.tsx')
+          layout = layout_path.read_text()
+          layout = layout.replace("animate={{ width: sidebarExpanded ? 260 : 80 }}", "animate={{ width: sidebarExpanded ? 220 : 72 }}")
+          layout = layout.replace("className=\"flex-1 px-2.5 py-3 overflow-y-auto overflow-x-hidden custom-scrollbar space-y-1\"", "className=\"flex-1 px-2.5 py-3 overflow-y-auto overflow-x-hidden custom-scrollbar space-y-1\"")
+          layout = layout.replace("className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden", "className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden")
+          layout = layout.replace("className=\"p-2.5 border-t border-slate-800/80 shrink-0 space-y-1\"", "className=\"p-2.5 border-t border-slate-800/80 shrink-0 space-y-1\"")
+          layout = layout.replace("className=\"w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl hover:bg-white/10", "className=\"w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-white/10")
+          layout = layout.replace("className=\"w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl hover:bg-red-500/10", "className=\"w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-red-500/10")
+          layout_path.write_text(layout)
+
+          # Remove Sparkles icons from portal TSX files without changing other iconography.
+          for root in [Path('src/pages/portal'), Path('src/components/portal')]:
+              for path in root.rglob('*.tsx'):
+                  if path == center_path:
+                      continue
+                  text = path.read_text()
+                  if 'Sparkles' not in text:
+                      continue
+                  updated = re.sub(r'<Sparkles\b[^>]*/>', '', text)
+                  updated = re.sub(r'<Sparkles\b[^>]*>.*?</Sparkles>', '', updated, flags=re.S)
+                  updated = re.sub(r',\s*Sparkles(?=\s*[,}])', '', updated)
+                  updated = re.sub(r'\bSparkles\s*,', '', updated)
+                  if updated != text:
+                      path.write_text(updated)
+
+          print('Patch complete.')
+          PY
+
+      - name: Typecheck and production build
+        run: |
+          npm install
+          npm run build
+
+      - name: Commit verified changes and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "Jaystarbliss Studios"
+          git config user.email "82984404+Jaystarbliss-studios@users.noreply.github.com"
+          git add firestore.rules netlify/functions/school-students.ts netlify/functions/student-credential-issue.ts src/pages/portal/StudentCredentialCenter.tsx src/components/portal/PortalLayout.tsx src/pages/portal src/components/portal
+          git rm -f .github/workflows/secure-student-scope-and-portal-polish.yml
+          git commit -m "fix: scope student access by school and tutor assignments"
+          git push origin HEAD:fix/student-access-scope-and-portal-polish
