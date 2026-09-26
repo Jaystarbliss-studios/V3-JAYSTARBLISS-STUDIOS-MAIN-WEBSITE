@@ -21,7 +21,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           rules = Path('firestore.rules')
           text = rules.read_text()
@@ -55,7 +54,7 @@ jobs:
 
       - name: Typecheck and build
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
 
       - name: Commit changes and remove temporary workflow
