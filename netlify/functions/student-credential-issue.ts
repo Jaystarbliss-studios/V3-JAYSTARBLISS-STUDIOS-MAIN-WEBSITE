@@ -8,7 +8,8 @@ const blocked = (value: unknown) => ['SUSPENDED', 'BANNED', 'DISABLED'].includes
 const hashCode = (value: string) => createHash('sha256').update(value.trim().toUpperCase()).digest('hex');
 const makeCode = () => `JBS-${randomBytes(5).toString('hex').toUpperCase()}`;
 const roleOf = (value: unknown) => String(value || '').trim().toLowerCase();
-const isAssigned = (student: any, uid: string) => [student.tutorId, student.staffId, student.assignedTutorId, student.assignedStaffId, student.instructorId].some(value => String(value || '') === uid);
+const isAssigned = (student: any, uid: string) => [student.tutorId, student.staffId, student.assignedTutorId, student.assignedStaffId, student.instructorId].some(value => String(value || '') === uid) || (Array.isArray(student.assignedTutors) && student.assignedTutors.some((t:any)=>String(t?.tutorId||'')===uid||String(t?.staffId||'')===uid));
+const hasSchoolAccess = async (uid:string, schoolId:string) => { if(!schoolId) return false; const snap=await adminDb.collection('staffSchoolAccess').doc(uid).get(); if(!snap.exists) return false; const d=snap.data()||{}; const ids=Array.isArray(d.schoolIds)?d.schoolIds.map(String):[]; if(d.schoolId) ids.push(String(d.schoolId)); return ids.includes(String(schoolId)); };
 
 export const handler: Handler = async event => {
   if (event.httpMethod !== 'POST') return json(405, { error: 'Method Not Allowed' });
@@ -39,7 +40,7 @@ export const handler: Handler = async event => {
     }
     if (!studentRef || !student) return json(404, { error: 'Student record not found.' });
     if (blocked(student.accountStatus || student.status)) return json(403, { error: 'This student account is not active.' });
-    if (isTeachingStaff && !isAssigned(student, decoded.uid)) return json(403, { error: 'You can only issue credentials for students assigned to you.' });
+    if (isTeachingStaff && !isAssigned(student, decoded.uid) && !(await hasSchoolAccess(decoded.uid, String(student.schoolId || '').trim()))) return json(403, { error: 'You can only issue credentials for students in your assigned school(s) or students assigned to you.' });
     if (isSchool) {
       let schoolId = String(caller.schoolId || '').trim();
       if (!schoolId) {

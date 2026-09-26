@@ -4,8 +4,7 @@ import { db, auth } from '../../lib/firebase';
 import { collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { 
   Users, FileText, Video, Clock, CheckCircle2, 
-  ShieldCheck, ArrowRight, School,
-  Sparkles, CreditCard, BookOpen, Key, Calendar
+  ShieldCheck, ArrowRight, School, CreditCard, BookOpen, Key, Calendar
 } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { DashboardGreeting } from '../../components/portal/DashboardGreeting';

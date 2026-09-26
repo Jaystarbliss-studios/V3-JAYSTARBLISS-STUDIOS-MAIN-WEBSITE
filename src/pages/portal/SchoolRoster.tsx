@@ -19,7 +19,6 @@ import {
   Download, 
   FileText, 
   X,
-  Sparkles,
   Edit3,
   BookOpen
 } from 'lucide-react';
@@ -966,7 +965,7 @@ Important Security Notice:
             {/* Modal Body */}
             <div className="p-6 space-y-5">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 p-4 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-3">
-                <Sparkles size={18} className="text-amber-600 shrink-0 mt-0.5"/>
+                
                 <div>
                   <strong>Write-Once Access Code:</strong> This fresh access code has been securely hashed and stored. Provide these credentials to the student now; the code is not visible again after closing this window.
                 </div>

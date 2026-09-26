@@ -1,102 +1,16 @@
 import type { Handler } from '@netlify/functions';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
-
-const json = (statusCode: number, body: Record<string, unknown>) => ({
-  statusCode,
-  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-  body: JSON.stringify(body),
-});
-
-const tokenFromEvent = (event: any) => {
-  const header = event.headers?.authorization || event.headers?.Authorization || '';
-  return header.startsWith('Bearer ') ? header.slice(7) : '';
-};
-
-const blocked = (value: unknown) => ['SUSPENDED', 'BANNED', 'DISABLED'].includes(String(value || 'ACTIVE').toUpperCase());
-
-const serialise = (data: Record<string, any>) => ({
-  fullName: data.fullName || data.studentName || '',
-  username: data.username || '',
-  email: data.email || null,
-  class: data.class || data.grade || '',
-  track: data.track || '',
-  tutorId: data.tutorId || data.assignedTutorId || data.instructorId || null,
-  staffId: data.staffId || data.assignedStaffId || null,
-  portalAccessEnabled: data.portalAccessEnabled !== false,
-  accountStatus: data.accountStatus || data.status || 'ACTIVE',
-  source: data.source || 'existing',
-});
-
-export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'GET') return json(405, { error: 'Method Not Allowed' });
-  try {
-    const token = tokenFromEvent(event);
-    if (!token) return json(401, { error: 'Authentication required.' });
-    const decoded = await adminAuth.verifyIdToken(token);
-    const callerSnap = await adminDb.collection('users').doc(decoded.uid).get();
-    if (!callerSnap.exists) return json(403, { error: 'Portal profile not found.' });
-    const caller = callerSnap.data() || {};
-    const role = String(caller.role || '').trim().toLowerCase();
-    const isAdmin = ['admin', 'super_admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
-    const isSchool = role === 'school';
-
-    if ((!isSchool && !isAdmin) || blocked(caller.accountStatus || caller.status)) {
-      return json(403, { error: 'Only an active school or administrative account can view its roster.' });
-    }
-
-    const params = event.queryStringParameters || {};
-    let schoolId = String(params.schoolId || caller.schoolId || '').trim();
-    let schoolName = String(caller.schoolName || caller.name || '').trim();
-
-    if (!schoolId) {
-      const sDoc = await adminDb.collection('schools').doc(decoded.uid).get();
-      if (sDoc.exists) {
-        schoolId = sDoc.id;
-        schoolName = sDoc.data()?.name || schoolName;
-      } else {
-        const userEmail = (caller.email || decoded.email || '').toLowerCase();
-        if (userEmail) {
-          const byEmail = await adminDb.collection('schools').where('contactEmail', '==', userEmail).limit(1).get();
-          if (!byEmail.empty) {
-            schoolId = byEmail.docs[0].id;
-            schoolName = byEmail.docs[0].data()?.name || schoolName;
-          } else {
-            const byEmail2 = await adminDb.collection('schools').where('email', '==', userEmail).limit(1).get();
-            if (!byEmail2.empty) {
-              schoolId = byEmail2.docs[0].id;
-              schoolName = byEmail2.docs[0].data()?.name || schoolName;
-            }
-          }
-        }
-      }
-    }
-
-    if (!schoolId && !isAdmin) return json(403, { error: 'This school account is not linked to a school.' });
-
-    const effectiveSchoolId = schoolId || decoded.uid;
-    const [individualSnap, legacySnap, usersSnap] = await Promise.all([
-      adminDb.collection('individualStudents').where('schoolId', '==', effectiveSchoolId).limit(500).get(),
-      adminDb.collection('students').where('schoolId', '==', effectiveSchoolId).limit(500).get(),
-      adminDb.collection('users').where('schoolId', '==', effectiveSchoolId).limit(500).get(),
-    ]);
-
-    const students = new Map<string, any>();
-    individualSnap.docs.forEach(doc => students.set(doc.id, { id: doc.id, studentId: doc.id, collection: 'individualStudents', ...serialise(doc.data() || {}) }));
-    legacySnap.docs.forEach(doc => {
-      if (!students.has(doc.id)) students.set(doc.id, { id: doc.id, studentId: doc.id, collection: 'students', ...serialise(doc.data() || {}) });
-    });
-    usersSnap.docs.forEach(doc => {
-      const data = doc.data() || {};
-      const uRole = String(data.role || '').toUpperCase();
-      if (!['STUDENT','SCHOLAR','CADET'].includes(uRole) && !data.studentDocId) return;
-      const key = String(data.studentDocId || doc.id);
-      if (!students.has(key)) students.set(key, { id: key, studentId: key, collection: 'users', ...serialise({ ...data, fullName: data.fullName || data.name, firebaseUid: doc.id }) });
-    });
-
-    const result = Array.from(students.values()).sort((a, b) => String(a.fullName).localeCompare(String(b.fullName)));
-    return json(200, { schoolId: effectiveSchoolId, schoolName, count: result.length, students: result });
-  } catch (error) {
-    console.error('School roster lookup failed:', error);
-    return json(500, { error: 'Unable to load the school roster.' });
-  }
-};
+const json = (statusCode:number, body:Record<string,unknown>) => ({ statusCode, headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, body:JSON.stringify(body) });
+const bearer=(e:any)=>{const h=e.headers?.authorization||e.headers?.Authorization||'';return h.startsWith('Bearer ')?h.slice(7):''};
+const blocked=(v:unknown)=>['SUSPENDED','BANNED','DISABLED'].includes(String(v||'ACTIVE').toUpperCase());
+const adminRoles=['admin','super_admin','content_admin','education_admin','services_admin','marketing_admin','support_admin'];
+const staffRoles=['staff','tutor','instructor','teacher'];
+const serialise=(d:any)=>({fullName:d.fullName||d.studentName||d.name||'',username:d.username||'',email:d.email||null,class:d.class||d.grade||'',track:d.track||'',schoolId:d.schoolId||null,schoolName:d.schoolName||d.school||'',parentId:d.parentId||null,tutorId:d.tutorId||d.assignedTutorId||d.instructorId||null,staffId:d.staffId||d.assignedStaffId||null,portalAccessEnabled:d.portalAccessEnabled!==false,accountStatus:d.accountStatus||d.status||'ACTIVE'});
+export const handler:Handler=async event=>{if(event.httpMethod!=='GET')return json(405,{error:'Method Not Allowed'});try{const token=bearer(event);if(!token)return json(401,{error:'Authentication required.'});const decoded=await adminAuth.verifyIdToken(token);const callerSnap=await adminDb.collection('users').doc(decoded.uid).get();if(!callerSnap.exists)return json(403,{error:'Portal profile not found.'});const caller=callerSnap.data()||{};const role=String(caller.role||'').toLowerCase();if(blocked(caller.accountStatus||caller.status))return json(403,{error:'Your account is not active.'});const isAdmin=adminRoles.includes(role),isSchool=role==='school',isStaff=staffRoles.includes(role);if(!isAdmin&&!isSchool&&!isStaff)return json(403,{error:'Not authorised.'});const requested=String(event.queryStringParameters?.schoolId||'').trim();let schoolIds:string[]=[];
+if(isAdmin){schoolIds=requested?[requested]:(await adminDb.collection('schools').limit(500).get()).docs.map(d=>d.id)}
+else if(isSchool){let sid=String(caller.schoolId||caller.school_id||caller.schoolDocId||'').trim();if(!sid){const sd=await adminDb.collection('schools').doc(decoded.uid).get();if(sd.exists)sid=sd.id}if(!sid){const email=String(caller.email||decoded.email||'').toLowerCase();if(email){const a=await adminDb.collection('schools').where('contactEmail','==',email).limit(1).get();const b=a.empty?await adminDb.collection('schools').where('email','==',email).limit(1).get():a;if(!b.empty)sid=b.docs[0].id}}if(!sid)return json(403,{error:'School account is not linked to a school.'});if(requested&&requested!==sid)return json(403,{error:'You can only view your school.'});schoolIds=[sid]}
+else{const a=await adminDb.collection('staffSchoolAccess').doc(decoded.uid).get();const d=a.exists?a.data()||{}:{};schoolIds=[...(Array.isArray(d.schoolIds)?d.schoolIds.map(String):[]),...(d.schoolId?[String(d.schoolId)]:[]),...(caller.schoolId?[String(caller.schoolId)]:[])];schoolIds=[...new Set(schoolIds.filter(Boolean))];if(requested){if(!schoolIds.includes(requested))return json(403,{error:'You are not assigned to this school.'});schoolIds=[requested]}}
+const students=new Map<string,any>();const add=(id:string,d:any,source:string)=>{if(!students.has(id))students.set(id,{id,studentId:id,collection:source,...serialise(d)})};
+for(const sid of schoolIds){for(const c of ['individualStudents','students']){const snap=await adminDb.collection(c).where('schoolId','==',sid).limit(500).get();snap.docs.forEach(x=>add(x.id,x.data(),c))}const us=await adminDb.collection('users').where('schoolId','==',sid).limit(500).get();us.docs.forEach(x=>{const d=x.data()||{};if(['STUDENT','SCHOLAR','CADET'].includes(String(d.role||'').toUpperCase())||d.studentDocId)add(String(d.studentDocId||x.id),{...d,firebaseUid:x.id},'users')})}
+if(isStaff){for(const c of ['individualStudents','students']){for(const field of ['tutorId','staffId','assignedTutorId','assignedStaffId','instructorId']){const snap=await adminDb.collection(c).where(field,'==',decoded.uid).limit(500).get();snap.docs.forEach(x=>add(x.id,x.data(),c))}}}
+return json(200,{schoolIds,count:students.size,students:[...students.values()].filter(x=>!blocked(x.accountStatus)).sort((a,b)=>String(a.fullName).localeCompare(String(b.fullName)))});}catch(e){console.error(e);return json(500,{error:'Unable to load the authorised student roster.'})}};

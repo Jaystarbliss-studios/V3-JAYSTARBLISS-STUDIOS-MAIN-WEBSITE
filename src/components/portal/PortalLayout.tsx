@@ -141,7 +141,7 @@ const PortalLayout: React.FC = () => {
         <Link
           to={item.path}
           onClick={() => mobile && setMobileMenuOpen(false)}
-          className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden ${
+          className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden ${
             active ? 'bg-brand-red text-white shadow-sm font-bold' : 'text-slate-300 hover:bg-white/10 hover:text-white'
           }`}
         >
@@ -201,7 +201,7 @@ const PortalLayout: React.FC = () => {
 
       <motion.aside
         initial={false}
-        animate={{ width: sidebarExpanded ? 260 : 80 }}
+        animate={{ width: sidebarExpanded ? 220 : 72 }}
         transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
         onMouseEnter={() => setSidebarExpanded(true)}
         onMouseLeave={() => setSidebarExpanded(false)}
@@ -225,13 +225,13 @@ const PortalLayout: React.FC = () => {
 
         <div className="p-2.5 border-t border-slate-800/80 shrink-0 space-y-1">
           <Tooltip content="Toggle Theme" placement="right">
-            <button type="button" onClick={toggleTheme} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold overflow-hidden">
+            <button type="button" onClick={toggleTheme} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold overflow-hidden">
               <span className="w-8 h-8 flex items-center justify-center shrink-0">{theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}</span>
               <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Appearance</span>
             </button>
           </Tooltip>
           <Tooltip content="Sign Out" placement="right">
-            <button type="button" onClick={logout} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 px-2.5 rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-semibold overflow-hidden">
+            <button type="button" onClick={logout} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-semibold overflow-hidden">
               <span className="w-8 h-8 flex items-center justify-center shrink-0"><LogOut size={15} /></span>
               <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Log Out</span>
             </button>

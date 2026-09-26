@@ -8,7 +8,6 @@ import {
   Copy,
   Check,
   Lock,
-  Sparkles,
   ClipboardList,
   Loader2,
   Calendar

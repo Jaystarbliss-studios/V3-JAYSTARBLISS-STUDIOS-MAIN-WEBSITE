@@ -73,26 +73,19 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('schoolId', get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('school_id', get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('schoolDocId', null)))
         : null; 
     }
-    function isSameSchool(schoolId) { 
-      return isAuth() && (
-        isAnyAdmin() ||
-        schoolId == null ||
-        schoolId == '' ||
+    function isSameSchool(schoolId) {
+      return isAuth() && schoolId != null && schoolId != '' && (
+        isSuperAdmin() ||
         schoolId == request.auth.uid ||
         schoolId == userSchoolId() ||
         (exists(/databases/$(database)/documents/schools/$(schoolId)) && (
-          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('email', '') == request.auth.token.email || 
-          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('contactEmail', '') == request.auth.token.email || 
-          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('adminUid', '') == request.auth.uid || 
+          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('email', '') == request.auth.token.email ||
+          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('contactEmail', '') == request.auth.token.email ||
+          get(/databases/$(database)/documents/schools/$(schoolId)).data.get('adminUid', '') == request.auth.uid ||
           get(/databases/$(database)/documents/schools/$(schoolId)).data.get('firebaseUid', '') == request.auth.uid ||
           get(/databases/$(database)/documents/schools/$(schoolId)).data.get('userId', '') == request.auth.uid
-        )) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('schoolId', '') == schoolId ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('school_id', '') == schoolId ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('schoolDocId', '') == schoolId
-        ))
-      ); 
+        )) || hasStaffSchoolAccess(schoolId)
+      );
     }
     function isOwnStudent(data) { return isAuth() && (data.firebaseUid == request.auth.uid || data.userId == request.auth.uid); }
     function isOwnParent(data) { return isAuth() && (data.parentId == request.auth.uid || data.userId == request.auth.uid || data.firebaseUid == request.auth.uid); }
@@ -110,16 +103,28 @@ service cloud.firestore {
     match /invites/{email} { allow read: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); allow write: if isAnyAdmin(); allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); }
 
     match /individualStudents/{studentId} {
-      allow read: if isAnyAdmin() || isSchoolUser() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.get('schoolId', null)) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
-      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.get('schoolId', null)) || (isStaffOrTutor() && request.resource.data.get('firebaseUid', '') == request.auth.uid);
-      allow update: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.get('schoolId', null)) || isSameSchool(request.resource.data.get('schoolId', null)) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
-      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.get('schoolId', null));
+      allow read: if isSuperAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && (hasStaffSchoolAccess(resource.data.get('schoolId', null)) || isAssignedStaffToStudent(studentId)));
+      allow create: if isSuperAdmin() ||
+        (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow update: if isSuperAdmin() ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)) && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow delete: if isSuperAdmin() || (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
     }
     match /students/{studentId} {
-      allow read: if isAnyAdmin() || isSchoolUser() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.get('schoolId', null)) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
-      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.get('schoolId', null)) || (isStaffOrTutor() && request.resource.data.get('tutorId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('staffId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('assignedTutorId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('assignedStaffId', '') == request.auth.uid) || (isStaffOrTutor() && request.resource.data.get('instructorId', '') == request.auth.uid);
-      allow update: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.get('schoolId', null)) || isSameSchool(request.resource.data.get('schoolId', null)) || (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
-      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.get('schoolId', null));
+      allow read: if isSuperAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && (hasStaffSchoolAccess(resource.data.get('schoolId', null)) || isAssignedStaffToStudent(studentId)));
+      allow create: if isSuperAdmin() ||
+        (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow update: if isSuperAdmin() ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)) && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
+      allow delete: if isSuperAdmin() || (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
     }
     match /studentModules/{docId} { allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isSameSchool(resource.data.get('schoolId', null)) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow create: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId)); allow update: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow delete: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); }
     match /personalResources/{docId} { allow read: if isAnyAdmin() || isOwnStudent(resource.data) || isOwnParent(resource.data) || isOwnLearner(resource.data.studentId) || isParentOfStudent(resource.data.studentId) || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); allow create: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(request.resource.data.studentId) && request.resource.data.staffId == request.auth.uid); allow update: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId) && request.resource.data.staffId == request.auth.uid); allow delete: if isAnyAdmin() || isSchoolUser() || (isStaffOrTutor() && isAssignedStaffToStudent(resource.data.studentId)); }
