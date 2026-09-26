@@ -159,6 +159,33 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   const { toast } = useToast();
   const [resources, setResources] = useState<ResourceDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [canManageCurriculum, setCanManageCurriculum] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const resolveCurriculumPermission = async () => {
+      if (role !== 'staff' || !auth.currentUser) {
+        if (active) setCanManageCurriculum(false);
+        return;
+      }
+      try {
+        const uid = auth.currentUser.uid;
+        const [userSnap, adminSnap] = await Promise.all([
+          getDoc(doc(db, 'users', uid)).catch(() => null),
+          getDoc(doc(db, 'admins', uid)).catch(() => null)
+        ]);
+        const userRole = String(userSnap?.data()?.role || '').toLowerCase();
+        const isTutor = ['tutor', 'instructor'].includes(userRole);
+        const isSuperAdmin = Boolean(adminSnap?.exists()) || Boolean((await auth.currentUser.getIdTokenResult()).claims.super_admin);
+        if (active) setCanManageCurriculum(isTutor || isSuperAdmin);
+      } catch (error) {
+        console.warn('Curriculum upload permission check failed:', error);
+        if (active) setCanManageCurriculum(false);
+      }
+    };
+    void resolveCurriculumPermission();
+    return () => { active = false; };
+  }, [role]);
 
   // Student Session Context
   const [studentInfo, setStudentInfo] = useState<{
@@ -562,6 +589,10 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
 
   // Save Class Assignment to Firestore
   const handleSaveClassAssignment = async () => {
+    if (role !== 'school' && !canManageCurriculum) {
+      toast.error('Only school administrators, tutors, and the super admin can manage resource assignments.');
+      return;
+    }
     if (!assignModalDoc) return;
     if (assignSelectedClasses.length === 0) {
       toast.error('Please select at least one target class or choose "All Classes".');
@@ -633,6 +664,10 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   // Upload New School Resource
   const handleCreateSchoolResource = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCurriculum) {
+      toast.error('Only tutors and the super admin can upload curriculum resources.');
+      return;
+    }
     if (!uploadForm.title.trim() || !uploadForm.fileUrl.trim()) {
       toast.error('Please enter a lesson title and document/file URL.');
       return;
@@ -737,7 +772,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
               <div className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Total Resources</div>
             </div>
 
-            {(role === 'school' || role === 'all') && (
+            {canManageCurriculum && (
               <button
                 onClick={() => setIsUploadModalOpen(true)}
                 className="px-4 py-3 bg-brand-red hover:bg-red-700 text-white rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-red/20 transition-all cursor-pointer"
@@ -786,7 +821,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             const docItem = resources.find(r => r.id === res.id);
             if (docItem) setPreviewDoc(docItem);
           }}
-          showAssignButton={role === 'school'}
+          showAssignButton={role === 'school' || canManageCurriculum}
           emptyMessage="No curriculum resources found for your enrolled program track. Lessons and study notes uploaded by educators will appear here."
         />
       )}

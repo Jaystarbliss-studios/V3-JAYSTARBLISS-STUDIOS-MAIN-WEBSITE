@@ -342,16 +342,7 @@ export const PortalCourses: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {selectedModule && (
-            <button
-              type="button"
-              onClick={() => handleOpenCurriculumModal(selectedModule)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-brand-red/10 border border-brand-red/30 text-brand-red text-xs font-bold hover:bg-brand-red hover:text-white transition-all cursor-pointer"
-            >
-              <Upload size={14} />
-              <span>Upload / Link Curriculum</span>
-            </button>
-          )}
+
 
           <a 
             href="https://scratch.mit.edu" 
@@ -489,14 +480,7 @@ export const PortalCourses: React.FC = () => {
                         <span>Read Curriculum</span>
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenCurriculumModal(selectedModule)}
-                        className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:border-brand-red hover:text-brand-red transition-all flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Upload size={13} />
-                        <span>Upload Curriculum</span>
-                      </button>
+                      <span className="px-3.5 py-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 text-xs font-bold">Curriculum not linked yet</span>
                     )}
                   </div>
                 </div>
