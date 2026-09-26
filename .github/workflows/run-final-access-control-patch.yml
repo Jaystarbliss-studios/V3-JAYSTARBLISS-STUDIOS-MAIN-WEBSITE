@@ -1,0 +1,31 @@
+name: Final access control patch
+on:
+  push:
+    branches:
+      - fix/final-access-control-polish
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply patch
+        run: python3 scripts/final_access_control_patch.py
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Commit verified changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firestore.rules netlify/functions/school-students.ts netlify/functions/student-credential-issue.ts src/pages/portal/StudentCredentialCenter.tsx src/components/portal/PortalLayout.tsx src/pages/portal src/components/portal
+          git rm -f scripts/final_access_control_patch.py .github/workflows/run-final-access-control-patch.yml
+          git commit -m "fix: scope student access and polish portal navigation"
+          git push origin HEAD:fix/final-access-control-polish
