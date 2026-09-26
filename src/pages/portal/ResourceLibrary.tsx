@@ -589,8 +589,8 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
 
   // Save Class Assignment to Firestore
   const handleSaveClassAssignment = async () => {
-    if (!canManageCurriculum) {
-      toast.error('Only tutors and the super admin can manage curriculum assignments.');
+    if (role !== 'school' && !canManageCurriculum) {
+      toast.error('Only school administrators, tutors, and the super admin can manage resource assignments.');
       return;
     }
     if (!assignModalDoc) return;
@@ -821,7 +821,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
             const docItem = resources.find(r => r.id === res.id);
             if (docItem) setPreviewDoc(docItem);
           }}
-          showAssignButton={canManageCurriculum}
+          showAssignButton={role === 'school' || canManageCurriculum}
           emptyMessage="No curriculum resources found for your enrolled program track. Lessons and study notes uploaded by educators will appear here."
         />
       )}

@@ -129,9 +129,9 @@ service cloud.firestore {
     match /exams/{examId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /schoolResources/{resourceId} { 
       allow read: if true; 
-      allow create: if isTutorOrSuperAdmin();
-      allow update: if isTutorOrSuperAdmin();
-      allow delete: if isTutorOrSuperAdmin();
+      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.schoolId);
+      allow update: if isAnyAdmin() || isSchoolUser() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId));
+      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.schoolId);
     }
     match /schoolLinks/{linkId} { 
       allow read: if true; 
@@ -236,7 +236,11 @@ service cloud.firestore {
     match /settings/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /publicSettings/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /payment_config/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
-    match /programs/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
+    match /programs/{document=**} { 
+      allow read: if true;
+      allow create, delete: if isAnyAdmin();
+      allow update: if isAnyAdmin() || (isTutorOrSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['curriculumPdfUrl','curriculumTitle','curriculumSummary','curriculum','topics','updatedAt']));
+    }
     match /services/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /portfolio/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
     match /kidsProjects/{document=**} { allow read: if true; allow write: if isAnyAdmin(); }
