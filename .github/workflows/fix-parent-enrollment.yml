@@ -1,0 +1,113 @@
+name: Parent enrollment and portal stability repair
+
+on:
+  push:
+    branches: [fix/parent-enrollment-and-portal-stability]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/parent-enrollment-and-portal-stability
+          fetch-depth: 0
+
+      - name: Apply targeted parent enrollment and navigation repairs
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def patch(path, replacements):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              original = text
+              for old, new, label in replacements:
+                  if old in text:
+                      text = text.replace(old, new, 1)
+                      print(f'{path}: {label}')
+                  else:
+                      print(f'{path}: pattern not found: {label}')
+              if text != original:
+                  p.write_text(text, encoding='utf-8')
+                  return True
+              return False
+
+          changed = False
+
+          # The SPA was calling /api/parent-enrollment-request, but the function only
+          # had Netlify's default /.netlify/functions/<name> route. Put an explicit
+          # rewrite before the catch-all SPA route.
+          changed |= patch('netlify.toml', [
+              ('[functions]\n  directory = "netlify/functions"\n\n[[redirects]]\n  from = "/*"',
+               '[functions]\n  directory = "netlify/functions"\n\n[[redirects]]\n  from = "/api/parent-enrollment-request"\n  to = "/.netlify/functions/parent-enrollment-request"\n  status = 200\n  force = true\n\n[[redirects]]\n  from = "/*"',
+               'route parent enrollment API before SPA fallback')
+          ])
+
+          # Parents should not need broad email-based collection reads. Those queries
+          # were rejected by Firestore rules and produced noisy permission errors.
+          # Parent ownership is represented by parentId.
+          changed |= patch('src/pages/portal/ParentDashboard.tsx', [
+              ("        if (userEmail) {\n          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }\n          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }\n          try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }\n        }\n",
+               "        // Parent-linked records are queried by authenticated parentId.\n        // Email-only collection queries are intentionally avoided because Firestore rules\n        // cannot safely authorize a broad email query for parent-owned records.\n",
+               'remove unauthorized parent email collection queries')
+          ])
+
+          # Make the client robust if a deployment is serving an older redirect table.
+          changed |= patch('src/pages/portal/ParentDashboard.tsx', [
+              ("      const response = await fetch('/api/parent-enrollment-request', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },\n        body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),\n      });\n      const result = await response.json().catch(() => ({}));\n      if (!response.ok) throw new Error(result.error || 'Could not submit the enrollment request.');",
+               "      let response = await fetch('/api/parent-enrollment-request', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },\n        body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),\n      });\n      // Safe fallback for deployments where the custom /api rewrite has not yet propagated.\n      if (response.status === 404) {\n        response = await fetch('/.netlify/functions/parent-enrollment-request', {\n          method: 'POST',\n          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },\n          body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),\n        });\n      }\n      const result = await response.json().catch(() => ({}));\n      if (!response.ok) throw new Error(result.error || 'Could not submit the enrollment request.');",
+               'add direct Netlify function fallback')
+          ])
+
+          # Explicit parent-owned enrollment request access. The serverless function
+          # writes these with Admin SDK, while parents can read their own request history.
+          rules = Path('firestore.rules')
+          text = rules.read_text(encoding='utf-8')
+          marker = "    match /notifications/{notificationId} {"
+          rule = "    match /enrollment_requests/{requestId} { allow read: if isAnyAdmin() || (isAuth() && resource.data.parentId == request.auth.uid); allow create: if isAuth() && request.resource.data.parentId == request.auth.uid; allow update, delete: if isAnyAdmin(); }\n"
+          if 'match /enrollment_requests/{requestId}' not in text:
+              text = text.replace(marker, rule + marker, 1)
+              rules.write_text(text, encoding='utf-8')
+              changed = True
+              print('firestore.rules: add parent-owned enrollment request permissions')
+
+          # Give Super Admins a dedicated Parents workspace in the existing admin shell.
+          changed |= patch('src/components/admin/AdminLayout.tsx', [
+              ('        { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },\n        { name: "Billings / Fees",',
+               '        { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },\n        { name: "Parents & Families", href: "/admin/parents", icon: Users, desc: "Manage parent accounts, children, enrollments & family records" },\n        { name: "Billings / Fees",',
+               'add Parents & Families admin workspace')
+          ])
+
+          # The previous 15-minute absolute inactivity window made the portal feel
+          # frozen when a user stayed on a page. Keep the warning/expiry behavior,
+          # but make normal portal work tolerant of long sessions.
+          changed |= patch('src/contexts/SessionTimeoutContext.tsx', [
+              ("const DEFAULT_TOTAL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of total idle time", "const DEFAULT_TOTAL_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes of total idle time", 'increase portal idle window to 60 minutes'),
+              ("const WARNING_THRESHOLD_MS = 2 * 60 * 1000;     // 2 minutes warning countdown (120 seconds)", "const WARNING_THRESHOLD_MS = 5 * 60 * 1000;     // 5 minutes warning countdown", 'use a 5-minute warning window'),
+          ])
+
+          print('Targeted parent enrollment and portal stability repair complete.')
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify TypeScript and production build
+        run: npm run build
+
+      - name: Commit verified repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add netlify.toml firestore.rules src .github/workflows/fix-parent-enrollment.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "fix: repair parent enrollment and portal session stability"
+          git push origin HEAD:fix/parent-enrollment-and-portal-stability
