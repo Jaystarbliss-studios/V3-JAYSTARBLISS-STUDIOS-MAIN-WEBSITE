@@ -185,7 +185,7 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
     };
     void resolveCurriculumPermission();
     return () => { active = false; };
-  }, [role, canManageCurriculum]);
+  }, [role]);
 
   // Student Session Context
   const [studentInfo, setStudentInfo] = useState<{
