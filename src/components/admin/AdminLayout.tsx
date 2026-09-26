@@ -133,6 +133,7 @@ const AdminLayout: React.FC = () => {
       items: [
         { name: "Approvals & Requests", href: "/admin/approvals", icon: UserCheck, desc: "Student, tutor & enrollment approvals" },
         { name: "Scholars & Students", href: "/admin/students", icon: Users, desc: "Student credentials & individual dispatches" },
+        { name: "Parents & Families", href: "/admin/parents", icon: Users, desc: "Manage parent accounts, children, enrollments & family records" },
         { name: "Billings / Fees", href: "/admin/billing", icon: CreditCard, desc: "Tuition transactions, treasury & ledger" },
         { name: "Faculty & Staff", href: "/admin/staff", icon: UserCheck, desc: "Staff invitations & faculty curriculum" },
         { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: BookOpen, desc: "Approve subjects & find matching tutors" },

@@ -68,11 +68,9 @@ const ParentDashboard: React.FC = () => {
           try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)))); } catch (error) { console.warn('individualStudents parent lookup failed:', error); }
           try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)))); } catch (error) { console.warn('students parent lookup failed:', error); }
         }
-        if (userEmail) {
-          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }
-          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }
-          try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }
-        }
+        // Parent-linked records are queried by authenticated parentId.
+        // Email-only collection queries are intentionally avoided because Firestore rules
+        // cannot safely authorize a broad email query for parent-owned records.
 
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
@@ -146,11 +144,19 @@ const ParentDashboard: React.FC = () => {
       const user = auth.currentUser;
       if (!user) throw new Error('Your parent session has expired. Please sign in again.');
       const token = await user.getIdToken();
-      const response = await fetch('/api/parent-enrollment-request', {
+      let response = await fetch('/api/parent-enrollment-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
       });
+      // Safe fallback for deployments where the custom /api rewrite has not yet propagated.
+      if (response.status === 404) {
+        response = await fetch('/.netlify/functions/parent-enrollment-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
+        });
+      }
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Could not submit the enrollment request.');
       const request = result.request;

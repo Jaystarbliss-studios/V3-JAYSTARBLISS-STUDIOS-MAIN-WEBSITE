@@ -8,8 +8,8 @@ import { useToast } from './ToastContext';
 import SessionExpirationModal from '../components/common/SessionExpirationModal';
 
 // Configurable constants
-const DEFAULT_TOTAL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of total idle time
-const WARNING_THRESHOLD_MS = 2 * 60 * 1000;     // 2 minutes warning countdown (120 seconds)
+const DEFAULT_TOTAL_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes of total idle time
+const WARNING_THRESHOLD_MS = 5 * 60 * 1000;     // 5 minutes warning countdown
 const THROTTLE_ACTIVITY_MS = 3 * 1000;          // Throttle event listener updates to once every 3s
 const STORAGE_KEY = 'jaystar_last_session_activity';
 
