@@ -72,6 +72,52 @@ const canTutorAccessRecord = (record: any, identity: { ids: Set<string>; names: 
   return false;
 };
 
+const resolveStudentIdentity = async (uid: string, decoded: any, user: any) => {
+  const ids = new Set<string>([uid]);
+  const emails = new Set<string>();
+  const schoolIds = new Set<string>();
+  const classesForStudent = new Set<string>();
+
+  const emailValues = [user.email, decoded?.email].filter(Boolean).map(normalize);
+  emailValues.forEach(email => emails.add(email));
+  ['studentId', 'studentDocId', 'individualStudentId', 'studentRecordId'].forEach(key => {
+    if (user[key]) ids.add(String(user[key]));
+  });
+
+  const absorb = (doc: any) => {
+    const data = doc.data() || {};
+    ids.add(doc.id);
+    [data.id, data.studentId, data.studentDocId, data.individualStudentId, data.firebaseUid, data.uid].forEach(v => {
+      if (v) ids.add(String(v));
+    });
+    [data.email, data.parentEmail].forEach(v => {
+      if (v) emails.add(normalize(v));
+    });
+    [data.schoolId].forEach(v => {
+      if (v) schoolIds.add(String(v));
+    });
+    [data.class, data.grade, data.classLevel, data.year, data.level].forEach(v => {
+      if (v) classesForStudent.add(normalize(v));
+    });
+  };
+
+  const lookups: Promise<any>[] = [];
+  lookups.push(adminDb.collection('students').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
+  lookups.push(adminDb.collection('individualStudents').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
+  for (const email of emailValues) {
+    lookups.push(adminDb.collection('students').where('email', '==', email).limit(5).get().catch(() => null));
+    lookups.push(adminDb.collection('individualStudents').where('email', '==', email).limit(5).get().catch(() => null));
+  }
+
+  const snapshots = await Promise.all(lookups);
+  snapshots.forEach(snapshot => snapshot?.docs?.forEach((doc: any) => absorb(doc)));
+
+  if (user.schoolId) schoolIds.add(String(user.schoolId));
+  [user.class, user.grade, user.classLevel].forEach(v => { if (v) classesForStudent.add(normalize(v)); });
+
+  return { ids, emails, schoolIds, classes: classesForStudent };
+};
+
 const loadRecords = async () => {
   const snap = await adminDb.collection('classSchedules').limit(4000).get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -79,7 +125,7 @@ const loadRecords = async () => {
 
 export const handler: Handler = async event => {
   try {
-    const { user, uid } = await requireUser(event);
+    const { decoded, user, uid } = await requireUser(event);
     const role = String(user.role || '').toUpperCase();
     const method = event.httpMethod || 'GET';
     const params = event.queryStringParameters || {};
@@ -107,14 +153,27 @@ export const handler: Handler = async event => {
           return (sid && (rid === sid || rid === normalize(uid))) || (sname && rn && (rn === sname || rn.includes(sname) || sname.includes(rn))) || (requestedSchoolId && rid === normalize(requestedSchoolId));
         });
       } else if (role === 'STUDENT') {
-        const studentSchoolId = String(user.schoolId || '').trim();
-        const studentClass = String(user.class || user.grade || '').trim();
+        const identity = await resolveStudentIdentity(uid, decoded, user);
         records = records.filter((r: any) => {
-          if (r.targetType === 'STUDENT' && (String(r.studentId || '') === uid || normalize(r.studentEmail) === normalize(user.email))) return true;
-          if (studentSchoolId && String(r.schoolId || '') === studentSchoolId) {
-            return studentClass ? (r.classLevel === studentClass || (Array.isArray(r.classLevels) && r.classLevels.includes(studentClass))) : true;
-          }
-          return false;
+          const recordStudentId = String(r.studentId || '').trim();
+          const recordStudentEmail = normalize(r.studentEmail);
+          const directStudentMatch = r.targetType === 'STUDENT' && (
+            (recordStudentId && identity.ids.has(recordStudentId)) ||
+            (recordStudentEmail && identity.emails.has(recordStudentEmail))
+          );
+          if (directStudentMatch) return true;
+
+          const recordSchoolId = String(r.schoolId || '').trim();
+          if (!recordSchoolId || !identity.schoolIds.has(recordSchoolId)) return false;
+
+          const recordClasses = Array.isArray(r.classLevels)
+            ? r.classLevels.map((value: any) => normalize(value))
+            : r.classLevel ? [normalize(r.classLevel)] : [];
+
+          // A school-wide schedule is visible to the student's school. A class-specific
+          // schedule is visible only when the student's current class is included.
+          if (!recordClasses.length) return true;
+          return recordClasses.some((level: string) => identity.classes.has(level));
         });
       } else if (role === 'PARENT') {
         records = records.filter((r: any) => String(r.parentId || '') === uid || normalize(r.parentEmail) === normalize(user.email));
