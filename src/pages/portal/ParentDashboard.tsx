@@ -99,12 +99,14 @@ const ParentDashboard: React.FC = () => {
           const childIds = childList.map(c => c.id);
           const childNames = childList.map(c => (c.name || '').toLowerCase());
           const childEmails = childList.map(c => (c.email || '').toLowerCase());
+          const childSchoolIds = childList.map(c => (c as any).schoolId).filter(Boolean);
           const parentScheds = allScheds.filter((s: any) => {
             if (s.parentId === userUid || s.parentId === userEmail) return true;
             if (s.parentEmail && s.parentEmail.toLowerCase() === userEmail) return true;
             if (s.studentId && childIds.includes(s.studentId)) return true;
             if (s.studentName && childNames.includes(String(s.studentName).toLowerCase())) return true;
             if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;
+            if (s.schoolId && childSchoolIds.includes(s.schoolId)) return true;
             return false;
           });
           setSchedules(parentScheds);
