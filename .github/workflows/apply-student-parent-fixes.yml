@@ -1,0 +1,139 @@
+name: Apply student and parent portal fixes
+
+on:
+  push:
+    branches: [fix/student-schedule-parent-enrollment-visibility]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/student-schedule-parent-enrollment-visibility
+          fetch-depth: 0
+
+      - name: Apply focused portal fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def patch(path, transforms):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              original = text
+              for label, fn in transforms:
+                  before = text
+                  text = fn(text)
+                  if text != before:
+                      print(f'{path}: {label}')
+              if text == original:
+                  raise SystemExit(f'No change made to {path}; patch was not applied.')
+              p.write_text(text, encoding='utf-8')
+
+          # 1. Parent enrollment submission was calling /api/... while the deployed
+          # Netlify Function lives under /.netlify/functions/....
+          patch('src/pages/portal/ParentDashboard.tsx', [
+              ('use deployed Netlify enrollment function', lambda s: s.replace(
+                  "fetch('/api/parent-enrollment-request'",
+                  "fetch('/.netlify/functions/parent-enrollment-request'"
+              )),
+              ('remove permission-denied parent email lookups', lambda s: re.sub(
+                  r"\n        if \(userEmail\) \{\n          try \{ collectChildren\(await getDocs\(query\(collection\(db, 'individualStudents'\), where\('parentEmail', '==', userEmail\)\)\)\); \} catch \(error\) \{ console\.warn\('individualStudents parent email lookup failed:', error\); \}\n          try \{ collectChildren\(await getDocs\(query\(collection\(db, 'students'\), where\('parentEmail', '==', userEmail\)\)\)\); \} catch \(error\) \{ console\.warn\('students parent email lookup failed:', error\); \}\n          try \{ collectChildren\(await getDocs\(query\(collection\(db, 'enrollment_requests'\), where\('parentEmail', '==', userEmail\)\)\)\); \} catch \(error\) \{ console\.warn\('enrollment_requests parent email lookup failed:', error\); \}\n        \}\n",
+                  "\n",
+                  s,
+                  count=1
+              )),
+              ('use parent-scoped class schedule function instead of broad Firestore read', lambda s: s.replace(
+                  "          getDocs(collection(db, 'classSchedules'))",
+                  "          (async () => {\n            const current = auth.currentUser;\n            if (!current) return { docs: [] } as any;\n            const token = await current.getIdToken();\n            const response = await fetch('/.netlify/functions/class-schedules', { headers: { Authorization: `Bearer ${token}` } });\n            if (!response.ok) return { docs: [] } as any;\n            const data = await response.json().catch(() => ({}));\n            return { docs: (Array.isArray(data.schedules) ? data.schedules : []).map((item: any) => ({ id: item.id, data: () => item })) } as any;\n          })()"
+              )),
+          ])
+
+          # 2. The schedule endpoint must never trust studentId/schoolId query parameters
+          # supplied by a student. Identity is resolved from the authenticated student record.
+          patch('netlify/functions/class-schedules.ts', [
+              ('do not inject arbitrary requested school/student IDs into student identity', lambda s: s.replace(
+                  "        if (requestedSchoolId) identity.schoolIds.add(requestedSchoolId);\n        if (requestedStudentId) identity.ids.add(requestedStudentId);\n",
+                  ""
+              )),
+              ('keep school scoping mandatory for school students', lambda s: s.replace(
+                  "          if (!isSchoolMatch && !isProgramMatch && r.targetType !== 'ALL') return false;",
+                  "          if (!isSchoolMatch) return false;"
+              )),
+          ])
+
+          # 3. Student schedule UI should use the protected server result only. Do not
+          # perform a broad client-side classSchedules read that is both unsafe and permission-prone.
+          patch('src/pages/portal/PortalCalendar.tsx', [
+              ('remove direct Firestore schedule dependency', lambda s: s.replace(
+                  "import { auth, db } from '../../lib/firebase';",
+                  "import { auth } from '../../lib/firebase';"
+              )),
+              ('load schedules only from protected function', lambda s: re.sub(
+                  r"    const \[netRes, fsSnap\] = await Promise\.all\(\[\n      fetch\(`/\.netlify/functions/class-schedules\?schoolId=\$\{encodeURIComponent\(schoolId\)\}&studentId=\$\{encodeURIComponent\(studentId\)\}`,\{headers:\{Authorization:`Bearer \$\{token\}`\}\}\)\.then\(r=>r\.ok\?r\.json\(\):\{schedules:\[\]\}\)\.catch\(\(\)=>\(\{schedules:\[\]\}\)\),\n      import\('firebase/firestore'\)\.then\(f => f\.getDocs\(f\.collection\(db, 'classSchedules'\)\)\)\.catch\(\(\)=>\(\{docs:\[\]\} as any\)\)\n    \]\);\n\n    const combinedRaw = \[\n      \.\.\.\(Array\.isArray\(netRes\?\.schedules\) \? netRes\.schedules : \[\]\),\n      \.\.\.fsSnap\.docs\.map\(\(d: any\) => \(\{ id: d\.id, \.\.\.d\.data\(\) \}\)\)\n    \];",
+                  "    const netRes = await fetch(`/.netlify/functions/class-schedules?schoolId=${encodeURIComponent(schoolId)}&studentId=${encodeURIComponent(studentId)}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():{schedules:[]}).catch(()=>({schedules:[]}));\n\n    const combinedRaw = Array.isArray(netRes?.schedules) ? netRes.schedules : [];",
+                  s,
+                  count=1
+              )),
+              ('deduplicate programme names by normalized display name', lambda s: s.replace(
+                  "  const programmes=useMemo(()=>{\n  const map = new Map<string, string>();\n  events.forEach(e => {\n    if (e.programmeName) map.set(e.programmeName, e.programmeName);\n    if (e.programmeId && !map.has(e.programmeId)) map.set(e.programmeId, e.programmeName || 'Programme');\n  });\n  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));\n },[events]);",
+                  "  const programmes=useMemo(()=>{\n  const map = new Map<string, { id:string; name:string }>();\n  events.forEach(e => {\n    const name = String(e.programmeName || '').trim();\n    if (!name) return;\n    const key = name.toLowerCase().replace(/\\s+/g, ' ');\n    if (!map.has(key)) map.set(key, { id: e.programmeId || key, name });\n  });\n  return Array.from(map.values());\n },[events]);"
+              )),
+              ('hide school selector for students and remove global all-programme option', lambda s: s.replace(
+                  "<select value={selectedProgramme} onChange={e=>setSelectedProgramme(e.target.value)} className=\"rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-white\"><option value=\"ALL\" className=\"text-slate-900\">All programmes</option>{programmes.map(p=><option key={p.id} value={p.id} className=\"text-slate-900\">{p.name}</option>)}</select>{schools.length>0&&<select",
+                  "<select value={selectedProgramme} onChange={e=>setSelectedProgramme(e.target.value)} className=\"rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-white\"><option value=\"ALL\" className=\"text-slate-900\">All enrolled programmes</option>{programmes.map(p=><option key={p.id} value={p.id} className=\"text-slate-900\">{p.name}</option>)}</select>{role !== 'STUDENT' && schools.length>0&&<select"
+              )),
+          ])
+
+          # 4. Remove duplicate programme cards caused by multiple records carrying the same title.
+          patch('src/pages/portal/PortalCourses.tsx', [
+              ('deduplicate visible course titles', lambda s: s.replace(
+                  "      const list = Array.from(programMap.values()).sort((a, b) => a.stage - b.stage || a.title.localeCompare(b.title));\n      setModules(list);",
+                  "      const sortedPrograms = Array.from(programMap.values()).sort((a, b) => a.stage - b.stage || a.title.localeCompare(b.title));\n      const uniqueTitles = new Map<string, CourseModule>();\n      sortedPrograms.forEach(program => {\n        const key = program.title.trim().toLowerCase().replace(/\\s+/g, ' ');\n        if (!uniqueTitles.has(key)) uniqueTitles.set(key, program);\n      });\n      const list = Array.from(uniqueTitles.values());\n      setModules(list);"
+              )),
+          ])
+
+          # 5. Restore the visible admin impersonation banner across all dashboard routes.
+          patch('src/components/portal/PortalLayout.tsx', [
+              ('import impersonation helpers', lambda s: s.replace(
+                  "import SEO from '../ui/SEO';",
+                  "import SEO from '../ui/SEO';\nimport { getActiveImpersonation, stopImpersonation } from '../../utils/impersonation';"
+              )),
+              ('add impersonation state', lambda s: s.replace(
+                  "  const [sidebarExpanded, setSidebarExpanded] = useState(false);",
+                  "  const [sidebarExpanded, setSidebarExpanded] = useState(false);\n  const [impersonation, setImpersonation] = useState<any>(() => getActiveImpersonation());"
+              )),
+              ('refresh impersonation state on navigation', lambda s: s.replace(
+                  "  useEffect(() => {\n    const user = auth.currentUser;",
+                  "  useEffect(() => {\n    setImpersonation(getActiveImpersonation());\n    const user = auth.currentUser;"
+              )),
+              ('render slim admin impersonation banner', lambda s: s.replace(
+                  "      <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />\n\n      <div className=\"md:hidden",
+                  "      <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />\n\n      {impersonation?.isMasquerading && (\n        <div className=\"shrink-0 bg-brand-red text-white border-b border-red-800/50 px-3 py-2\">\n          <div className=\"max-w-[1600px] mx-auto flex items-center justify-between gap-3 text-[11px] font-bold\">\n            <span className=\"truncate\">Admin impersonation mode active · Viewing {impersonation.targetUser?.name || impersonation.targetUser?.email || 'portal user'} ({String(impersonation.targetRole || role).toLowerCase()})</span>\n            <button type=\"button\" onClick={() => stopImpersonation(navigate)} className=\"shrink-0 rounded-lg bg-white text-brand-red px-3 py-1.5 font-black hover:bg-slate-100 transition-colors\">Exit session</button>\n          </div>\n        </div>\n      )}\n\n      <div className=\"md:hidden"
+              )),
+          ])
+
+          print('All focused fixes applied.')
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Production build verification
+        run: npm run build
+
+      - name: Commit verified changes and remove patch workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/apply-student-parent-fixes.yml
+          git add src netlify/functions .github/workflows/apply-student-parent-fixes.yml
+          git commit -m "fix: scope student schedules and repair parent enrollment [skip ci]"
+          git push origin HEAD:fix/student-schedule-parent-enrollment-visibility
