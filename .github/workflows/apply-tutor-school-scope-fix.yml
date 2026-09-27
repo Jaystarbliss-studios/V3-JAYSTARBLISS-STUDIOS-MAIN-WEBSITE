@@ -1,0 +1,123 @@
+name: Apply tutor school scope fix
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/tutor-school-private-schedule-scope]
+permissions:
+  contents: write
+jobs:
+  patch-build-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch scope, schedules and portal polish
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def read(path): return Path(path).read_text()
+          def write(path, text): Path(path).write_text(text)
+
+          # 1) Server-side tutor visibility: assigned schools + private students.
+          p = 'netlify/functions/class-schedules.ts'
+          s = read(p)
+          marker = "const canTutorAccessRecord = (record: any, identity: { ids: Set<string>; names: Set<string>; emails: Set<string> }) => {\n  if (record.tutorId && identity.ids.has(String(record.tutorId))) return true;\n  if (record.tutorName && identity.names.has(normalize(record.tutorName))) return true;\n  if (record.tutorEmail && identity.emails.has(normalize(record.tutorEmail))) return true;\n  return false;\n};\n"
+          helper = marker + """\nconst resolveTutorScope = async (uid: string, user: any, identity: { ids: Set<string>; names: Set<string>; emails: Set<string> }) => {\n  const schoolIds = new Set<string>();\n  const studentIds = new Set<string>();\n  const add = (set: Set<string>, values: any[]) => values.filter(Boolean).forEach(v => set.add(String(v)));\n\n  add(schoolIds, [user.schoolId, ...(Array.isArray(user.schoolIds) ? user.schoolIds : []), ...(Array.isArray(user.assignedSchoolIds) ? user.assignedSchoolIds : [])]);\n  add(studentIds, [user.studentId, ...(Array.isArray(user.assignedStudentIds) ? user.assignedStudentIds : [])]);\n\n  const assignmentFields = ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId'];\n  for (const field of assignmentFields) {\n    for (const collectionName of ['students', 'individualStudents']) {\n      const snap = await adminDb.collection(collectionName).where(field, '==', uid).limit(500).get().catch(() => null);\n      snap?.docs.forEach(d => {\n        const data = d.data() || {};\n        studentIds.add(d.id);\n        if (data.schoolId) schoolIds.add(String(data.schoolId));\n      });\n    }\n  }\n\n  const schoolsSnap = await adminDb.collection('schools').limit(500).get().catch(() => null);\n  schoolsSnap?.docs.forEach(d => {\n    const data = d.data() || {};\n    const direct = assignmentFields.some(field => String(data[field] || '') === uid);\n    const assigned = [data.assignedTutors, data.tutors].some(list => Array.isArray(list) && list.some((t: any) => {\n      if (typeof t === 'string') return t === uid;\n      return String(t?.id || t?.uid || t?.tutorId || t?.staffId || '') === uid || normalize(t?.email) === normalize(user.email);\n    }));\n    if (direct || assigned) schoolIds.add(d.id);\n  });\n\n  return { schoolIds, studentIds };\n};\n"""
+          if marker not in s: raise SystemExit('Tutor helper marker not found')
+          s = s.replace(marker, helper, 1)
+          old = """      } else if (isTutor(role)) {\n        const identity = await resolveTutorIdentity(uid, user);\n        records = records.filter((r: any) => canTutorAccessRecord(r, identity));\n      } else if (isAdmin(role)) {"""
+          new = """      } else if (isTutor(role)) {\n        const identity = await resolveTutorIdentity(uid, user);\n        const scope = await resolveTutorScope(uid, user, identity);\n        records = records.filter((r: any) => {\n          if (canTutorAccessRecord(r, identity)) return true;\n          if (String(r.targetType || '').toUpperCase() === 'SCHOOL' && scope.schoolIds.has(String(r.schoolId || ''))) return true;\n          if (String(r.targetType || '').toUpperCase() === 'STUDENT' && scope.studentIds.has(String(r.studentId || ''))) return true;\n          return false;\n        });\n      } else if (isAdmin(role)) {"""
+          if old not in s: raise SystemExit('Tutor GET branch not found')
+          s = s.replace(old, new, 1)
+          write(p, s)
+
+          # 2) Tutor dashboard: only assigned-school students + privately assigned students.
+          p = 'src/pages/portal/StaffDashboard.tsx'
+          s = read(p)
+          old = """      const fetchedStudents = Array.from(studentMap.values());\n      setStudents(fetchedStudents);\n\n      // 3. Fetch assigned schools\n      try {"""
+          new = """      // 3. Fetch assigned schools\n      try {"""
+          if old not in s: raise SystemExit('Staff student prefetch block not found')
+          s = s.replace(old, new, 1)
+          old = """        setAssignedSchools(mySchools);\n      } catch (e) {\n        console.warn('Assigned schools fetch failed:', e);\n      }\n\n    } catch (err) {"""
+          new = """        setAssignedSchools(mySchools);\n\n        // A tutor may see students from their assigned school(s), plus students privately assigned to them.\n        const scopedStudents = new Map<string, any>(studentMap);\n        const schoolIds = mySchools.map((school: any) => school.id).filter(Boolean);\n        for (const schoolId of schoolIds) {\n          for (const collectionName of ['students', 'individualStudents']) {\n            try {\n              const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', schoolId)));\n              snap.forEach(d => scopedStudents.set(d.id, { id: d.id, ...d.data() }));\n            } catch (e) {\n              console.warn(`School-scoped ${collectionName} query failed:`, e);\n            }\n          }\n        }\n        setStudents(Array.from(scopedStudents.values()).filter((student: any) => {\n          if (student.schoolId && schoolIds.includes(student.schoolId)) return true;\n          return assignmentFields.some(field => String(student[field] || '') === staffUid);\n        }));\n      } catch (e) {\n        console.warn('Assigned schools fetch failed:', e);\n        setStudents(Array.from(studentMap.values()));\n      }\n\n    } catch (err) {"""
+          if old not in s: raise SystemExit('Staff school block not found')
+          s = s.replace(old, new, 1)
+
+          # Broadcast target state.
+          old = """  const [targetStudentId, setTargetStudentId] = useState('');\n  const [linkTitle, setLinkTitle] = useState('');"""
+          new = """  const [targetStudentId, setTargetStudentId] = useState('');\n  const [broadcastTargetType, setBroadcastTargetType] = useState<'STUDENT' | 'SCHOOL'>('STUDENT');\n  const [targetSchoolId, setTargetSchoolId] = useState('');\n  const [linkTitle, setLinkTitle] = useState('');"""
+          if old not in s: raise SystemExit('Broadcast state marker not found')
+          s = s.replace(old, new, 1)
+          old = """    if (!targetStudentId || !linkUrl) {\n      toast.error('Please select a student and provide a valid URL.');\n      return;\n    }"""
+          new = """    if ((!targetStudentId && broadcastTargetType === 'STUDENT') || (!targetSchoolId && broadcastTargetType === 'SCHOOL') || !linkUrl) {\n      toast.error(`Please select a ${broadcastTargetType === 'SCHOOL' ? 'school' : 'student'} and provide a valid URL.`);\n      return;\n    }"""
+          if old not in s: raise SystemExit('Broadcast validation marker not found')
+          s = s.replace(old, new, 1)
+          old = """      const targetStudent = students.find(s => s.id === targetStudentId);\n\n      await addDoc(collection(db, 'personalLinks'), {\n        title: linkTitle || `${linkPlatform} Class Session`,\n        url: linkUrl,\n        platform: linkPlatform,\n        meetingTime: meetingTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),\n        studentId: targetStudentId,\n        studentName: targetStudent?.fullName || targetStudent?.studentName || 'Student',\n        tutorId: staffUid,\n        tutorName: effective.effectiveName || user?.displayName || 'Faculty Member',\n        createdAt: serverTimestamp()\n      });"""
+          new = """      const targetStudent = students.find(s => s.id === targetStudentId);\n      const targetSchool = assignedSchools.find(s => s.id === targetSchoolId);\n\n      await addDoc(collection(db, 'personalLinks'), {\n        title: linkTitle || `${linkPlatform} Class Session`,\n        url: linkUrl,\n        platform: linkPlatform,\n        meetingTime: meetingTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),\n        targetType: broadcastTargetType,\n        studentId: broadcastTargetType === 'STUDENT' ? targetStudentId : '',\n        studentName: broadcastTargetType === 'STUDENT' ? (targetStudent?.fullName || targetStudent?.studentName || 'Student') : '',\n        schoolId: broadcastTargetType === 'SCHOOL' ? targetSchoolId : '',\n        schoolName: broadcastTargetType === 'SCHOOL' ? (targetSchool?.name || 'School') : '',\n        tutorId: staffUid,\n        tutorName: effective.effectiveName || user?.displayName || 'Faculty Member',\n        createdAt: serverTimestamp()\n      });"""
+          if old not in s: raise SystemExit('Broadcast payload marker not found')
+          s = s.replace(old, new, 1)
+          old = """      setMeetingTime('');\n      setTargetStudentId('');"""
+          new = """      setMeetingTime('');\n      setTargetStudentId('');\n      setTargetSchoolId('');\n      setBroadcastTargetType('STUDENT');"""
+          if old not in s: raise SystemExit('Broadcast reset marker not found')
+          s = s.replace(old, new, 1)
+
+          old = """              <div>\n                <label className=\"font-bold text-slate-700 dark:text-slate-300 block mb-1\">Select Student</label>\n                <select \n                  required \n                  value={targetStudentId} \n                  onChange={e => setTargetStudentId(e.target.value)} \n                  className=\"w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden\"\n                >\n                  <option value=\"\">-- Choose Student --</option>\n                  {students.map(s => (\n                    <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>\n                  ))}\n                </select>\n              </div>"""
+          new = """              <div className=\"grid grid-cols-2 gap-2\">\n                <button type=\"button\" onClick={() => setBroadcastTargetType('STUDENT')} className={`min-h-10 rounded-xl border text-xs font-bold transition-colors ${broadcastTargetType === 'STUDENT' ? 'bg-brand-red text-white border-brand-red' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Private Student</button>\n                <button type=\"button\" onClick={() => setBroadcastTargetType('SCHOOL')} className={`min-h-10 rounded-xl border text-xs font-bold transition-colors ${broadcastTargetType === 'SCHOOL' ? 'bg-brand-red text-white border-brand-red' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>School</button>\n              </div>\n              {broadcastTargetType === 'STUDENT' ? (\n                <div>\n                  <label className=\"font-bold text-slate-700 dark:text-slate-300 block mb-1\">Select Private Student</label>\n                  <select required value={targetStudentId} onChange={e => setTargetStudentId(e.target.value)} className=\"w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden\">\n                    <option value=\"\">-- Choose Student --</option>\n                    {students.filter(s => !s.schoolId).map(s => <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>)}\n                  </select>\n                </div>\n              ) : (\n                <div>\n                  <label className=\"font-bold text-slate-700 dark:text-slate-300 block mb-1\">Select Assigned School</label>\n                  <select required value={targetSchoolId} onChange={e => setTargetSchoolId(e.target.value)} className=\"w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden\">\n                    <option value=\"\">-- Choose School --</option>\n                    {assignedSchools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}\n                  </select>\n                </div>\n              )}"""
+          if old not in s: raise SystemExit('Broadcast target UI marker not found')
+          s = s.replace(old, new, 1)
+          write(p, s)
+
+          # 3) Schedule grouping: show the true overall day/range, while expanded rows retain exact class times.
+          for p in ['src/components/portal/StaffClassSchedulesManager.tsx', 'src/components/portal/SchoolClassScheduleTimeline.tsx']:
+            s = read(p)
+            old = """      const session = sessionMap.get(groupKey)!;\n      session.occurrences.push(item);"""
+            new = """      const session = sessionMap.get(groupKey)!;\n      session.occurrences.push(item);\n      // The header represents the overall timetable window; expanded rows retain each class's exact time.\n      const times = session.occurrences.flatMap(o => [o.startTime, o.endTime]).filter(Boolean).sort();\n      if (times.length) {\n        session.startTime = times[0];\n        session.endTime = times[times.length - 1];\n      }"""
+            if old not in s: raise SystemExit(f'Grouping marker not found in {p}')
+            s = s.replace(old, new, 1)
+            write(p, s)
+
+          # 4) Tutor dashboard sidebar/nav polish and lighter dashboard navy palette.
+          p = 'src/components/portal/PortalLayout.tsx'
+          s = read(p)
+          s = s.replace('className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5', 'className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center min-h-10 h-10 flex-none px-2.5', 1)
+          s = s.replace('className="hidden md:flex bg-[#0F1117] text-white flex-col h-full', 'className="hidden md:flex bg-[#182335] text-white flex-col h-full', 1)
+          s = s.replace('animate={{ width: sidebarExpanded ? 220 : 72 }}', 'animate={{ width: sidebarExpanded ? 198 : 68 }}', 1)
+          s = s.replace('className="md:hidden bg-[#0F1117] text-white', 'className="md:hidden bg-[#182335] text-white', 1)
+          s = s.replace('className="absolute inset-y-0 left-0 w-[72vw] max-w-[300px] bg-[#0F1117]', 'className="absolute inset-y-0 left-0 w-[72vw] max-w-[280px] bg-[#182335]', 1)
+          s = s.replace('<div className="p-2.5 border-t border-slate-800/80 shrink-0 space-y-1">', '<div className="p-2.5 border-t border-slate-800/80 shrink-0 flex flex-col gap-1">', 1)
+          s = s.replace('bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100', 'bg-[#F8FAFC] dark:bg-[#243246] text-slate-900 dark:text-slate-100', 1)
+          s = s.replace('bg-[#F8FAFC] dark:bg-[#0B0F17]">', 'bg-[#F8FAFC] dark:bg-[#243246]">', 1)
+          s = s.replace('bg-white/80 dark:bg-[#0c1220]/80', 'bg-white/85 dark:bg-[#2B394D]/90', 1)
+          write(p, s)
+
+          # 5) Add a small global portal polish layer so dark dashboard surfaces use the lighter navy palette.
+          css = Path('src/components/portal/portal-polish.css')
+          css.write_text("""\n/* Portal visual polish: lighter navy surfaces with the existing Jaystarbliss red accent. */\n.dark .dashboard-interface .pro-surface {\n  background-color: #2b394d !important;\n  border-color: #42526a !important;\n}\n.dark .dashboard-interface .bg-slate-900 { background-color: #2b394d !important; }\n.dark .dashboard-interface .bg-slate-950 { background-color: #243246 !important; }\n.dark .dashboard-interface .bg-\\[\\#0B0F17\\] { background-color: #243246 !important; }\n.dark .dashboard-interface .text-slate-900 { color: #f8fafc !important; }\n.dark .dashboard-interface .text-slate-800 { color: #f1f5f9 !important; }\n.dark .dashboard-interface .text-slate-700 { color: #e2e8f0 !important; }\n""")
+          p = 'src/components/portal/PortalLayout.tsx'
+          s = read(p)
+          if "./portal-polish.css" not in s:
+            s = s.replace("import SEO from '../ui/SEO';\n", "import SEO from '../ui/SEO';\nimport './portal-polish.css';\n", 1)
+          write(p, s)
+
+          # 6) Remove the temporary diagnostic/inspection files from the product branch.
+          for path in ['schedule-scope-diagnostic.txt']:
+            q = Path(path)
+            if q.exists(): q.unlink()
+          import shutil
+          shutil.rmtree('inspect-slices', ignore_errors=True)
+      - name: Install and build
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Commit successful patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add netlify/functions/class-schedules.ts src/pages/portal/StaffDashboard.tsx src/components/portal/StaffClassSchedulesManager.tsx src/components/portal/SchoolClassScheduleTimeline.tsx src/components/portal/PortalLayout.tsx src/components/portal/portal-polish.css
+          git rm -f .github/workflows/inspect-schedule-scope.yml .github/workflows/apply-tutor-school-scope-fix.yml || true
+          git add -A
+          git commit -m "fix: scope tutor school learners and polish schedules" || exit 0
+          git push
