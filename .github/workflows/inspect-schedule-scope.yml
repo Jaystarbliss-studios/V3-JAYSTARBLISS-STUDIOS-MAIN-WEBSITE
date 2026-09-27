@@ -1,0 +1,34 @@
+name: Inspect schedule scope
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/tutor-school-private-schedule-scope]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect relevant files
+        shell: bash
+        run: |
+          set -e
+          for f in \
+            src/components/portal/StaffClassSchedulesManager.tsx \
+            src/components/portal/PortalLayout.tsx \
+            src/pages/portal/StaffDashboard.tsx \
+            src/pages/portal/StudentDashboard.tsx \
+            src/pages/portal/SchoolDashboard.tsx \
+            src/pages/portal/ParentDashboard.tsx \
+            netlify/functions/class-schedules.ts \
+            firestore.rules; do
+            echo "===== $f ====="
+            if [ -f "$f" ]; then
+              grep -nE "assignedSchools|assignedStudents|filterTarget|classSchedules|schoolId|studentId|tutorId|targetType|student|schedule|appearance|Billing|Log Out|sidebar|imperson" "$f" | head -n 260 || true
+            else
+              echo "MISSING"
+            fi
+          done
+          echo "===== package scripts ====="
+          cat package.json
