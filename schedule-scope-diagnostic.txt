@@ -1,4 +1,4 @@
-===== src/components/portal/StaffClassSchedulesManager.tsx =====
+===== src/components/portal/StaffClassSchedulesManager.tsx (key matches) =====
 25:import { getEffectiveAuth } from '../../utils/impersonation';
 29:  scheduleGroupId?: string;
 30:  targetType?: 'SCHOOL' | 'STUDENT' | 'school' | 'student' | 'parent' | 'individual';
@@ -74,7 +74,7 @@
 804:                        onChange={e => setRescheduleStartTime(e.target.value)}
 812:                        value={rescheduleEndTime}
 813:                        onChange={e => setRescheduleEndTime(e.target.value)}
-===== src/components/portal/PortalLayout.tsx =====
+===== src/components/portal/PortalLayout.tsx (key matches) =====
 27:  const role = location.pathname.split('/')[2] || 'student';
 37:  const [sidebarExpanded, setSidebarExpanded] = useState(false);
 92:    if (role === 'student') {
@@ -96,7 +96,7 @@
 214:              <motion.span animate={{ opacity: sidebarExpanded ? 1 : 0 }} transition={{ duration: 0.15 }} className="min-w-0 pl-2 whitespace-nowrap overflow-hidden">
 230:              <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Appearance</span>
 236:              <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Log Out</span>
-===== src/pages/portal/StaffDashboard.tsx =====
+===== src/pages/portal/StaffDashboard.tsx (key matches) =====
 12:import { getEffectiveAuth } from '../../utils/impersonation';
 17:  const [students, setStudents] = useState<any[]>([]);
 18:  const [assignedSchools, setAssignedSchools] = useState<any[]>([]);
@@ -123,7 +123,7 @@
 275:              Broadcast a Google Meet, Zoom, or Scratch link directly to the student portal.
 287:                  {students.map(s => (
 288:                    <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>
-===== src/pages/portal/StudentDashboard.tsx =====
+===== src/pages/portal/StudentDashboard.tsx (key matches) =====
 40:import { getEffectiveAuth } from '../../utils/impersonation';
 58:  schoolId?: string;
 64:  schedule?: string;
@@ -267,7 +267,7 @@
 1149:              studentClass={student.class || student.grade || 'Not recorded'}
 1150:              enrolledSubjects={student.subjects || []}
 1169:                <Link to="/portal/student/courses" className="text-xs font-bold text-brand-red inline-flex items-center gap-1">
-===== src/pages/portal/SchoolDashboard.tsx =====
+===== src/pages/portal/SchoolDashboard.tsx (key matches) =====
 12:import { getEffectiveAuth } from '../../utils/impersonation';
 14:export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
 70:  const [studentCount, setStudentCount] = useState(0);
@@ -316,7 +316,7 @@
 543:                const net = Math.max(0, studentCount + adj);
 555:            const earliestDue = progsWithFee.find((p: any) => p.nextBillingDueDate)?.nextBillingDueDate || school?.billing?.nextDueDate;
 617:                          <span>Billing Cycle:</span>
-===== src/pages/portal/ParentDashboard.tsx =====
+===== src/pages/portal/ParentDashboard.tsx (key matches) =====
 11:import { getEffectiveAuth } from '../../utils/impersonation';
 20:  schedule?: string;
 35:  const [schedules, setSchedules] = useState<any[]>([]);
@@ -350,7 +350,7 @@
 384:              <Field label="Age / Grade" htmlFor="parent-student-age">
 385:                <input id="parent-student-age" type="text" required value={studentAge} onChange={event => setStudentAge(event.target.value)} placeholder="e.g. 10 years / Grade 5" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900" />
 442:    <h3 className="mt-3 text-xs font-bold text-slate-900 dark:text-white">No students linked yet</h3>
-===== netlify/functions/class-schedules.ts =====
+===== netlify/functions/class-schedules.ts (key matches) =====
 51:  ['tutorId', 'staffId', 'facultyId', 'firebaseUid'].forEach(key => { if (user[key]) ids.add(String(user[key])); });
 59:      [data.tutorId, data.staffId, data.firebaseUid, data.uid].forEach(v => { if (v) ids.add(String(v)); });
 69:  if (record.tutorId && identity.ids.has(String(record.tutorId))) return true;
@@ -431,7 +431,7 @@
 325:      return json(200, { updated: true, changed, scheduleGroupId });
 332:    console.error('Class schedules error:', error);
 333:    return json(500, { error: 'Unable to process class schedules.' });
-===== firestore.rules =====
+===== firestore.rules (key matches) =====
 54:    function hasStaffSchoolAccess(schoolId) { 
 55:      return isAuth() && schoolId != null && (
 58:          get(/databases/$(database)/documents/staffSchoolAccess/$(request.auth.uid)).data.get('schoolId', null) == schoolId || 
@@ -501,6 +501,1566 @@
 257:      allow read: if isAnyAdmin() || (isAuth() && isSchoolUser() && isSameSchool(schoolId)) || (isAuth() && (resource.data.get('email', '') == request.auth.token.email || resource.data.get('contactEmail', '') == request.auth.token.email || resource.data.get('adminUid', '') == request.auth.uid || resource.data.get('firebaseUid', '') == request.auth.uid)); 
 258:      allow write: if isAnyAdmin() || (isAuth() && isSameSchool(schoolId)); 
 261:    match /classSchedules/{scheduleId} { 
+===== PortalLayout 1-280 =====
+import React, { useEffect, useRef, useState } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X,
+  Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound,
+  Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards,
+  ExternalLink, Award
+} from 'lucide-react';
+import { signOut, sendEmailVerification } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Tooltip } from '../ui/Tooltip';
+import { JaystarblissIcon } from '../common/JaystarblissLogo';
+import ChangePasswordModal from './ChangePasswordModal';
+import NotificationBell from '../common/NotificationBell';
+import SEO from '../ui/SEO';
+
+type NavItem = { name: string; path: string; icon: React.ReactNode; desc: string };
+
+const PortalLayout: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
+  const role = location.pathname.split('/')[2] || 'student';
+
+  const [displayName, setDisplayName] = useState('Portal User');
+  const [userEmail, setUserEmail] = useState('');
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(true);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    setUserEmail(user?.email || '');
+    setIsEmailVerified(user?.emailVerified ?? true);
+    setPhotoURL(user?.photoURL || null);
+    setDisplayName(
+      sessionStorage.getItem('userName') ||
+      user?.displayName ||
+      user?.email?.split('@')[0] ||
+      'Portal User'
+    );
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setSidebarExpanded(false);
+  }, [location.pathname]);
+
+  const logout = async () => {
+    await signOut(auth).catch(() => undefined);
+    sessionStorage.clear();
+    navigate('/portal');
+  };
+
+  const resendVerification = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setResendingVerification(true);
+    try {
+      await sendEmailVerification(user);
+      toast.success(`Verification link sent to ${user.email}.`);
+    } catch (error: any) {
+      toast.error(error?.code === 'auth/too-many-requests' ? 'Please wait before requesting another link.' : 'Unable to send verification email.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  const navLinks: NavItem[] = (() => {
+    const items: NavItem[] = [
+      { name: 'Dashboard', path: `/portal/${role}`, icon: <LayoutDashboard size={18} />, desc: 'Portal Overview' }
+    ];
+    if (role === 'student') {
+      items.push(
+        { name: 'Learning & Tracks', path: '/portal/student/courses', icon: <GraduationCap size={18} />, desc: 'Curriculum & Series' },
+        { name: 'Class Schedules', path: '/portal/student/calendar', icon: <CalendarDays size={18} />, desc: 'Programme timetable & class status' },
+        { name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live lessons & sessions' },
+        { name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' },
+        { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' },
+        { name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }
+      );
+      if (sessionStorage.getItem('studentRegistrationType') === 'individual') {
+        items.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
+      }
+    } else if (role === 'staff') {
+      items.push(
+        { name: 'Live Classes', path: '/portal/staff/classes', icon: <Radio size={18} />, desc: 'Teaching roster' },
+        { name: 'Student Access', path: '/portal/staff/credentials', icon: <KeyRound size={18} />, desc: 'Access credentials' },
+        { name: 'Lesson Resources', path: '/portal/staff/resources', icon: <BookOpen size={18} />, desc: 'Lesson materials' },
+        { name: 'Subjects I Teach', path: '/portal/staff/subjects', icon: <Award size={18} />, desc: 'Teaching subjects & approvals' },
+        { name: 'Calendar', path: '/portal/staff/calendar', icon: <CalendarDays size={18} />, desc: 'Teaching timetable' },
+        { name: 'Billing / Fees', path: '/portal/staff/payments', icon: <WalletCards size={18} />, desc: 'Tutor ledger & payouts' }
+      );
+    } else if (role === 'parent') {
+      items.push(
+        { name: 'Calendar', path: '/portal/parent/calendar', icon: <CalendarDays size={18} />, desc: 'Class timetable' },
+        { name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Learning materials' },
+        { name: 'Payments & Fees', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & statements' }
+      );
+    } else if (role === 'school') {
+      items.push(
+        { name: 'Learners Roster', path: '/portal/school/roster', icon: <Users size={18} />, desc: 'Student records' },
+        { name: 'Student Access', path: '/portal/school/credentials', icon: <KeyRound size={18} />, desc: 'Student access packs' },
+        { name: 'Class Schedules', path: '/portal/school/schedules', icon: <CalendarDays size={18} />, desc: 'Classes & attendance' },
+        { name: 'Exam Passcodes', path: '/portal/school/passcodes', icon: <ShieldCheck size={18} />, desc: 'Active assessment keys' },
+        { name: 'CBT Assessments', path: '/portal/school/exams', icon: <FileCheck2 size={18} />, desc: 'Student exams' },
+        { name: 'Institutional Resources', path: '/portal/school/resources', icon: <Library size={18} />, desc: 'School learning materials' },
+        { name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'School fees & payments' }
+      );
+    }
+    items.push({ name: 'Settings', path: `/portal/${role}/settings`, icon: <SlidersHorizontal size={18} />, desc: 'Account preferences' });
+    return items;
+  })();
+
+  const roleTitle = role.charAt(0).toUpperCase() + role.slice(1);
+  const accessCodeOnly = !userEmail && Boolean(sessionStorage.getItem('studentDocId'));
+
+  const NavLink = ({ item, mobile = false }: { item: NavItem; mobile?: boolean }) => {
+    const active = location.pathname === item.path;
+    return (
+      <Tooltip content={!mobile && !sidebarExpanded ? `${item.name} • ${item.desc}` : item.desc} placement="right" delay={200}>
+        <Link
+          to={item.path}
+          onClick={() => mobile && setMobileMenuOpen(false)}
+          className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden ${
+            active ? 'bg-brand-red text-white shadow-sm font-bold' : 'text-slate-300 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <span className="w-8 h-8 flex items-center justify-center shrink-0">{item.icon}</span>
+          <span className={`min-w-0 overflow-hidden text-ellipsis pl-2 ${mobile ? '' : sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {item.name}
+          </span>
+        </Link>
+      </Tooltip>
+    );
+  };
+
+  return (
+    <div className="h-screen w-full bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans">
+      <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />
+
+      <div className="md:hidden bg-[#0F1117] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/10 shrink-0">
+        <Link to="/" className="flex items-center gap-2 min-w-0">
+          <JaystarblissIcon className="w-7 h-7 shrink-0" />
+          <span className="font-bold text-xs uppercase whitespace-nowrap">JAYSTARBLISS</span>
+          <span className="text-[10px] uppercase font-bold bg-brand-red px-2 py-0.5 rounded text-white">{role}</span>
+        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          <NotificationBell role={role} />
+          <button type="button" onClick={toggleTheme} className="p-2 rounded-xl bg-white/10 text-slate-300" aria-label="Toggle theme">
+            {theme === 'dark' ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} />}
+          </button>
+          <button type="button" onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl bg-white/10 text-white" aria-label="Open menu"><Menu size={20} /></button>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-50">
+            <motion.button aria-label="Close menu" className="absolute inset-0 bg-black/65" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMobileMenuOpen(false)} />
+            <motion.aside
+              initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="absolute inset-y-0 left-0 w-[72vw] max-w-[300px] bg-[#0F1117] text-white border-r border-white/10 shadow-2xl flex flex-col p-3 overflow-y-auto"
+            >
+              <div className="flex items-center justify-between h-12 px-1 border-b border-white/10 shrink-0">
+                <Link to="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2"><JaystarblissIcon className="w-6 h-6" /><span className="text-xs font-bold">JAYSTARBLISS</span></Link>
+                <button type="button" onClick={() => setMobileMenuOpen(false)} className="p-1.5 rounded-lg bg-white/10"><X size={18} /></button>
+              </div>
+              <div className="px-3 py-2.5 my-3 bg-white/5 rounded-2xl flex items-center gap-3 shrink-0">
+                {photoURL ? <img src={photoURL} alt="" className="w-8 h-8 rounded-full object-cover border border-brand-red/40" referrerPolicy="no-referrer" /> : <div className="w-8 h-8 rounded-full bg-brand-red flex items-center justify-center text-xs font-bold">{displayName.charAt(0)}</div>}
+                <div className="min-w-0"><p className="text-xs font-bold truncate">{displayName}</p><p className="text-[10px] text-slate-400 truncate">{userEmail || `${role} portal`}</p></div>
+              </div>
+              <nav className="space-y-1">
+                {navLinks.map(item => <NavLink key={item.name} item={item} mobile />)}
+              </nav>
+              <button type="button" onClick={logout} className="mt-auto pt-3 border-t border-white/10 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600/80 text-white text-xs font-bold"><LogOut size={14} /> Log Out</button>
+            </motion.aside>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <motion.aside
+        initial={false}
+        animate={{ width: sidebarExpanded ? 220 : 72 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
+        className="hidden md:flex bg-[#0F1117] text-white flex-col h-full border-r border-slate-800/80 shrink-0 select-none overflow-hidden"
+      >
+        <div className="h-16 px-3 border-b border-slate-800/80 flex items-center shrink-0 overflow-hidden">
+          <Tooltip content="Return to Main Website" placement="right">
+            <Link to="/" className="grid grid-cols-[40px_minmax(0,1fr)] items-center w-full h-full overflow-hidden">
+              <span className="w-10 h-10 flex items-center justify-center shrink-0"><JaystarblissIcon className="w-8 h-8" /></span>
+              <motion.span animate={{ opacity: sidebarExpanded ? 1 : 0 }} transition={{ duration: 0.15 }} className="min-w-0 pl-2 whitespace-nowrap overflow-hidden">
+                <span className="block text-sm font-bold">JAYSTARBLISS <ExternalLink size={11} className="inline opacity-50" /></span>
+                <span className="block text-[10px] text-brand-red font-mono uppercase font-bold">{role} Workspace</span>
+              </motion.span>
+            </Link>
+          </Tooltip>
+        </div>
+
+        <nav className="flex-1 px-2.5 py-3 overflow-y-auto overflow-x-hidden custom-scrollbar space-y-1">
+          {navLinks.map(item => <NavLink key={item.name} item={item} />)}
+        </nav>
+
+        <div className="p-2.5 border-t border-slate-800/80 shrink-0 space-y-1">
+          <Tooltip content="Toggle Theme" placement="right">
+            <button type="button" onClick={toggleTheme} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold overflow-hidden">
+              <span className="w-8 h-8 flex items-center justify-center shrink-0">{theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}</span>
+              <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Appearance</span>
+            </button>
+          </Tooltip>
+          <Tooltip content="Sign Out" placement="right">
+            <button type="button" onClick={logout} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-red-500/10 text-slate-400 hover:text-red-400 text-xs font-semibold overflow-hidden">
+              <span className="w-8 h-8 flex items-center justify-center shrink-0"><LogOut size={15} /></span>
+              <span className={`pl-2 whitespace-nowrap ${sidebarExpanded ? 'opacity-100' : 'opacity-0'}`}>Log Out</span>
+            </button>
+          </Tooltip>
+        </div>
+      </motion.aside>
+
+      <main className="flex-1 h-full min-w-0 flex flex-col overflow-y-auto custom-scrollbar pb-16 md:pb-0 bg-[#F8FAFC] dark:bg-[#0B0F17]">
+        {!isEmailVerified && !accessCodeOnly && (
+          <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold flex items-center justify-between gap-2 shrink-0">
+            <span className="truncate">Your email address ({userEmail}) is unverified.</span>
+            <button type="button" onClick={resendVerification} disabled={resendingVerification} className="underline font-bold shrink-0">{resendingVerification ? 'Sending…' : 'Resend Link'}</button>
+          </div>
+        )}
+
+        <header className="hidden md:flex items-center justify-between px-6 py-3.5 bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-20 shrink-0">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">{roleTitle} Workspace</h2>
+          <div className="flex items-center gap-3">
+            <NotificationBell role={role} />
+            <div className="relative" ref={profileRef}>
+              <button type="button" onClick={() => setShowProfileMenu(v => !v)} className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="User profile menu">
+                {photoURL ? <img src={photoURL} alt={displayName} className="w-8 h-8 rounded-full object-cover border border-brand-red/50" referrerPolicy="no-referrer" /> : <div className="w-8 h-8 rounded-full bg-brand-red text-white flex items-center justify-center font-bold text-xs">{displayName.charAt(0)}</div>}
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{displayName}</span>
+              </button>
+              <AnimatePresence>
+                {showProfileMenu && (
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs font-semibold">
+                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800"><p className="font-bold truncate">{displayName}</p><p className="text-[11px] text-slate-500 truncate">{userEmail || `${role} account`}</p></div>
+                    <Link to={`/portal/${role}/settings`} onClick={() => setShowProfileMenu(false)} className="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"><SlidersHorizontal size={14} /> Account Settings</Link>
+                    <button type="button" onClick={() => { setShowProfileMenu(false); setShowPasswordModal(true); }} className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-left"><KeyRound size={14} /> Change Password</button>
+                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                    <button type="button" onClick={logout} className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-brand-red text-left font-bold"><LogOut size={14} /> Sign Out</button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 p-4 sm:p-6 lg:p-8"><Outlet /></div>
+      </main>
+
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0F1117]/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar gap-1 z-30 shadow-lg">
+        {navLinks.map(item => {
+          const active = location.pathname === item.path;
+          return <Link key={item.name} to={item.path} className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl shrink-0 min-w-[62px] ${active ? 'text-brand-red font-bold' : 'text-slate-500 dark:text-slate-400'}`}>{item.icon}<span className="text-[9px] mt-0.5 truncate max-w-[65px]">{item.name}</span></Link>;
+===== StaffDashboard 1-330 =====
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { db, auth } from '../../lib/firebase';
+import { collection, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { 
+  Users, FileText, Video, Clock, CheckCircle2, 
+  ShieldCheck, ArrowRight, School, CreditCard, BookOpen, Key, Calendar
+} from 'lucide-react';
+import SEO from '../../components/ui/SEO';
+import { DashboardGreeting } from '../../components/portal/DashboardGreeting';
+import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
+
+const StaffDashboard: React.FC = () => {
+  const { toast } = useToast();
+  const [resources, setResources] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [assignedSchools, setAssignedSchools] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Modals state
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [targetStudentId, setTargetStudentId] = useState('');
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkPlatform, setLinkPlatform] = useState('Google Meet');
+  const [meetingTime, setMeetingTime] = useState('');
+  const [submittingLink, setSubmittingLink] = useState(false);
+  const [successMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const fetchStaffData = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const effective = getEffectiveAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser && !effective.isMasquerading) return;
+
+      const staffUid = effective.effectiveUid || currentUser?.uid;
+
+      // 1. Fetch Curriculum Resources Count
+      try {
+        const [staffResSnap, generalResSnap, schoolResSnap] = await Promise.all([
+          getDocs(collection(db, 'staffGeneralResources')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'resources')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] }))
+        ]);
+        const combined = [
+          ...staffResSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          ...generalResSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          ...schoolResSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        ];
+        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        setResources(unique);
+      } catch (e) {
+        console.warn('staffGeneralResources error:', e);
+      }
+
+      // 2. Fetch Assigned Students
+      const assignmentFields = ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId'];
+      const studentMap = new Map<string, any>();
+      if (staffUid) {
+        for (const field of assignmentFields) {
+          for (const collectionName of ['individualStudents', 'students']) {
+            try {
+              const snap = await getDocs(query(collection(db, collectionName), where(field, '==', staffUid)));
+              snap.forEach(d => studentMap.set(d.id, { id: d.id, ...d.data() }));
+            } catch (e) {
+              console.warn(`Assigned ${collectionName} query failed for ${field}:`, e);
+            }
+          }
+        }
+      }
+      const fetchedStudents = Array.from(studentMap.values());
+      setStudents(fetchedStudents);
+
+      // 3. Fetch assigned schools
+      try {
+        const schoolsSnap = await getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any));
+        const allSchools = schoolsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const mySchools = allSchools.filter((sch: any) => {
+          if (!staffUid) return false;
+          if (sch.tutorId === staffUid || sch.assignedTutorId === staffUid || sch.assignedStaffId === staffUid) return true;
+          if (Array.isArray(sch.assignedTutors) && sch.assignedTutors.includes(staffUid)) return true;
+          if (Array.isArray(sch.tutors) && sch.tutors.some((t: any) => t.id === staffUid || t.email === currentUser?.email)) return true;
+          return false;
+        });
+        setAssignedSchools(mySchools);
+      } catch (e) {
+        console.warn('Assigned schools fetch failed:', e);
+      }
+
+    } catch (err) {
+      console.error('Error loading staff dashboard:', err);
+      setErrorMsg('Some workspace data could not be loaded. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStaffData();
+  }, []);
+
+  const handlePostLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetStudentId || !linkUrl) {
+      toast.error('Please select a student and provide a valid URL.');
+      return;
+    }
+    setSubmittingLink(true);
+    try {
+      const user = auth.currentUser;
+      const effective = getEffectiveAuth();
+      const staffUid = effective.effectiveUid || user?.uid;
+      const targetStudent = students.find(s => s.id === targetStudentId);
+
+      await addDoc(collection(db, 'personalLinks'), {
+        title: linkTitle || `${linkPlatform} Class Session`,
+        url: linkUrl,
+        platform: linkPlatform,
+        meetingTime: meetingTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        studentId: targetStudentId,
+        studentName: targetStudent?.fullName || targetStudent?.studentName || 'Student',
+        tutorId: staffUid,
+        tutorName: effective.effectiveName || user?.displayName || 'Faculty Member',
+        createdAt: serverTimestamp()
+      });
+
+      toast.success('Live class link broadcast to student portal!');
+      setShowLinkModal(false);
+      setLinkTitle('');
+      setLinkUrl('');
+      setMeetingTime('');
+      setTargetStudentId('');
+    } catch (err) {
+      console.error('Post link error:', err);
+      toast.error('Failed to post live class link.');
+    } finally {
+      setSubmittingLink(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-interface space-y-6">
+      <SEO 
+        title="Faculty Workspace Overview | Jaystarbliss Studios" 
+        description="Access assigned students, teaching schedules, curriculum materials, and ledger payouts." 
+        noindex={true} 
+      />
+
+      <DashboardGreeting 
+        role="Faculty Mentor" 
+        subtitle="Deliver interactive lessons, manage assigned learners, review teaching schedules, and access faculty tools." 
+      />
+
+      {successMsg && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-3 animate-fadeIn">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-700 dark:text-red-300 text-xs flex items-center gap-3 animate-fadeIn">
+          <ShieldCheck size={18} className="text-red-600 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Quick Summary Bento Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <Users size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Assigned Learners</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : students.length}</p>
+          </div>
+        </div>
+
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shrink-0">
+            <School size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Partner Schools</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : assignedSchools.length}</p>
+          </div>
+        </div>
+
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center shrink-0">
+            <FileText size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Curriculum Library</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : resources.length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Faculty Command Center Hub Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Card 1: Class Schedules & Live Classrooms */}
+        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-brand-red/40 transition-all">
+          <div className="space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center">
+              <Video size={22} />
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-white text-base">
+              Class Schedules & Teaching Roster
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Access your combined daily class schedules, update lesson attendance statuses, and broadcast live virtual meeting rooms.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <Link
+              to="/portal/staff/classes"
+              className="inline-flex items-center gap-2 text-xs font-black text-brand-red hover:underline"
+            >
+              <span>Open Class Schedules</span>
+              <ArrowRight size={14} />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowLinkModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Video size={13} className="text-brand-red" />
+              <span>Broadcast Link</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Faculty Billing & Payout Center */}
+        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all">
+          <div className="space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <CreditCard size={22} />
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-white text-base">
+              Billing Center & Payouts
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Manage your fintech account wallet, submit withdrawal requests, and view detailed teaching settlement history.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Link
+              to="/portal/staff/payments"
+              className="inline-flex items-center gap-2 text-xs font-black text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              <span>Open Billing Center</span>
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Broadcast Live Class Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">
+              Post Live Class Link
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Broadcast a Google Meet, Zoom, or Scratch link directly to the student portal.
+            </p>
+            <form onSubmit={handlePostLink} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Student</label>
+                <select 
+                  required 
+                  value={targetStudentId} 
+                  onChange={e => setTargetStudentId(e.target.value)} 
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                >
+                  <option value="">-- Choose Student --</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Session Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="e.g. Python Loops & Conditionals Lab" 
+                  value={linkTitle} 
+                  onChange={e => setLinkTitle(e.target.value)} 
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Platform</label>
+                  <select 
+                    value={linkPlatform} 
+                    onChange={e => setLinkPlatform(e.target.value)} 
+                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                  >
+                    <option value="Google Meet">Google Meet</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Microsoft Teams">MS Teams</option>
+                    <option value="Scratch Classroom">Scratch Studio</option>
+                    <option value="Code.org">Code.org</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Scheduled Time</label>
+                  <input 
+                    type="time" 
+                    value={meetingTime} 
+                    onChange={e => setMeetingTime(e.target.value)} 
+                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+
+===== SchoolDashboard 1-330 =====
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { Award, Building2, BookOpen, Calendar, ChevronRight, Copy, CreditCard, ExternalLink, Eye, Key, Link2, Loader2, Search, Users, X, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import SEO from '../../components/ui/SEO';
+import DashboardGreeting from '../../components/portal/DashboardGreeting';
+import ResourceLibrary from './ResourceLibrary';
+import SchoolClassScheduleTimeline from '../../components/portal/SchoolClassScheduleTimeline';
+import { auth, db } from '../../lib/firebase';
+import { formatNaira } from '../../lib/billing';
+import { useToast } from '../../contexts/ToastContext';
+import { getEffectiveAuth } from '../../utils/impersonation';
+
+export type SchoolDashboardTab = 'overview' | 'roster' | 'exams' | 'passcodes' | 'resources' | 'links' | 'schedules' | 'partnership';
+export interface SchoolDashboardProps { initialTab?: SchoolDashboardTab; }
+type SchoolRecord = { 
+  id: string; 
+  name?: string; 
+  plan?: string; 
+  coordinator?: string; 
+  labDays?: string; 
+  email?: string; 
+  status?: string; 
+  billing?: { 
+    baseAmount?: number; 
+    cycle?: string; 
+    mode?: string; 
+    status?: string; 
+    nextDueDate?: string; 
+    notes?: string; 
+    allowedModes?: string[]; 
+    lastReminderSentAt?: string; 
+  };
+  programs?: any[];
+};
+type Passcode = { id: string; classLevel: string; subject?: string; examTitle: string; passcode: string; isActive: boolean; validUntil?: string; invigilatorName?: string; allocatedCadetsCount?: number; };
+type Exam = { id: string; title: string; subject?: string; term?: string; duration?: string; link?: string; url?: string; fileUrl?: string; status?: string; date?: string; targetClass?: string; description?: string; passcodeProtected?: boolean; };
+type SchoolLink = { id: string; title: string; url: string; description?: string; };
+type ClassSchedule = { id:string; date:string; startTime:string; endTime:string; classLevel:string; title:string; tutorName?:string; status:string; };
+
+const jsonFetch = async <T,>(url: string): Promise<T> => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Your session has expired. Please sign in again.');
+  const token = await user.getIdToken();
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || 'Unable to complete the request.');
+  return result as T;
+};
+
+const getEmbeddableUrl = (url: string) => {
+  if (!url) return '';
+  const gdMatch = url.match(/drive\.google\.com\/file\/d\/([^/?]+)/);
+  if (gdMatch) return `https://docs.google.com/viewer?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${gdMatch[1]}`)}&embedded=true`;
+  const gdOpen = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
+  if (gdOpen) return `https://drive.google.com/file/d/${gdOpen[1]}/preview`;
+  if (url.includes('dropbox.com') && !url.includes('dropboxusercontent.com')) return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '');
+  if (url.includes('1drv.ms') || url.includes('onedrive.live.com')) return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+  return url;
+};
+
+const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const effective = getEffectiveAuth();
+  const [tab, setTab] = useState<SchoolDashboardTab>(initialTab || 'overview');
+  const [school, setSchool] = useState<SchoolRecord | null>(null);
+  const [studentCount, setStudentCount] = useState(0);
+  const [passcodes, setPasscodes] = useState<Passcode[]>([]);
+  const [classSchedules, setClassSchedules] = useState<ClassSchedule[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [links, setLinks] = useState<SchoolLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [reader, setReader] = useState<{ url: string; title: string } | null>(null);
+  const [readerLoading, setReaderLoading] = useState(true);
+  const [passcodeForm, setPasscodeForm] = useState<Partial<Passcode> | null>(null);
+
+  const resolvedTab = useCallback((): SchoolDashboardTab => {
+    if (initialTab) return initialTab;
+    const path = location.pathname.toLowerCase();
+    if (path.includes('/roster')) return 'roster';
+    if (path.includes('/exams')) return 'exams';
+    if (path.includes('/passcodes')) return 'passcodes';
+    if (path.includes('/resources')) return 'resources';
+    if (path.includes('/links')) return 'links';
+    if (path.includes('/schedules')) return 'schedules';
+    if (path.includes('/partnership')) return 'partnership';
+    const requested = searchParams.get('tab') as SchoolDashboardTab;
+    return ['overview','roster','exams','passcodes','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
+  }, [initialTab, location.pathname, searchParams]);
+
+  useEffect(() => {
+    const nextTab = resolvedTab();
+    setTab(prev => (prev !== nextTab ? nextTab : prev));
+  }, [resolvedTab]);
+  const changeTab = (next: SchoolDashboardTab) => { setTab(next); navigate(next === 'overview' ? '/portal/school' : `/portal/school/${next}`); };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const effective = getEffectiveAuth();
+      if (!auth.currentUser && !effective.isMasquerading) throw new Error('Authentication required.');
+
+      let schoolId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || '';
+      let schoolRecordData: SchoolRecord | null = null;
+
+      // 1. If we have a direct schoolId, check schools collection
+      if (schoolId) {
+        try {
+          const schoolSnap = await getDoc(doc(db, 'schools', schoolId));
+          if (schoolSnap.exists()) {
+            schoolRecordData = { ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id };
+          }
+        } catch (e) {
+          console.warn('Direct school lookup error:', e);
+        }
+      }
+
+      // 2. If not found, check by effective UID in users collection
+      if (!schoolRecordData && effective.effectiveUid) {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', effective.effectiveUid));
+          if (userSnap.exists()) {
+            const uData = userSnap.data();
+            const sId = String(uData.schoolId || '').trim();
+            if (sId) {
+              schoolId = sId;
+              const schoolSnap = await getDoc(doc(db, 'schools', sId));
+              if (schoolSnap.exists()) {
+                schoolRecordData = { ...(schoolSnap.data() as Omit<SchoolRecord, 'id'>), id: schoolSnap.id };
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('User profile school lookup error:', e);
+        }
+      }
+
+      // 3. If still not found, find in schools collection by matching ID or email or adminUid
+      if (!schoolRecordData) {
+        try {
+          const schoolsSnap = await getDocs(collection(db, 'schools'));
+          const found = schoolsSnap.docs.find(d => 
+            d.id === schoolId || 
+            d.id === effective.effectiveUid ||
+            d.data().email?.toLowerCase() === effective.effectiveEmail?.toLowerCase() ||
+            d.data().firebaseUid === effective.effectiveUid ||
+            d.data().adminUid === effective.effectiveUid
+          );
+          if (found) {
+            schoolId = found.id;
+            schoolRecordData = { ...(found.data() as Omit<SchoolRecord, 'id'>), id: found.id };
+          }
+        } catch (e) {
+          console.warn('Schools collection lookup error:', e);
+        }
+      }
+
+      if (!schoolRecordData) {
+        // Fallback default record if masquerading or previewing
+        const cachedName = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name');
+        schoolRecordData = {
+          id: schoolId || 'school-default',
+          name: effective.effectiveName || cachedName || 'Partner School Institution',
+          plan: 'Institutional Partner Plan',
+          coordinator: 'School Administrator',
+          labDays: 'Mon - Fri'
+        };
+      }
+
+      if (schoolRecordData.name && !['School Portal', 'school-default', 'Partner School Institution'].includes(schoolRecordData.name)) {
+        sessionStorage.setItem('schoolName', schoolRecordData.name);
+        localStorage.setItem('jaystar_cached_school_name', schoolRecordData.name);
+      }
+
+      setSchool(schoolRecordData);
+      const activeSchoolId = schoolRecordData.id;
+
+      let fetchedStudentCount = 0;
+      try {
+        if (!effective.isMasquerading) {
+          const studentsResult = await jsonFetch<{ count: number; schoolName?: string }>('/.netlify/functions/school-students');
+          fetchedStudentCount = Number(studentsResult.count || 0);
+          if (studentsResult.schoolName && studentsResult.schoolName !== 'School Portal') {
+            sessionStorage.setItem('schoolName', studentsResult.schoolName);
+            setSchool(prev => prev ? { ...prev, name: studentsResult.schoolName } : prev);
+          }
+        } else {
+          throw new Error('Impersonation mode using client-side Firestore query');
+        }
+      } catch {
+        const [studSnap, indivSnap, allStudSnap, allIndivSnap] = await Promise.all([
+          getDocs(query(collection(db, 'students'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] }))
+        ]);
+
+        const seenIds = new Set<string>();
+        const targetLow = activeSchoolId.toLowerCase();
+        const nameLow = (schoolRecordData.name || '').toLowerCase();
+        const codeLow = ((schoolRecordData as any).schoolCode || '').toLowerCase();
+
+        const checkDoc = (d: any) => {
+          if (seenIds.has(d.id)) return;
+          const data = d.data();
+          const sIdField = String(data.schoolId || data.school_id || '').trim().toLowerCase();
+          const sNameField = String(data.schoolName || data.school || data.institutionName || data.institution || '').trim().toLowerCase();
+          const sCodeField = String(data.schoolCode || '').trim().toLowerCase();
+
+          const isMatch = (
+            (targetLow && (sIdField === targetLow || sIdField.includes(targetLow) || targetLow.includes(sIdField))) ||
+            (nameLow && (sNameField === nameLow || sNameField.includes(nameLow) || nameLow.includes(sNameField) || sIdField === nameLow || sIdField.includes(nameLow))) ||
+            (codeLow && (sCodeField === codeLow || sCodeField === targetLow || sIdField === codeLow))
+          );
+
+          if (isMatch) seenIds.add(d.id);
+        };
+
+        studSnap.docs.forEach(checkDoc);
+        indivSnap.docs.forEach(checkDoc);
+        allStudSnap.docs.forEach(checkDoc);
+        allIndivSnap.docs.forEach(checkDoc);
+
+        fetchedStudentCount = seenIds.size;
+      }
+
+      try {
+        const scheduleResult = await jsonFetch<{ schedules: ClassSchedule[] }>('/.netlify/functions/class-schedules');
+        if (Array.isArray(scheduleResult.schedules) && scheduleResult.schedules.length > 0) {
+          setClassSchedules(scheduleResult.schedules);
+        } else {
+          throw new Error('Empty from server, try Firestore query');
+        }
+      } catch {
+        const [schedSnap, nameSnap] = await Promise.all([
+          getDocs(query(collection(db, 'classSchedules'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+          schoolRecordData.name ? getDocs(query(collection(db, 'classSchedules'), where('schoolName', '==', schoolRecordData.name))).catch(() => ({ docs: [] })) : Promise.resolve({ docs: [] })
+        ]);
+        const schedMap = new Map<string, ClassSchedule>();
+        schedSnap.docs.forEach(d => schedMap.set(d.id, { id: d.id, ...d.data() } as ClassSchedule));
+        nameSnap.docs.forEach(d => {
+          if (!schedMap.has(d.id)) schedMap.set(d.id, { id: d.id, ...d.data() } as ClassSchedule);
+        });
+        setClassSchedules(Array.from(schedMap.values()));
+      }
+
+      const [examSnap, linkSnap, passSnap] = await Promise.all([
+        getDocs(query(collection(db, 'schoolExams'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolLinks'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'schoolPasscodes'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
+      ]);
+      setStudentCount(fetchedStudentCount);
+      setExams(examSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Exam,'id'>) })));
+      setLinks(linkSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<SchoolLink,'id'>) })));
+      setPasscodes(passSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<Passcode,'id'>) })));
+    } catch (error) {
+      setSchool(null); setStudentCount(0); setExams([]); setLinks([]); setPasscodes([]); setClassSchedules([]);
+      toast.error(error instanceof Error ? error.message : 'Unable to load school operations.');
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const filteredExams = useMemo(() => { const q = search.trim().toLowerCase(); return q ? exams.filter(e => [e.title,e.subject,e.term,e.targetClass].some(v => String(v || '').toLowerCase().includes(q))) : exams; }, [exams, search]);
+  const filteredLinks = useMemo(() => { const q = search.trim().toLowerCase(); return q ? links.filter(l => [l.title,l.description,l.url].some(v => String(v || '').toLowerCase().includes(q))) : links; }, [links, search]);
+  const openReader = (url: string, title: string) => { if (!url) return toast.error('No preview URL is available.'); setReader({ url, title }); setReaderLoading(true); };
+  const generatePasscode = () => { const bytes = new Uint32Array(2); crypto.getRandomValues(bytes); return `EXAM-${String(bytes[0] % 1000).padStart(3,'0')}-${String(bytes[1] % 1000).padStart(3,'0')}`; };
+
+  const savePasscode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!passcodeForm?.examTitle?.trim() || !passcodeForm.passcode?.trim() || !school?.id) { toast.error('Exam title and passcode are required.'); return; }
+    const id = passcodeForm.id || `pc-${Date.now()}`;
+    const payload = { classLevel: passcodeForm.classLevel || '', subject: passcodeForm.subject || '', examTitle: passcodeForm.examTitle.trim(), passcode: passcodeForm.passcode.trim().toUpperCase(), isActive: passcodeForm.isActive !== false, validUntil: passcodeForm.validUntil || '', invigilatorName: passcodeForm.invigilatorName || '', allocatedCadetsCount: passcodeForm.allocatedCadetsCount || studentCount, schoolId: school.id, updatedAt: serverTimestamp() };
+    try {
+      await setDoc(doc(db, 'schoolPasscodes', id), payload, { merge: true });
+      const next = { id, ...payload } as Passcode;
+      setPasscodes(prev => prev.some(p => p.id === id) ? prev.map(p => p.id === id ? next : p) : [next, ...prev]);
+      setPasscodeForm(null); toast.success('Exam passcode saved.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to save passcode.'); }
+  };
+  const togglePasscode = async (passcode: Passcode) => {
+    try { await setDoc(doc(db, 'schoolPasscodes', passcode.id), { isActive: !passcode.isActive, updatedAt: serverTimestamp() }, { merge: true }); setPasscodes(prev => prev.map(p => p.id === passcode.id ? { ...p, isActive: !p.isActive } : p)); toast.success(passcode.isActive ? 'Passcode deactivated.' : 'Passcode activated.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to update passcode.'); }
+  };
+
+  if (loading) return <div className="min-h-[360px] flex items-center justify-center gap-3 text-sm text-slate-500"><Loader2 className="animate-spin" size={22}/> Loading secure school operations…</div>;
+  const schoolName = school?.name || 'School Portal';
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <SEO title={`School Operations | ${schoolName}`} description="Secure school operations workspace." noindex />
+
+      {tab === 'overview' && (
+        <div className="space-y-6">
+          <DashboardGreeting
+            name={schoolName.split(' ')[0] || schoolName}
+            role="Partner Institution"
+            subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
+          />
+
+          {/* Focused school overview: operational metrics and shortcuts only. Detailed programmes,
+              schedules, roster, resources, exams and billing live in their dedicated tabs. */}
+          {(() => {
+            const programsList: any[] = Array.isArray(school?.programs) ? school.programs : [];
+            const activeProgs = programsList.filter(p => p.status !== 'COMPLETED' && p.status !== 'HISTORICAL');
+            return (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="pro-surface rounded-2xl p-4"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Total Students</p><p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{studentCount}</p><p className="text-[10px] text-slate-500 mt-0.5">Onboarded learners</p></div>
+                  <div className="pro-surface rounded-2xl p-4"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Active Programmes</p><p className="mt-1 text-2xl font-black text-brand-red">{activeProgs.length}</p><p className="text-[10px] text-slate-500 mt-0.5">Configured for this school</p></div>
+                  <div className="pro-surface rounded-2xl p-4"><p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Billing Status</p><p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{school?.billing?.status || 'Not configured'}</p><p className="text-[10px] text-slate-500 mt-0.5">Institutional account</p></div>
+                </div>
+                <section className="pro-surface rounded-3xl p-5 md:p-6">
+                  <div className="flex items-start justify-between gap-4 mb-4"><div><h2 className="text-base font-black text-slate-900 dark:text-white">School Operations</h2><p className="text-xs text-slate-500 mt-1">Open the dedicated workspace for the task you need to complete.</p></div><Building2 size={18} className="text-brand-red" /></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      ['roster','Student Roster','Manage learners and class groups',Users],
+                      ['schedules','Class Schedules','View programmes, tutors and sessions',Calendar],
+                      ['resources','Resources','Review school learning materials',BookOpen],
+                      ['partnership','Programme & Billing','View institutional programme settings',CreditCard]
+                    ].map(([id,title,description,Icon]: any) => <button key={id} type="button" onClick={() => changeTab(id)} className="text-left p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:border-brand-red/40 transition-all"><Icon className="text-brand-red mb-2" size={19}/><p className="text-xs font-black text-slate-900 dark:text-white">{title}</p><p className="text-[11px] text-slate-500 mt-1 leading-4">{description}</p></button>)}
+                  </div>
+                </section>
+              </div>
+            );
+          })()}
+        </div>
+===== ParentDashboard 1-280 =====
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { db, auth } from '../../lib/firebase';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { GraduationCap, PlusCircle, CreditCard, Bell, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, Download, Receipt, Calendar, ExternalLink } from 'lucide-react';
+import SEO from '../../components/ui/SEO';
+import DashboardGreeting from '../../components/portal/DashboardGreeting';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { FintechTransactionDetailsModal } from '../../components/portal/FintechTransactionDetailsModal';
+import type { TransactionReceiptData } from '../../lib/receiptGenerator';
+import { getEffectiveAuth } from '../../utils/impersonation';
+
+interface ChildRecord {
+  id: string;
+  fullName?: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  subjects?: string[] | string;
+  schedule?: string;
+  grade?: string;
+  class?: string;
+  plan?: string;
+  status?: string;
+}
+interface ProgressRecord { completed: number; total: number; }
+
+const ParentDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const { notifications: parentNotifs, unreadCount, openDrawer, isNotificationRead } = useNotifications();
+  const [children, setChildren] = useState<ChildRecord[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [childProgress, setChildProgress] = useState<Record<string, ProgressRecord>>({});
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [studentName, setStudentName] = useState('');
+  const [studentAge, setStudentAge] = useState('');
+  const [availablePrograms, setAvailablePrograms] = useState<{ id: string; title: string }[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [preferredSubjects, setPreferredSubjects] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [enrollSuccess, setEnrollSuccess] = useState('');
+  const [enrollError, setEnrollError] = useState('');
+  const [selectedTx, setSelectedTx] = useState<TransactionReceiptData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchParentData = async () => {
+      setLoading(true);
+      setEnrollError('');
+      try {
+        const effective = getEffectiveAuth();
+        const user = auth.currentUser;
+        if (!user && !effective.isMasquerading) return;
+        const userEmail = (effective.effectiveEmail || user?.email || '').toLowerCase();
+        const userUid = effective.effectiveUid || user?.uid || '';
+        const allStudentsMap = new Map<string, ChildRecord>();
+        const collectChildren = (snap: any) => {
+          snap.forEach((studentDoc: any) => {
+            const data = studentDoc.data();
+            const matchesParent = data.parentId === userUid || data.parentId === userEmail || data.parentEmail?.toLowerCase() === userEmail;
+            if (matchesParent) allStudentsMap.set(studentDoc.id, { id: studentDoc.id, ...data } as ChildRecord);
+          });
+        };
+        if (userUid) {
+          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)))); } catch (error) { console.warn('individualStudents parent lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)))); } catch (error) { console.warn('students parent lookup failed:', error); }
+        }
+        if (userEmail) {
+          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }
+        }
+
+        if (cancelled) return;
+        const childList = Array.from(allStudentsMap.values());
+        setChildren(childList);
+        const [paymentResult, enrollmentResult, programsSnap, schedSnap] = await Promise.allSettled([
+          getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50))),
+          getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid), limit(25))),
+          getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs'))),
+          getDocs(collection(db, 'classSchedules'))
+        ]);
+        if (programsSnap.status === 'fulfilled') {
+          const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'Technology Programme') as string }));
+          setAvailablePrograms(progs);
+          if (progs.length > 0 && !selectedPlan) {
+            setSelectedPlan(progs[0].title);
+          }
+        }
+        if (paymentResult.status === 'fulfilled') setPayments(paymentResult.value.docs.map(paymentDoc => ({ id: paymentDoc.id, ...paymentDoc.data() })).filter((payment: any) => payment.parentId === userUid || payment.parentId === userEmail || payment.parentEmail === userEmail));
+        else { console.warn('Payment lookup failed:', paymentResult.reason); setPayments([]); }
+        if (enrollmentResult.status === 'fulfilled') setEnrollments(enrollmentResult.value.docs.map(enrollmentDoc => ({ id: enrollmentDoc.id, ...enrollmentDoc.data() })));
+        else { console.warn('Enrollment lookup failed:', enrollmentResult.reason); setEnrollments([]); }
+        if (schedSnap.status === 'fulfilled') {
+          const allScheds = schedSnap.value.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+          const childIds = childList.map(c => c.id);
+          const childNames = childList.map(c => (c.name || '').toLowerCase());
+          const childEmails = childList.map(c => (c.email || '').toLowerCase());
+          const parentScheds = allScheds.filter((s: any) => {
+            if (s.parentId === userUid || s.parentId === userEmail) return true;
+            if (s.parentEmail && s.parentEmail.toLowerCase() === userEmail) return true;
+            if (s.studentId && childIds.includes(s.studentId)) return true;
+            if (s.studentName && childNames.includes(String(s.studentName).toLowerCase())) return true;
+            if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;
+            return false;
+          });
+          setSchedules(parentScheds);
+        } else {
+          setSchedules([]);
+        }
+        const progressResults = await Promise.allSettled(childList.map(async child => {
+          const snap = await getDocs(query(collection(db, 'studentModules'), where('studentId', '==', child.id), limit(50)));
+          let completed = 0;
+          snap.forEach(moduleDoc => { if (moduleDoc.data().completed) completed += 1; });
+          return [child.id, { completed, total: snap.size }] as const;
+        }));
+        if (!cancelled) {
+          const progressMap: Record<string, ProgressRecord> = {};
+          progressResults.forEach(result => { if (result.status === 'fulfilled') progressMap[result.value[0]] = result.value[1]; });
+          setChildProgress(progressMap);
+        }
+      } catch (error) {
+        console.error('Error loading parent dashboard:', error);
+        if (!cancelled) setEnrollError('Some parent portal data could not be loaded. Please try again.');
+      } finally { if (!cancelled) setLoading(false); }
+    };
+    fetchParentData();
+    return () => { cancelled = true; };
+  }, []);
+
+  const pendingEnrollmentCount = useMemo(() => enrollments.filter(item => String(item.status || '').toLowerCase() === 'pending').length, [enrollments]);
+
+  const handleEnrollSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSubmitting(true); setEnrollSuccess(''); setEnrollError('');
+    const trimmedName = studentName.trim();
+    const trimmedAge = studentAge.trim();
+    const subjects = preferredSubjects.split(',').map(subject => subject.trim()).filter(Boolean);
+    if (!trimmedName || !trimmedAge || subjects.length === 0) {
+      setEnrollError('Please complete the student name, age/grade, and at least one subject.'); setSubmitting(false); return;
+    }
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Your parent session has expired. Please sign in again.');
+      const token = await user.getIdToken();
+      const response = await fetch('/api/parent-enrollment-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit the enrollment request.');
+      const request = result.request;
+      setEnrollments(current => [{ id: request.id, ...request }, ...current]);
+      setEnrollSuccess(`Enrollment request submitted for ${trimmedName}. The admissions team can now review it from Admin Approvals.`);
+      setStudentName(''); setStudentAge(''); setPreferredSubjects('Scratch, Python, Web Development'); setShowEnrollModal(false);
+    } catch (error: any) {
+      console.error('Enrollment request submission failed:', error);
+      setEnrollError(error?.message || 'Could not submit the enrollment request.');
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      <SEO title="Parent Portal & Progress Dashboard" description="Monitor child progress, attendance, mentor assessments, and billing at Jaystarbliss Studios." noindex={true} />
+      
+      <DashboardGreeting
+        role="Parent / Guardian"
+        subtitle="Track your children, enrollment requests, learning progress, tuition records, and institute notices."
+      />
+
+      {enrollSuccess && (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/30 p-4 text-xs font-semibold text-emerald-800 dark:text-emerald-300" role="status">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>{enrollSuccess}</span>
+        </div>
+      )}
+
+      {enrollError && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/30 p-4 text-xs font-semibold text-red-800 dark:text-red-300" role="alert">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <span>{enrollError}</span>
+        </div>
+      )}
+
+      {/* Top Banner / Program Status */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-6 shadow-xs border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-brand-red text-white">
+            Family Learning Workspace
+          </span>
+          <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">Parent & Guardian Hub</h2>
+          <p className="text-xs text-slate-300 mt-1">
+            Stay aligned with your student's coding journey, tech projects, and tuition schedules.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => { setShowEnrollModal(true); setEnrollError(''); }}
+            className="px-4 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-2"
+          >
+            <PlusCircle size={14} />
+            <span>Enroll New Child</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Compact 3-Stat Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Linked Children</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{children.length}</p>
+          <p className="mt-0.5 text-[10px] text-slate-500">Verified student accounts</p>
+        </div>
+        <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pending Enrollments</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{pendingEnrollmentCount}</p>
+          <p className="mt-0.5 text-[10px] text-slate-500">Awaiting admissions review</p>
+        </div>
+        <div className="bg-white dark:bg-[#161B26] rounded-xl p-3.5 sm:p-4 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Tuition Receipts</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{payments.length}</p>
+          <p className="mt-0.5 text-[10px] text-slate-500">Confirmed payment records</p>
+        </div>
+      </div>
+
+      {/* Enrolled Students Section */}
+      <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Enrolled Students</h2>
+            <p className="text-xs text-slate-500">Only student records linked to your parent account are displayed.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setShowEnrollModal(true); setEnrollError(''); }}
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-brand-red px-3.5 text-xs font-bold text-white hover:bg-red-700"
+          >
+            <PlusCircle size={14} aria-hidden="true" /> Add Student
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex min-h-28 items-center justify-center text-xs text-slate-500">Loading student records…</div>
+        ) : children.length === 0 ? (
+          <EmptyChildrenState onAdd={() => setShowEnrollModal(true)} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {children.map(child => {
+              const progress = childProgress[child.id];
+              const percentage = progress?.total ? Math.round((progress.completed / progress.total) * 100) : 0;
+              const subjects = Array.isArray(child.subjects) ? child.subjects : String(child.subjects || 'General Tech Track').split(',').map(subject => subject.trim()).filter(Boolean);
+              return (
+                <article key={child.id} className="flex flex-col justify-between rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4">
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-red text-xs font-bold text-white">
+                          {(child.fullName || 'C').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-xs font-bold text-slate-900 dark:text-white">{child.fullName || 'Student'}</h3>
+                          <p className="truncate text-[11px] text-slate-500">@{child.username || 'student'}</p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                        {child.status || 'Active'}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-2.5 text-xs">
+                      <div>
+                        <p className="mb-1 text-[11px] font-semibold text-slate-500">Learning Track</p>
+                        <div className="flex flex-wrap gap-1">
+                          {subjects.map(subject => (
+                            <span key={subject} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+===== class-schedules 1-420 =====
+import type { Handler } from '@netlify/functions';
+import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+
+const json = (statusCode: number, body: Record<string, unknown>) => ({
+  statusCode,
+  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  body: JSON.stringify(body)
+});
+
+const classes = ['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6', 'JSS 1', 'JSS 2', 'JSS 3', 'SS1', 'SS2', 'SS3'];
+const statuses = ['SCHEDULED', 'ONGOING', 'COMPLETED', 'ATTENDED', 'ABSENT', 'CANCELLED', 'RESCHEDULED'];
+const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'EDUCATION_ADMIN', 'CMS_ADMIN'];
+const tutorRoles = ['TUTOR', 'STAFF', 'INSTRUCTOR', 'FACULTY'];
+
+const tokenFrom = (event: any) => {
+  const header = event.headers?.authorization || event.headers?.Authorization || '';
+  return header.startsWith('Bearer ') ? header.slice(7) : '';
+};
+
+const requireUser = async (event: any) => {
+  const token = tokenFrom(event);
+  if (!token) throw new Error('AUTH_REQUIRED');
+  const decoded = await adminAuth.verifyIdToken(token);
+  const snap = await adminDb.collection('users').doc(decoded.uid).get();
+  return { decoded, user: snap.exists ? (snap.data() || {}) : {}, uid: decoded.uid };
+};
+
+const isAdmin = (role: any) => adminRoles.includes(String(role || '').toUpperCase());
+const isTutor = (role: any) => tutorRoles.includes(String(role || '').toUpperCase());
+
+const normalizeClasses = (body: any) => {
+  const raw = Array.isArray(body.classLevels) ? body.classLevels : body.classLevel ? [body.classLevel] : [];
+  return Array.from(new Set(raw.map((v: any) => String(v).trim()).filter((v: string) => classes.includes(v))));
+};
+
+const dateFor = (startDate: string, index: number) => {
+  const d = new Date(`${startDate}T00:00:00`);
+  d.setDate(d.getDate() + index * 7);
+  return d.toISOString().slice(0, 10);
+};
+
+const normalize = (value: any) => String(value || '').trim().toLowerCase();
+
+const resolveTutorIdentity = async (uid: string, user: any) => {
+  const ids = new Set<string>([uid]);
+  const names = new Set<string>();
+  const emails = new Set<string>();
+
+  [user.name, user.fullName, user.displayName].forEach(v => { if (v) names.add(normalize(v)); });
+  if (user.email) emails.add(normalize(user.email));
+  ['tutorId', 'staffId', 'facultyId', 'firebaseUid'].forEach(key => { if (user[key]) ids.add(String(user[key])); });
+
+  const email = normalize(user.email);
+  if (email) {
+    const tutorSnap = await adminDb.collection('tutors').where('email', '==', user.email).limit(3).get().catch(() => null);
+    tutorSnap?.docs.forEach(d => {
+      ids.add(d.id);
+      const data = d.data() || {};
+      [data.tutorId, data.staffId, data.firebaseUid, data.uid].forEach(v => { if (v) ids.add(String(v)); });
+      [data.name, data.fullName, data.displayName].forEach(v => { if (v) names.add(normalize(v)); });
+      if (data.email) emails.add(normalize(data.email));
+    });
+  }
+
+  return { ids, names, emails };
+};
+
+const canTutorAccessRecord = (record: any, identity: { ids: Set<string>; names: Set<string>; emails: Set<string> }) => {
+  if (record.tutorId && identity.ids.has(String(record.tutorId))) return true;
+  if (record.tutorName && identity.names.has(normalize(record.tutorName))) return true;
+  if (record.tutorEmail && identity.emails.has(normalize(record.tutorEmail))) return true;
+  return false;
+};
+
+const resolveStudentIdentity = async (uid: string, decoded: any, user: any) => {
+  const ids = new Set<string>([uid]);
+  const emails = new Set<string>();
+  const schoolIds = new Set<string>();
+  const classesForStudent = new Set<string>();
+
+  const emailValues = [user.email, decoded?.email].filter(Boolean).map(normalize);
+  emailValues.forEach(email => emails.add(email));
+  ['studentId', 'studentDocId', 'individualStudentId', 'studentRecordId'].forEach(key => {
+    if (user[key]) ids.add(String(user[key]));
+  });
+
+  const absorb = (doc: any) => {
+    const data = doc.data() || {};
+    ids.add(doc.id);
+    [data.id, data.studentId, data.studentDocId, data.individualStudentId, data.firebaseUid, data.uid].forEach(v => {
+      if (v) ids.add(String(v));
+    });
+    [data.email, data.parentEmail].forEach(v => {
+      if (v) emails.add(normalize(v));
+    });
+    [data.schoolId].forEach(v => {
+      if (v) schoolIds.add(String(v));
+    });
+    [data.class, data.grade, data.classLevel, data.year, data.level].forEach(v => {
+      if (v) classesForStudent.add(normalize(v));
+    });
+  };
+
+  const lookups: Promise<any>[] = [];
+  lookups.push(adminDb.collection('students').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
+  lookups.push(adminDb.collection('individualStudents').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
+  for (const email of emailValues) {
+    lookups.push(adminDb.collection('students').where('email', '==', email).limit(5).get().catch(() => null));
+    lookups.push(adminDb.collection('individualStudents').where('email', '==', email).limit(5).get().catch(() => null));
+  }
+
+  const snapshots = await Promise.all(lookups);
+  snapshots.forEach(snapshot => snapshot?.docs?.forEach((doc: any) => absorb(doc)));
+
+  if (user.schoolId) schoolIds.add(String(user.schoolId));
+  [user.class, user.grade, user.classLevel].forEach(v => { if (v) classesForStudent.add(normalize(v)); });
+
+  return { ids, emails, schoolIds, classes: classesForStudent };
+};
+
+const loadRecords = async () => {
+  const snap = await adminDb.collection('classSchedules').limit(4000).get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+export const handler: Handler = async event => {
+  try {
+    const { decoded, user, uid } = await requireUser(event);
+    const role = String(user.role || '').toUpperCase();
+    const method = event.httpMethod || 'GET';
+    const params = event.queryStringParameters || {};
+
+    if (method === 'GET') {
+      const requestedSchoolId = String(params.schoolId || '').trim();
+      const requestedStudentId = String(params.studentId || '').trim();
+      const requestedTutorId = String(params.tutorId || '').trim();
+      let records = await loadRecords();
+
+      if (role === 'SCHOOL') {
+        let schoolId = String(user.schoolId || '').trim();
+        let schoolName = String(user.schoolName || user.name || '').trim();
+        if (!schoolId) {
+          const byUid = await adminDb.collection('schools').doc(uid).get();
+          if (byUid.exists) { schoolId = byUid.id; schoolName = String(byUid.data()?.name || schoolName); }
+          else if (user.email) {
+            const byEmail = await adminDb.collection('schools').where('contactEmail', '==', user.email).limit(1).get();
+            if (!byEmail.empty) { schoolId = byEmail.docs[0].id; schoolName = String(byEmail.docs[0].data()?.name || schoolName); }
+          }
+        }
+        const sid = normalize(schoolId), sname = normalize(schoolName);
+        records = records.filter((r: any) => {
+          const rid = normalize(r.schoolId), rn = normalize(r.schoolName);
+          return (sid && (rid === sid || rid === normalize(uid))) || (sname && rn && (rn === sname || rn.includes(sname) || sname.includes(rn))) || (requestedSchoolId && rid === normalize(requestedSchoolId));
+        });
+      } else if (role === 'STUDENT') {
+        const identity = await resolveStudentIdentity(uid, decoded, user);
+        records = records.filter((r: any) => {
+          const recordStudentId = String(r.studentId || '').trim();
+          const recordStudentEmail = normalize(r.studentEmail);
+          const directStudentMatch = r.targetType === 'STUDENT' && (
+            (recordStudentId && identity.ids.has(recordStudentId)) ||
+            (recordStudentEmail && identity.emails.has(recordStudentEmail))
+          );
+          if (directStudentMatch) return true;
+
+          const recordSchoolId = String(r.schoolId || '').trim();
+          if (!recordSchoolId || !identity.schoolIds.has(recordSchoolId)) return false;
+
+          const recordClasses = Array.isArray(r.classLevels)
+            ? r.classLevels.map((value: any) => normalize(value))
+            : r.classLevel ? [normalize(r.classLevel)] : [];
+
+          // A school-wide schedule is visible to the student's school. A class-specific
+          // schedule is visible only when the student's current class is included.
+          if (!recordClasses.length) return true;
+          return recordClasses.some((level: string) => identity.classes.has(level));
+        });
+      } else if (role === 'PARENT') {
+        records = records.filter((r: any) => String(r.parentId || '') === uid || normalize(r.parentEmail) === normalize(user.email));
+      } else if (isTutor(role)) {
+        const identity = await resolveTutorIdentity(uid, user);
+        records = records.filter((r: any) => canTutorAccessRecord(r, identity));
+      } else if (isAdmin(role)) {
+        if (requestedSchoolId) records = records.filter((r: any) => String(r.schoolId || '') === requestedSchoolId);
+        if (requestedStudentId) records = records.filter((r: any) => String(r.studentId || '') === requestedStudentId);
+        if (requestedTutorId) records = records.filter((r: any) => String(r.tutorId || '') === requestedTutorId);
+      }
+
+      records.sort((a: any, b: any) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.startTime || '').localeCompare(String(b.startTime || '')));
+      const groups = new Map<string, any>();
+      records.forEach((r: any) => {
+        const gid = String(r.scheduleGroupId || r.id);
+        if (!groups.has(gid)) {
+          groups.set(gid, {
+            scheduleGroupId: gid,
+            targetType: r.targetType || 'SCHOOL', schoolId: r.schoolId, schoolName: r.schoolName,
+            studentId: r.studentId, studentName: r.studentName, parentId: r.parentId,
+            title: r.title, programId: r.programId, programName: r.programName,
+            tutorId: r.tutorId, tutorName: r.tutorName, startDate: r.startDate || r.date,
+            startTime: r.startTime, endTime: r.endTime, recurring: r.recurring !== false,
+            weeks: r.occurrenceTotal || 1, classLevels: Array.isArray(r.classLevels) ? r.classLevels : r.classLevel ? [r.classLevel] : [], occurrences: []
+          });
+        }
+        groups.get(gid).occurrences.push(r);
+      });
+      return json(200, { schedules: records, groups: Array.from(groups.values()), classes });
+    }
+
+    if (method === 'POST') {
+      if (!isAdmin(role) && !isTutor(role)) return json(403, { error: 'Only authorised administrators and faculty can create class schedules.' });
+      const body = JSON.parse(event.body || '{}');
+      const targetType = String(body.targetType || 'SCHOOL').toUpperCase();
+      const title = String(body.title || '').trim();
+      const tutorId = String(body.tutorId || (isTutor(role) ? uid : '')).trim();
+      const tutorName = String(body.tutorName || (isTutor(role) ? (user.name || user.displayName || 'Faculty') : '')).trim();
+      const startDate = String(body.startDate || '').trim();
+      const startTime = String(body.startTime || '').trim();
+      const endTime = String(body.endTime || '').trim();
+      const recurring = body.recurring !== false;
+      const weeks = Math.min(52, Math.max(1, Number(body.weeks || 52)));
+      if (!title || !startDate || !startTime || !endTime) return json(400, { error: 'Title, start date, start time, and end time are required.' });
+      const groupId = adminDb.collection('classSchedules').doc().id;
+      const count = recurring ? weeks : 1;
+      let batch = adminDb.batch(); let writes = 0;
+      const commitIfNeeded = async () => { if (writes >= 450) { await batch.commit(); batch = adminDb.batch(); writes = 0; } };
+
+      if (targetType === 'STUDENT') {
+        const studentId = String(body.studentId || '').trim();
+        if (!studentId && !body.studentName) return json(400, { error: 'Private student name or student ID is required.' });
+        for (let i = 0; i < count; i++) {
+          const ref = adminDb.collection('classSchedules').doc();
+          batch.set(ref, {
+            scheduleGroupId: groupId, targetType: 'STUDENT', studentId, studentName: String(body.studentName || ''), parentId: String(body.parentId || ''), studentEmail: String(body.studentEmail || ''),
+            title, programId: String(body.programId || ''), programName: String(body.programName || title), tutorId, tutorName,
+            date: dateFor(startDate, i), startDate, startTime, endTime, status: 'SCHEDULED', recurring, recurrence: recurring ? 'WEEKLY' : 'ONCE', occurrenceNumber: i + 1, occurrenceTotal: count, createdBy: uid, createdAt: new Date(), updatedAt: new Date()
+          }); writes++; await commitIfNeeded();
+        }
+      } else {
+        const schoolId = String(body.schoolId || '').trim();
+        const schoolName = String(body.schoolName || '').trim();
+        const classLevels = normalizeClasses(body);
+        if (!schoolId || !classLevels.length) return json(400, { error: 'School and at least one class level are required for school schedules.' });
+        const schoolSnap = await adminDb.collection('schools').doc(schoolId).get();
+        const resolvedSchoolName = schoolName || String(schoolSnap.data()?.name || 'School');
+        for (let i = 0; i < count; i++) for (const classLevel of classLevels) {
+          const ref = adminDb.collection('classSchedules').doc();
+          batch.set(ref, {
+            scheduleGroupId: groupId, targetType: 'SCHOOL', schoolId, schoolName: resolvedSchoolName, classLevel, classLevels,
+            title, programId: String(body.programId || ''), programName: String(body.programName || title), tutorId, tutorName,
+            meetingLink: String(body.meetingLink || ''), date: dateFor(startDate, i), startDate, startTime, endTime, status: 'SCHEDULED', recurring,
+            recurrence: recurring ? 'WEEKLY' : 'ONCE', occurrenceNumber: i + 1, occurrenceTotal: count, createdBy: uid, createdAt: new Date(), updatedAt: new Date()
+          }); writes++; await commitIfNeeded();
+        }
+      }
+      if (writes) await batch.commit();
+      return json(201, { created: true, scheduleGroupId: groupId, occurrences: count });
+    }
+
+    if (method === 'PATCH') {
+      const body = JSON.parse(event.body || '{}');
+      const scheduleId = String(body.scheduleId || '').trim();
+      const scheduleGroupId = String(body.scheduleGroupId || '').trim();
+      const status = String(body.status || '').toUpperCase();
+
+      if (scheduleId) {
+        const ref = adminDb.collection('classSchedules').doc(scheduleId);
+        const snap = await ref.get();
+        if (!snap.exists) return json(404, { error: 'Class schedule occurrence not found.' });
+        const record = snap.data() || {};
+        let authorised = isAdmin(role);
+        if (isTutor(role)) authorised = canTutorAccessRecord(record, await resolveTutorIdentity(uid, user));
+        if (!authorised) return json(403, { error: 'You are not authorised to edit this class schedule.' });
+
+        if (status) {
+          if (!statuses.includes(status)) return json(400, { error: 'A valid schedule status is required.' });
+          const updateData: any = { status, updatedAt: new Date(), updatedBy: uid };
+          if (status === 'ABSENT') updateData.absenceReason = String(body.absenceReason || body.reason || 'Absent').trim();
+          if (status === 'RESCHEDULED') {
+            updateData.rescheduleReason = String(body.rescheduleReason || body.reason || 'Rescheduled').trim();
+            updateData.rescheduledDate = String(body.rescheduledDate || body.newDate || '').trim();
+            updateData.rescheduledStartTime = String(body.rescheduledStartTime || body.newStartTime || '').trim();
+            updateData.rescheduledEndTime = String(body.rescheduledEndTime || body.newEndTime || '').trim();
+          }
+          if (status === 'CANCELLED') updateData.cancellationReason = String(body.cancellationReason || body.reason || 'Cancelled').trim();
+          await ref.set(updateData, { merge: true });
+          return json(200, { updated: true, scheduleId, status });
+        }
+
+        const editable: any = {};
+        ['title', 'programName', 'startTime', 'endTime', 'meetingLink', 'date', 'startDate'].forEach(key => {
+          if (body[key] !== undefined) editable[key] = String(body[key]).trim();
+        });
+        if (isAdmin(role) && body.tutorId !== undefined) editable.tutorId = String(body.tutorId || '').trim();
+        if (isAdmin(role) && body.tutorName !== undefined) editable.tutorName = String(body.tutorName || '').trim();
+        if (!Object.keys(editable).length) return json(400, { error: 'No editable schedule fields were supplied.' });
+        editable.updatedAt = new Date(); editable.updatedBy = uid;
+        await ref.set(editable, { merge: true });
+        return json(200, { updated: true, scheduleId });
+      }
+
+      if (!scheduleGroupId) return json(400, { error: 'A recurring schedule group is required.' });
+      const groupSnap = await adminDb.collection('classSchedules').where('scheduleGroupId', '==', scheduleGroupId).get();
+      if (groupSnap.empty) return json(404, { error: 'Recurring schedule not found.' });
+      if (!isAdmin(role) && !isTutor(role)) return json(403, { error: 'Only administrators and assigned tutors can edit schedules.' });
+      if (isTutor(role)) {
+        const identity = await resolveTutorIdentity(uid, user);
+        if (groupSnap.docs.some(d => !canTutorAccessRecord(d.data(), identity))) return json(403, { error: 'You are not authorised to edit this recurring schedule.' });
+      }
+
+      const first = groupSnap.docs[0].data() || {};
+      const updateData: any = { updatedAt: new Date(), updatedBy: uid };
+      ['title', 'programName', 'startTime', 'endTime', 'meetingLink'].forEach(key => { if (body[key] !== undefined) updateData[key] = String(body[key]).trim(); });
+      if (body.weeks !== undefined) updateData.occurrenceTotal = Math.min(52, Math.max(1, Number(body.weeks || first.occurrenceTotal || 1)));
+      if (isAdmin(role)) {
+        if (body.tutorId !== undefined) updateData.tutorId = String(body.tutorId || '').trim();
+        if (body.tutorName !== undefined) updateData.tutorName = String(body.tutorName || '').trim();
+      }
+      if (Object.keys(updateData).length <= 2) return json(400, { error: 'No recurring schedule changes were supplied.' });
+      let batch = adminDb.batch(); let writes = 0; let changed = 0;
+      for (const d of groupSnap.docs) {
+        batch.set(d.ref, updateData, { merge: true }); writes++; changed++;
+        if (writes >= 450) { await batch.commit(); batch = adminDb.batch(); writes = 0; }
+      }
+      if (writes) await batch.commit();
+      return json(200, { updated: true, changed, scheduleGroupId });
+    }
+
+    return json(405, { error: 'Method Not Allowed' });
+  } catch (error: any) {
+    const code = String(error?.message || '');
+    if (code === 'AUTH_REQUIRED' || code.includes('auth/')) return json(401, { error: 'Authentication required.' });
+    console.error('Class schedules error:', error);
+    return json(500, { error: 'Unable to process class schedules.' });
+  }
+};
 ===== package scripts =====
 {
   "name": "jaystarbliss-studios-react",
