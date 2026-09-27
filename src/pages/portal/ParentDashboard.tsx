@@ -68,6 +68,11 @@ const ParentDashboard: React.FC = () => {
           try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentId', '==', userUid)))); } catch (error) { console.warn('individualStudents parent lookup failed:', error); }
           try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentId', '==', userUid)))); } catch (error) { console.warn('students parent lookup failed:', error); }
         }
+        if (userEmail) {
+          try { collectChildren(await getDocs(query(collection(db, 'individualStudents'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('individualStudents parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'students'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('students parent email lookup failed:', error); }
+          try { collectChildren(await getDocs(query(collection(db, 'enrollment_requests'), where('parentEmail', '==', userEmail)))); } catch (error) { console.warn('enrollment_requests parent email lookup failed:', error); }
+        }
 
         if (cancelled) return;
         const childList = Array.from(allStudentsMap.values());
@@ -76,15 +81,7 @@ const ParentDashboard: React.FC = () => {
           getDocs(query(collection(db, 'payments'), where('parentId', '==', userUid), limit(50))),
           getDocs(query(collection(db, 'enrollment_requests'), where('parentId', '==', userUid), limit(25))),
           getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs'))),
-          (async () => {
-            const current = auth.currentUser;
-            if (!current) return { docs: [] } as any;
-            const token = await current.getIdToken();
-            const response = await fetch('/.netlify/functions/class-schedules', { headers: { Authorization: `Bearer ${token}` } });
-            if (!response.ok) return { docs: [] } as any;
-            const data = await response.json().catch(() => ({}));
-            return { docs: (Array.isArray(data.schedules) ? data.schedules : []).map((item: any) => ({ id: item.id, data: () => item })) } as any;
-          })()
+          getDocs(collection(db, 'classSchedules'))
         ]);
         if (programsSnap.status === 'fulfilled') {
           const progs = programsSnap.value.docs.map(d => ({ id: d.id, title: (d.data().title || d.data().name || 'Technology Programme') as string }));
@@ -102,12 +99,14 @@ const ParentDashboard: React.FC = () => {
           const childIds = childList.map(c => c.id);
           const childNames = childList.map(c => (c.name || '').toLowerCase());
           const childEmails = childList.map(c => (c.email || '').toLowerCase());
+          const childSchoolIds = childList.map(c => (c as any).schoolId).filter(Boolean);
           const parentScheds = allScheds.filter((s: any) => {
             if (s.parentId === userUid || s.parentId === userEmail) return true;
             if (s.parentEmail && s.parentEmail.toLowerCase() === userEmail) return true;
             if (s.studentId && childIds.includes(s.studentId)) return true;
             if (s.studentName && childNames.includes(String(s.studentName).toLowerCase())) return true;
             if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;
+            if (s.schoolId && childSchoolIds.includes(s.schoolId)) return true;
             return false;
           });
           setSchedules(parentScheds);
@@ -149,7 +148,7 @@ const ParentDashboard: React.FC = () => {
       const user = auth.currentUser;
       if (!user) throw new Error('Your parent session has expired. Please sign in again.');
       const token = await user.getIdToken();
-      const response = await fetch('/.netlify/functions/parent-enrollment-request', {
+      const response = await fetch('/api/parent-enrollment-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),

@@ -581,6 +581,9 @@ export const StudentDashboard: React.FC = () => {
               ...(currentUid
                 ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]
                 : []),
+              ...(studentRecord.schoolId
+                ? [getDocs(query(collection(db, 'personalLinks'), where('schoolId', '==', studentRecord.schoolId)))]
+                : []),
             ])
           : Promise.resolve([]),
         getDocs(query(collection(db, 'resources'), limit(25))),

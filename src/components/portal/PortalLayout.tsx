@@ -16,7 +16,7 @@ import { JaystarblissIcon } from '../common/JaystarblissLogo';
 import ChangePasswordModal from './ChangePasswordModal';
 import NotificationBell from '../common/NotificationBell';
 import SEO from '../ui/SEO';
-import { getActiveImpersonation, stopImpersonation } from '../../utils/impersonation';
+import './portal-polish.css';
 
 type NavItem = { name: string; path: string; icon: React.ReactNode; desc: string };
 
@@ -36,11 +36,9 @@ const PortalLayout: React.FC = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [impersonation, setImpersonation] = useState<any>(() => getActiveImpersonation());
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setImpersonation(getActiveImpersonation());
     const user = auth.currentUser;
     setUserEmail(user?.email || '');
     setIsEmailVerified(user?.emailVerified ?? true);
@@ -144,7 +142,7 @@ const PortalLayout: React.FC = () => {
         <Link
           to={item.path}
           onClick={() => mobile && setMobileMenuOpen(false)}
-          className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden ${
+          className={`group w-full box-border grid grid-cols-[32px_minmax(0,1fr)] items-center min-h-10 h-10 flex-none px-2.5 rounded-xl transition-colors text-xs font-semibold whitespace-nowrap overflow-hidden ${
             active ? 'bg-brand-red text-white shadow-sm font-bold' : 'text-slate-300 hover:bg-white/10 hover:text-white'
           }`}
         >
@@ -158,19 +156,10 @@ const PortalLayout: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-full bg-[#F8FAFC] dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans">
+    <div className="h-screen w-full bg-[#F8FAFC] dark:bg-[#243246] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans">
       <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />
 
-      {impersonation?.isMasquerading && (
-        <div className="shrink-0 bg-brand-red text-white border-b border-red-800/50 px-3 py-2">
-          <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 text-[11px] font-bold">
-            <span className="truncate">Admin impersonation mode active · Viewing {impersonation.targetUser?.name || impersonation.targetUser?.email || 'portal user'} ({String(impersonation.targetRole || role).toLowerCase()})</span>
-            <button type="button" onClick={() => stopImpersonation(navigate)} className="shrink-0 rounded-lg bg-white text-brand-red px-3 py-1.5 font-black hover:bg-slate-100 transition-colors">Exit session</button>
-          </div>
-        </div>
-      )}
-
-      <div className="md:hidden bg-[#0F1117] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/10 shrink-0">
+      <div className="md:hidden bg-[#182335] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/10 shrink-0">
         <Link to="/" className="flex items-center gap-2 min-w-0">
           <JaystarblissIcon className="w-7 h-7 shrink-0" />
           <span className="font-bold text-xs uppercase whitespace-nowrap">JAYSTARBLISS</span>
@@ -192,7 +181,7 @@ const PortalLayout: React.FC = () => {
             <motion.aside
               initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="absolute inset-y-0 left-0 w-[72vw] max-w-[300px] bg-[#0F1117] text-white border-r border-white/10 shadow-2xl flex flex-col p-3 overflow-y-auto"
+              className="absolute inset-y-0 left-0 w-[72vw] max-w-[280px] bg-[#182335] text-white border-r border-white/10 shadow-2xl flex flex-col p-3 overflow-y-auto"
             >
               <div className="flex items-center justify-between h-12 px-1 border-b border-white/10 shrink-0">
                 <Link to="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2"><JaystarblissIcon className="w-6 h-6" /><span className="text-xs font-bold">JAYSTARBLISS</span></Link>
@@ -213,11 +202,11 @@ const PortalLayout: React.FC = () => {
 
       <motion.aside
         initial={false}
-        animate={{ width: sidebarExpanded ? 220 : 72 }}
+        animate={{ width: sidebarExpanded ? 198 : 68 }}
         transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.8 }}
         onMouseEnter={() => setSidebarExpanded(true)}
         onMouseLeave={() => setSidebarExpanded(false)}
-        className="hidden md:flex bg-[#0F1117] text-white flex-col h-full border-r border-slate-800/80 shrink-0 select-none overflow-hidden"
+        className="hidden md:flex bg-[#182335] text-white flex-col h-full border-r border-slate-800/80 shrink-0 select-none overflow-hidden"
       >
         <div className="h-16 px-3 border-b border-slate-800/80 flex items-center shrink-0 overflow-hidden">
           <Tooltip content="Return to Main Website" placement="right">
@@ -235,7 +224,7 @@ const PortalLayout: React.FC = () => {
           {navLinks.map(item => <NavLink key={item.name} item={item} />)}
         </nav>
 
-        <div className="p-2.5 border-t border-slate-800/80 shrink-0 space-y-1">
+        <div className="p-2.5 border-t border-slate-800/80 shrink-0 flex flex-col gap-1">
           <Tooltip content="Toggle Theme" placement="right">
             <button type="button" onClick={toggleTheme} className="w-full grid grid-cols-[32px_minmax(0,1fr)] items-center h-10 shrink-0 px-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold overflow-hidden">
               <span className="w-8 h-8 flex items-center justify-center shrink-0">{theme === 'dark' ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}</span>
@@ -251,7 +240,7 @@ const PortalLayout: React.FC = () => {
         </div>
       </motion.aside>
 
-      <main className="flex-1 h-full min-w-0 flex flex-col overflow-y-auto custom-scrollbar pb-16 md:pb-0 bg-[#F8FAFC] dark:bg-[#0B0F17]">
+      <main className="flex-1 h-full min-w-0 flex flex-col overflow-y-auto custom-scrollbar pb-16 md:pb-0 bg-[#F8FAFC] dark:bg-[#243246]">
         {!isEmailVerified && !accessCodeOnly && (
           <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-semibold flex items-center justify-between gap-2 shrink-0">
             <span className="truncate">Your email address ({userEmail}) is unverified.</span>
@@ -259,7 +248,7 @@ const PortalLayout: React.FC = () => {
           </div>
         )}
 
-        <header className="hidden md:flex items-center justify-between px-6 py-3.5 bg-white/80 dark:bg-[#0c1220]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-20 shrink-0">
+        <header className="hidden md:flex items-center justify-between px-6 py-3.5 bg-white/85 dark:bg-[#2B394D]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-20 shrink-0">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">{roleTitle} Workspace</h2>
           <div className="flex items-center gap-3">
             <NotificationBell role={role} />

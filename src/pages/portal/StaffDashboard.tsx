@@ -21,6 +21,8 @@ const StaffDashboard: React.FC = () => {
   // Modals state
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [targetStudentId, setTargetStudentId] = useState('');
+  const [broadcastTargetType, setBroadcastTargetType] = useState<'STUDENT' | 'SCHOOL'>('STUDENT');
+  const [targetSchoolId, setTargetSchoolId] = useState('');
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkPlatform, setLinkPlatform] = useState('Google Meet');
@@ -72,9 +74,6 @@ const StaffDashboard: React.FC = () => {
           }
         }
       }
-      const fetchedStudents = Array.from(studentMap.values());
-      setStudents(fetchedStudents);
-
       // 3. Fetch assigned schools
       try {
         const schoolsSnap = await getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any));
@@ -87,8 +86,27 @@ const StaffDashboard: React.FC = () => {
           return false;
         });
         setAssignedSchools(mySchools);
+
+        // A tutor may see students from their assigned school(s), plus students privately assigned to them.
+        const scopedStudents = new Map<string, any>(studentMap);
+        const schoolIds = mySchools.map((school: any) => school.id).filter(Boolean);
+        for (const schoolId of schoolIds) {
+          for (const collectionName of ['students', 'individualStudents']) {
+            try {
+              const snap = await getDocs(query(collection(db, collectionName), where('schoolId', '==', schoolId)));
+              snap.forEach(d => scopedStudents.set(d.id, { id: d.id, ...d.data() }));
+            } catch (e) {
+              console.warn(`School-scoped ${collectionName} query failed:`, e);
+            }
+          }
+        }
+        setStudents(Array.from(scopedStudents.values()).filter((student: any) => {
+          if (student.schoolId && schoolIds.includes(student.schoolId)) return true;
+          return assignmentFields.some(field => String(student[field] || '') === staffUid);
+        }));
       } catch (e) {
         console.warn('Assigned schools fetch failed:', e);
+        setStudents(Array.from(studentMap.values()));
       }
 
     } catch (err) {
@@ -105,8 +123,8 @@ const StaffDashboard: React.FC = () => {
 
   const handlePostLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetStudentId || !linkUrl) {
-      toast.error('Please select a student and provide a valid URL.');
+    if ((!targetStudentId && broadcastTargetType === 'STUDENT') || (!targetSchoolId && broadcastTargetType === 'SCHOOL') || !linkUrl) {
+      toast.error(`Please select a ${broadcastTargetType === 'SCHOOL' ? 'school' : 'student'} and provide a valid URL.`);
       return;
     }
     setSubmittingLink(true);
@@ -115,14 +133,18 @@ const StaffDashboard: React.FC = () => {
       const effective = getEffectiveAuth();
       const staffUid = effective.effectiveUid || user?.uid;
       const targetStudent = students.find(s => s.id === targetStudentId);
+      const targetSchool = assignedSchools.find(s => s.id === targetSchoolId);
 
       await addDoc(collection(db, 'personalLinks'), {
         title: linkTitle || `${linkPlatform} Class Session`,
         url: linkUrl,
         platform: linkPlatform,
         meetingTime: meetingTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        studentId: targetStudentId,
-        studentName: targetStudent?.fullName || targetStudent?.studentName || 'Student',
+        targetType: broadcastTargetType,
+        studentId: broadcastTargetType === 'STUDENT' ? targetStudentId : '',
+        studentName: broadcastTargetType === 'STUDENT' ? (targetStudent?.fullName || targetStudent?.studentName || 'Student') : '',
+        schoolId: broadcastTargetType === 'SCHOOL' ? targetSchoolId : '',
+        schoolName: broadcastTargetType === 'SCHOOL' ? (targetSchool?.name || 'School') : '',
         tutorId: staffUid,
         tutorName: effective.effectiveName || user?.displayName || 'Faculty Member',
         createdAt: serverTimestamp()
@@ -134,6 +156,8 @@ const StaffDashboard: React.FC = () => {
       setLinkUrl('');
       setMeetingTime('');
       setTargetStudentId('');
+      setTargetSchoolId('');
+      setBroadcastTargetType('STUDENT');
     } catch (err) {
       console.error('Post link error:', err);
       toast.error('Failed to post live class link.');
@@ -275,20 +299,27 @@ const StaffDashboard: React.FC = () => {
               Broadcast a Google Meet, Zoom, or Scratch link directly to the student portal.
             </p>
             <form onSubmit={handlePostLink} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Student</label>
-                <select 
-                  required 
-                  value={targetStudentId} 
-                  onChange={e => setTargetStudentId(e.target.value)} 
-                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
-                >
-                  <option value="">-- Choose Student --</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setBroadcastTargetType('STUDENT')} className={`min-h-10 rounded-xl border text-xs font-bold transition-colors ${broadcastTargetType === 'STUDENT' ? 'bg-brand-red text-white border-brand-red' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Private Student</button>
+                <button type="button" onClick={() => setBroadcastTargetType('SCHOOL')} className={`min-h-10 rounded-xl border text-xs font-bold transition-colors ${broadcastTargetType === 'SCHOOL' ? 'bg-brand-red text-white border-brand-red' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>School</button>
               </div>
+              {broadcastTargetType === 'STUDENT' ? (
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Private Student</label>
+                  <select required value={targetStudentId} onChange={e => setTargetStudentId(e.target.value)} className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden">
+                    <option value="">-- Choose Student --</option>
+                    {students.filter(s => !s.schoolId).map(s => <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Assigned School</label>
+                  <select required value={targetSchoolId} onChange={e => setTargetSchoolId(e.target.value)} className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden">
+                    <option value="">-- Choose School --</option>
+                    {assignedSchools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Session Title</label>
