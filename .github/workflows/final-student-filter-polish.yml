@@ -1,0 +1,39 @@
+name: Final student filter polish
+
+on:
+  push:
+    branches: [fix/student-schedule-parent-enrollment-visibility]
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/student-schedule-parent-enrollment-visibility
+          fetch-depth: 0
+      - name: Remove global programme filter from student schedule view
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/pages/portal/PortalCalendar.tsx')
+          s = p.read_text(encoding='utf-8')
+          old = '<select value={selectedProgramme} onChange={e=>setSelectedProgramme(e.target.value)} className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-white"><option value="ALL" className="text-slate-900">All enrolled programmes</option>{programmes.map(p=><option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}</select>{role !== \'STUDENT\' && schools.length>0&&<select'
+          new = '{role !== \'STUDENT\' && <select value={selectedProgramme} onChange={e=>setSelectedProgramme(e.target.value)} className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-white"><option value="ALL" className="text-slate-900">All programmes</option>{programmes.map(p=><option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}</select>}{role !== \'STUDENT\' && schools.length>0&&<select'
+          if old not in s:
+              raise SystemExit('Expected student programme selector was not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+      - name: Install and build
+        run: npm install --no-audit --no-fund && npm run build
+      - name: Commit and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/final-student-filter-polish.yml
+          git add src/pages/portal/PortalCalendar.tsx .github/workflows/final-student-filter-polish.yml
+          git commit -m "fix: remove global programme filter from student schedule [skip ci]"
+          git push origin HEAD:fix/student-schedule-parent-enrollment-visibility
