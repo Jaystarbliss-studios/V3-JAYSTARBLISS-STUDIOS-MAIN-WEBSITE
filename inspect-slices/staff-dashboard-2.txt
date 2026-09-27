@@ -1,0 +1,180 @@
+      setSubmittingLink(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-interface space-y-6">
+      <SEO 
+        title="Faculty Workspace Overview | Jaystarbliss Studios" 
+        description="Access assigned students, teaching schedules, curriculum materials, and ledger payouts." 
+        noindex={true} 
+      />
+
+      <DashboardGreeting 
+        role="Faculty Mentor" 
+        subtitle="Deliver interactive lessons, manage assigned learners, review teaching schedules, and access faculty tools." 
+      />
+
+      {successMsg && (
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-3 animate-fadeIn">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 text-red-700 dark:text-red-300 text-xs flex items-center gap-3 animate-fadeIn">
+          <ShieldCheck size={18} className="text-red-600 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Quick Summary Bento Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <Users size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Assigned Learners</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : students.length}</p>
+          </div>
+        </div>
+
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shrink-0">
+            <School size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Partner Schools</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : assignedSchools.length}</p>
+          </div>
+        </div>
+
+        <div className="pro-surface p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-xs">
+          <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center shrink-0">
+            <FileText size={22} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Curriculum Library</p>
+            <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">{loading ? '...' : resources.length}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Faculty Command Center Hub Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Card 1: Class Schedules & Live Classrooms */}
+        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-brand-red/40 transition-all">
+          <div className="space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center">
+              <Video size={22} />
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-white text-base">
+              Class Schedules & Teaching Roster
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Access your combined daily class schedules, update lesson attendance statuses, and broadcast live virtual meeting rooms.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <Link
+              to="/portal/staff/classes"
+              className="inline-flex items-center gap-2 text-xs font-black text-brand-red hover:underline"
+            >
+              <span>Open Class Schedules</span>
+              <ArrowRight size={14} />
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowLinkModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Video size={13} className="text-brand-red" />
+              <span>Broadcast Link</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Faculty Billing & Payout Center */}
+        <div className="pro-surface rounded-3xl p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all">
+          <div className="space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <CreditCard size={22} />
+            </div>
+            <h3 className="font-black text-slate-900 dark:text-white text-base">
+              Billing Center & Payouts
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Manage your fintech account wallet, submit withdrawal requests, and view detailed teaching settlement history.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <Link
+              to="/portal/staff/payments"
+              className="inline-flex items-center gap-2 text-xs font-black text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              <span>Open Billing Center</span>
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Broadcast Live Class Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">
+              Post Live Class Link
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Broadcast a Google Meet, Zoom, or Scratch link directly to the student portal.
+            </p>
+            <form onSubmit={handlePostLink} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Select Student</label>
+                <select 
+                  required 
+                  value={targetStudentId} 
+                  onChange={e => setTargetStudentId(e.target.value)} 
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                >
+                  <option value="">-- Choose Student --</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>{s.fullName || s.studentName || s.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Session Title</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="e.g. Python Loops & Conditionals Lab" 
+                  value={linkTitle} 
+                  onChange={e => setLinkTitle(e.target.value)} 
+                  className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Platform</label>
+                  <select 
+                    value={linkPlatform} 
+                    onChange={e => setLinkPlatform(e.target.value)} 
+                    className="w-full min-h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs outline-hidden"
+                  >
+                    <option value="Google Meet">Google Meet</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Microsoft Teams">MS Teams</option>
+                    <option value="Scratch Classroom">Scratch Studio</option>
+                    <option value="Code.org">Code.org</option>
+                  </select>
+                </div>
+                <div>

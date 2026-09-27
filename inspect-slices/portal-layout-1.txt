@@ -1,0 +1,120 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X,
+  Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound,
+  Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards,
+  ExternalLink, Award
+} from 'lucide-react';
+import { signOut, sendEmailVerification } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useToast } from '../../contexts/ToastContext';
+import { Tooltip } from '../ui/Tooltip';
+import { JaystarblissIcon } from '../common/JaystarblissLogo';
+import ChangePasswordModal from './ChangePasswordModal';
+import NotificationBell from '../common/NotificationBell';
+import SEO from '../ui/SEO';
+
+type NavItem = { name: string; path: string; icon: React.ReactNode; desc: string };
+
+const PortalLayout: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+  const { toast } = useToast();
+  const role = location.pathname.split('/')[2] || 'student';
+
+  const [displayName, setDisplayName] = useState('Portal User');
+  const [userEmail, setUserEmail] = useState('');
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(true);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    setUserEmail(user?.email || '');
+    setIsEmailVerified(user?.emailVerified ?? true);
+    setPhotoURL(user?.photoURL || null);
+    setDisplayName(
+      sessionStorage.getItem('userName') ||
+      user?.displayName ||
+      user?.email?.split('@')[0] ||
+      'Portal User'
+    );
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setSidebarExpanded(false);
+  }, [location.pathname]);
+
+  const logout = async () => {
+    await signOut(auth).catch(() => undefined);
+    sessionStorage.clear();
+    navigate('/portal');
+  };
+
+  const resendVerification = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    setResendingVerification(true);
+    try {
+      await sendEmailVerification(user);
+      toast.success(`Verification link sent to ${user.email}.`);
+    } catch (error: any) {
+      toast.error(error?.code === 'auth/too-many-requests' ? 'Please wait before requesting another link.' : 'Unable to send verification email.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  const navLinks: NavItem[] = (() => {
+    const items: NavItem[] = [
+      { name: 'Dashboard', path: `/portal/${role}`, icon: <LayoutDashboard size={18} />, desc: 'Portal Overview' }
+    ];
+    if (role === 'student') {
+      items.push(
+        { name: 'Learning & Tracks', path: '/portal/student/courses', icon: <GraduationCap size={18} />, desc: 'Curriculum & Series' },
+        { name: 'Class Schedules', path: '/portal/student/calendar', icon: <CalendarDays size={18} />, desc: 'Programme timetable & class status' },
+        { name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live lessons & sessions' },
+        { name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' },
+        { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' },
+        { name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }
+      );
+      if (sessionStorage.getItem('studentRegistrationType') === 'individual') {
+        items.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
+      }
+    } else if (role === 'staff') {
+      items.push(
+        { name: 'Live Classes', path: '/portal/staff/classes', icon: <Radio size={18} />, desc: 'Teaching roster' },
+        { name: 'Student Access', path: '/portal/staff/credentials', icon: <KeyRound size={18} />, desc: 'Access credentials' },
+        { name: 'Lesson Resources', path: '/portal/staff/resources', icon: <BookOpen size={18} />, desc: 'Lesson materials' },
+        { name: 'Subjects I Teach', path: '/portal/staff/subjects', icon: <Award size={18} />, desc: 'Teaching subjects & approvals' },
+        { name: 'Calendar', path: '/portal/staff/calendar', icon: <CalendarDays size={18} />, desc: 'Teaching timetable' },
+        { name: 'Billing / Fees', path: '/portal/staff/payments', icon: <WalletCards size={18} />, desc: 'Tutor ledger & payouts' }
+      );
+    } else if (role === 'parent') {
+      items.push(
+        { name: 'Calendar', path: '/portal/parent/calendar', icon: <CalendarDays size={18} />, desc: 'Class timetable' },
+        { name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Learning materials' },
+        { name: 'Payments & Fees', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & statements' }
+      );
+    } else if (role === 'school') {
+      items.push(

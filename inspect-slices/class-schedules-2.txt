@@ -1,0 +1,75 @@
+      const scheduleId = String(body.scheduleId || '').trim();
+      const scheduleGroupId = String(body.scheduleGroupId || '').trim();
+      const status = String(body.status || '').toUpperCase();
+
+      if (scheduleId) {
+        const ref = adminDb.collection('classSchedules').doc(scheduleId);
+        const snap = await ref.get();
+        if (!snap.exists) return json(404, { error: 'Class schedule occurrence not found.' });
+        const record = snap.data() || {};
+        let authorised = isAdmin(role);
+        if (isTutor(role)) authorised = canTutorAccessRecord(record, await resolveTutorIdentity(uid, user));
+        if (!authorised) return json(403, { error: 'You are not authorised to edit this class schedule.' });
+
+        if (status) {
+          if (!statuses.includes(status)) return json(400, { error: 'A valid schedule status is required.' });
+          const updateData: any = { status, updatedAt: new Date(), updatedBy: uid };
+          if (status === 'ABSENT') updateData.absenceReason = String(body.absenceReason || body.reason || 'Absent').trim();
+          if (status === 'RESCHEDULED') {
+            updateData.rescheduleReason = String(body.rescheduleReason || body.reason || 'Rescheduled').trim();
+            updateData.rescheduledDate = String(body.rescheduledDate || body.newDate || '').trim();
+            updateData.rescheduledStartTime = String(body.rescheduledStartTime || body.newStartTime || '').trim();
+            updateData.rescheduledEndTime = String(body.rescheduledEndTime || body.newEndTime || '').trim();
+          }
+          if (status === 'CANCELLED') updateData.cancellationReason = String(body.cancellationReason || body.reason || 'Cancelled').trim();
+          await ref.set(updateData, { merge: true });
+          return json(200, { updated: true, scheduleId, status });
+        }
+
+        const editable: any = {};
+        ['title', 'programName', 'startTime', 'endTime', 'meetingLink', 'date', 'startDate'].forEach(key => {
+          if (body[key] !== undefined) editable[key] = String(body[key]).trim();
+        });
+        if (isAdmin(role) && body.tutorId !== undefined) editable.tutorId = String(body.tutorId || '').trim();
+        if (isAdmin(role) && body.tutorName !== undefined) editable.tutorName = String(body.tutorName || '').trim();
+        if (!Object.keys(editable).length) return json(400, { error: 'No editable schedule fields were supplied.' });
+        editable.updatedAt = new Date(); editable.updatedBy = uid;
+        await ref.set(editable, { merge: true });
+        return json(200, { updated: true, scheduleId });
+      }
+
+      if (!scheduleGroupId) return json(400, { error: 'A recurring schedule group is required.' });
+      const groupSnap = await adminDb.collection('classSchedules').where('scheduleGroupId', '==', scheduleGroupId).get();
+      if (groupSnap.empty) return json(404, { error: 'Recurring schedule not found.' });
+      if (!isAdmin(role) && !isTutor(role)) return json(403, { error: 'Only administrators and assigned tutors can edit schedules.' });
+      if (isTutor(role)) {
+        const identity = await resolveTutorIdentity(uid, user);
+        if (groupSnap.docs.some(d => !canTutorAccessRecord(d.data(), identity))) return json(403, { error: 'You are not authorised to edit this recurring schedule.' });
+      }
+
+      const first = groupSnap.docs[0].data() || {};
+      const updateData: any = { updatedAt: new Date(), updatedBy: uid };
+      ['title', 'programName', 'startTime', 'endTime', 'meetingLink'].forEach(key => { if (body[key] !== undefined) updateData[key] = String(body[key]).trim(); });
+      if (body.weeks !== undefined) updateData.occurrenceTotal = Math.min(52, Math.max(1, Number(body.weeks || first.occurrenceTotal || 1)));
+      if (isAdmin(role)) {
+        if (body.tutorId !== undefined) updateData.tutorId = String(body.tutorId || '').trim();
+        if (body.tutorName !== undefined) updateData.tutorName = String(body.tutorName || '').trim();
+      }
+      if (Object.keys(updateData).length <= 2) return json(400, { error: 'No recurring schedule changes were supplied.' });
+      let batch = adminDb.batch(); let writes = 0; let changed = 0;
+      for (const d of groupSnap.docs) {
+        batch.set(d.ref, updateData, { merge: true }); writes++; changed++;
+        if (writes >= 450) { await batch.commit(); batch = adminDb.batch(); writes = 0; }
+      }
+      if (writes) await batch.commit();
+      return json(200, { updated: true, changed, scheduleGroupId });
+    }
+
+    return json(405, { error: 'Method Not Allowed' });
+  } catch (error: any) {
+    const code = String(error?.message || '');
+    if (code === 'AUTH_REQUIRED' || code.includes('auth/')) return json(401, { error: 'Authentication required.' });
+    console.error('Class schedules error:', error);
+    return json(500, { error: 'Unable to process class schedules.' });
+  }
+};
