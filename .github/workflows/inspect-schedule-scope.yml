@@ -4,7 +4,7 @@ on:
   push:
     branches: [fix/tutor-school-private-schedule-scope]
 permissions:
-  contents: read
+  contents: write
 jobs:
   inspect:
     runs-on: ubuntu-latest
@@ -14,6 +14,7 @@ jobs:
         shell: bash
         run: |
           set -e
+          : > schedule-scope-diagnostic.txt
           for f in \
             src/components/portal/StaffClassSchedulesManager.tsx \
             src/components/portal/PortalLayout.tsx \
@@ -23,12 +24,20 @@ jobs:
             src/pages/portal/ParentDashboard.tsx \
             netlify/functions/class-schedules.ts \
             firestore.rules; do
-            echo "===== $f ====="
+            echo "===== $f =====" >> schedule-scope-diagnostic.txt
             if [ -f "$f" ]; then
-              grep -nE "assignedSchools|assignedStudents|filterTarget|classSchedules|schoolId|studentId|tutorId|targetType|student|schedule|appearance|Billing|Log Out|sidebar|imperson" "$f" | head -n 260 || true
+              grep -nE "assignedSchools|assignedStudents|filterTarget|classSchedules|schoolId|studentId|tutorId|targetType|student|schedule|appearance|Billing|Log Out|sidebar|imperson" "$f" | head -n 320 >> schedule-scope-diagnostic.txt || true
             else
-              echo "MISSING"
+              echo "MISSING" >> schedule-scope-diagnostic.txt
             fi
           done
-          echo "===== package scripts ====="
-          cat package.json
+          echo "===== package scripts =====" >> schedule-scope-diagnostic.txt
+          cat package.json >> schedule-scope-diagnostic.txt
+      - name: Commit diagnostic
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add schedule-scope-diagnostic.txt
+          git commit -m "chore: add schedule scope diagnostic" || exit 0
+          git push
