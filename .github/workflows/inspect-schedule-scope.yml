@@ -10,44 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect relevant files
+      - name: Capture focused source slices
         shell: bash
         run: |
           set -e
-          : > schedule-scope-diagnostic.txt
-          for f in \
-            src/components/portal/StaffClassSchedulesManager.tsx \
-            src/components/portal/PortalLayout.tsx \
-            src/pages/portal/StaffDashboard.tsx \
-            src/pages/portal/StudentDashboard.tsx \
-            src/pages/portal/SchoolDashboard.tsx \
-            src/pages/portal/ParentDashboard.tsx \
-            netlify/functions/class-schedules.ts \
-            firestore.rules; do
-            echo "===== $f (key matches) =====" >> schedule-scope-diagnostic.txt
-            if [ -f "$f" ]; then
-              grep -nE "assignedSchools|assignedStudents|filterTarget|classSchedules|schoolId|studentId|tutorId|targetType|student|schedule|appearance|Billing|Log Out|sidebar|imperson" "$f" | head -n 420 >> schedule-scope-diagnostic.txt || true
-            else
-              echo "MISSING" >> schedule-scope-diagnostic.txt
-            fi
-          done
-          echo "===== PortalLayout 1-280 =====" >> schedule-scope-diagnostic.txt
-          sed -n '1,280p' src/components/portal/PortalLayout.tsx >> schedule-scope-diagnostic.txt
-          echo "===== StaffDashboard 1-330 =====" >> schedule-scope-diagnostic.txt
-          sed -n '1,330p' src/pages/portal/StaffDashboard.tsx >> schedule-scope-diagnostic.txt
-          echo "===== SchoolDashboard 1-330 =====" >> schedule-scope-diagnostic.txt
-          sed -n '1,330p' src/pages/portal/SchoolDashboard.tsx >> schedule-scope-diagnostic.txt
-          echo "===== ParentDashboard 1-280 =====" >> schedule-scope-diagnostic.txt
-          sed -n '1,280p' src/pages/portal/ParentDashboard.tsx >> schedule-scope-diagnostic.txt
-          echo "===== class-schedules 1-420 =====" >> schedule-scope-diagnostic.txt
-          sed -n '1,420p' netlify/functions/class-schedules.ts >> schedule-scope-diagnostic.txt
-          echo "===== package scripts =====" >> schedule-scope-diagnostic.txt
-          cat package.json >> schedule-scope-diagnostic.txt
-      - name: Commit diagnostic
+          rm -rf inspect-slices
+          mkdir -p inspect-slices
+          sed -n '1,120p' src/components/portal/PortalLayout.tsx > inspect-slices/portal-layout-1.txt
+          sed -n '121,260p' src/components/portal/PortalLayout.tsx > inspect-slices/portal-layout-2.txt
+          sed -n '1,140p' src/pages/portal/StaffDashboard.tsx > inspect-slices/staff-dashboard-1.txt
+          sed -n '141,320p' src/pages/portal/StaffDashboard.tsx > inspect-slices/staff-dashboard-2.txt
+          sed -n '1,260p' netlify/functions/class-schedules.ts > inspect-slices/class-schedules-1.txt
+          sed -n '261,520p' netlify/functions/class-schedules.ts > inspect-slices/class-schedules-2.txt
+      - name: Commit focused slices
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add schedule-scope-diagnostic.txt
-          git commit -m "chore: refresh schedule scope diagnostic" || exit 0
+          git add inspect-slices
+          git commit -m "chore: capture focused schedule source slices" || exit 0
           git push
