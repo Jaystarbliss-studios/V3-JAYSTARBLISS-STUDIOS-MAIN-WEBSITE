@@ -72,6 +72,40 @@ const canTutorAccessRecord = (record: any, identity: { ids: Set<string>; names: 
   return false;
 };
 
+const resolveTutorScope = async (uid: string, user: any, identity: { ids: Set<string>; names: Set<string>; emails: Set<string> }) => {
+  const schoolIds = new Set<string>();
+  const studentIds = new Set<string>();
+  const add = (set: Set<string>, values: any[]) => values.filter(Boolean).forEach(v => set.add(String(v)));
+
+  add(schoolIds, [user.schoolId, ...(Array.isArray(user.schoolIds) ? user.schoolIds : []), ...(Array.isArray(user.assignedSchoolIds) ? user.assignedSchoolIds : [])]);
+  add(studentIds, [user.studentId, ...(Array.isArray(user.assignedStudentIds) ? user.assignedStudentIds : [])]);
+
+  const assignmentFields = ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId'];
+  for (const field of assignmentFields) {
+    for (const collectionName of ['students', 'individualStudents']) {
+      const snap = await adminDb.collection(collectionName).where(field, '==', uid).limit(500).get().catch(() => null);
+      snap?.docs.forEach(d => {
+        const data = d.data() || {};
+        studentIds.add(d.id);
+        if (data.schoolId) schoolIds.add(String(data.schoolId));
+      });
+    }
+  }
+
+  const schoolsSnap = await adminDb.collection('schools').limit(500).get().catch(() => null);
+  schoolsSnap?.docs.forEach(d => {
+    const data = d.data() || {};
+    const direct = assignmentFields.some(field => String(data[field] || '') === uid);
+    const assigned = [data.assignedTutors, data.tutors].some(list => Array.isArray(list) && list.some((t: any) => {
+      if (typeof t === 'string') return t === uid;
+      return String(t?.id || t?.uid || t?.tutorId || t?.staffId || '') === uid || normalize(t?.email) === normalize(user.email);
+    }));
+    if (direct || assigned) schoolIds.add(d.id);
+  });
+
+  return { schoolIds, studentIds };
+};
+
 const resolveStudentIdentity = async (uid: string, decoded: any, user: any) => {
   const ids = new Set<string>([uid]);
   const emails = new Set<string>();
@@ -179,7 +213,13 @@ export const handler: Handler = async event => {
         records = records.filter((r: any) => String(r.parentId || '') === uid || normalize(r.parentEmail) === normalize(user.email));
       } else if (isTutor(role)) {
         const identity = await resolveTutorIdentity(uid, user);
-        records = records.filter((r: any) => canTutorAccessRecord(r, identity));
+        const scope = await resolveTutorScope(uid, user, identity);
+        records = records.filter((r: any) => {
+          if (canTutorAccessRecord(r, identity)) return true;
+          if (String(r.targetType || '').toUpperCase() === 'SCHOOL' && scope.schoolIds.has(String(r.schoolId || ''))) return true;
+          if (String(r.targetType || '').toUpperCase() === 'STUDENT' && scope.studentIds.has(String(r.studentId || ''))) return true;
+          return false;
+        });
       } else if (isAdmin(role)) {
         if (requestedSchoolId) records = records.filter((r: any) => String(r.schoolId || '') === requestedSchoolId);
         if (requestedStudentId) records = records.filter((r: any) => String(r.studentId || '') === requestedStudentId);

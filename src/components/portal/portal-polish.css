@@ -1,0 +1,12 @@
+
+/* Portal visual polish: lighter navy surfaces with the existing Jaystarbliss red accent. */
+.dark .dashboard-interface .pro-surface {
+  background-color: #2b394d !important;
+  border-color: #42526a !important;
+}
+.dark .dashboard-interface .bg-slate-900 { background-color: #2b394d !important; }
+.dark .dashboard-interface .bg-slate-950 { background-color: #243246 !important; }
+.dark .dashboard-interface .bg-\[\#0B0F17\] { background-color: #243246 !important; }
+.dark .dashboard-interface .text-slate-900 { color: #f8fafc !important; }
+.dark .dashboard-interface .text-slate-800 { color: #f1f5f9 !important; }
+.dark .dashboard-interface .text-slate-700 { color: #e2e8f0 !important; }
