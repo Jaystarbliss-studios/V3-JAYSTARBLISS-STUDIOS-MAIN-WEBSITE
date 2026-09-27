@@ -1,6 +1,8 @@
 name: Patch school live reflection
 on:
   workflow_dispatch:
+  push:
+    branches: [fix/tutor-school-private-schedule-scope-main-base]
 permissions:
   contents: write
 jobs:
