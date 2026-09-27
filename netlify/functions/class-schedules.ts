@@ -212,8 +212,6 @@ export const handler: Handler = async event => {
         });
       } else if (role === 'STUDENT') {
         const identity = await resolveStudentIdentity(uid, decoded, user);
-        if (requestedSchoolId) identity.schoolIds.add(requestedSchoolId);
-        if (requestedStudentId) identity.ids.add(requestedStudentId);
 
         records = records.filter((r: any) => {
           const recordStudentId = String(r.studentId || '').trim();
@@ -232,7 +230,7 @@ export const handler: Handler = async event => {
           const recordProgName = normalize(r.programName || r.title);
           const isProgramMatch = recordProgName && Array.from(identity.programNames).some(pn => pn === recordProgName || pn.includes(recordProgName) || recordProgName.includes(pn));
 
-          if (!isSchoolMatch && !isProgramMatch && r.targetType !== 'ALL') return false;
+          if (!isSchoolMatch) return false;
 
           const recordClasses = Array.isArray(r.classLevels)
             ? r.classLevels.map((value: any) => normalize(value))

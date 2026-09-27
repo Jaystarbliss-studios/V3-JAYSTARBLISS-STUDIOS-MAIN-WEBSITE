@@ -236,7 +236,13 @@ export const PortalCourses: React.FC = () => {
       }
 
       // Sort strictly by stage number, then title
-      const list = Array.from(programMap.values()).sort((a, b) => a.stage - b.stage || a.title.localeCompare(b.title));
+      const sortedPrograms = Array.from(programMap.values()).sort((a, b) => a.stage - b.stage || a.title.localeCompare(b.title));
+      const uniqueTitles = new Map<string, CourseModule>();
+      sortedPrograms.forEach(program => {
+        const key = program.title.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (!uniqueTitles.has(key)) uniqueTitles.set(key, program);
+      });
+      const list = Array.from(uniqueTitles.values());
       setModules(list);
       setSelectedId(prev => prev && list.some(m => m.id === prev) ? prev : list[0]?.id || '');
 
