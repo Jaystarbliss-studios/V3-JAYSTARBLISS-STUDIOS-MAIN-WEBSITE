@@ -16,6 +16,7 @@ import { JaystarblissIcon } from '../common/JaystarblissLogo';
 import ChangePasswordModal from './ChangePasswordModal';
 import NotificationBell from '../common/NotificationBell';
 import SEO from '../ui/SEO';
+import { getActiveImpersonation, stopImpersonation } from '../../utils/impersonation';
 import './portal-polish.css';
 
 type NavItem = { name: string; path: string; icon: React.ReactNode; desc: string };
@@ -36,6 +37,7 @@ const PortalLayout: React.FC = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [impersonation, setImpersonation] = useState<any>(() => getActiveImpersonation());
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,6 +51,7 @@ const PortalLayout: React.FC = () => {
       user?.email?.split('@')[0] ||
       'Portal User'
     );
+    setImpersonation(getActiveImpersonation());
   }, [location.pathname]);
 
   useEffect(() => {
@@ -158,6 +161,15 @@ const PortalLayout: React.FC = () => {
   return (
     <div className="h-screen w-full bg-[#F8FAFC] dark:bg-[#243246] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans">
       <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />
+
+      {impersonation?.isMasquerading && (
+        <div className="shrink-0 bg-brand-red text-white border-b border-red-800/50 px-3 py-2">
+          <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 text-[11px] font-bold">
+            <span className="truncate">Admin impersonation mode active · Viewing {impersonation.targetUser?.name || impersonation.targetUser?.email || 'portal user'} ({String(impersonation.targetRole || role).toLowerCase()})</span>
+            <button type="button" onClick={() => stopImpersonation(navigate)} className="shrink-0 rounded-lg bg-white text-brand-red px-3 py-1.5 font-black hover:bg-slate-100 transition-colors">Exit session</button>
+          </div>
+        </div>
+      )}
 
       <div className="md:hidden bg-[#182335] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/10 shrink-0">
         <Link to="/" className="flex items-center gap-2 min-w-0">
