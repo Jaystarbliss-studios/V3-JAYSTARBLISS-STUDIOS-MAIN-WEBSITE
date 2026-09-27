@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { 
   CalendarDays, CheckCircle2, Clock3, Edit3, Loader2, Plus, 
   RefreshCw, School, Users, User, Trash2, XCircle, Search,
-  Sparkles, Eye, Calendar, AlertTriangle, Check, Layers,
+  Eye, Calendar, AlertTriangle, Check, Layers,
   Copy, ChevronDown, ChevronRight, Split, ChevronUp
 } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
@@ -1154,15 +1154,7 @@ const AdminClassSchedules: React.FC = () => {
       {/* Header Bar */}
       <div className="bg-white dark:bg-[#0c1220] rounded-3xl p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-brand-red text-white">
-              Multi-Day Timetable Hub
-            </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800">
-              Combined Classes &amp; Collapsible Cards
-            </span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mt-1.5">
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
             Class &amp; Lab Timetables
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">

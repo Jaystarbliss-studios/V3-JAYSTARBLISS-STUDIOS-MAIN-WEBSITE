@@ -3,7 +3,7 @@ import {
   Users, BookOpen, Download, 
   RefreshCw, School, Award, ArrowUpRight,
   ShieldCheck, CheckCircle2, MessageSquare,
-  Keyboard, ExternalLink, Copy, Check, Sparkles, Edit2, Save, X, Image as ImageIcon
+  Keyboard, ExternalLink, Copy, Check, Edit2, Save, X, Image as ImageIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
@@ -423,8 +423,7 @@ const AdminDashboard: React.FC = () => {
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                <Sparkles size={11} />
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-sm">
                 Typing Masters Academy
               </span>
               <span className="text-xs text-indigo-200 font-bold">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { ExternalLink, Video, Clock, Calendar, Radio, CheckCircle2, UserCheck, Search, Filter } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
@@ -33,17 +33,45 @@ const StudentLiveClassrooms: React.FC = () => {
     const load = async () => {
       try {
         const uid = auth.currentUser?.uid || '';
-        const studentId = sessionStorage.getItem('studentDocId') || '';
-        const cachedClass = (sessionStorage.getItem('studentClass') || '').trim().toLowerCase();
-        const cachedSchoolId = sessionStorage.getItem('studentSchoolId') || '';
+        let studentId = sessionStorage.getItem('studentDocId') || '';
+        let cachedClass = (sessionStorage.getItem('studentClass') || '').trim().toLowerCase();
+        let cachedSchoolId = sessionStorage.getItem('studentSchoolId') || '';
+        let cachedSchoolName = sessionStorage.getItem('studentSchoolName') || '';
+        let cachedProgram = (sessionStorage.getItem('studentPlan') || sessionStorage.getItem('studentTrack') || '').trim().toLowerCase();
 
-        // Fetch personal links and class schedules in parallel
-        const [linkSnaps, schSnap] = await Promise.all([
+        // If student details aren't in session, lookup student record from Firestore
+        if (uid && (!cachedSchoolId || !cachedClass)) {
+          try {
+            const [indivSnap, studSnap] = await Promise.all([
+              getDocs(query(collection(db, 'individualStudents'), where('firebaseUid', '==', uid), limit(1))).catch(() => ({ docs: [] } as any)),
+              getDocs(query(collection(db, 'students'), where('firebaseUid', '==', uid), limit(1))).catch(() => ({ docs: [] } as any)),
+            ]);
+            const sDoc = indivSnap.docs?.[0] || studSnap.docs?.[0];
+            if (sDoc) {
+              const sData = sDoc.data();
+              studentId = studentId || sDoc.id;
+              cachedClass = cachedClass || (sData.class || sData.grade || '').trim().toLowerCase();
+              cachedSchoolId = cachedSchoolId || sData.schoolId || '';
+              cachedSchoolName = cachedSchoolName || sData.schoolName || sData.school || '';
+              cachedProgram = cachedProgram || String(sData.plan || sData.programName || sData.track || '').trim().toLowerCase();
+            }
+          } catch (e) {
+            console.warn('Student identity lookup notice in LiveClassrooms:', e);
+          }
+        }
+
+        // Fetch personal links, school links, and class schedules in parallel
+        const [linkSnaps, schSnap, netlifySchedules] = await Promise.all([
           Promise.all([
             ...(studentId ? [getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))] : []),
             ...(uid ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', uid)))] : [])
           ]),
-          getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any))
+          getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any)),
+          auth.currentUser?.getIdToken().then(token => 
+            fetch(`/.netlify/functions/class-schedules?schoolId=${encodeURIComponent(cachedSchoolId)}&studentId=${encodeURIComponent(studentId)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            }).then(r => r.ok ? r.json() : { schedules: [] }).catch(() => ({ schedules: [] }))
+          ).catch(() => ({ schedules: [] }))
         ]);
 
         const sessionMap = new Map<string, LiveSession>();
@@ -62,7 +90,6 @@ const StudentLiveClassrooms: React.FC = () => {
               if (x.date < todayStr) status = 'COMPLETED';
               else if (x.date > todayStr) status = 'UPCOMING';
               else {
-                // Same day
                 if (x.startTime && x.endTime) {
                   if (currentTimeStr < x.startTime) status = 'UPCOMING';
                   else if (currentTimeStr >= x.startTime && currentTimeStr <= x.endTime) status = 'LIVE_NOW';
@@ -89,18 +116,39 @@ const StudentLiveClassrooms: React.FC = () => {
           });
         });
 
-        // 2. Process class schedules
-        const allSchedules = schSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        const studentSchedules = allSchedules.filter((r: any) => {
+        // 2. Process class schedules (combining Netlify API results & direct Firestore data)
+        const combinedRaw = [
+          ...(Array.isArray(netlifySchedules?.schedules) ? netlifySchedules.schedules : []),
+          ...schSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+        ];
+
+        const seenScheduleIds = new Set<string>();
+        const studentSchedules = combinedRaw.filter((r: any) => {
+          if (!r || !r.id || seenScheduleIds.has(r.id)) return false;
           if (!r.meetingLink && !r.url) return false;
+          seenScheduleIds.add(r.id);
+
           if (r.studentId && (r.studentId === studentId || r.studentId === uid)) return true;
-          if (cachedSchoolId && r.schoolId === cachedSchoolId) {
+
+          const rSchId = (r.schoolId || '').trim();
+          const rSchName = (r.schoolName || '').trim().toLowerCase();
+          const isSchoolMatch = (cachedSchoolId && rSchId === cachedSchoolId) ||
+            (cachedSchoolName && rSchName && (rSchName === cachedSchoolName.toLowerCase() || rSchName.includes(cachedSchoolName.toLowerCase()) || cachedSchoolName.toLowerCase().includes(rSchName)));
+
+          const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
+          const isProgramMatch = cachedProgram && (rProgName === cachedProgram || rProgName.includes(cachedProgram) || cachedProgram.includes(rProgName));
+
+          if (isSchoolMatch || isProgramMatch || r.targetType === 'ALL') {
             if (cachedClass) {
               const rClass = String(r.classLevel || '').trim().toLowerCase();
               const rLevels = Array.isArray(r.classLevels) ? r.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
-              if (rClass && (rClass === cachedClass || cachedClass.includes(rClass) || rClass.includes(cachedClass))) return true;
-              if (rLevels.length > 0 && rLevels.some((l: string) => l === cachedClass || cachedClass.includes(l) || l.includes(cachedClass))) return true;
               if (!rClass && rLevels.length === 0) return true;
+              if (rClass === 'all' || rClass === 'all classes' || rClass === 'general' || rClass === cachedClass || cachedClass.includes(rClass) || rClass.includes(cachedClass)) return true;
+              if (rLevels.some((l: string) => l === 'all' || l === 'all classes' || l === 'general' || l === cachedClass || cachedClass.includes(l) || l.includes(cachedClass))) return true;
+              
+              const studentClassNum = cachedClass.replace(/\D/g, '');
+              const rClassNum = rClass.replace(/\D/g, '');
+              if (studentClassNum && rClassNum && studentClassNum === rClassNum) return true;
             } else {
               return true;
             }

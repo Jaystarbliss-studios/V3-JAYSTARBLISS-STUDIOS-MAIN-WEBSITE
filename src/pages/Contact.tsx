@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import MainLayout from '../components/layout/MainLayout';
 import SEO from '../components/ui/SEO';
-import { CheckCircle2, MapPin, Mail, Phone, Globe, ExternalLink } from 'lucide-react';
+import { CheckCircle2, MapPin, Mail, Phone, Globe, ExternalLink, MessageSquare, HelpCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import PageHeader from '../components/ui/PageHeader';
 import { pageHeaderImages } from '../lib/stockImages';
@@ -17,6 +17,30 @@ const Contact: React.FC = () => {
     subtitle: "Whether you're looking to start a new project, enroll in a program, or just say hello, we'd love to hear from you.",
     bannerImage: ''
   });
+
+  const [channelData, setChannelData] = useState({
+    contactEmail: 'jaystarblissstudios@gmail.com',
+    contactPhone: '+234 913 651 8194',
+    infoWhatsapp: '+234 913 052 9010',
+    infoEmail: 'info@jaystarbliss-studios.name.ng',
+    supportWhatsapp: '+234 707 763 8925',
+    supportEmail: 'support@jaystarbliss-studios.name.ng',
+    address: 'Lagos, Nigeria',
+    googleBusinessUrl: 'https://share.google/mqVU8pAgKEDjOfGHe'
+  });
+
+  useEffect(() => {
+    const loadChannels = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'global'));
+        if (snap.exists()) {
+          const d = snap.data();
+          setChannelData(prev => ({ ...prev, ...d }));
+        }
+      } catch {}
+    };
+    loadChannels();
+  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -107,43 +131,91 @@ const Contact: React.FC = () => {
 
               <div className="divide-y divide-slate-200 dark:divide-slate-800 border-t border-b border-slate-200 dark:border-slate-800">
                 
-                <div className="py-6 flex items-start gap-4">
+                {/* General Inquiry & Admissions */}
+                <div className="py-5 flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0 mt-0.5">
                     <Mail size={20} />
                   </div>
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Email Us</h3>
-                    <a href="mailto:jaystarblissstudios@gmail.com" className="text-base font-semibold text-brand-slate dark:text-white hover:text-brand-red transition-colors break-all">
-                      jaystarblissstudios@gmail.com
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">General Email & Correspondence</h3>
+                    <a href={`mailto:${channelData.contactEmail}`} className="text-sm sm:text-base font-semibold text-brand-slate dark:text-white hover:text-brand-red transition-colors break-all block">
+                      {channelData.contactEmail}
                     </a>
                   </div>
                 </div>
 
-                <div className="py-6 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0 mt-0.5">
-                    <Phone size={20} />
+                {/* Info Desk */}
+                <div className="py-5 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                    <MessageSquare size={20} />
                   </div>
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Call / WhatsApp</h3>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Services & Admissions Info Desk</h3>
                     <div className="flex flex-col gap-1">
-                      <a href="tel:+2349136518194" className="text-base font-semibold text-brand-slate dark:text-white hover:text-brand-red transition-colors">
-                        +234 913 651 8194
+                      <a 
+                        href={`https://wa.me/${channelData.infoWhatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello Jaystarbliss Studios! I would like information regarding your courses & services.')}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm sm:text-base font-semibold text-brand-slate dark:text-white hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5"
+                      >
+                        <span>WhatsApp: {channelData.infoWhatsapp}</span>
+                        <ExternalLink size={12} />
                       </a>
-                      <a href="tel:+2349130529010" className="text-base font-semibold text-brand-slate dark:text-white hover:text-brand-red transition-colors">
-                        +234 913 052 9010
+                      <a href={`mailto:${channelData.infoEmail}`} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors">
+                        Email: {channelData.infoEmail}
                       </a>
                     </div>
                   </div>
                 </div>
 
-                <div className="py-6 flex items-start gap-4">
+                {/* Support Helpdesk */}
+                <div className="py-5 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0 mt-0.5">
+                    <HelpCircle size={20} />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Portal & Technical Support Helpdesk</h3>
+                    <div className="flex flex-col gap-1">
+                      <a 
+                        href={`https://wa.me/${channelData.supportWhatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent('Hello Jaystarbliss Support Desk! I need assistance with portal login / credentials.')}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm sm:text-base font-semibold text-brand-slate dark:text-white hover:text-rose-600 transition-colors inline-flex items-center gap-1.5"
+                      >
+                        <span>WhatsApp: {channelData.supportWhatsapp}</span>
+                        <ExternalLink size={12} />
+                      </a>
+                      <a href={`mailto:${channelData.supportEmail}`} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-rose-600 transition-colors">
+                        Email: {channelData.supportEmail}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Contact Phone */}
+                <div className="py-5 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0 mt-0.5">
+                    <Phone size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Direct Line / Primary WhatsApp</h3>
+                    <div className="flex flex-col gap-1">
+                      <a href={`tel:${channelData.contactPhone.replace(/\s+/g, '')}`} className="text-sm sm:text-base font-semibold text-brand-slate dark:text-white hover:text-brand-red transition-colors">
+                        {channelData.contactPhone}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Google Business */}
+                <div className="py-5 flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0 mt-0.5">
                     <Globe size={20} />
                   </div>
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Google Business</h3>
                     <a 
-                      href="https://share.google/mqVU8pAgKEDjOfGHe" 
+                      href={channelData.googleBusinessUrl || 'https://share.google/mqVU8pAgKEDjOfGHe'} 
                       target="_blank" 
                       rel="noopener noreferrer" 
                       className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-red hover:underline mt-0.5"
@@ -154,14 +226,15 @@ const Contact: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="py-6 flex items-start gap-4">
+                {/* Headquarters */}
+                <div className="py-5 flex items-start gap-4">
                   <div className="w-10 h-10 rounded-xl bg-brand-red/10 flex items-center justify-center text-brand-red shrink-0 mt-0.5">
                     <MapPin size={20} />
                   </div>
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">Headquarters</h3>
                     <p className="text-base font-medium text-brand-slate dark:text-white leading-relaxed">
-                      Lagos, Nigeria
+                      {channelData.address || 'Lagos, Nigeria'}
                     </p>
                   </div>
                 </div>

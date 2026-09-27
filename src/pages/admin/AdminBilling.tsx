@@ -2755,7 +2755,7 @@ const AdminBilling: React.FC<AdminBillingProps> = ({ initialView = 'hub' }) => {
         isOpen={isAddMoneyModalOpen}
         onClose={() => setIsAddMoneyModalOpen(false)}
         userName="Platform Treasury"
-        userEmail="admin@jaystarbliss.com"
+        userEmail="admin@jaystarbliss-studios.name.ng"
         onPaystackTopUp={async (amt) => {
           toast.success(`Platform Treasury direct deposit of ₦${amt.toLocaleString()} initiated via Paystack.`);
         }}

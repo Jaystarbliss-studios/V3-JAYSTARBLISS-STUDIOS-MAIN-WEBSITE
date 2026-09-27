@@ -273,36 +273,36 @@ export const TypingMastersAcademyCard: React.FC<TypingMastersAcademyCardProps> =
       <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header Banner - Responsive on Mobile and Desktop */}
-      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-indigo-900/50 pb-5">
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-indigo-700/60 pb-5">
         <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/25 border border-indigo-500/40 flex items-center justify-center text-indigo-300 shadow-md shrink-0">
-            <Keyboard size={24} />
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600/40 border border-indigo-400/60 flex items-center justify-center text-white shadow-md shrink-0">
+            <Keyboard size={24} className="text-white" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base sm:text-xl font-black text-white tracking-tight leading-snug">
+            <h3 style={{ color: '#ffffff' }} className="text-base sm:text-xl font-black !text-white tracking-tight leading-snug">
               {cardTitle}
             </h3>
-            <p className="text-xs text-indigo-200/90 font-medium mt-0.5 leading-normal">
+            <p style={{ color: '#e0e7ff' }} className="text-xs !text-indigo-100 font-semibold mt-0.5 leading-normal">
               {cardSubtitle}
             </p>
-            <p className="text-[11px] text-slate-300 mt-1 font-semibold flex flex-wrap items-center gap-2">
-              <span className="truncate max-w-[220px]">Roster: {studentName}</span>
-              {studentClass && <span>• Class: {studentClass}</span>}
-              {enrolledProgramName && <span className="text-indigo-300">• {enrolledProgramName}</span>}
+            <p style={{ color: '#cbd5e1' }} className="text-[11px] !text-slate-200 mt-1 font-bold flex flex-wrap items-center gap-2">
+              <span className="truncate max-w-[220px]">Roster: <strong className="text-white">{studentName}</strong></span>
+              {studentClass && <span>• Class: <strong className="text-white">{studentClass}</strong></span>}
+              {enrolledProgramName && <span className="text-indigo-300 font-bold">• {enrolledProgramName}</span>}
             </p>
           </div>
         </div>
 
         {/* Action Controls - Mobile Responsive */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 md:pt-0">
-          <div className="flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl bg-slate-900/90 border border-indigo-500/30 text-indigo-300 font-mono text-[11px]">
-            <span className="truncate max-w-[180px] sm:max-w-[210px]">{edclubUrl.replace('https://', '')}</span>
+          <div className="flex items-center justify-between gap-1.5 px-3 py-2 rounded-xl bg-slate-900 border border-indigo-400/50 text-white font-mono text-[11px] font-bold">
+            <span className="truncate max-w-[180px] sm:max-w-[210px] text-indigo-100">{edclubUrl.replace('https://', '')}</span>
             <button
               type="button"
               onClick={handleCopyLink}
               title="Copy EdClub Portal Link"
               aria-label="Copy EdClub Portal Link"
-              className="p-1 hover:text-white transition-colors cursor-pointer"
+              className="p-1 hover:text-white transition-colors cursor-pointer text-indigo-300"
             >
               {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
             </button>
@@ -313,9 +313,9 @@ export const TypingMastersAcademyCard: React.FC<TypingMastersAcademyCardProps> =
             onClick={handleLaunch}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs sm:text-sm font-black transition-all shadow-md shadow-indigo-600/40 cursor-pointer shrink-0"
           >
-            <ExternalLink size={14} />
-            <span>Launch EdClub</span>
-            <ArrowUpRight size={13} className="opacity-80" />
+            <ExternalLink size={14} className="text-white" />
+            <span className="text-white">Launch EdClub</span>
+            <ArrowUpRight size={13} className="opacity-90 text-white" />
           </button>
         </div>
       </div>
@@ -323,25 +323,25 @@ export const TypingMastersAcademyCard: React.FC<TypingMastersAcademyCardProps> =
       {/* Dynamic EdClub Assignments List from Firestore */}
       <div className="relative z-10 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-300">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-white">
             <ClipboardList size={14} className="text-indigo-400" />
-            <span>EdClub Assigned Tasks ({dynamicAssignments.length})</span>
+            <span style={{ color: '#ffffff' }} className="!text-white font-bold">EdClub Assigned Tasks ({dynamicAssignments.length})</span>
           </div>
-          <span className="text-[11px] text-slate-400">
+          <span style={{ color: '#e2e8f0' }} className="text-[11px] font-bold !text-slate-200">
             Assigned by Tutor &amp; Academy
           </span>
         </div>
 
         {loadingAssignments ? (
-          <div className="p-6 text-center text-xs text-indigo-200/80 rounded-2xl bg-slate-900/60 border border-indigo-900/40 flex items-center justify-center gap-2">
+          <div className="p-6 text-center text-xs text-white rounded-2xl bg-slate-900/90 border border-indigo-900/50 flex items-center justify-center gap-2">
             <Loader2 size={16} className="animate-spin text-indigo-400" />
-            <span>Checking active EdClub assignments...</span>
+            <span className="text-white font-medium">Checking active EdClub assignments...</span>
           </div>
         ) : dynamicAssignments.length === 0 ? (
-          <div className="p-5 text-center rounded-2xl bg-slate-900/60 border border-dashed border-indigo-900/50 space-y-2">
-            <Keyboard size={24} className="mx-auto text-indigo-400/60" />
-            <p className="text-xs font-bold text-white">No pending EdClub typing tasks</p>
-            <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+          <div className="p-5 text-center rounded-2xl bg-slate-900/90 border border-dashed border-indigo-700/60 space-y-2">
+            <Keyboard size={24} className="mx-auto text-indigo-400" />
+            <p style={{ color: '#ffffff' }} className="text-xs font-black !text-white">No pending EdClub typing tasks</p>
+            <p style={{ color: '#cbd5e1' }} className="text-[11px] !text-slate-300 max-w-md mx-auto leading-relaxed">
               When your assigned tutor or administrator issues an EdClub typing drill, it will appear here in real time. You can launch EdClub anytime to practice your speed drills!
             </p>
           </div>
@@ -350,43 +350,43 @@ export const TypingMastersAcademyCard: React.FC<TypingMastersAcademyCardProps> =
             {dynamicAssignments.map((item) => (
               <div 
                 key={item.id}
-                className="p-3.5 rounded-2xl bg-slate-900/80 border border-indigo-900/60 hover:border-indigo-500/50 transition-all flex flex-col justify-between gap-2.5"
+                className="p-3.5 rounded-2xl bg-slate-900/95 border border-indigo-700/70 hover:border-indigo-400/80 transition-all flex flex-col justify-between gap-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 min-w-0">
                     <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                       item.status === 'COMPLETED' 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                        : 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                        : 'bg-indigo-600/30 text-indigo-200 border border-indigo-400/50'
                     }`}>
                       {item.status === 'COMPLETED' ? <CheckCircle2 size={16} /> : <BookOpen size={16} />}
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-xs sm:text-sm font-bold text-white truncate">{item.title}</h4>
+                      <h4 style={{ color: '#ffffff' }} className="text-xs sm:text-sm font-bold !text-white truncate">{item.title}</h4>
                       {item.instructions && (
-                        <p className="text-[11px] text-slate-300 line-clamp-2 mt-0.5">{item.instructions}</p>
+                        <p style={{ color: '#cbd5e1' }} className="text-[11px] !text-slate-300 line-clamp-2 mt-0.5">{item.instructions}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-indigo-300/80 font-medium">
-                        {item.module && <span>{item.module}</span>}
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-indigo-200 font-semibold">
+                        {item.module && <span className="text-indigo-300">{item.module}</span>}
                         {item.dueDate && (
-                          <span className="flex items-center gap-1 text-slate-400">
-                            <Calendar size={10} /> Due: {item.dueDate}
+                          <span className="flex items-center gap-1 text-slate-200 font-medium">
+                            <Calendar size={10} className="text-indigo-300" /> Due: {item.dueDate}
                           </span>
                         )}
-                        {item.tutorName && <span>• By: {item.tutorName}</span>}
+                        {item.tutorName && <span className="text-slate-300">• By: {item.tutorName}</span>}
                       </div>
                     </div>
                   </div>
 
                   {item.targetWpm && (
-                    <div className="text-right shrink-0 px-2 py-1 rounded-lg bg-indigo-950/80 border border-indigo-800/60">
+                    <div className="text-right shrink-0 px-2 py-1 rounded-lg bg-indigo-950 border border-indigo-600/70">
                       <div className="text-xs font-black font-mono text-amber-300">{item.targetWpm} WPM</div>
-                      <div className="text-[9px] uppercase font-bold text-slate-400">Target</div>
+                      <div style={{ color: '#cbd5e1' }} className="text-[9px] uppercase font-bold !text-slate-300">Target</div>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-end pt-1 border-t border-indigo-900/40">
+                <div className="flex items-center justify-end pt-1 border-t border-indigo-900/80">
                   <button
                     type="button"
                     onClick={() => {
@@ -396,7 +396,7 @@ export const TypingMastersAcademyCard: React.FC<TypingMastersAcademyCardProps> =
                         handleLaunch();
                       }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
                   >
                     <span>Open Drill</span>
                     <ArrowUpRight size={12} />

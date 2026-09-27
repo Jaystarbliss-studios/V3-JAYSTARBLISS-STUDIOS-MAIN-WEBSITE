@@ -107,8 +107,8 @@ const AdminInquiries: React.FC = () => {
       const subjectName = selected.inquirySubject || selected.subject || selected.type || 'Inquiry';
       setEmailDraft({
         subject: `Re: ${subjectName} — Jaystarbliss Studios`,
-        message: `Hello ${selected.name || selected.contactName || 'there'},\n\nThank you for reaching out to Jaystarbliss Studios. We have reviewed your request regarding "${subjectName}" and would love to assist you.\n\nPlease feel free to reply directly to this email if you have any additional questions or specific scheduling requirements.\n\nWarm regards,\nJaystarbliss Admissions & Academic Team\nhttps://jaystarbliss.com`,
-        actionUrl: 'https://jaystarbliss.com/portal',
+        message: `Hello ${selected.name || selected.contactName || 'there'},\n\nThank you for reaching out to Jaystarbliss Studios. We have reviewed your request regarding "${subjectName}" and would love to assist you.\n\nPlease feel free to reply directly to this email if you have any additional questions or specific scheduling requirements.\n\nWarm regards,\nJaystarbliss Admissions & Academic Team\nhttps://jaystarbliss-studios.name.ng`,
+        actionUrl: 'https://jaystarbliss-studios.name.ng/portal',
         actionText: 'Access Student/Staff Portal'
       });
     }
@@ -817,7 +817,7 @@ const AdminInquiries: React.FC = () => {
                         type="url"
                         value={emailDraft.actionUrl}
                         onChange={e => setEmailDraft({ ...emailDraft, actionUrl: e.target.value })}
-                        placeholder="https://jaystarbliss.com/..."
+                        placeholder="https://jaystarbliss-studios.name.ng/..."
                         className={inputClass}
                       />
                     </div>

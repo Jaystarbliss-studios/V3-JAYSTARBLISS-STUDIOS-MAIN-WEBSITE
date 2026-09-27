@@ -36,7 +36,9 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [issued, setIssued] = useState<Record<string, { username: string; accessCode: string; portal: string }>>({});
+  const [filterTab, setFilterTab] = useState<'all' | 'classes' | 'tracks'>('all');
   const [selectedClass, setSelectedClass] = useState('All Classes');
+  const [selectedTrack, setSelectedTrack] = useState('All Tracks');
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -45,31 +47,33 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
     const combinedMap = new Map<string, Student>();
 
     try {
-      // Load only the authorised school/tutor roster.
-      // 1. Fetch from scoped school-students endpoint
       const currentUser = auth.currentUser;
+      const targetSchoolId = sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_cached_school_id') || (isSchool ? currentUser?.uid : '') || '';
+
       if (currentUser) {
+        // 1. Fetch from scoped backend endpoint
         try {
           const token = await currentUser.getIdToken();
-          const schoolParam = sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_cached_school_id') || '';
-          const url = '/.netlify/functions/school-students' + (schoolParam ? `?schoolId=${encodeURIComponent(schoolParam)}` : '');
+          const url = '/.netlify/functions/school-students' + (targetSchoolId ? `?schoolId=${encodeURIComponent(targetSchoolId)}` : '');
           const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
           const resJson = await res.json();
           if (res.ok && Array.isArray(resJson?.students)) {
             resJson.students.forEach((s: any) => {
               if (s && s.id) {
-                const existing = combinedMap.get(s.id);
+                // If school portal, strictly enforce schoolId match
+                if (isSchool && targetSchoolId && s.schoolId !== targetSchoolId) return;
+
                 combinedMap.set(s.id, {
-                  ...(existing || {}),
                   id: s.id,
-                  fullName: s.fullName || s.studentName || s.name || existing?.fullName,
-                  studentName: s.fullName || s.studentName || s.name || existing?.studentName,
-                  username: s.username || existing?.username,
-                  class: s.class || s.classLevel || s.grade || existing?.class,
-                  schoolName: s.schoolName || existing?.schoolName,
-                  schoolId: s.schoolId || existing?.schoolId,
-                  track: s.track || existing?.track,
-                  portalAccessEnabled: s.portalAccessEnabled !== false
+                  fullName: s.fullName || s.studentName || s.name || 'Student',
+                  studentName: s.fullName || s.studentName || s.name || 'Student',
+                  username: s.username || s.id,
+                  class: (s.class || s.classLevel || s.grade || '').trim() || 'Year 1',
+                  schoolName: s.schoolName || '',
+                  schoolId: s.schoolId || targetSchoolId,
+                  track: s.track || s.programName || s.plan || 'Digital Literacy Junior',
+                  portalAccessEnabled: s.portalAccessEnabled !== false,
+                  accountStatus: s.accountStatus || 'ACTIVE'
                 });
               }
             });
@@ -78,39 +82,76 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
           console.warn('school-students fetch in CredentialCenter:', err);
         }
 
-        // 3. Direct Firestore Fallback if list is still small or empty
-        if (combinedMap.size === 0 && isSchool) {
+        // 2. Direct Firestore fallback if needed
+        if (combinedMap.size === 0 && isSchool && targetSchoolId) {
           try {
-            const schoolId = sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_cached_school_id') || currentUser.uid;
             const queries = [
-              query(collection(db, 'individualStudents'), where('schoolId', '==', schoolId)),
-              query(collection(db, 'students'), where('schoolId', '==', schoolId)),
-              query(collection(db, 'users'), where('schoolId', '==', schoolId))
+              query(collection(db, 'students'), where('schoolId', '==', targetSchoolId)),
+              query(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId)),
+              query(collection(db, 'users'), where('schoolId', '==', targetSchoolId))
             ];
             const snapshots = await Promise.all(queries.map(q => getDocs(q).catch(() => null)));
+            const seenKeys = new Set<string>();
+
+            const isDuplicate = (d: any, docId: string): boolean => {
+              const uname = String(d.username || '').toLowerCase().trim();
+              const email = String(d.email || '').toLowerCase().trim();
+              const uid = String(d.firebaseUid || d.userId || '').trim();
+              const sDocId = String(d.studentDocId || docId).trim();
+              const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
+
+              if (docId && seenKeys.has(`id:${docId}`)) return true;
+              if (sDocId && seenKeys.has(`docId:${sDocId}`)) return true;
+              if (uid && seenKeys.has(`uid:${uid}`)) return true;
+              if (uname && seenKeys.has(`u:${uname}`)) return true;
+              if (email && !email.endsWith('.local') && seenKeys.has(`e:${email}`)) return true;
+              if (name && seenKeys.has(`name:${name}`)) return true;
+              return false;
+            };
+
+            const recordSeen = (d: any, docId: string) => {
+              const uname = String(d.username || '').toLowerCase().trim();
+              const email = String(d.email || '').toLowerCase().trim();
+              const uid = String(d.firebaseUid || d.userId || '').trim();
+              const sDocId = String(d.studentDocId || docId).trim();
+              const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
+
+              if (docId) seenKeys.add(`id:${docId}`);
+              if (sDocId) seenKeys.add(`docId:${sDocId}`);
+              if (uid) seenKeys.add(`uid:${uid}`);
+              if (uname) seenKeys.add(`u:${uname}`);
+              if (email && !email.endsWith('.local')) seenKeys.add(`e:${email}`);
+              if (name) seenKeys.add(`name:${name}`);
+            };
+
             snapshots.forEach(snap => {
               if (!snap) return;
               snap.docs.forEach(d => {
                 const data = d.data();
                 const key = String(data.studentDocId || d.id);
-                if (!combinedMap.has(key)) {
-                  combinedMap.set(key, {
-                    id: key,
-                    fullName: data.fullName || data.studentName || data.name || 'Student',
-                    studentName: data.fullName || data.studentName || data.name || 'Student',
-                    username: data.username || key,
-                    class: data.class || data.classLevel || data.grade || 'General',
-                    schoolName: data.schoolName || '',
-                    schoolId: data.schoolId || schoolId,
-                    track: data.track || 'General Tech',
-                    portalAccessEnabled: data.portalAccessEnabled !== false,
-                    accountStatus: data.accountStatus || 'ACTIVE'
-                  });
-                }
+                const sId = String(data.schoolId || data.school_id || '').trim();
+                // Strictly require matching schoolId
+                if (sId !== targetSchoolId) return;
+
+                if (isDuplicate(data, d.id)) return;
+                recordSeen(data, d.id);
+
+                combinedMap.set(key, {
+                  id: key,
+                  fullName: data.fullName || data.studentName || data.name || 'Student',
+                  studentName: data.fullName || data.studentName || data.name || 'Student',
+                  username: data.username || key,
+                  class: (data.class || data.classLevel || data.grade || '').trim() || 'Year 1',
+                  schoolName: data.schoolName || '',
+                  schoolId: targetSchoolId,
+                  track: data.track || data.programName || data.plan || 'Digital Literacy Junior',
+                  portalAccessEnabled: data.portalAccessEnabled !== false,
+                  accountStatus: data.accountStatus || 'ACTIVE'
+                });
               });
             });
           } catch (fsErr) {
-            console.warn('Direct Firestore fallback:', fsErr);
+            console.warn('Direct Firestore fallback error in CredentialCenter:', fsErr);
           }
         }
       }
@@ -130,31 +171,62 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
   const classGroups = useMemo(() => {
     const map = new Map<string, number>();
     students.forEach(student => {
-      const key = student.class || student.classLevel || student.grade || 'Not Assigned';
+      const key = (student.class || student.classLevel || student.grade || '').trim() || 'Year 1';
       map.set(key, (map.get(key) || 0) + 1);
     });
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    const ordered = [
+      'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+      'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6',
+      'JSS 1', 'JSS 2', 'JSS 3',
+      'SS 1', 'SS 2', 'SS 3',
+      'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+    ];
+    return Array.from(map.entries()).sort((a, b) => {
+      const ia = ordered.indexOf(a[0]), ib = ordered.indexOf(b[0]);
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ia < 0 && ib >= 0) return 1;
+      return a[0].localeCompare(b[0], undefined, { numeric: true });
+    });
+  }, [students]);
+
+  const trackGroups = useMemo(() => {
+    const map = new Map<string, number>();
+    students.forEach(student => {
+      const t = (student.track || student.programName || 'Digital Literacy Junior').trim();
+      const parts = t.split(',').map(s => s.trim()).filter(Boolean);
+      const list = parts.length > 0 ? parts : ['Digital Literacy Junior'];
+      list.forEach(p => map.set(p, (map.get(p) || 0) + 1));
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [students]);
 
   const visibleStudents = useMemo(() => {
     return students.filter(student => {
-      const studentClass = student.class || student.classLevel || student.grade || 'Not Assigned';
-      if (selectedClass !== 'All Classes' && studentClass !== selectedClass) {
+      const studentClass = (student.class || student.classLevel || student.grade || '').trim() || 'Year 1';
+      const studentTrack = (student.track || student.programName || 'Digital Literacy Junior').trim();
+
+      if (filterTab === 'classes' && selectedClass !== 'All Classes' && studentClass !== selectedClass) {
         return false;
       }
+
+      if (filterTab === 'tracks' && selectedTrack !== 'All Tracks' && !studentTrack.includes(selectedTrack)) {
+        return false;
+      }
+
       if (searchTerm.trim()) {
         const queryStr = searchTerm.toLowerCase();
         const name = String(student.fullName || student.studentName || student.name || '').toLowerCase();
         const user = String(student.username || '').toLowerCase();
         const cl = String(studentClass).toLowerCase();
-        const tr = String(student.track || '').toLowerCase();
+        const tr = String(studentTrack).toLowerCase();
         if (!name.includes(queryStr) && !user.includes(queryStr) && !cl.includes(queryStr) && !tr.includes(queryStr)) {
           return false;
         }
       }
       return true;
     });
-  }, [students, selectedClass, searchTerm]);
+  }, [students, filterTab, selectedClass, selectedTrack, searchTerm]);
 
   const issue = async (student: Student) => {
     setBusyId(student.id);
@@ -305,7 +377,7 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
       </div>
 
       {/* Controls & Filter bar */}
-      <div className="pro-surface rounded-2xl p-4 md:p-5 space-y-4">
+      <div className="pro-surface rounded-2xl p-4 md:p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           {/* Search box */}
           <div className="relative flex-1 max-w-md">
@@ -314,8 +386,8 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
               type="text" 
               value={searchTerm} 
               onChange={e => setSearchTerm(e.target.value)} 
-              placeholder="Search student by name, username, or class…" 
-              className="w-full min-h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+              placeholder="Search student by name, username, class, or track…" 
+              className="w-full min-h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-red/30"
             />
           </div>
 
@@ -325,14 +397,51 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
           </div>
         </div>
 
-        {/* Class Filter Tabs */}
-        {classGroups.length > 0 && (
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        {/* 3 Dedicated Filter Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-full sm:w-fit">
+          <button
+            type="button"
+            onClick={() => { setFilterTab('all'); setSelectedClass('All Classes'); setSelectedTrack('All Tracks'); }}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'all'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            All Students ({students.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab('classes')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'classes'
+                ? 'bg-white dark:bg-slate-900 text-brand-red font-black shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Classes ({classGroups.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab('tracks')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'tracks'
+                ? 'bg-white dark:bg-slate-900 text-brand-red font-black shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Program Tracks ({trackGroups.length})
+          </button>
+        </div>
+
+        {/* Tab Content: Classes Selector */}
+        {filterTab === 'classes' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex flex-wrap gap-2">
               <button 
                 type="button" 
                 onClick={() => setSelectedClass('All Classes')} 
-                className={`min-h-8 px-3 rounded-lg font-bold whitespace-nowrap transition ${
+                className={`min-h-8 px-3 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                   selectedClass === 'All Classes' 
                     ? 'bg-brand-red text-white' 
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -345,13 +454,48 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
                   key={cls} 
                   type="button" 
                   onClick={() => setSelectedClass(cls)} 
-                  className={`min-h-8 px-3 rounded-lg font-bold whitespace-nowrap transition flex items-center gap-1 ${
+                  className={`min-h-8 px-3 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 cursor-pointer ${
                     selectedClass === cls 
                       ? 'bg-brand-red text-white' 
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {cls} <span className="text-[10px] opacity-75">({count})</span>
+                  <span>{cls}</span>
+                  <span className="text-[10px] font-mono opacity-75">({count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab Content: Program Tracks Selector */}
+        {filterTab === 'tracks' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <button 
+                type="button" 
+                onClick={() => setSelectedTrack('All Tracks')} 
+                className={`min-h-8 px-3 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                  selectedTrack === 'All Tracks' 
+                    ? 'bg-brand-red text-white' 
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                All Tracks ({students.length})
+              </button>
+              {trackGroups.map(([tr, count]) => (
+                <button 
+                  key={tr} 
+                  type="button" 
+                  onClick={() => setSelectedTrack(tr)} 
+                  className={`min-h-8 px-3 rounded-lg text-xs font-bold whitespace-nowrap transition flex items-center gap-1 cursor-pointer ${
+                    selectedTrack === tr 
+                      ? 'bg-brand-red text-white' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <span>{tr}</span>
+                  <span className="text-[10px] font-mono opacity-75">({count})</span>
                 </button>
               ))}
             </div>
@@ -402,20 +546,23 @@ const StudentCredentialCenter: React.FC<Props> = ({ role }) => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-base font-black text-slate-900 dark:text-white">{name}</h3>
-                      <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                        {studentClass}
+                      <span className="text-xs font-bold text-slate-500">
+                        · {studentClass}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500 font-mono">
-                      @{student.username || 'username not issued'} {student.track ? `• ${student.track}` : ''}
+                      @{student.username || 'pending'} {student.track ? `• ${student.track}` : ''}
                     </p>
                   </div>
 
-                  <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${
                     student.portalAccessEnabled !== false 
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' 
-                      : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : 'text-amber-600 dark:text-amber-400'
                   }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      student.portalAccessEnabled !== false ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`} />
                     {student.portalAccessEnabled !== false ? 'Active' : 'Disabled'}
                   </span>
                 </div>

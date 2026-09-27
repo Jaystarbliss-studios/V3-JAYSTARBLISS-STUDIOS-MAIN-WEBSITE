@@ -82,7 +82,7 @@ export const FintechWalletCard: React.FC<FintechWalletCardProps> = ({
           </button>
           <button
             type="button"
-            onClick={onHelpClick || (() => window.open('mailto:support@jaystarbliss.com', '_blank'))}
+            onClick={onHelpClick || (() => window.open('mailto:jaystarblissstudios@gmail.com', '_blank'))}
             className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-xs"
             title="Help & Support"
           >

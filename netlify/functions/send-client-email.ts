@@ -6,6 +6,7 @@ import {
   sendClientInquiryConfirmation, 
   sendAdminInquiryAlert,
   sendDirectClientEmail,
+  sendPasswordResetEmailResend,
   RESEND_CONFIG 
 } from '../../api/_lib/email';
 
@@ -75,7 +76,60 @@ export const handler: Handler = async (event) => {
       });
     }
 
-    // 2. AUTHENTICATED ADMIN ACTIONS (TEST EMAIL & DIRECT CLIENT EMAIL)
+    // 2. PUBLIC / PORTAL ACTION: PASSWORD RESET VIA RESEND
+    if (action === 'password_reset') {
+      const email = clean(body.email || body.to || body.identifier, 160).toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return json(400, { error: 'A valid email address is required for password recovery.' });
+      }
+
+      let userRecord: any = null;
+      try {
+        userRecord = await adminAuth.getUserByEmail(email);
+      } catch (err: any) {
+        if (err?.code === 'auth/user-not-found') {
+          return json(200, {
+            success: true,
+            message: 'If an account exists with this email address, a password reset link has been dispatched.'
+          });
+        }
+      }
+
+      let recipientName = userRecord?.displayName || clean(body.recipientName || body.name, 120);
+      if (!recipientName && userRecord?.uid) {
+        try {
+          const userDoc = await adminDb.collection('users').doc(userRecord.uid).get();
+          if (userDoc.exists) {
+            const data = userDoc.data() || {};
+            recipientName = data.name || data.fullName || data.contactName || '';
+          }
+        } catch {}
+      }
+
+      const actionCodeSettings = {
+        url: `${RESEND_CONFIG.portalUrl}`,
+        handleCodeInApp: false
+      };
+
+      const resetLink = await adminAuth.generatePasswordResetLink(email, actionCodeSettings);
+      const emailResult = await sendPasswordResetEmailResend({
+        to: email,
+        resetLink,
+        recipientName: recipientName || undefined
+      });
+
+      if (!emailResult.success) {
+        return json(502, { error: emailResult.error || 'Failed to deliver password reset email via Resend.' });
+      }
+
+      return json(200, {
+        success: true,
+        message: `Password reset link successfully sent to ${email} via Resend.`,
+        id: emailResult.id
+      });
+    }
+
+    // 3. AUTHENTICATED ADMIN ACTIONS (TEST EMAIL & DIRECT CLIENT EMAIL)
     const bearer = getBearer(event);
     if (!bearer) {
       return json(401, { error: 'Authentication required for administrative email operations.' });

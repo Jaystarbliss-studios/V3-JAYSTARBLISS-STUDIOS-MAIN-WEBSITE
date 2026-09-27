@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, Clock, Video, ExternalLink, Loader2, ChevronDown, ChevronRight, CheckCircle2, CircleAlert, Timer, BookOpen, Pencil, X, Save, School, UserCheck } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import SEO from '../../components/ui/SEO';
 
 type ScheduleStatus = 'upcoming' | 'ongoing' | 'completed' | 'absent' | 'cancelled' | 'rescheduled' | 'scheduled';
@@ -17,9 +17,107 @@ const statusMeta:Record<ScheduleStatus,{label:string;icon:React.ReactNode}>= {up
 const PortalCalendar:React.FC=()=>{
  const [events,setEvents]=useState<TimetableEvent[]>([]); const [selectedProgramme,setSelectedProgramme]=useState('ALL'); const [selectedSchool,setSelectedSchool]=useState('ALL'); const [selectedStatus,setSelectedStatus]=useState<'ALL'|ScheduleStatus>('ALL'); const [loading,setLoading]=useState(true); const [message,setMessage]=useState(''); const [expandedDays,setExpandedDays]=useState<Record<string,boolean>>({}); const [editing,setEditing]=useState<TimetableEvent|null>(null); const [editForm,setEditForm]=useState({title:'',date:'',startTime:'',endTime:'',meetingLink:''}); const [saving,setSaving]=useState(false); const [updatingId,setUpdatingId]=useState<string|null>(null); const [,setClock]=useState(0);
  const role=String(sessionStorage.getItem('userRole')||'').toUpperCase(); const canManage=['STAFF','TUTOR','INSTRUCTOR','FACULTY'].includes(role);
- const load=useCallback(async()=>{setLoading(true);setMessage('');try{const user=auth.currentUser;if(!user)throw new Error('Please sign in again.');const token=await user.getIdToken();const r=await fetch('/.netlify/functions/class-schedules',{headers:{Authorization:`Bearer ${token}`}});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Unable to load class schedules.');const raw=Array.isArray(data.schedules)?data.schedules:[];const mapped:TimetableEvent[]=raw.map((x:any)=>{const key=String(x.date||'').slice(0,10);const start=String(x.startTime||'08:00');const end=String(x.endTime||'08:40');return{id:x.id,title:x.title||x.programName||'Class Session',dateKey:key,dateLabel:dateLabel(key),dateMs:new Date(`${key}T12:00:00`).getTime(),startTime:start,endTime:end,instructor:x.tutorName||'Tutor not assigned',roomOrLink:x.meetingLink||x.url||'',isOnline:Boolean(x.meetingLink||x.url),schoolId:x.schoolId,schoolName:x.schoolName,programmeId:x.programId||x.programmeId,programmeName:x.programName||x.programmeName||x.title,className:x.classLevel||(Array.isArray(x.classLevels)?x.classLevels.join(', '):'All classes'),status:calcStatus(key,start,end,x.status),explicitStatus:x.status,scheduleGroupId:x.scheduleGroupId};}).filter((e:TimetableEvent)=>Boolean(e.dateKey));mapped.sort((a,b)=>a.dateMs-b.dateMs||mins(a.startTime)-mins(b.startTime));setEvents(mapped);if(!mapped.length)setMessage('No class schedules are currently assigned to this account.');}catch(e:any){console.error('Schedule loading failed:',e);setEvents([]);setMessage(e?.message||'Schedule data could not be loaded.');}finally{setLoading(false);}},[]);
+ const load=useCallback(async()=>{
+  setLoading(true);
+  setMessage('');
+  try {
+    const user=auth.currentUser;
+    if(!user) throw new Error('Please sign in again.');
+    const token=await user.getIdToken();
+    const schoolId = sessionStorage.getItem('studentSchoolId') || sessionStorage.getItem('schoolId') || '';
+    const studentId = sessionStorage.getItem('studentDocId') || '';
+    const studentClass = (sessionStorage.getItem('studentClass') || '').trim().toLowerCase();
+    const studentSchoolName = (sessionStorage.getItem('studentSchoolName') || '').trim().toLowerCase();
+    const studentProg = (sessionStorage.getItem('studentPlan') || sessionStorage.getItem('studentTrack') || '').trim().toLowerCase();
+
+    const [netRes, fsSnap] = await Promise.all([
+      fetch(`/.netlify/functions/class-schedules?schoolId=${encodeURIComponent(schoolId)}&studentId=${encodeURIComponent(studentId)}`,{headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():{schedules:[]}).catch(()=>({schedules:[]})),
+      import('firebase/firestore').then(f => f.getDocs(f.collection(db, 'classSchedules'))).catch(()=>({docs:[]} as any))
+    ]);
+
+    const combinedRaw = [
+      ...(Array.isArray(netRes?.schedules) ? netRes.schedules : []),
+      ...fsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+    ];
+
+    const seenIds = new Set<string>();
+    const filteredRaw = combinedRaw.filter((x: any) => {
+      if (!x || !x.id || seenIds.has(x.id)) return false;
+      seenIds.add(x.id);
+
+      if (role === 'STUDENT') {
+        if (x.studentId && (x.studentId === studentId || x.studentId === user.uid)) return true;
+        const xSchId = (x.schoolId || '').trim();
+        const xSchName = (x.schoolName || '').trim().toLowerCase();
+        const isSchoolMatch = (schoolId && xSchId === schoolId) || (studentSchoolName && xSchName && (xSchName === studentSchoolName || xSchName.includes(studentSchoolName) || studentSchoolName.includes(xSchName)));
+        const xProg = String(x.programName || x.title || '').trim().toLowerCase();
+        const isProgMatch = studentProg && (xProg === studentProg || xProg.includes(studentProg) || studentProg.includes(xProg));
+
+        if (isSchoolMatch || isProgMatch || x.targetType === 'ALL') {
+          if (studentClass) {
+            const xClass = String(x.classLevel || '').trim().toLowerCase();
+            const xLevels = Array.isArray(x.classLevels) ? x.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
+            if (!xClass && xLevels.length === 0) return true;
+            if (xClass === 'all' || xClass === 'all classes' || xClass === 'general' || xClass === studentClass || studentClass.includes(xClass) || xClass.includes(studentClass)) return true;
+            if (xLevels.some((l: string) => l === 'all' || l === 'all classes' || l === 'general' || l === studentClass || studentClass.includes(l) || l.includes(studentClass))) return true;
+            const studentClassNum = studentClass.replace(/\D/g, '');
+            const xClassNum = xClass.replace(/\D/g, '');
+            if (studentClassNum && xClassNum && studentClassNum === xClassNum) return true;
+          } else {
+            return true;
+          }
+        }
+        return false;
+      }
+      return true;
+    });
+
+    const mapped:TimetableEvent[]=filteredRaw.map((x:any)=>{
+      const key=String(x.date||'').slice(0,10);
+      const start=String(x.startTime||'08:00');
+      const end=String(x.endTime||'08:40');
+      return{
+        id:x.id,
+        title:x.title||x.programName||'Class Session',
+        dateKey:key,
+        dateLabel:dateLabel(key),
+        dateMs:new Date(`${key}T12:00:00`).getTime(),
+        startTime:start,
+        endTime:end,
+        instructor:x.tutorName||'Tutor not assigned',
+        roomOrLink:x.meetingLink||x.url||'',
+        isOnline:Boolean(x.meetingLink||x.url),
+        schoolId:x.schoolId,
+        schoolName:x.schoolName,
+        programmeId:x.programId||x.programmeId,
+        programmeName:x.programName||x.programmeName||x.title,
+        className:x.classLevel||(Array.isArray(x.classLevels)?x.classLevels.join(', '):'All classes'),
+        status:calcStatus(key,start,end,x.status),
+        explicitStatus:x.status,
+        scheduleGroupId:x.scheduleGroupId
+      };
+    }).filter((e:TimetableEvent)=>Boolean(e.dateKey));
+
+    mapped.sort((a,b)=>a.dateMs-b.dateMs||mins(a.startTime)-mins(b.startTime));
+    setEvents(mapped);
+    if(!mapped.length) setMessage('No class schedules are currently assigned to this account.');
+  } catch(e:any){
+    console.error('Schedule loading failed:',e);
+    setEvents([]);
+    setMessage(e?.message||'Schedule data could not be loaded.');
+  } finally {
+    setLoading(false);
+  }
+ },[role]);
  useEffect(()=>{void load();},[load]); useEffect(()=>{const id=window.setInterval(()=>setClock(v=>v+1),30000);return()=>window.clearInterval(id);},[]);
- const programmes=useMemo(()=>Array.from(new Map(events.filter(e=>e.programmeId||e.programmeName).map(e=>[e.programmeId||e.programmeName||'',e.programmeName||'Programme'])).entries()).map(([id,name])=>({id,name})),[events]);
+ const programmes=useMemo(()=>{
+  const map = new Map<string, string>();
+  events.forEach(e => {
+    if (e.programmeName) map.set(e.programmeName, e.programmeName);
+    if (e.programmeId && !map.has(e.programmeId)) map.set(e.programmeId, e.programmeName || 'Programme');
+  });
+  return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+ },[events]);
  const schools=useMemo(()=>Array.from(new Map(events.filter(e=>e.schoolId).map(e=>[e.schoolId||'',e.schoolName||'School'])).entries()).map(([id,name])=>({id,name})),[events]);
  const filtered=useMemo(()=>events.filter(e=>(selectedProgramme==='ALL'||e.programmeId===selectedProgramme||e.programmeName===selectedProgramme)&&(selectedSchool==='ALL'||e.schoolId===selectedSchool)&&(selectedStatus==='ALL'||e.status===selectedStatus)),[events,selectedProgramme,selectedSchool,selectedStatus]);
  const ongoing=filtered.find(e=>e.status==='ongoing'); const next=filtered.find(e=>e.status==='upcoming'); const previous=[...filtered].filter(e=>['completed','absent','cancelled'].includes(e.status)).sort((a,b)=>b.dateMs-a.dateMs||mins(b.startTime)-mins(a.startTime))[0];

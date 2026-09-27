@@ -71,7 +71,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
         let userSnap = await getDoc(doc(db, 'users', currentUser.uid));
         
         // Direct self-heal for known super admins / admin emails if user record is missing or not admin
-        const isSuperAdminEmail = currentUser.email === 'johnrufai242@gmail.com' || currentUser.email === 'admin@jaystarbliss.com';
+        const isSuperAdminEmail = currentUser.email === 'johnrufai242@gmail.com' || currentUser.email === 'admin@jaystarbliss.com' || currentUser.email === 'admin@jaystarbliss-studios.name.ng';
         if (isSuperAdminEmail && (!userSnap.exists() || !adminRoles.includes(String(userSnap.data()?.role || '').toUpperCase()))) {
           try {
             await setDoc(doc(db, 'users', currentUser.uid), {

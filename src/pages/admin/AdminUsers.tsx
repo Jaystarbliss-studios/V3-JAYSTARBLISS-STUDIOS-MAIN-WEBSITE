@@ -407,33 +407,89 @@ const AdminUsers: React.FC = () => {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-xs dark:border-slate-700 dark:bg-slate-950">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
         <table className="min-w-[900px] w-full divide-y divide-gray-200 dark:divide-slate-800">
-          <thead className="bg-gray-50/80 dark:bg-slate-950">
+          <thead className="bg-slate-50/80 dark:bg-slate-950">
             <tr>
-              {['User Profile', 'Account Type', 'Security State', 'Portal Role', 'Account Access', 'Live Dashboard'].map((heading) => <th key={heading} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{heading}</th>)}
+              {['User Profile', 'Role Classification', 'Security Policy', 'Portal Role Assignment', 'Account Access', 'Live Dashboard'].map((heading) => (
+                <th key={heading} className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  {heading}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 text-xs dark:divide-slate-800">
+          <tbody className="divide-y divide-slate-100 text-xs dark:divide-slate-800/80">
             {loading ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Loading user records…</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Loading user records…</td></tr>
             ) : filteredUsers.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No matching user records found.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">No matching user records found.</td></tr>
             ) : filteredUsers.map((user) => {
               const status = String(user.accountStatus || 'ACTIVE').toUpperCase();
               const role = String(user.role || 'user').toUpperCase();
               return (
-                <tr key={user.id} className="bg-white dark:bg-slate-950 hover:bg-gray-50 dark:hover:bg-slate-900/80 transition-colors">
-                  <td className="px-5 py-3.5"><div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-gray-500 dark:bg-slate-800 text-xs font-bold">{role.includes('ADMIN') ? <Shield size={16} className="text-brand-red" /> : <User size={16} />}</div><div><div className="font-bold text-gray-900 dark:text-white">{user.name || user.displayName || 'Cadet / User'}</div><div className="text-[11px] text-gray-600 dark:text-slate-300">{user.email || 'No email'}</div></div></div></td>
-                  <td className="px-5 py-3.5"><span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-slate-800 dark:text-gray-300">{role}</span></td>
-                  <td className="px-5 py-3.5"><button onClick={() => handleToggleForcePasswordReset(user.id, user.forcePasswordReset === true)} className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${user.forcePasswordReset ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'}`}><span className="inline-flex items-center gap-1.5"><KeyRound size={12} /> {user.forcePasswordReset ? 'Reset Required' : 'Password Active'}</span></button></td>
-                  <td className="px-5 py-3.5"><select value={role} onChange={(e) => void handleRoleChange(user.id, e.target.value)} className="rounded-xl border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
-                  <td className="px-5 py-3.5"><button onClick={() => void handleAccountStatus(user.id, status)} className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold ${status === 'SUSPENDED' ? 'border-amber-200 bg-amber-100 text-amber-800' : 'border-emerald-200 bg-emerald-100 text-emerald-800'}`}>{status === 'SUSPENDED' ? 'Suspended — Restore' : 'Active — Suspend'}</button></td>
+                <tr key={user.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 text-xs font-bold">
+                        {role.includes('ADMIN') ? <Shield size={16} className="text-brand-red" /> : <User size={16} />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 dark:text-white truncate">
+                          {user.name || user.displayName || 'Cadet / User'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {user.email || 'No email registered'}
+                          {user.schoolName && <span className="text-slate-400"> · {user.schoolName}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 text-xs">
+                      {role}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <button 
+                      type="button"
+                      onClick={() => handleToggleForcePasswordReset(user.id, user.forcePasswordReset === true)} 
+                      className={`min-h-8 rounded-lg px-2.5 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                        user.forcePasswordReset 
+                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800' 
+                          : 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:text-slate-900'
+                      }`}
+                    >
+                      <KeyRound size={12} />
+                      <span>{user.forcePasswordReset ? 'Reset Required' : 'Password Active'}</span>
+                    </button>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <select 
+                      value={role} 
+                      onChange={(e) => void handleRoleChange(user.id, e.target.value)} 
+                      className="min-h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-red"
+                    >
+                      {ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <button 
+                      type="button"
+                      onClick={() => void handleAccountStatus(user.id, status)} 
+                      className={`min-h-8 rounded-lg border px-2.5 text-xs font-bold transition-colors cursor-pointer ${
+                        status === 'SUSPENDED' 
+                          ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300' 
+                          : 'border-slate-200 text-slate-600 hover:text-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:text-red-400'
+                      }`}
+                    >
+                      {status === 'SUSPENDED' ? 'Suspended · Restore' : 'Active · Suspend'}
+                    </button>
+                  </td>
                   <td className="px-5 py-3.5">
                     <button
                       type="button"
                       onClick={() => {
-                        toast.info(`Directly opening dashboard for ${user.name || user.email}...`);
+                        toast.info(`Opening dashboard for ${user.name || user.email}...`);
                         startImpersonation({
                           id: user.id,
                           uid: user.id,
@@ -446,7 +502,7 @@ const AdminUsers: React.FC = () => {
                           phone: user.phone
                         }, navigate);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
                     >
                       <UserCheck size={13} />
                       <span>Log In As</span>

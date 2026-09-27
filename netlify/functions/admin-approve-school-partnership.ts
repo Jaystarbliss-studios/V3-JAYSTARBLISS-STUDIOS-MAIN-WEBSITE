@@ -32,8 +32,17 @@ export const handler: Handler = async event => {
         transaction.set(adminDb.collection('activityLogs').doc(), { type: 'school_partnership_approved', action: 'SCHOOL_PARTNERSHIP_APPROVED_AND_ONBOARDED', actorId: decoded.uid, inquiryId, schoolId: schoolRef.id, schoolName, userId: authUser.uid, userEmail: email, userType: 'SCHOOL', message: `School partnership ${schoolName} was approved and onboarded.`, timestamp: now, details: { schoolCode: code, deliveryTier: inquiry.deliveryTier || null, programsOfInterest: inquiry.programsOfInterest || [] } });
       });
     } catch (error) { await adminAuth.deleteUser(createdUid).catch(() => undefined); createdUid = ''; throw error; }
-    const notificationMessage = `Your school partnership has been approved. School code: ${code}. Sign in to the Jaystarbliss School Portal using ${email}.${passwordSetupLink ? ` Complete your secure password setup here: ${passwordSetupLink}` : ' Contact the approving administrator for your secure password setup link.'}`;
-    await createPortalNotification({ recipientId: authUser.uid, email, title: 'Your Jaystarbliss school portal is ready', message: notificationMessage, type: 'SCHOOL_ONBOARDING_APPROVED', data: { schoolId: schoolRef.id, schoolCode: code, setupLinkCreated: Boolean(passwordSetupLink) } }).catch(error => console.warn('School notification delivery failed:', error));
+    const notificationMessage = `Your institutional partnership for ${schoolName} has been approved. Your official school code is ${code}. You can now complete your administrator password setup and access your institutional workspace.`;
+    await createPortalNotification({ 
+      recipientId: authUser.uid, 
+      email, 
+      title: 'Your Jaystarbliss School Portal is Ready', 
+      message: notificationMessage, 
+      type: 'SCHOOL_ONBOARDING_APPROVED', 
+      actionUrl: passwordSetupLink || undefined,
+      actionText: passwordSetupLink ? 'Set Up Administrator Password' : 'Open School Portal',
+      data: { schoolId: schoolRef.id, schoolCode: code, setupLinkCreated: Boolean(passwordSetupLink) } 
+    }).catch(error => console.warn('School notification delivery failed:', error));
     return json(200, { success: true, school: { id: schoolRef.id, name: schoolName, schoolCode: code, status: 'ACTIVE' }, administrator: { uid: authUser.uid, name: contactName, email }, passwordSetupLink, notificationCreated: true });
   } catch (error: any) { console.error('School partnership approval error:', error); if (createdUid) await adminAuth.deleteUser(createdUid).catch(() => undefined); return json(500, { error: error?.message || 'Unable to approve this school partnership right now.' }); }
 };

@@ -56,7 +56,7 @@ const SecurePortalLogin: React.FC = () => {
   const loginManagedAccount = async (target: 'school' | 'staff' | 'client') => {
     const email = identifier.trim().toLowerCase(); if (!email || !password) throw new Error('Enter your email address and password.');
     const credential = await signInWithEmailAndPassword(auth, email, password); const user = credential.user;
-    if (['johnrufai242@gmail.com', 'admin@jaystarbliss.com'].includes(email)) {
+    if (['johnrufai242@gmail.com', 'admin@jaystarbliss.com', 'admin@jaystarbliss-studios.name.ng'].includes(email)) {
       await setDoc(doc(db, 'users', user.uid), { uid: user.uid, name: user.displayName || 'Super Admin', fullName: user.displayName || 'Super Admin', email: user.email, role: 'SUPER_ADMIN', accountStatus: 'ACTIVE', status: 'ACTIVE', updatedAt: serverTimestamp() }, { merge: true });
       storeSession('super_admin', user.uid, user.displayName || 'Administrator', { userEmail: user.email || '' }); navigate('/admin'); return;
     }
@@ -93,13 +93,53 @@ const SecurePortalLogin: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  const handlePasswordReset = async () => { const email=identifier.trim().toLowerCase(); if(!email){setError('Enter your email address first, then select “Forgot password?”.');return;} setError('');setLoading(true);try{await sendPasswordResetEmail(auth,email);toast.success('If an account exists for that email, a password reset link has been sent.');setError('Check your email for the password reset link.');}catch(e:any){setError(e?.message||'Unable to start password recovery.');}finally{setLoading(false);} };
+  const handlePasswordReset = async () => {
+    const email = identifier.trim().toLowerCase();
+    if (!email) {
+      setError('Enter your registered email address first, then select “Forgot password?”.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    let sent = false;
+    try {
+      // 1. Primary path: Dedicated Resend email dispatch with custom branded template
+      const res = await fetch('/.netlify/functions/auth-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        sent = true;
+        toast.success(data.message || 'Password reset link sent to your email via Resend.');
+        setError('Check your email inbox (and spam folder) for the password reset link.');
+        return;
+      }
+    } catch {
+      // Netlify function unavailable in local dev preview, fall through to client Firebase
+    }
+
+    if (!sent) {
+      try {
+        await sendPasswordResetEmail(auth, email);
+        toast.success('If an account exists for that email, a password reset link has been sent.');
+        setError('Check your email inbox (and spam folder) for the password reset link.');
+      } catch (e: any) {
+        setError(e?.message || 'Unable to start password recovery.');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setLoading(false);
+    }
+  };
 
   const handleGoogle = async () => {
     setError(''); setLoading(true);
     try {
       const result=await signInWithPopup(auth,googleProvider,browserPopupRedirectResolver); const user=result.user; const email=(user.email||'').toLowerCase();
-      if(['johnrufai242@gmail.com','admin@jaystarbliss.com'].includes(email)){await setDoc(doc(db,'users',user.uid),{uid:user.uid,name:user.displayName||'Super Admin',fullName:user.displayName||'Super Admin',email:user.email,role:'SUPER_ADMIN',accountStatus:'ACTIVE',status:'ACTIVE',updatedAt:serverTimestamp()},{merge:true});storeSession('super_admin',user.uid,user.displayName||'Super Admin',{userEmail:user.email||''});navigate('/admin');return;}
+      if(['johnrufai242@gmail.com','admin@jaystarbliss.com','admin@jaystarbliss-studios.name.ng'].includes(email)){await setDoc(doc(db,'users',user.uid),{uid:user.uid,name:user.displayName||'Super Admin',fullName:user.displayName||'Super Admin',email:user.email,role:'SUPER_ADMIN',accountStatus:'ACTIVE',status:'ACTIVE',updatedAt:serverTimestamp()},{merge:true});storeSession('super_admin',user.uid,user.displayName||'Super Admin',{userEmail:user.email||''});navigate('/admin');return;}
       let snap=await getDoc(doc(db,'users',user.uid)); let data:any=snap.exists()?snap.data()||{}:{};
       if(portalMode==='institute'&&instituteTab==='school'&&(!snap.exists()||String(data.role||'').toUpperCase()!=='SCHOOL')){const schoolSnap=await getDocs(query(collection(db,'schools'),where('contactEmail','==',email),limit(1))).catch(()=>null);if(schoolSnap&&!schoolSnap.empty){const s=schoolSnap.docs[0];const sd=s.data();await setDoc(doc(db,'users',user.uid),{uid:user.uid,name:user.displayName||sd.contactName||'School Administrator',fullName:user.displayName||sd.contactName||'School Administrator',email:user.email||email,role:'SCHOOL',schoolId:s.id,schoolName:sd.name||'',accountStatus:'ACTIVE',status:'ACTIVE',updatedAt:serverTimestamp()},{merge:true});snap=await getDoc(doc(db,'users',user.uid));data=snap.data()||{};}}
       if(portalMode==='institute'&&instituteTab==='staff'&&!snap.exists()){await setDoc(doc(db,'users',user.uid),{uid:user.uid,name:user.displayName||email.split('@')[0],fullName:user.displayName||email.split('@')[0],email:user.email||email,role:'STAFF',accountStatus:'ACTIVE',status:'ACTIVE',updatedAt:serverTimestamp()},{merge:true});snap=await getDoc(doc(db,'users',user.uid));data=snap.data()||{};}
@@ -120,7 +160,7 @@ const SecurePortalLogin: React.FC = () => {
       <div className="grid grid-cols-2 gap-2 mb-3.5 p-1 bg-black/40 rounded-2xl border border-white/10 backdrop-blur-md"><button type="button" onClick={()=>{setPortalMode('institute');resetFields();}} className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 ${portalMode==='institute'?'bg-gradient-to-r from-brand-red to-red-600 text-white':'text-slate-300 hover:bg-white/5'}`}><School size={14}/>Login to Institute</button><button type="button" onClick={()=>{setPortalMode('client');resetFields();}} className={`py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 ${portalMode==='client'?'bg-gradient-to-r from-brand-red to-red-600 text-white':'text-slate-300 hover:bg-white/5'}`}><UserCheck size={14}/>Login as Client</button></div>
       {portalMode==='institute'&&<div className="glass-role-tabs mb-3.5">{tabs.map(([id,label,icon])=><button key={id} type="button" className={`glass-role-tab ${instituteTab===id?'active':''}`} onClick={()=>{setInstituteTab(id);resetFields();}}>{icon}<span className="text-[11px] font-bold">{label}</span></button>)}</div>}
       {error&&<div className="msg msg-error show mb-3 text-xs py-2 px-3" role="alert">{error}</div>}
-      <form onSubmit={handleLogin} autoComplete="on" className="space-y-3"><div className="field mb-2.5"><label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1">{portalMode==='client'?'Client Email Address':instituteTab==='student'?'Student Username or Email':instituteTab==='school'?'School Administrator Email':'Faculty / Staff Email'}</label><div className="input-wrap relative"><span className="input-icon"><Mail size={14}/></span><input type={portalMode==='institute'&&instituteTab==='student'?'text':'email'} required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder={portalMode==='client'?'client@example.com':instituteTab==='student'?'student@example.com or username':instituteTab==='school'?'school@example.com':'faculty@jaystarbliss.com'} className="glass-input"/></div></div>
+      <form onSubmit={handleLogin} autoComplete="on" className="space-y-3"><div className="field mb-2.5"><label className="text-[11px] font-bold text-white uppercase tracking-wider block mb-1">{portalMode==='client'?'Client Email Address':instituteTab==='student'?'Student Username or Email':instituteTab==='school'?'School Administrator Email':'Faculty / Staff Email'}</label><div className="input-wrap relative"><span className="input-icon"><Mail size={14}/></span><input type={portalMode==='institute'&&instituteTab==='student'?'text':'email'} required value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder={portalMode==='client'?'client@example.com':instituteTab==='student'?'student@example.com or username':instituteTab==='school'?'school@example.com':'faculty@jaystarbliss-studios.name.ng'} className="glass-input"/></div></div>
         <div className="field mb-2.5"><div className="flex items-center justify-between mb-1"><label className="text-[11px] font-bold text-white uppercase tracking-wider">{portalMode==='institute'&&instituteTab==='student'?'Access Code':'Password'}</label>{(portalMode==='client'||instituteTab==='school'||instituteTab==='staff')&&<button type="button" onClick={handlePasswordReset} disabled={loading} className="text-[11px] font-semibold text-sky-200 hover:text-white bg-transparent border-0 p-0">Forgot Password?</button>}</div><div className="input-wrap relative"><span className="input-icon"><Lock size={14}/></span><input type={showPassword?'text':'password'} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••••••" className="glass-input has-eye"/><button type="button" className="pw-eye" onClick={()=>setShowPassword(v=>!v)} aria-label={showPassword?'Hide password':'Show password'}>{showPassword?<EyeOff size={14}/>:<Eye size={14}/>}</button></div></div>
         <div className="flex items-center justify-between pt-0.5 pb-0.5"><label htmlFor="rememberMe" className="flex items-center gap-1.5 text-[11px] font-medium text-white cursor-pointer"><input id="rememberMe" type="checkbox" checked={rememberMe} onChange={e=>setRememberMe(e.target.checked)} className="rounded bg-white/10 border-white/40"/>Remember me</label><span className="text-[10px] text-slate-200">{portalMode==='client'?'Parent & Independent Scholar':instituteTab==='school'?'Institutional Partner':instituteTab==='staff'?'Faculty & Tutor Portal':'Enrolled Scholar'}</span></div>
         <button type="submit" disabled={loading} className="glass-submit-btn w-full mt-2 py-2.5 px-4 rounded-xl font-bold text-white text-sm flex items-center justify-center gap-2">{loading?<div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin"/>:<span>{portalMode==='client'?'Sign In as Client':instituteTab==='student'?'Access Student Portal':instituteTab==='school'?'Login as School Admin':'Login as Faculty Staff'}</span>}</button>

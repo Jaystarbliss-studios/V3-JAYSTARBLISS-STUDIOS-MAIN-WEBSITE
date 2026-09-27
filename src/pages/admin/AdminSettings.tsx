@@ -4,8 +4,9 @@ import { db, auth } from '../../lib/firebase';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
   Loader2, Save, AlertCircle, CheckCircle2, 
-  Radio, Mail, Send, Check, ShieldCheck, Sun, Moon 
+  Radio, Mail, Send, Check, ShieldCheck, Sun, Moon, Eye, X 
 } from 'lucide-react';
+import { PasswordResetEmailTemplate } from '../../components/email/PasswordResetEmailTemplate';
 
 const AdminSettings: React.FC = () => {
   const { theme, toggleTheme, isHighContrast, toggleHighContrast } = useTheme();
@@ -17,12 +18,18 @@ const AdminSettings: React.FC = () => {
   const [testEmailRecipient, setTestEmailRecipient] = useState('');
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
   
   const [settings, setSettings] = useState({
     companyName: 'Jaystarbliss Studios',
     contactEmail: 'jaystarblissstudios@gmail.com',
     contactPhone: '+234 913 651 8194',
     secondaryPhone: '+234 913 052 9010',
+    infoEmail: 'info@jaystarbliss-studios.name.ng',
+    infoWhatsapp: '+234 913 052 9010',
+    supportEmail: 'support@jaystarbliss-studios.name.ng',
+    supportWhatsapp: '+234 707 763 8925',
+    whatsappNumber: '+234 913 651 8194',
     googleBusinessUrl: 'https://share.google/mqVU8pAgKEDjOfGHe',
     address: 'Lagos, Nigeria',
     heroHeading: 'LEARN. CREATE. INNOVATE.',
@@ -504,6 +511,96 @@ const AdminSettings: React.FC = () => {
           </div>
         </section>
 
+        {/* Official Channels, WhatsApp & Desk Contacts CMS */}
+        <section className="bg-slate-50 dark:bg-slate-900/60 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-sm">
+              WA
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-brand-slate dark:text-white">Official Communication & WhatsApp Desks</h2>
+              <p className="text-xs text-slate-500">Configure public enquiry, service info, support helpdesk, and floating WhatsApp contacts.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Main Floating WhatsApp Number
+              </label>
+              <p className="text-xs text-slate-500 mb-2">Used by the website floating pulse button (default: +234 913 651 8194)</p>
+              <input
+                type="text"
+                name="whatsappNumber"
+                value={settings.whatsappNumber}
+                onChange={handleChange}
+                placeholder="+234 913 651 8194"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Admissions / Services Info WhatsApp
+              </label>
+              <p className="text-xs text-slate-500 mb-2">Service catalog & admission inquiries desk (default: +234 913 052 9010)</p>
+              <input
+                type="text"
+                name="infoWhatsapp"
+                value={settings.infoWhatsapp}
+                onChange={handleChange}
+                placeholder="+234 913 052 9010"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Info Desk Email Address
+              </label>
+              <p className="text-xs text-slate-500 mb-2">Public inquiries & services info desk email</p>
+              <input
+                type="email"
+                name="infoEmail"
+                value={settings.infoEmail}
+                onChange={handleChange}
+                placeholder="info@jaystarbliss-studios.name.ng"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Technical & Portal Support WhatsApp
+              </label>
+              <p className="text-xs text-slate-500 mb-2">Direct assistance for portal, student credentials, or system errors (default: +234 707 763 8925)</p>
+              <input
+                type="text"
+                name="supportWhatsapp"
+                value={settings.supportWhatsapp}
+                onChange={handleChange}
+                placeholder="+234 707 763 8925"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                Technical & Support Desk Email
+              </label>
+              <p className="text-xs text-slate-500 mb-2">Portal troubleshooting, credentials & billing desk email</p>
+              <input
+                type="email"
+                name="supportEmail"
+                value={settings.supportEmail}
+                onChange={handleChange}
+                placeholder="support@jaystarbliss-studios.name.ng"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+          </div>
+        </section>
+
         {/* Hero Content */}
         <section>
           <h2 className="text-xl font-bold text-brand-slate border-b pb-2 mb-6">Homepage Hero Content</h2>
@@ -632,11 +729,21 @@ const AdminSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* Test Email Dispatcher */}
+          {/* Test Email Dispatcher & Template Preview */}
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2 text-sm font-bold text-white">
-              <Mail size={16} className="text-amber-400" />
-              <span>Send Live Test Email via Resend</span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-white">
+                <Mail size={16} className="text-amber-400" />
+                <span>Send Live Test Email via Resend</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmailPreview(true)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors border border-slate-700"
+              >
+                <Eye size={13} className="text-rose-400" />
+                <span>Preview Password Reset Template</span>
+              </button>
             </div>
             <p className="text-xs text-slate-400">
               Verify your Resend email deliverability by sending a test message to any email address.
@@ -676,6 +783,54 @@ const AdminSettings: React.FC = () => {
             )}
           </div>
         </section>
+
+        {/* Modal: Interactive Password Reset Template Preview */}
+        {showEmailPreview && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="relative w-full max-w-3xl bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl my-8">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/80">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Password Reset Email Template Preview</h3>
+                    <p className="text-[11px] text-slate-400">Branded with official logo, security parameters & high-contrast CTA button</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPreview(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  aria-label="Close preview"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto bg-slate-900/40">
+                <PasswordResetEmailTemplate
+                  recipientName="Administrator"
+                  recipientEmail={testEmailRecipient || 'admin@jaystarbliss-studios.name.ng'}
+                  resetUrl="https://jaystarbliss-studios.name.ng/portal?mode=resetPassword&token=demo_auth_action_code_preview"
+                  expiresIn="1 Hour (Single Use)"
+                  supportWhatsapp={settings.supportWhatsapp || '+234 707 763 8925'}
+                  supportEmail={settings.supportEmail || 'support@jaystarbliss-studios.name.ng'}
+                />
+              </div>
+
+              <div className="px-6 py-3 border-t border-slate-800 bg-slate-900/60 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowEmailPreview(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Social Links */}
         <section>

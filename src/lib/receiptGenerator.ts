@@ -248,7 +248,7 @@ export const generatePdfReceipt = (data: TransactionReceiptData) => {
   pdf.setFontSize(8.5);
   pdf.setTextColor(148, 163, 184);
   pdf.text('Empowering Young African Innovators • Official Electronic Payment Receipt', 15, 26);
-  pdf.text('Portal: app.jaystarbliss.com | Billing Support: finance@jaystarbliss.com', 15, 32);
+  pdf.text('Portal: jaystarbliss-studios.name.ng/portal | Billing Support: jaystarblissstudios@gmail.com', 15, 32);
 
   // Status Badge in Header
   pdf.setFillColor(16, 185, 129); // Emerald

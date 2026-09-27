@@ -3,7 +3,7 @@ import { collection, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firest
 import { db } from '../../lib/firebase';
 import { 
   Plus, Search, Trash2, Edit, Layers, ArrowUp, ArrowDown, 
-  Check, X, Sparkles, Loader2, BookOpen, CheckCircle2, 
+  Check, X, Loader2, BookOpen, CheckCircle2, 
   HelpCircle, Shuffle, ChevronRight, GraduationCap, GripVertical,
   Package, Tag
 } from 'lucide-react';

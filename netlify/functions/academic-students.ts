@@ -29,17 +29,57 @@ export const handler: Handler = async (event) => {
       }
     };
 
-    if (['TUTOR', 'STAFF', 'INSTRUCTOR'].includes(role)) {
-      // Primary source: the assignment fields already stored on the learner record.
+    if (['TUTOR', 'STAFF', 'INSTRUCTOR', 'TEACHER'].includes(role)) {
+      // 1. Resolve school(s) assigned to this tutor
+      const staffAccessDoc = await adminDb.collection('staffSchoolAccess').doc(decoded.uid).get().catch(() => null);
+      const accessData = staffAccessDoc?.exists ? staffAccessDoc.data() || {} : {};
+      const tutorSchoolIds: string[] = [
+        ...(Array.isArray(accessData.schoolIds) ? accessData.schoolIds.map(String) : []),
+        ...(accessData.schoolId ? [String(accessData.schoolId)] : []),
+        ...(user.schoolId ? [String(user.schoolId)] : [])
+      ];
+
+      // Also check schools where tutor is in assignedStaff or assignedTutors
+      const schoolsSnap = await adminDb.collection('schools').limit(200).get().catch(() => ({ docs: [] } as any));
+      schoolsSnap.docs.forEach((sDoc: any) => {
+        const sd = sDoc.data() || {};
+        const isAssigned = (Array.isArray(sd.assignedStaff) && sd.assignedStaff.some((st: any) => String(st?.id || st?.uid || '') === decoded.uid)) ||
+          (Array.isArray(sd.assignedTutors) && sd.assignedTutors.some((st: any) => String(st?.tutorId || st?.id || st?.uid || '') === decoded.uid));
+        if (isAssigned) tutorSchoolIds.push(sDoc.id);
+      });
+
+      const uniqueSchoolIds = Array.from(new Set(tutorSchoolIds.filter(Boolean)));
+
+      // Load all students in the tutor's assigned schools
+      for (const sid of uniqueSchoolIds) {
+        for (const name of ['individualStudents', 'students']) {
+          try {
+            add(await adminDb.collection(name).where('schoolId', '==', sid).limit(500).get());
+          } catch (e) {
+            console.warn(`School student query failed for ${sid}`, e);
+          }
+        }
+        const userStudents = await adminDb.collection('users').where('schoolId', '==', sid).limit(500).get().catch(() => ({ docs: [] } as any));
+        userStudents.docs.forEach((x: any) => {
+          const d = x.data() || {};
+          if (['STUDENT', 'SCHOLAR', 'CADET'].includes(roleOf(d.role)) || d.studentDocId) {
+            docs.set(String(d.studentDocId || x.id), { id: String(d.studentDocId || x.id), ...d, firebaseUid: x.id });
+          }
+        });
+      }
+
+      // 2. Load private students directly assigned to this tutor
       for (const field of assignmentFields) {
         for (const name of ['individualStudents', 'students']) {
-          try { add(await adminDb.collection(name).where(field, '==', decoded.uid).limit(200).get()); } catch (e) { console.warn(`Student roster query failed for ${name}.${field}`, e); }
+          try {
+            add(await adminDb.collection(name).where(field, '==', decoded.uid).limit(200).get());
+          } catch (e) {
+            console.warn(`Student roster query failed for ${name}.${field}`, e);
+          }
         }
       }
 
-      // Compatibility source: some older assignment workflows keep the relationship
-      // in a dedicated assignment document. Resolve those records into the same global
-      // roster so every tutor-facing tool sees the exact same assigned students.
+      // 3. Dedicated assignment documents
       for (const collectionName of assignmentCollections) {
         for (const field of assignmentFields) {
           try {
@@ -48,24 +88,37 @@ export const handler: Handler = async (event) => {
               const data = assignment.data() || {};
               const studentId = String(data.studentId || data.learnerId || data.cadetId || data.studentDocId || '').trim();
               await addStudentById(studentId);
-              if (studentId) {
-                const userStudent = await adminDb.collection('users').doc(studentId).get();
-                if (userStudent.exists) {
-                  const u = userStudent.data() || {};
-                  if (['STUDENT','SCHOLAR','CADET'].includes(roleOf(u.role)) || u.studentDocId) docs.set(userStudent.id, { id: userStudent.id, ...u, firebaseUid: userStudent.id });
-                }
-              }
             }
-          } catch (e) { console.warn(`Tutor assignment compatibility query failed for ${collectionName}.${field}`, e); }
+          } catch (e) {
+            console.warn(`Tutor assignment compatibility query failed for ${collectionName}.${field}`, e);
+          }
         }
       }
     } else if (role === 'PARENT') {
       add(await adminDb.collection('individualStudents').where('parentId', '==', decoded.uid).limit(100).get());
       add(await adminDb.collection('students').where('parentId', '==', decoded.uid).limit(100).get());
     } else if (role === 'SCHOOL') {
-      const schoolId = String(user.schoolId || decoded.uid);
-      add(await adminDb.collection('individualStudents').where('schoolId', '==', schoolId).limit(200).get());
-      add(await adminDb.collection('students').where('schoolId', '==', schoolId).limit(200).get());
+      let schoolId = String(user.schoolId || user.school_id || user.schoolDocId || '').trim();
+      if (!schoolId) {
+        const sd = await adminDb.collection('schools').doc(decoded.uid).get();
+        if (sd.exists) schoolId = sd.id;
+      }
+      if (!schoolId && user.email) {
+        const email = String(user.email).toLowerCase();
+        const a = await adminDb.collection('schools').where('contactEmail', '==', email).limit(1).get();
+        const b = a.empty ? await adminDb.collection('schools').where('email', '==', email).limit(1).get() : a;
+        if (!b.empty) schoolId = b.docs[0].id;
+      }
+      const sid = schoolId || decoded.uid;
+      add(await adminDb.collection('individualStudents').where('schoolId', '==', sid).limit(500).get());
+      add(await adminDb.collection('students').where('schoolId', '==', sid).limit(500).get());
+      const us = await adminDb.collection('users').where('schoolId', '==', sid).limit(500).get().catch(() => ({ docs: [] } as any));
+      us.docs.forEach((x: any) => {
+        const d = x.data() || {};
+        if (['STUDENT', 'SCHOLAR', 'CADET'].includes(roleOf(d.role)) || d.studentDocId) {
+          docs.set(String(d.studentDocId || x.id), { id: String(d.studentDocId || x.id), ...d, firebaseUid: x.id });
+        }
+      });
     } else if (role === 'STUDENT') {
       const studentDocId = String(user.studentDocId || '');
       if (studentDocId) await addStudentById(studentDocId);

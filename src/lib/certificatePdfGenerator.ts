@@ -255,7 +255,7 @@ export function generateModuleCertificatePdf(data: ModuleCertificateData): void 
 
   doc.text(`Issue Date: ${issueDate}`, 20, footerY);
   doc.text(`Credential ID: ${credentialId}`, centerX, footerY, { align: 'center' });
-  doc.text('Verify at: jaystarbliss.com/verify', pageWidth - 20, footerY, { align: 'right' });
+  doc.text('Verify at: jaystarbliss-studios.name.ng/verify', pageWidth - 20, footerY, { align: 'right' });
 
   // -------------------------------------------------------------
   // 8. Download Document

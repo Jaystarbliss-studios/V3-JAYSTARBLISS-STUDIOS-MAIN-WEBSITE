@@ -179,53 +179,110 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
       setSchool(schoolRecordData);
       const activeSchoolId = schoolRecordData.id;
 
+      // Collect all verified school ID aliases and names for this institution
+      const validSchoolIds = new Set<string>();
+      if (activeSchoolId) validSchoolIds.add(activeSchoolId);
+      if (schoolRecordData.id) validSchoolIds.add(schoolRecordData.id);
+      if ((schoolRecordData as any).schoolId) validSchoolIds.add(String((schoolRecordData as any).schoolId).trim());
+      if ((schoolRecordData as any).schoolCode) validSchoolIds.add(String((schoolRecordData as any).schoolCode).trim());
+      if (effective.effectiveSchoolId) validSchoolIds.add(effective.effectiveSchoolId);
+      const cachedSchoolId = sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_cached_school_id');
+      if (cachedSchoolId) validSchoolIds.add(cachedSchoolId);
+
       let fetchedStudentCount = 0;
+
+      // Try server-side scoped endpoint first
       try {
         if (!effective.isMasquerading) {
-          const studentsResult = await jsonFetch<{ count: number; schoolName?: string }>('/.netlify/functions/school-students');
-          fetchedStudentCount = Number(studentsResult.count || 0);
+          const studentsResult = await jsonFetch<{ count: number; schoolName?: string; students?: any[] }>(
+            '/.netlify/functions/school-students' + (activeSchoolId ? `?schoolId=${encodeURIComponent(activeSchoolId)}` : '')
+          );
+          fetchedStudentCount = Number(studentsResult.count || studentsResult.students?.length || 0);
           if (studentsResult.schoolName && studentsResult.schoolName !== 'School Portal') {
             sessionStorage.setItem('schoolName', studentsResult.schoolName);
             setSchool(prev => prev ? { ...prev, name: studentsResult.schoolName } : prev);
           }
-        } else {
-          throw new Error('Impersonation mode using client-side Firestore query');
         }
-      } catch {
-        const [studSnap, indivSnap, allStudSnap, allIndivSnap] = await Promise.all([
-          getDocs(query(collection(db, 'students'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
-          getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', activeSchoolId))).catch(() => ({ docs: [] })),
-          getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
-          getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] }))
-        ]);
+      } catch (backendErr) {
+        console.warn('Backend student count fetch notice:', backendErr);
+      }
 
-        const seenIds = new Set<string>();
-        const targetLow = activeSchoolId.toLowerCase();
-        const nameLow = (schoolRecordData.name || '').toLowerCase();
-        const codeLow = ((schoolRecordData as any).schoolCode || '').toLowerCase();
+      // If backend count is 0 or failed, run direct Firestore query with multi-alias matching
+      if (fetchedStudentCount === 0) {
+        try {
+          const targetIdsList = Array.from(validSchoolIds).filter(Boolean);
+          const queries: Promise<any>[] = [];
 
-        const checkDoc = (d: any) => {
-          if (seenIds.has(d.id)) return;
-          const data = d.data();
-          const sIdField = String(data.schoolId || data.school_id || '').trim().toLowerCase();
-          const sNameField = String(data.schoolName || data.school || data.institutionName || data.institution || '').trim().toLowerCase();
-          const sCodeField = String(data.schoolCode || '').trim().toLowerCase();
+          targetIdsList.forEach(sId => {
+            queries.push(getDocs(query(collection(db, 'students'), where('schoolId', '==', sId))).catch(() => ({ docs: [] })));
+            queries.push(getDocs(query(collection(db, 'individualStudents'), where('schoolId', '==', sId))).catch(() => ({ docs: [] })));
+            queries.push(getDocs(query(collection(db, 'users'), where('schoolId', '==', sId))).catch(() => ({ docs: [] })));
+          });
 
-          const isMatch = (
-            (targetLow && (sIdField === targetLow || sIdField.includes(targetLow) || targetLow.includes(sIdField))) ||
-            (nameLow && (sNameField === nameLow || sNameField.includes(nameLow) || nameLow.includes(sNameField) || sIdField === nameLow || sIdField.includes(nameLow))) ||
-            (codeLow && (sCodeField === codeLow || sCodeField === targetLow || sIdField === codeLow))
-          );
+          // Also check by schoolName if available and not a generic placeholder
+          const cleanSchoolName = String(schoolRecordData.name || '').trim();
+          if (cleanSchoolName && !['School Portal', 'school-default', 'Partner School Institution'].includes(cleanSchoolName)) {
+            queries.push(getDocs(query(collection(db, 'students'), where('schoolName', '==', cleanSchoolName))).catch(() => ({ docs: [] })));
+            queries.push(getDocs(query(collection(db, 'individualStudents'), where('schoolName', '==', cleanSchoolName))).catch(() => ({ docs: [] })));
+            queries.push(getDocs(query(collection(db, 'users'), where('schoolName', '==', cleanSchoolName))).catch(() => ({ docs: [] })));
+          }
 
-          if (isMatch) seenIds.add(d.id);
-        };
+          const querySnapshots = await Promise.all(queries);
 
-        studSnap.docs.forEach(checkDoc);
-        indivSnap.docs.forEach(checkDoc);
-        allStudSnap.docs.forEach(checkDoc);
-        allIndivSnap.docs.forEach(checkDoc);
+          const seenKeys = new Set<string>();
 
-        fetchedStudentCount = seenIds.size;
+          const isDuplicate = (d: any, docId: string): boolean => {
+            const uname = String(d.username || '').toLowerCase().trim();
+            const email = String(d.email || '').toLowerCase().trim();
+            const uid = String(d.firebaseUid || d.userId || '').trim();
+            const sDocId = String(d.studentDocId || docId).trim();
+            const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
+
+            if (docId && seenKeys.has(`id:${docId}`)) return true;
+            if (sDocId && seenKeys.has(`docId:${sDocId}`)) return true;
+            if (uid && seenKeys.has(`uid:${uid}`)) return true;
+            if (uname && seenKeys.has(`u:${uname}`)) return true;
+            if (email && !email.endsWith('.local') && seenKeys.has(`e:${email}`)) return true;
+            if (name && seenKeys.has(`name:${name}`)) return true;
+            return false;
+          };
+
+          const recordSeen = (d: any, docId: string) => {
+            const uname = String(d.username || '').toLowerCase().trim();
+            const email = String(d.email || '').toLowerCase().trim();
+            const uid = String(d.firebaseUid || d.userId || '').trim();
+            const sDocId = String(d.studentDocId || docId).trim();
+            const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
+
+            if (docId) seenKeys.add(`id:${docId}`);
+            if (sDocId) seenKeys.add(`docId:${sDocId}`);
+            if (uid) seenKeys.add(`uid:${uid}`);
+            if (uname) seenKeys.add(`u:${uname}`);
+            if (email && !email.endsWith('.local')) seenKeys.add(`e:${email}`);
+            if (name) seenKeys.add(`name:${name}`);
+          };
+
+          let uniqueCount = 0;
+
+          querySnapshots.forEach(snap => {
+            snap.docs.forEach((d: any) => {
+              const data = d.data();
+              const sId = String(data.schoolId || data.school_id || data.schoolDocId || '').trim();
+              const sName = String(data.schoolName || data.school || '').trim().toLowerCase();
+              const isMatch = (sId && validSchoolIds.has(sId)) || (cleanSchoolName && sName === cleanSchoolName.toLowerCase());
+
+              if (!isMatch) return;
+
+              if (isDuplicate(data, d.id)) return;
+              recordSeen(data, d.id);
+              uniqueCount += 1;
+            });
+          });
+
+          fetchedStudentCount = uniqueCount;
+        } catch (fsErr) {
+          console.warn('Firestore fallback student count error:', fsErr);
+        }
       }
 
       try {

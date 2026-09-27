@@ -5,8 +5,9 @@ export const RESEND_CONFIG = {
   defaultFrom: process.env.EMAIL_FROM || "Jaystarbliss Studios <onboarding@resend.dev>",
   supportEmail: "jaystarblissstudios@gmail.com",
   brandName: "Jaystarbliss Studios",
-  portalUrl: "https://jaystarbliss.com/portal",
-  websiteUrl: "https://jaystarbliss.com"
+  portalUrl: "https://jaystarbliss-studios.name.ng/portal",
+  websiteUrl: "https://jaystarbliss-studios.name.ng",
+  logoUrl: "https://jaystarbliss-studios.name.ng/logo.png"
 };
 
 export interface SendEmailOptions {
@@ -18,6 +19,7 @@ export interface SendEmailOptions {
   replyTo?: string;
   cc?: string | string[];
   bcc?: string | string[];
+  headers?: Record<string, string>;
 }
 
 export interface PortalNotification {
@@ -94,6 +96,8 @@ export function buildBrandedEmailHtml(options: {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light dark">
   <title>${title}</title>
   ${previewText ? `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ""}
 </head>
@@ -104,15 +108,24 @@ export function buildBrandedEmailHtml(options: {
         <!-- Main Card Container -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;">
           
-          <!-- Header Banner -->
+          <!-- Header Banner with Logo -->
           <tr>
-            <td style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 32px 28px 32px; text-align: left; border-bottom: 3px solid #e11d48;">
-              <div style="font-size: 11px; font-weight: 900; letter-spacing: 0.15em; color: #fb7185; text-transform: uppercase; margin-bottom: 6px;">
-                JAYSTARBLISS STUDIOS & ACADEMY
-              </div>
-              <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 900; letter-spacing: -0.02em;">
-                ${title}
-              </h1>
+            <td style="background: linear-gradient(135deg, #090d16 0%, #161f30 100%); padding: 28px 32px; text-align: left; border-bottom: 3px solid #e11d48;">
+              <table border="0" cellspacing="0" cellpadding="0" style="width: 100%;">
+                <tr>
+                  <td style="vertical-align: middle; width: 48px; padding-right: 14px;">
+                    <img src="${RESEND_CONFIG.logoUrl}" alt="Jaystarbliss Studios Logo" width="44" height="44" style="display: block; width: 44px; height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <div style="font-size: 11px; font-weight: 900; letter-spacing: 0.15em; color: #fb7185; text-transform: uppercase; margin-bottom: 4px;">
+                      JAYSTARBLISS STUDIOS & ACADEMY
+                    </div>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">
+                      ${title}
+                    </h1>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -139,7 +152,7 @@ export function buildBrandedEmailHtml(options: {
                 Lagos, Nigeria • Direct Phone / WhatsApp: +234 913 651 8194
               </p>
               <div style="margin: 8px 0;">
-                <a href="${RESEND_CONFIG.websiteUrl}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Website</a>
+                <a href="${RESEND_CONFIG.websiteUrl}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Official Website</a>
                 <span style="color: #cbd5e1;">•</span>
                 <a href="${RESEND_CONFIG.portalUrl}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Student & School Portal</a>
                 <span style="color: #cbd5e1;">•</span>
@@ -161,7 +174,7 @@ export function buildBrandedEmailHtml(options: {
 }
 
 /**
- * Sends an email via the Resend API.
+ * Sends an email via the Resend API with anti-spam and deliverability headers.
  */
 export async function sendResendEmail(options: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
   const apiKey = RESEND_CONFIG.apiKey;
@@ -178,15 +191,22 @@ export async function sendResendEmail(options: SendEmailOptions): Promise<{ succ
   }
 
   try {
+    const rawText = options.text || (options.html ? options.html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
+
     const payload: Record<string, unknown> = {
       from,
       to,
       subject: options.subject,
-      text: options.text || (options.html ? options.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "")
+      text: rawText,
+      reply_to: options.replyTo || RESEND_CONFIG.supportEmail,
+      headers: {
+        "X-Entity-Ref-ID": `tx-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        "X-Auto-Response-Suppress": "OOF, AutoReply",
+        ...(options.headers || {})
+      }
     };
 
     if (options.html) payload.html = options.html;
-    if (options.replyTo) payload.reply_to = options.replyTo;
     if (options.cc) payload.cc = Array.isArray(options.cc) ? options.cc : [options.cc];
     if (options.bcc) payload.bcc = Array.isArray(options.bcc) ? options.bcc : [options.bcc];
 
@@ -382,4 +402,173 @@ export async function sendDirectClientEmail(params: {
     text: params.message
   });
 }
+
+/**
+ * Builds a dedicated, beautifully styled HTML email for password resets.
+ */
+export function buildPasswordResetEmailHtml(options: {
+  to: string;
+  recipientName?: string;
+  resetLink: string;
+}): string {
+  const { to, recipientName, resetLink } = options;
+  const name = recipientName || "Member";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light dark">
+  <title>Reset Your Jaystarbliss Account Password</title>
+  <div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+    Reset your Jaystarbliss account password securely. This request was generated from the official portal.
+  </div>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #334155;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 32px 12px;">
+    <tr>
+      <td align="center">
+        <!-- Main Card Container -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+          
+          <!-- Header Banner with Official Logo -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #090d16 0%, #161f30 100%); padding: 28px 32px; text-align: left; border-bottom: 3px solid #e11d48;">
+              <table border="0" cellspacing="0" cellpadding="0" style="width: 100%;">
+                <tr>
+                  <td style="vertical-align: middle; width: 48px; padding-right: 14px;">
+                    <img src="${RESEND_CONFIG.logoUrl}" alt="Jaystarbliss Studios Logo" width="46" height="46" style="display: block; width: 46px; height: 46px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);" />
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <div style="font-size: 11px; font-weight: 900; letter-spacing: 0.15em; color: #fb7185; text-transform: uppercase; margin-bottom: 4px;">
+                      JAYSTARBLISS STUDIOS & ACADEMY
+                    </div>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;">
+                      Account Password Reset
+                    </h1>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 32px 32px 24px 32px;">
+              <p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #0f172a;">
+                Hello ${name},
+              </p>
+              
+              <p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+                We received a request to reset the password for your Jaystarbliss account associated with <strong style="color: #0f172a;">${to}</strong>.
+              </p>
+
+              <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+                Click the secure button below to choose your new password. This reset link is valid for 1 hour and can only be used once:
+              </p>
+
+              <!-- Primary Reset Password Action Button -->
+              <table border="0" cellspacing="0" cellpadding="0" align="center" style="margin: 32px auto 28px auto;">
+                <tr>
+                  <td align="center" style="border-radius: 12px; background-color: #e11d48; box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);">
+                    <a href="${resetLink}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #e11d48; background-image: linear-gradient(135deg, #e11d48 0%, #be123c 100%); padding: 16px 36px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; text-decoration: none; border-radius: 12px; letter-spacing: 0.02em; text-align: center;">
+                      Reset Your Password &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security Information Breakdown -->
+              <div style="margin: 28px 0; background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;">
+                <div style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; font-size: 11px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;">
+                  Security Details
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 10px 14px; font-size: 12px; font-weight: 600; color: #64748b; width: 35%;">Account</td>
+                      <td style="padding: 10px 14px; font-size: 13px; font-weight: 700; color: #0f172a; text-align: right;">${to}</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 10px 14px; font-size: 12px; font-weight: 600; color: #64748b;">Link Validity</td>
+                      <td style="padding: 10px 14px; font-size: 13px; font-weight: 700; color: #e11d48; text-align: right;">1 Hour (Single Use)</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 10px 14px; font-size: 12px; font-weight: 600; color: #64748b;">Source</td>
+                      <td style="padding: 10px 14px; font-size: 13px; font-weight: 700; color: #0f172a; text-align: right;">Jaystarbliss Portal Authentication</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Fallback Direct URL Box -->
+              <div style="margin: 20px 0; padding: 14px 16px; background-color: #f1f5f9; border-radius: 10px; border: 1px dashed #cbd5e1;">
+                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: #475569;">
+                  Having trouble clicking the button? Copy and paste this link into your browser:
+                </p>
+                <div style="font-family: monospace; font-size: 10px; color: #64748b; word-break: break-all; line-height: 1.4;">
+                  ${resetLink}
+                </div>
+              </div>
+
+              <div style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 12px; color: #64748b; line-height: 1.5;">
+                <strong style="color: #334155;">Didn't request this change?</strong> You can safely ignore this email. Your password will not be changed and your account remains completely secure.
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer Area -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; color: #475569;">
+                Jaystarbliss Studios • Tech Education & Creative Innovation
+              </p>
+              <p style="margin: 0 0 12px 0; font-size: 11px; color: #94a3b8;">
+                Lagos, Nigeria • Direct Phone / WhatsApp: +234 913 651 8194
+              </p>
+              <div style="margin: 8px 0;">
+                <a href="${RESEND_CONFIG.websiteUrl}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Official Website</a>
+                <span style="color: #cbd5e1;">•</span>
+                <a href="${RESEND_CONFIG.portalUrl}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Student & School Portal</a>
+                <span style="color: #cbd5e1;">•</span>
+                <a href="mailto:${RESEND_CONFIG.supportEmail}" style="color: #e11d48; text-decoration: none; font-size: 11px; font-weight: 700; margin: 0 8px;">Support</a>
+              </div>
+              <p style="margin: 12px 0 0 0; font-size: 10px; color: #94a3b8;">
+                &copy; ${new Date().getFullYear()} Jaystarbliss Studios. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Sends a password reset email via Resend with high inbox deliverability.
+ */
+export async function sendPasswordResetEmailResend(params: {
+  to: string;
+  resetLink: string;
+  recipientName?: string;
+}) {
+  const html = buildPasswordResetEmailHtml({
+    to: params.to,
+    recipientName: params.recipientName,
+    resetLink: params.resetLink
+  });
+
+  return sendResendEmail({
+    to: params.to,
+    subject: "Reset your Jaystarbliss account password",
+    html,
+    text: `Hello ${params.recipientName || "Member"},\n\nA password reset request was received for your Jaystarbliss account (${params.to}).\n\nTo reset your password, click the link below (valid for 1 hour):\n${params.resetLink}\n\nIf you did not make this request, you can safely ignore this email.\n\nJaystarbliss Studios\n${RESEND_CONFIG.websiteUrl}`
+  });
+}
+
 

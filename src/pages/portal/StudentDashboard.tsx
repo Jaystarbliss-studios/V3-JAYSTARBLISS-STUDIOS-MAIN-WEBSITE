@@ -18,6 +18,14 @@ import {
   UserCheck,
   Video,
   X,
+  Send,
+  Loader2,
+  Upload,
+  Link as LinkIcon,
+  BookOpen,
+  ClipboardList,
+  AlertCircle,
+  School
 } from 'lucide-react';
 import {
   collection,
@@ -27,6 +35,8 @@ import {
   limit,
   query,
   where,
+  updateDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import SEO from '../../components/ui/SEO';
@@ -42,6 +52,13 @@ import {
   generateModuleCertificatePdf,
   type ModuleCertificateData,
 } from '../../lib/certificatePdfGenerator';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+} from 'recharts';
 
 interface StudentInfo {
   id?: string;
@@ -60,6 +77,7 @@ interface StudentInfo {
   schoolCode?: string;
   school?: string;
   plan?: string;
+  track?: string;
   subjects?: string[];
   schedule?: string;
   status?: string;
@@ -122,6 +140,35 @@ interface ExamItem {
   passcodeProtected?: boolean;
 }
 
+interface DynamicMilestone {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+  dueDate?: string;
+  completedAt?: string;
+  position?: number;
+}
+
+interface DynamicAssignment {
+  id: string;
+  title: string;
+  instructions?: string;
+  tutorName?: string;
+  studentName?: string;
+  dueDate?: string;
+  status: string;
+  grade?: number;
+  feedback?: string;
+  submissionText?: string;
+  submissionUrl?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+  reviewStatus?: string;
+  resourceUrl?: string;
+  resourceTitle?: string;
+}
+
 const stableCredentialId = (studentKey: string, moduleId: string) => {
   let hash = 0;
   const source = `${studentKey}:${moduleId}`;
@@ -133,657 +180,666 @@ const stableCredentialId = (studentKey: string, moduleId: string) => {
 
 const formatDate = (value?: string) => {
   if (!value) return 'No deadline set';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-NG', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return value;
+  }
 };
 
-const CircularProgress: React.FC<{
-  percentage: number;
-  label: string;
-  modulesDone: number;
-  modulesTotal: number;
-}> = ({ percentage, label, modulesDone, modulesTotal }) => {
-  const size = 112;
-  const strokeWidth = 9;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const safePercentage = Math.min(100, Math.max(0, percentage));
-  const offset = circumference - (safePercentage / 100) * circumference;
+const normalizeStr = (v?: any) => String(v || '').trim().toLowerCase();
 
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-950/60 px-2 py-4 text-center">
-      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg
-          className="-rotate-90"
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          role="img"
-          aria-label={`${label}: ${safePercentage}% complete`}
-        >
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            fill="none"
-            className="text-slate-200 dark:text-slate-800"
-          />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
-            fill="none"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            strokeLinecap="round"
-            className="text-brand-red transition-all duration-700 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
-            {safePercentage}%
-          </span>
-        </div>
-      </div>
-      <p className="mt-3 text-xs font-bold text-gray-800 dark:text-slate-200 line-clamp-2">
-        {label || 'Learning track'}
-      </p>
-      <p className="mt-1 text-[11px] text-gray-500 dark:text-slate-400">
-        {modulesDone} of {modulesTotal} modules
-      </p>
-    </div>
-  );
-};
+export const StudentDashboard: React.FC = () => {
+  const toast = useToast();
+  const { unreadCount } = useNotifications();
 
-const StudentDashboard: React.FC = () => {
-  const { toast } = useToast();
-  const { notifications, unreadCount, openDrawer, isNotificationRead } = useNotifications();
   const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [modules, setModules] = useState<ProgramModule[]>([]);
+  const [classResources, setClassResources] = useState<ResourceItem[]>([]);
+  const [generalResources, setGeneralResources] = useState<ResourceItem[]>([]);
   const [personalResources, setPersonalResources] = useState<ResourceItem[]>([]);
   const [personalLinks, setPersonalLinks] = useState<LinkItem[]>([]);
-  const [generalResources, setGeneralResources] = useState<ResourceItem[]>([]);
-  const [classResources, setClassResources] = useState<ResourceItem[]>([]);
   const [exams, setExams] = useState<ExamItem[]>([]);
-  const [modules, setModules] = useState<ProgramModule[]>([]);
   const [studentSchedules, setStudentSchedules] = useState<any[]>([]);
+  const [dynamicMilestones, setDynamicMilestones] = useState<DynamicMilestone[]>([]);
+  const [studentAssignments, setStudentAssignments] = useState<DynamicAssignment[]>([]);
+  const [curriculumTopics, setCurriculumTopics] = useState<string[]>([]);
+  const [enrolledProgramName, setEnrolledProgramName] = useState<string>('');
+  const [isEdclubAllowed, setIsEdclubAllowed] = useState<boolean>(false);
+  const [hasResourcesAllowed, setHasResourcesAllowed] = useState<boolean>(true);
+  const [programDetails, setProgramDetails] = useState<{
+    hasStages: boolean;
+    stageNumber?: number;
+    stageName?: string;
+    seriesName?: string;
+    nextProgramTitle?: string;
+  }>({ hasStages: false });
+
+  // Assignment Google Link Submission Modal
+  const [submittingAssignment, setSubmittingAssignment] = useState<DynamicAssignment | null>(null);
+  const [submissionGoogleUrl, setSubmissionGoogleUrl] = useState('');
+  const [submissionNotes, setSubmissionNotes] = useState('');
+  const [isSubmittingLink, setIsSubmittingLink] = useState(false);
+
   const [loading, setLoading] = useState(true);
-  const [resourceFilter, setResourceFilter] = useState<'ALL' | 'CLASS' | 'GENERAL'>('ALL');
   const [selectedModuleForCert, setSelectedModuleForCert] = useState<ProgramModule | null>(null);
   const [certStudentName, setCertStudentName] = useState('');
   const [generatingCert, setGeneratingCert] = useState(false);
-  const [enrolledProgramName, setEnrolledProgramName] = useState('');
-  const [isEdclubAllowed, setIsEdclubAllowed] = useState(true);
-  const [hasResourcesAllowed, setHasResourcesAllowed] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchStudentData = async () => {
+    setLoading(true);
+    try {
+      const authUser = auth.currentUser;
+      const lookupUid = authUser?.uid;
+      const studentUsername = sessionStorage.getItem('studentUsername');
+      const studentAccessCode = sessionStorage.getItem('studentAccessCode');
+      const cachedStudentId = sessionStorage.getItem('studentDocId');
+      const cachedClass = sessionStorage.getItem('studentClass');
 
-    const fetchStudentData = async () => {
-      setLoading(true);
-      try {
-        const effective = getEffectiveAuth();
-        const currentUser = auth.currentUser;
-        const studentDocId = effective.effectiveStudentDocId || sessionStorage.getItem('studentDocId');
-        const studentUsername = sessionStorage.getItem('studentUsername');
-        const cachedClass = effective.effectiveClass || sessionStorage.getItem('studentClass');
+      let studentRecord: StudentInfo | null = null;
+      let studentId = cachedStudentId || '';
 
-        let studentRecord: StudentInfo | null = null;
-        let studentId = studentDocId || '';
-
-        // 1. Direct doc ID lookup in individualStudents or students
-        if (studentId) {
-          try {
-            const snap = await getDoc(doc(db, 'individualStudents', studentId));
-            if (snap.exists()) {
-              studentRecord = { id: snap.id, ...snap.data() } as StudentInfo;
-            } else {
-              const sSnap = await getDoc(doc(db, 'students', studentId));
-              if (sSnap.exists()) {
-                studentRecord = { id: sSnap.id, ...sSnap.data() } as StudentInfo;
-              }
-            }
-          } catch (error) {
-            console.warn('Direct student lookup failed:', error);
-          }
-        }
-
-        // 2. Lookup by effective UID
-        const lookupUid = effective.effectiveUid || currentUser?.uid;
-        if (!studentRecord && lookupUid) {
-          try {
-            const [indivSnap, studSnap] = await Promise.all([
-              getDocs(query(collection(db, 'individualStudents'), where('firebaseUid', '==', lookupUid), limit(1))).catch(() => ({ empty: true, docs: [] })),
-              getDocs(query(collection(db, 'students'), where('firebaseUid', '==', lookupUid), limit(1))).catch(() => ({ empty: true, docs: [] }))
-            ]);
-            if (!indivSnap.empty) {
-              studentId = indivSnap.docs[0].id;
-              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
-            } else if (!studSnap.empty) {
-              studentId = studSnap.docs[0].id;
-              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
-            }
-          } catch (error) {
-            console.warn('Firebase UID lookup failed:', error);
-          }
-        }
-
-        // 3. Lookup by email
-        if (!studentRecord && effective.effectiveEmail) {
-          try {
-            const [indivSnap, studSnap] = await Promise.all([
-              getDocs(query(collection(db, 'individualStudents'), where('email', '==', effective.effectiveEmail.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] })),
-              getDocs(query(collection(db, 'students'), where('email', '==', effective.effectiveEmail.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] }))
-            ]);
-            if (!indivSnap.empty) {
-              studentId = indivSnap.docs[0].id;
-              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
-            } else if (!studSnap.empty) {
-              studentId = studSnap.docs[0].id;
-              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
-            }
-          } catch (error) {
-            console.warn('Email student lookup failed:', error);
-          }
-        }
-
-        // 4. Lookup by username
-        if (!studentRecord && studentUsername) {
-          try {
-            const [indivSnap, studSnap] = await Promise.all([
-              getDocs(query(collection(db, 'individualStudents'), where('username', '==', studentUsername.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] })),
-              getDocs(query(collection(db, 'students'), where('username', '==', studentUsername.toLowerCase()), limit(1))).catch(() => ({ empty: true, docs: [] }))
-            ]);
-            if (!indivSnap.empty) {
-              studentId = indivSnap.docs[0].id;
-              studentRecord = { id: indivSnap.docs[0].id, ...indivSnap.docs[0].data() } as StudentInfo;
-            } else if (!studSnap.empty) {
-              studentId = studSnap.docs[0].id;
-              studentRecord = { id: studSnap.docs[0].id, ...studSnap.docs[0].data() } as StudentInfo;
-            }
-          } catch (error) {
-            console.warn('Username lookup failed:', error);
-          }
-        }
-
-        if (cancelled) return;
-
-        if (!studentRecord) {
-          if (effective.isMasquerading) {
-            studentRecord = {
-              id: effective.effectiveUid || 'student-masquerade',
-              fullName: effective.effectiveName || 'Impersonated Student',
-              email: effective.effectiveEmail,
-              class: cachedClass || 'Junior Secondary',
-              schoolId: effective.effectiveSchoolId
-            };
+      // 1. Direct document query if ID available
+      if (cachedStudentId) {
+        try {
+          const directDoc = await getDoc(doc(db, 'students', cachedStudentId));
+          if (directDoc.exists()) {
+            studentRecord = { id: directDoc.id, ...(directDoc.data() as object) } as StudentInfo;
           } else {
-            setStudent(null);
-            setPersonalResources([]);
-            setPersonalLinks([]);
-            setGeneralResources([]);
-            setClassResources([]);
-            setExams([]);
-            setModules([]);
-            return;
+            const indivDoc = await getDoc(doc(db, 'individualStudents', cachedStudentId));
+            if (indivDoc.exists()) {
+              studentRecord = { id: indivDoc.id, ...(indivDoc.data() as object) } as StudentInfo;
+            }
+          }
+        } catch (e) {
+          console.warn('Direct studentDoc lookup warning:', e);
+        }
+      }
+
+      // 2. Query collections by username / accessCode / uid
+      if (!studentRecord) {
+        const queryList: any[] = [];
+        if (lookupUid) {
+          queryList.push(query(collection(db, 'students'), where('firebaseUid', '==', lookupUid), limit(1)));
+          queryList.push(query(collection(db, 'individualStudents'), where('firebaseUid', '==', lookupUid), limit(1)));
+          queryList.push(query(collection(db, 'students'), where('userId', '==', lookupUid), limit(1)));
+          queryList.push(query(collection(db, 'individualStudents'), where('userId', '==', lookupUid), limit(1)));
+        }
+        if (studentUsername) {
+          queryList.push(query(collection(db, 'students'), where('username', '==', studentUsername), limit(1)));
+          queryList.push(query(collection(db, 'individualStudents'), where('username', '==', studentUsername), limit(1)));
+        }
+        if (studentAccessCode) {
+          queryList.push(query(collection(db, 'students'), where('accessCode', '==', studentAccessCode), limit(1)));
+          queryList.push(query(collection(db, 'individualStudents'), where('accessCode', '==', studentAccessCode), limit(1)));
+        }
+
+        const snapshots = await Promise.all(queryList.map((q) => getDocs(q).catch(() => null)));
+        for (const snap of snapshots) {
+          if (snap && !snap.empty) {
+            const targetDoc = snap.docs[0];
+            studentRecord = { id: targetDoc.id, ...(targetDoc.data() as object) } as StudentInfo;
+            studentId = targetDoc.id;
+            break;
           }
         }
+      }
 
-        if (!studentRecord.class && cachedClass) {
-          studentRecord.class = cachedClass;
+      // 3. Fallback to session credentials
+      if (!studentRecord) {
+        const sessionName = sessionStorage.getItem('studentName') || sessionStorage.getItem('userName');
+        const sessionEmail = sessionStorage.getItem('studentEmail') || authUser?.email || '';
+        const sessionSchool = sessionStorage.getItem('studentSchoolName') || sessionStorage.getItem('schoolName') || '';
+        const sessionSchoolId = sessionStorage.getItem('studentSchoolId') || sessionStorage.getItem('schoolId') || '';
+        const sessionClass = sessionStorage.getItem('studentClass') || '';
+        const sessionPlan = sessionStorage.getItem('studentPlan') || '';
+
+        if (sessionName || sessionEmail || lookupUid) {
+          studentRecord = {
+            id: cachedStudentId || lookupUid || 'session-student',
+            fullName: sessionName || 'Student',
+            name: sessionName || 'Student',
+            email: sessionEmail,
+            schoolName: sessionSchool,
+            schoolId: sessionSchoolId,
+            class: sessionClass,
+            plan: sessionPlan
+          };
         }
+      }
 
-        const registrationType = studentRecord.schoolId
-          ? 'school'
-          : (studentRecord.parentId || studentRecord.parentEmail ? 'parent' : 'individual');
-        sessionStorage.setItem('studentRegistrationType', registrationType);
-        window.dispatchEvent(new CustomEvent('jaystar-student-registration-type', { detail: registrationType }));
-        setStudent(studentRecord);
-        setCertStudentName(studentRecord.fullName || '');
+      if (!studentRecord) {
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
 
-        // Resolve student program track & feature permissions (School general program vs specialized track)
-        let progName = (studentRecord as any).programName || (studentRecord as any).program || studentRecord.plan || (studentRecord as any).track || '';
-        let edclubAccess = false;
-        let resAccess = true;
+      // Resolve school name & school info dynamically
+      if (!studentRecord.schoolName && studentRecord.school) {
+        studentRecord.schoolName = studentRecord.school;
+      }
+      if (!studentRecord.schoolName && sessionStorage.getItem('studentSchoolName')) {
+        studentRecord.schoolName = sessionStorage.getItem('studentSchoolName') || '';
+      }
+      if (!studentRecord.schoolId && sessionStorage.getItem('studentSchoolId')) {
+        studentRecord.schoolId = sessionStorage.getItem('studentSchoolId') || '';
+      }
 
-        const assignedProgramsList: string[] = Array.from(new Set([
-          studentRecord.plan,
-          (studentRecord as any).track,
-          (studentRecord as any).programName,
-          (studentRecord as any).programTitle,
-          ...(Array.isArray((studentRecord as any).enrolledPrograms) ? (studentRecord as any).enrolledPrograms : []),
-          ...(Array.isArray(studentRecord.subjects) ? studentRecord.subjects : []),
-          ...(Array.isArray((studentRecord as any).plans) ? (studentRecord as any).plans : []),
-          ...(Array.isArray((studentRecord as any).programs) ? (studentRecord as any).programs : [])
-        ])).filter(Boolean).map(s => String(s).trim().toLowerCase());
+      let progName = (studentRecord as any).programName || (studentRecord as any).program || studentRecord.plan || (studentRecord as any).track || '';
+      let edclubAccess = false;
+      let resAccess = true;
 
-        if (studentRecord.schoolId) {
-          try {
-            const schDoc = await getDoc(doc(db, 'schools', studentRecord.schoolId));
-            if (schDoc.exists()) {
-              const schData = schDoc.data();
-              const schPrograms: any[] = Array.isArray(schData.programs) ? schData.programs : [];
-              
-              if (schPrograms.length > 0) {
-                const studentProgId = (studentRecord as any).programId || (studentRecord as any).assignedProgramId;
-                
-                // Match against all assigned programs or program ID
-                schPrograms.forEach(p => {
-                  const pName = String(p.name || p.title || '').trim().toLowerCase();
-                  const isAssigned = (studentProgId && p.id === studentProgId) ||
-                    assignedProgramsList.length === 0 ||
-                    assignedProgramsList.some(ap => ap === pName || ap.includes(pName) || pName.includes(ap));
+      const assignedProgramsList: string[] = Array.from(new Set([
+        studentRecord.plan,
+        (studentRecord as any).track,
+        (studentRecord as any).programName,
+        (studentRecord as any).programTitle,
+        ...(Array.isArray((studentRecord as any).enrolledPrograms) ? (studentRecord as any).enrolledPrograms : []),
+        ...(Array.isArray(studentRecord.subjects) ? studentRecord.subjects : []),
+        ...(Array.isArray((studentRecord as any).plans) ? (studentRecord as any).plans : []),
+        ...(Array.isArray((studentRecord as any).programs) ? (studentRecord as any).programs : [])
+      ])).filter(Boolean).map(s => String(s).trim().toLowerCase());
 
-                  if (isAssigned) {
-                    if (!progName) progName = p.name;
-                    if (p.hasEdclub === true || p.hasEdClub === true || pName.includes('digital literacy') || pName.includes('typing')) {
-                      edclubAccess = true;
-                    }
-                    if (p.hasResources !== false) {
-                      resAccess = true;
-                    }
+      // If student belongs to a school, inspect the school's configured programs & details
+      if (studentRecord.schoolId) {
+        try {
+          const schDoc = await getDoc(doc(db, 'schools', studentRecord.schoolId));
+          if (schDoc.exists()) {
+            const schData = schDoc.data();
+            if (schData.name && !studentRecord.schoolName) {
+              studentRecord.schoolName = schData.name;
+            }
+            sessionStorage.setItem('studentSchoolName', schData.name || studentRecord.schoolName || '');
+            sessionStorage.setItem('studentSchoolId', studentRecord.schoolId);
+
+            const schPrograms: any[] = Array.isArray(schData.programs) ? schData.programs : [];
+            if (schPrograms.length > 0) {
+              const studentProgId = (studentRecord as any).programId || (studentRecord as any).assignedProgramId;
+              schPrograms.forEach(p => {
+                const pName = String(p.name || p.title || '').trim().toLowerCase();
+                const isAssigned = (studentProgId && p.id === studentProgId) ||
+                  assignedProgramsList.length === 0 ||
+                  assignedProgramsList.some(ap => ap === pName || ap.includes(pName) || pName.includes(ap));
+
+                if (isAssigned) {
+                  if (!progName) progName = p.name;
+                  if (p.hasEdclub === true || p.hasEdClub === true || pName.includes('digital literacy') || pName.includes('typing')) {
+                    edclubAccess = true;
                   }
-                });
+                  if (p.hasResources !== false) {
+                    resAccess = true;
+                  }
+                }
+              });
 
-                if (!progName) {
-                  const general = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
-                  if (general) {
-                    progName = general.name;
-                    if (general.hasEdclub || String(general.name || '').toLowerCase().includes('digital literacy')) {
-                      edclubAccess = true;
-                    }
+              if (!progName) {
+                const general = schPrograms.find(p => p.isGeneralProgram) || schPrograms[0];
+                if (general) {
+                  progName = general.name;
+                  if (general.hasEdclub || String(general.name || '').toLowerCase().includes('digital literacy')) {
+                    edclubAccess = true;
                   }
                 }
               }
             }
-          } catch (e) {
-            console.warn('School program lookup notice:', e);
           }
+        } catch (e) {
+          console.warn('School lookup notice in student dashboard:', e);
         }
+      } else if (studentRecord.schoolName) {
+        // Query school by name
+        try {
+          const schQuery = query(collection(db, 'schools'), where('name', '==', studentRecord.schoolName), limit(1));
+          const schSnap = await getDocs(schQuery);
+          if (!schSnap.empty) {
+            const schDoc = schSnap.docs[0];
+            const schData = schDoc.data();
+            studentRecord.schoolId = schDoc.id;
+            sessionStorage.setItem('studentSchoolId', schDoc.id);
+            sessionStorage.setItem('studentSchoolName', schData.name || studentRecord.schoolName);
+            if (Array.isArray(schData.programs) && schData.programs.length > 0 && !progName) {
+              progName = schData.programs[0].name;
+            }
+          }
+        } catch (e) {
+          console.warn('School by name query notice:', e);
+        }
+      }
 
-        // Also check programs collection
-        if (!edclubAccess && assignedProgramsList.length > 0) {
-          try {
-            const progsSnap = await getDocs(collection(db, 'programs')).catch(() => ({ docs: [] } as any));
-            progsSnap.docs.forEach((d: any) => {
-              const p = d.data();
-              const pTitle = String(p.title || p.name || '').trim().toLowerCase();
-              const isMatch = assignedProgramsList.some(ap => ap === pTitle || ap.includes(pTitle) || pTitle.includes(ap));
-              if (isMatch) {
-                if (p.hasEdclub === true || p.hasEdClub === true || pTitle.includes('digital literacy') || pTitle.includes('typing')) {
-                  edclubAccess = true;
+      // Query programs collection to determine if program is multi-stage or standalone
+      let matchedProgramDoc: any = null;
+      try {
+        const progsSnap = await getDocs(collection(db, 'programs')).catch(() => ({ docs: [] } as any));
+        progsSnap.docs.forEach((d: any) => {
+          const p = d.data();
+          const pTitle = String(p.title || p.name || '').trim().toLowerCase();
+          const isMatch = assignedProgramsList.some(ap => ap === pTitle || ap.includes(pTitle) || pTitle.includes(ap)) ||
+            (progName && (pTitle === progName.toLowerCase().trim() || pTitle.includes(progName.toLowerCase().trim()) || progName.toLowerCase().trim().includes(pTitle)));
+          if (isMatch && !matchedProgramDoc) {
+            matchedProgramDoc = p;
+            if (p.hasEdclub === true || p.hasEdClub === true || pTitle.includes('digital literacy') || pTitle.includes('typing')) {
+              edclubAccess = true;
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Programs lookup error:', e);
+      }
+
+      const isDigitalLitOrTyping = assignedProgramsList.some(ap => 
+        ap.includes('digital literacy') || 
+        ap.includes('digitalliteracy') || 
+        ap.includes('typing') || 
+        ap.includes('edclub') || 
+        ap.includes('keyboard')
+      ) || String(progName || '').toLowerCase().includes('digital literacy') || String(studentRecord.plan || '').toLowerCase().includes('digital literacy');
+
+      if (!edclubAccess && isDigitalLitOrTyping) {
+        edclubAccess = true;
+      }
+
+      const resolvedProgramTitle = progName || (isDigitalLitOrTyping ? 'Digital Literacy Junior' : (studentRecord.schoolName ? 'Digital Literacy Junior' : (studentRecord.plan || 'Digital Literacy Junior')));
+      setEnrolledProgramName(resolvedProgramTitle);
+      setIsEdclubAllowed(edclubAccess);
+      setHasResourcesAllowed(resAccess);
+
+      setStudent(studentRecord);
+
+      // Determine Stages Configuration:
+      const hasSeries = Boolean(
+        matchedProgramDoc?.seriesName ||
+        matchedProgramDoc?.hasStages ||
+        (matchedProgramDoc?.stageNumber && Number(matchedProgramDoc.stageNumber) > 1)
+      );
+
+      setProgramDetails({
+        hasStages: hasSeries,
+        stageNumber: matchedProgramDoc?.stageNumber ? Number(matchedProgramDoc.stageNumber) : undefined,
+        stageName: matchedProgramDoc?.stageName || undefined,
+        seriesName: matchedProgramDoc?.seriesName || undefined,
+        nextProgramTitle: matchedProgramDoc?.nextProgramTitle || undefined,
+      });
+
+      // Weekly curriculum topics from program definition (if set by admin/tutor)
+      if (Array.isArray(matchedProgramDoc?.curriculum) && matchedProgramDoc.curriculum.length > 0) {
+        setCurriculumTopics(matchedProgramDoc.curriculum);
+      } else {
+        setCurriculumTopics([]);
+      }
+
+      const assignedClass = (studentRecord.class || studentRecord.grade || cachedClass || '').trim();
+      const currentStudentId = studentId;
+      const currentUid = authUser?.uid;
+
+      // 1. Fetch Dynamic Milestones from Firestore
+      const milestoneList: DynamicMilestone[] = [];
+      try {
+        const milestoneQueries = [
+          getDocs(query(collection(db, 'milestones'), where('targetType', '==', 'STUDENT'), where('targetId', '==', currentStudentId))),
+          ...(currentUid ? [getDocs(query(collection(db, 'milestones'), where('studentUserId', '==', currentUid)))] : []),
+          ...(studentRecord.schoolId ? [getDocs(query(collection(db, 'milestones'), where('targetType', '==', 'SCHOOL'), where('targetId', '==', studentRecord.schoolId)))] : [])
+        ];
+        const milestoneSnaps = await Promise.all(milestoneQueries.map(q => q.catch(() => ({ docs: [] } as any))));
+        const seenMilestones = new Set<string>();
+        milestoneSnaps.forEach(snap => {
+          snap.docs?.forEach((d: any) => {
+            if (!seenMilestones.has(d.id)) {
+              seenMilestones.add(d.id);
+              const data = d.data();
+              milestoneList.push({
+                id: d.id,
+                title: data.title || 'Curriculum Milestone',
+                description: data.description,
+                status: data.status || 'NOT_STARTED',
+                dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+                completedAt: data.completedAt?.toDate ? data.completedAt.toDate().toISOString() : data.completedAt,
+                position: Number(data.position) || 0,
+              });
+            }
+          });
+        });
+        milestoneList.sort((a, b) => (a.position || 0) - (b.position || 0));
+      } catch (mErr) {
+        console.warn('Milestones fetch warning:', mErr);
+      }
+      setDynamicMilestones(milestoneList);
+
+      // 2. Fetch Real Assignments from Firestore & Netlify Functions
+      const assignmentList: DynamicAssignment[] = [];
+      const seenAssignments = new Set<string>();
+      try {
+        const token = await authUser?.getIdToken();
+        if (token) {
+          const assRes = await fetch('/.netlify/functions/academic-assignments', {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(() => null);
+          if (assRes && assRes.ok) {
+            const assData = await assRes.json().catch(() => ({}));
+            if (Array.isArray(assData.assignments)) {
+              assData.assignments.forEach((a: any) => {
+                if (!seenAssignments.has(a.id)) {
+                  seenAssignments.add(a.id);
+                  assignmentList.push(a);
                 }
-              }
-            });
-          } catch (e) {
-            console.warn('Programs lookup for edclub notice:', e);
+              });
+            }
           }
         }
 
-        // Fallback for Digital Literacy & Keyboarding programs
-        const isDigitalLitOrTyping = assignedProgramsList.some(ap => 
-          ap.includes('digital literacy') || 
-          ap.includes('digitalliteracy') || 
-          ap.includes('typing') || 
-          ap.includes('edclub') || 
-          ap.includes('keyboard')
-        ) || String(progName || '').toLowerCase().includes('digital literacy') || String(studentRecord.plan || '').toLowerCase().includes('digital literacy');
-
-        if (!edclubAccess && isDigitalLitOrTyping) {
-          edclubAccess = true;
-        }
-
-        setEnrolledProgramName(progName || (isDigitalLitOrTyping ? 'Digital Literacy Junior' : ''));
-        setIsEdclubAllowed(edclubAccess);
-        setHasResourcesAllowed(resAccess);
-
-        const assignedClass = (studentRecord.class || studentRecord.grade || cachedClass || '').trim();
-        const currentStudentId = studentId;
-        const currentUid = currentUser?.uid;
-
-        const [personalResourceResults, personalLinkResults, resourceSnapshot, examSnapshot] = await Promise.all([
-          currentStudentId || currentUid
-            ? Promise.all([
-                getDocs(query(collection(db, 'personalResources'), where('studentId', '==', currentStudentId))),
-                ...(currentUid
-                  ? [getDocs(query(collection(db, 'personalResources'), where('userId', '==', currentUid)))]
-                  : []),
-              ])
-            : Promise.resolve([]),
-          currentStudentId || currentUid
-            ? Promise.all([
-                getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', currentStudentId))),
-                ...(currentUid
-                  ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]
-                  : []),
-              ])
-            : Promise.resolve([]),
-          getDocs(query(collection(db, 'resources'), limit(20))),
-          getDocs(query(collection(db, 'exams'), limit(15))),
+        const directAssignmentSnaps = await Promise.all([
+          getDocs(query(collection(db, 'assignments'), where('studentId', '==', currentStudentId))).catch(() => ({ docs: [] } as any)),
+          ...(currentUid ? [getDocs(query(collection(db, 'assignments'), where('studentUserId', '==', currentUid))).catch(() => ({ docs: [] } as any))] : []),
+          ...(currentUid ? [getDocs(query(collection(db, 'assignments'), where('userId', '==', currentUid))).catch(() => ({ docs: [] } as any))] : [])
         ]);
 
-        if (cancelled) return;
-
-        const personalResourceMap = new Map<string, ResourceItem>();
-        personalResourceResults.forEach((snap) => {
-          snap.forEach((item) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem));
-        });
-        setPersonalResources(Array.from(personalResourceMap.values()));
-
-        const personalLinkMap = new Map<string, LinkItem>();
-        personalLinkResults.forEach((snap) => {
-          snap.forEach((item) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem));
-        });
-        setPersonalLinks(Array.from(personalLinkMap.values()));
-
-        const classList: ResourceItem[] = [];
-        const generalList: ResourceItem[] = [];
-
-        const isUniversalResource = (item: any) => {
-          const itemClasses: string[] = Array.isArray(item.assignedClasses) 
-            ? item.assignedClasses 
-            : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
-          const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
-          const category = (item.category || '').toLowerCase().trim();
-
-          if (category === 'both' || category === 'universal' || category === 'general' || category === 'all') return true;
-          if (itemClasses.some(c => ['all classes', 'all', 'general', 'universal'].includes(c.toLowerCase().trim()))) return true;
-          if (cl === 'all classes' || cl === 'all' || cl === 'general' || cl === 'universal' || (!cl && itemClasses.length === 0)) return true;
-          return false;
-        };
-
-        const isItemForClass = (item: any) => {
-          if (!assignedClass) return false;
-          const target = assignedClass.toLowerCase().trim();
-          const itemClasses: string[] = Array.isArray(item.assignedClasses) 
-            ? item.assignedClasses 
-            : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
-          
-          if (itemClasses.length > 0) {
-            return itemClasses.some(c => {
-              const lc = c.toLowerCase().trim();
-              return lc === target || lc.includes(target) || target.includes(lc);
-            });
-          }
-
-          const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
-          if (cl && cl !== 'all classes' && cl !== 'all' && cl !== 'general') {
-            return cl === target || cl.includes(target) || target.includes(cl);
-          }
-
-          return false;
-        };
-
-        resourceSnapshot.forEach((resourceDoc) => {
-          const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
-          if (isItemForClass(item)) {
-            classList.push({ ...item, isClassSpecific: true });
-          } else if (isUniversalResource(item)) {
-            generalList.push({ ...item, isClassSpecific: false });
-          }
-        });
-
-        // Ensure school students see all their school resources and assigned lessons
-        const activeSchoolId = studentRecord.schoolId || sessionStorage.getItem('schoolId') || localStorage.getItem('jaystar_school_id') || studentRecord.school;
-        try {
-          const schoolResourceSnap = await getDocs(
-            activeSchoolId
-              ? query(collection(db, 'schoolResources'), where('schoolId', '==', activeSchoolId), limit(50))
-              : query(collection(db, 'schoolResources'), limit(50))
-          ).catch(() => getDocs(collection(db, 'schoolResources')).catch(() => ({ docs: [] })));
-
-          schoolResourceSnap.docs?.forEach((resourceDoc: any) => {
-            const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
-            if (!activeSchoolId || !item.schoolId || item.schoolId === activeSchoolId || item.schoolName === studentRecord.schoolName || item.school === studentRecord.school) {
-              const isMatch = isItemForClass(item);
-              const isUniv = isUniversalResource(item);
-              if (isMatch) {
-                if (!classList.some((resource) => resource.id === item.id)) {
-                  classList.push({ ...item, isClassSpecific: true });
-                }
-              } else if (isUniv) {
-                if (!generalList.some((resource) => resource.id === item.id)) {
-                  generalList.push({ ...item, isClassSpecific: false });
-                }
-              }
-            }
-          });
-        } catch (error) {
-          console.warn('School resource lookup failed:', error);
-        }
-
-        setClassResources(classList);
-        setGeneralResources(generalList);
-
-        const examList: ExamItem[] = examSnapshot.docs.map((examDoc) => ({
-          id: examDoc.id,
-          ...examDoc.data(),
-        } as ExamItem));
-
-        if (studentRecord.schoolId) {
-          try {
-            const schoolExamSnap = await getDocs(
-              query(collection(db, 'schoolExams'), where('schoolId', '==', studentRecord.schoolId), limit(20))
-            );
-            schoolExamSnap.forEach((examDoc) => {
-              const exam = { id: examDoc.id, ...examDoc.data() } as ExamItem;
-              const examClass = (exam.targetClass || exam.class || '').trim().toLowerCase();
-              const target = assignedClass.toLowerCase();
-              if (!examClass || !target || examClass.includes(target) || target.includes(examClass)) {
-                if (!examList.some((item) => item.id === exam.id)) examList.push(exam);
-              }
-            });
-          } catch (error) {
-            console.warn('School exam lookup failed:', error);
-          }
-        }
-        setExams(examList);
-
-        try {
-          const moduleQueries = [
-            query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId)),
-            ...(currentUid
-              ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUid))]
-              : []),
-          ];
-          const moduleMap = new Map<string, ProgramModule>();
-          const moduleSnapshots = await Promise.all(moduleQueries.map(getDocs));
-          moduleSnapshots.forEach((snap) => {
-            snap.forEach((moduleDoc) => {
-              const data = moduleDoc.data();
-              if (
-                data.studentId === currentStudentId ||
-                data.studentId === currentUid ||
-                data.studentUsername === studentUsername
-              ) {
-                moduleMap.set(moduleDoc.id, {
-                  id: moduleDoc.id,
-                  title: data.title || 'Untitled module',
-                  stageName: data.stageName || `Stage ${Number(data.stageNumber) || 1}`,
-                  stageNumber: Number(data.stageNumber) || 1,
-                  trackName: data.trackName || 'Learning Track',
-                  completed: Boolean(data.completed),
-                  completionDate: data.completionDate || '',
-                  score: data.score || '',
-                  competencies: Array.isArray(data.competencies) ? data.competencies : [],
-                  instructor: data.instructor || '',
-                });
-              }
-            });
-          });
-
-          // If no specific studentModules exist yet, populate from their assigned program in programs collection
-          if (moduleMap.size === 0) {
-            const assignedProgName = studentRecord.plan || (studentRecord as any).track || (studentRecord as any).programName || enrolledProgramName;
-            try {
-              const progSnap = await getDocs(collection(db, 'programs'));
-              const matchingProgs = progSnap.docs.filter(d => {
-                const p = d.data();
-                if (!assignedProgName) return p.status === 'PUBLISHED';
-                const pTitle = (p.title || '').toLowerCase().trim();
-                const target = assignedProgName.toLowerCase().trim();
-                return pTitle === target || pTitle.includes(target) || target.includes(pTitle);
+        directAssignmentSnaps.forEach(snap => {
+          snap.docs?.forEach((d: any) => {
+            if (!seenAssignments.has(d.id)) {
+              seenAssignments.add(d.id);
+              const data = d.data();
+              assignmentList.push({
+                id: d.id,
+                title: data.title || 'Assignment Task',
+                instructions: data.instructions || data.description,
+                tutorName: data.tutorName || data.assignedBy,
+                studentName: data.studentName,
+                dueDate: data.dueDate?.toDate ? data.dueDate.toDate().toISOString() : data.dueDate,
+                status: data.status || 'PUBLISHED',
+                grade: data.grade,
+                feedback: data.feedback,
+                submissionText: data.submissionText,
+                submissionUrl: data.submissionUrl,
+                submittedAt: data.submittedAt?.toDate ? data.submittedAt.toDate().toISOString() : data.submittedAt,
+                reviewedAt: data.reviewedAt?.toDate ? data.reviewedAt.toDate().toISOString() : data.reviewedAt,
+                reviewStatus: data.reviewStatus,
+                resourceUrl: data.resourceUrl,
+                resourceTitle: data.resourceTitle
               });
-
-              matchingProgs.forEach((d, idx) => {
-                const p = d.data();
-                const curr = Array.isArray(p.curriculum) && p.curriculum.length > 0 ? p.curriculum : [p.title];
-                curr.forEach((topic: string, tIdx: number) => {
-                  const mId = `${d.id}-mod-${tIdx}`;
-                  moduleMap.set(mId, {
-                    id: mId,
-                    title: topic,
-                    stageName: p.stageName || (p.seriesName ? `${p.seriesName} • Stage ${p.stageNumber || idx + 1}` : `Stage ${p.stageNumber || idx + 1}`),
-                    stageNumber: Number(p.stageNumber) || idx + 1,
-                    trackName: p.title || assignedProgName || 'Learning Track',
-                    completed: tIdx === 0, // Mark first introductory milestone as active/completed
-                    completionDate: tIdx === 0 ? new Date().toISOString() : '',
-                    score: '90%',
-                    competencies: ['Core Engineering', 'Problem Solving'],
-                    instructor: p.assignedTutors?.[0]?.tutorName || (studentRecord as any).tutorName || 'Jaystarbliss Faculty',
-                  });
-                });
-              });
-            } catch (pErr) {
-              console.warn('Fallback program modules lookup error:', pErr);
             }
-          }
-
-          setModules(Array.from(moduleMap.values()).sort((a, b) => a.stageNumber - b.stageNumber));
-        } catch (error) {
-          console.warn('Student module lookup failed:', error);
-          setModules([]);
-        }
-
-        // Fetch student class schedules (matching school + class, parent schedule, or private student ID)
-        try {
-          const schSnap = await getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any));
-          const list = schSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-          const studentClass = (studentRecord?.class || studentRecord?.grade || cachedClass || '').trim().toLowerCase();
-          const schId = studentRecord?.schoolId;
-          const sName = (studentRecord?.fullName || studentRecord?.name || '').trim().toLowerCase();
-          const sEmail = (studentRecord?.email || '').trim().toLowerCase();
-          const pEmail = (studentRecord?.parentEmail || '').trim().toLowerCase();
-          const pId = studentRecord?.parentId;
-
-          const filtered = list.filter((r: any) => {
-            // Match individual student
-            if (r.studentId && (r.studentId === currentStudentId || r.studentId === lookupUid)) return true;
-            if (r.studentEmail && sEmail && r.studentEmail.toLowerCase() === sEmail) return true;
-            if (r.studentName && sName && r.studentName.toLowerCase() === sName) return true;
-
-            // Match parent schedule
-            if (pId && r.parentId && r.parentId === pId) return true;
-            if (pEmail && r.parentEmail && r.parentEmail.toLowerCase() === pEmail) return true;
-
-            // Match school schedule
-            if (schId && r.schoolId === schId) {
-              if (studentClass) {
-                const rClass = String(r.classLevel || '').trim().toLowerCase();
-                const rLevels = Array.isArray(r.classLevels) ? r.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
-                if (rClass && (rClass === studentClass || studentClass.includes(rClass) || rClass.includes(studentClass))) return true;
-                if (rLevels.length > 0 && rLevels.some((l: string) => l === studentClass || studentClass.includes(l) || l.includes(studentClass))) return true;
-                if (!rClass && rLevels.length === 0) return true;
-              } else {
-                return true;
-              }
-            }
-            return false;
           });
-          setStudentSchedules(filtered);
-        } catch (err) {
-          console.warn('Student class schedules fetch error:', err);
-        }
-      } catch (error) {
-        console.error('Error loading student dashboard:', error);
-        if (!cancelled) toast.error('Some student dashboard data could not be loaded.');
-      } finally {
-        if (!cancelled) setLoading(false);
+        });
+      } catch (aErr) {
+        console.warn('Assignments fetch warning:', aErr);
       }
-    };
+      setStudentAssignments(assignmentList);
 
+      // 3. Resources & Schedules
+      const [personalResourceResults, personalLinkResults, resourceSnapshot, examSnapshot] = await Promise.all([
+        currentStudentId || currentUid
+          ? Promise.all([
+              getDocs(query(collection(db, 'personalResources'), where('studentId', '==', currentStudentId))),
+              ...(currentUid
+                ? [getDocs(query(collection(db, 'personalResources'), where('userId', '==', currentUid)))]
+                : []),
+            ])
+          : Promise.resolve([]),
+        currentStudentId || currentUid
+          ? Promise.all([
+              getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', currentStudentId))),
+              ...(currentUid
+                ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]
+                : []),
+            ])
+          : Promise.resolve([]),
+        getDocs(query(collection(db, 'resources'), limit(25))),
+        getDocs(query(collection(db, 'exams'), limit(15))),
+      ]);
+
+      const personalResourceMap = new Map<string, ResourceItem>();
+      personalResourceResults.forEach((snap) => {
+        snap.forEach((item) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem));
+      });
+      setPersonalResources(Array.from(personalResourceMap.values()));
+
+      const personalLinkMap = new Map<string, LinkItem>();
+      personalLinkResults.forEach((snap) => {
+        snap.forEach((item) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem));
+      });
+      setPersonalLinks(Array.from(personalLinkMap.values()));
+
+      const classList: ResourceItem[] = [];
+      const generalList: ResourceItem[] = [];
+
+      const isUniversalResource = (item: any) => {
+        const itemClasses: string[] = Array.isArray(item.assignedClasses) 
+          ? item.assignedClasses 
+          : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
+        const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
+        const category = (item.category || '').toLowerCase().trim();
+
+        if (category === 'both' || category === 'universal' || category === 'general' || category === 'all') return true;
+        if (itemClasses.some(c => ['all classes', 'all', 'general', 'universal'].includes(c.toLowerCase().trim()))) return true;
+        if (cl === 'all classes' || cl === 'all' || cl === 'general' || cl === 'universal' || (!cl && itemClasses.length === 0)) return true;
+        return false;
+      };
+
+      const isItemForClass = (item: any) => {
+        if (!assignedClass) return false;
+        const target = assignedClass.toLowerCase().trim();
+        const itemClasses: string[] = Array.isArray(item.assignedClasses) 
+          ? item.assignedClasses 
+          : (item.targetClass ? [item.targetClass] : (item.class ? [item.class] : []));
+        
+        if (itemClasses.length > 0) {
+          return itemClasses.some(c => {
+            const lc = c.toLowerCase().trim();
+            return lc === target || lc.includes(target) || target.includes(lc);
+          });
+        }
+
+        const cl = (item.classLevel || item.gradeLevel || '').toLowerCase().trim();
+        if (cl && cl !== 'all classes' && cl !== 'all' && cl !== 'general') {
+          return cl === target || cl.includes(target) || target.includes(cl);
+        }
+
+        return false;
+      };
+
+      resourceSnapshot.forEach((resourceDoc) => {
+        const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+        if (isItemForClass(item)) {
+          classList.push({ ...item, isClassSpecific: true });
+        } else if (isUniversalResource(item)) {
+          generalList.push({ ...item, isClassSpecific: false });
+        }
+      });
+
+      const activeSchoolId = studentRecord.schoolId || sessionStorage.getItem('schoolId') || studentRecord.school;
+      try {
+        const schoolResourceSnap = await getDocs(
+          activeSchoolId
+            ? query(collection(db, 'schoolResources'), where('schoolId', '==', activeSchoolId), limit(50))
+            : query(collection(db, 'schoolResources'), limit(50))
+        ).catch(() => ({ docs: [] } as any));
+
+        schoolResourceSnap.docs?.forEach((resourceDoc: any) => {
+          const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
+          if (!activeSchoolId || !item.schoolId || item.schoolId === activeSchoolId || item.schoolName === studentRecord?.schoolName || item.school === studentRecord?.school) {
+            const isMatch = isItemForClass(item);
+            const isUniv = isUniversalResource(item);
+            if (isMatch) {
+              if (!classList.some((resource) => resource.id === item.id)) {
+                classList.push({ ...item, isClassSpecific: true });
+              }
+            } else if (isUniv) {
+              if (!generalList.some((resource) => resource.id === item.id)) {
+                generalList.push({ ...item, isClassSpecific: false });
+              }
+            }
+          }
+        });
+      } catch (error) {
+        console.warn('School resource lookup failed:', error);
+      }
+
+      setClassResources(classList);
+      setGeneralResources(generalList);
+
+      const examList: ExamItem[] = examSnapshot.docs.map((examDoc) => ({
+        id: examDoc.id,
+        ...examDoc.data(),
+      } as ExamItem));
+      setExams(examList);
+
+      // Student verified modules (for certificates)
+      try {
+        const moduleQueries = [
+          query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId)),
+          ...(currentUid
+            ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUid))]
+            : []),
+        ];
+        const moduleMap = new Map<string, ProgramModule>();
+        const moduleSnapshots = await Promise.all(moduleQueries.map(getDocs));
+        moduleSnapshots.forEach((snap) => {
+          snap.forEach((moduleDoc) => {
+            const data = moduleDoc.data();
+            if (
+              data.studentId === currentStudentId ||
+              data.studentId === currentUid ||
+              data.studentUsername === studentUsername
+            ) {
+              moduleMap.set(moduleDoc.id, {
+                id: moduleDoc.id,
+                title: data.title || 'Module',
+                stageName: data.stageName || `Stage ${Number(data.stageNumber) || 1}`,
+                stageNumber: Number(data.stageNumber) || 1,
+                trackName: data.trackName || 'Learning Track',
+                completed: Boolean(data.completed),
+                completionDate: data.completionDate || '',
+                score: data.score || '',
+                competencies: Array.isArray(data.competencies) ? data.competencies : [],
+                instructor: data.instructor || '',
+              });
+            }
+          });
+        });
+        setModules(Array.from(moduleMap.values()).sort((a, b) => a.stageNumber - b.stageNumber));
+      } catch (error) {
+        console.warn('Student module lookup failed:', error);
+        setModules([]);
+      }
+
+      // Class schedules (combining Netlify API + Firestore classSchedules with full school, cohort, and program interlinking)
+      try {
+        const schId = (studentRecord?.schoolId || '').trim();
+        const schName = (studentRecord?.schoolName || studentRecord?.school || '').trim().toLowerCase();
+        const studentClass = (studentRecord?.class || studentRecord?.grade || cachedClass || '').trim().toLowerCase();
+        const sName = (studentRecord?.fullName || studentRecord?.name || '').trim().toLowerCase();
+        const sEmail = (studentRecord?.email || '').trim().toLowerCase();
+        const pEmail = (studentRecord?.parentEmail || '').trim().toLowerCase();
+        const pId = studentRecord?.parentId;
+        const currentProg = resolvedProgramTitle.toLowerCase().trim();
+
+        const [schSnap, netlifySchedules] = await Promise.all([
+          getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any)),
+          authUser?.getIdToken().then((token: string | null | undefined) => 
+            token ? fetch(`/.netlify/functions/class-schedules?schoolId=${encodeURIComponent(schId)}&studentId=${encodeURIComponent(currentStudentId)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            }).then(r => r.ok ? r.json() : { schedules: [] }).catch(() => ({ schedules: [] })) : { schedules: [] }
+          ).catch(() => ({ schedules: [] }))
+        ]);
+
+        const combinedRaw = [
+          ...(Array.isArray(netlifySchedules?.schedules) ? netlifySchedules.schedules : []),
+          ...schSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }))
+        ];
+
+        const seenScheduleIds = new Set<string>();
+        const filtered = combinedRaw.filter((r: any) => {
+          if (!r || !r.id || seenScheduleIds.has(r.id)) return false;
+          seenScheduleIds.add(r.id);
+
+          // Direct student assignment
+          if (r.studentId && (r.studentId === currentStudentId || r.studentId === lookupUid)) return true;
+          if (r.studentEmail && sEmail && r.studentEmail.toLowerCase() === sEmail) return true;
+          if (r.studentName && sName && r.studentName.toLowerCase() === sName) return true;
+          if (pId && r.parentId && r.parentId === pId) return true;
+          if (pEmail && r.parentEmail && r.parentEmail.toLowerCase() === pEmail) return true;
+
+          const rSchId = (r.schoolId || '').trim();
+          const rSchName = (r.schoolName || '').trim().toLowerCase();
+          const isSchoolMatch = (schId && rSchId === schId) ||
+            (schName && rSchName && (rSchName === schName || rSchName.includes(schName) || schName.includes(rSchName)));
+
+          const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
+          const isProgramMatch = currentProg && (rProgName === currentProg || rProgName.includes(currentProg) || currentProg.includes(rProgName));
+
+          if (isSchoolMatch || isProgramMatch || r.targetType === 'ALL') {
+            if (studentClass) {
+              const rClass = String(r.classLevel || '').trim().toLowerCase();
+              const rLevels = Array.isArray(r.classLevels) ? r.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
+              if (!rClass && rLevels.length === 0) return true;
+              if (rClass === 'all' || rClass === 'all classes' || rClass === 'general' || rClass === studentClass || studentClass.includes(rClass) || rClass.includes(studentClass)) return true;
+              if (rLevels.some((l: string) => l === 'all' || l === 'all classes' || l === 'general' || l === studentClass || studentClass.includes(l) || l.includes(studentClass))) return true;
+              
+              // Number matching (e.g. Year 5 and 5)
+              const studentClassNum = studentClass.replace(/\D/g, '');
+              const rClassNum = rClass.replace(/\D/g, '');
+              if (studentClassNum && rClassNum && studentClassNum === rClassNum) return true;
+            } else {
+              return true;
+            }
+          }
+          return false;
+        });
+
+        setStudentSchedules(filtered);
+      } catch (err) {
+        console.warn('Student class schedules fetch error:', err);
+      }
+
+    } catch (error) {
+      console.error('Error loading student dashboard:', error);
+      toast.error('Some student dashboard data could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchStudentData();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  const courseProgressList = useMemo(() => {
-    const byTrack = new Map<string, { total: number; completed: number }>();
-    modules.forEach((module) => {
-      const key = module.trackName || 'Learning Track';
-      const current = byTrack.get(key) || { total: 0, completed: 0 };
-      current.total += 1;
-      if (module.completed) current.completed += 1;
-      byTrack.set(key, current);
-    });
+  // Real Dynamic Milestone Calculations
+  const completedMilestonesCount = useMemo(() => {
+    return dynamicMilestones.filter(m => m.status === 'COMPLETED').length;
+  }, [dynamicMilestones]);
 
-    return Array.from(byTrack.entries()).map(([label, value]) => ({
-      label,
-      percentage: value.total ? Math.round((value.completed / value.total) * 100) : 0,
-      modulesDone: value.completed,
-      modulesTotal: value.total,
-    }));
-  }, [modules]);
+  const curriculumScorePercentage = useMemo(() => {
+    if (dynamicMilestones.length === 0) return 0;
+    return Math.round((completedMilestonesCount / dynamicMilestones.length) * 100);
+  }, [dynamicMilestones.length, completedMilestonesCount]);
 
-  const upcomingAssignments = useMemo(
-    () =>
-      exams
-        .filter((exam) => exam.dueDate)
-        .sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime())
-        .slice(0, 3),
-    [exams]
-  );
+  // Real Dynamic Assignment Statistics
+  const assignmentStats = useMemo(() => {
+    let completed = 0;
+    let inProgress = 0;
+    let pending = 0;
 
-  const completedModules = useMemo(() => modules.filter((module) => module.completed), [modules]);
-  const currentModule = useMemo(
-    () => modules.find((module) => !module.completed) || modules[modules.length - 1],
-    [modules]
-  );
-  const recentActivities = useMemo(
-    () =>
-      completedModules
-        .slice()
-        .sort((a, b) => String(b.completionDate || '').localeCompare(String(a.completionDate || '')))
-        .slice(0, 5),
-    [completedModules]
-  );
-
-  const displayedResources = useMemo(() => {
-    let source: ResourceItem[] = [];
-    if (resourceFilter === 'CLASS') source = classResources;
-    else if (resourceFilter === 'GENERAL') source = generalResources;
-    else source = [...personalResources, ...classResources, ...generalResources];
-
-    const map = new Map<string, ResourceItem>();
-    source.forEach(item => {
-      if (item && item.id && !map.has(item.id)) {
-        map.set(item.id, item);
+    studentAssignments.forEach((a) => {
+      const s = String(a.status || a.reviewStatus || '').toUpperCase();
+      if (s === 'COMPLETED' || s === 'REVIEWED') {
+        completed++;
+      } else if (['SUBMITTED', 'IN_PROGRESS', 'AWAITING_REVIEW', 'RESUBMISSION_REQUIRED'].includes(s)) {
+        inProgress++;
+      } else {
+        pending++;
       }
     });
-    return Array.from(map.values());
-  }, [classResources, generalResources, personalResources, resourceFilter]);
 
-  const allStudentResources = useMemo(() => {
-    const map = new Map<string, ResourceItem>();
-    [...personalResources, ...classResources, ...generalResources].forEach((item) => {
-      if (item && item.id && !map.has(item.id)) {
-        map.set(item.id, item);
-      }
-    });
-    return Array.from(map.values());
-  }, [personalResources, classResources, generalResources]);
+    const total = studentAssignments.length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const chartData = [
+      { name: 'Completed', value: completed, color: '#10B981' },
+      { name: 'In Progress', value: inProgress, color: '#38BDF8' },
+      { name: 'Pending', value: pending, color: '#F59E0B' },
+    ].filter(item => item.value > 0);
 
-  const completedModulesCount = completedModules.length;
-  const overallProgress = modules.length ? Math.round((completedModulesCount / modules.length) * 100) : 0;
+    return { completed, inProgress, pending, total, rate, chartData };
+  }, [studentAssignments]);
 
   // Real-time comparison for Live vs Upcoming classes
   const scheduleAnalysis = useMemo(() => {
@@ -818,10 +874,9 @@ const StudentDashboard: React.FC = () => {
       }
 
       if (date < todayStr) {
-        return; // Past date
+        return;
       }
 
-      // ONLY mark as live if scheduled for TODAY and within start & end time window
       if (date === todayStr) {
         if (startTime && endTime) {
           if (currentTimeStr >= startTime && currentTimeStr <= endTime) {
@@ -829,7 +884,7 @@ const StudentDashboard: React.FC = () => {
             return;
           }
           if (currentTimeStr > endTime) {
-            return; // Ended earlier today
+            return;
           }
         } else if (explicitStatus === 'ONGOING') {
           liveSession = { ...s, formattedDate, isLive: true };
@@ -837,7 +892,6 @@ const StudentDashboard: React.FC = () => {
         }
       }
 
-      // Future date or today before start time: strictly Upcoming
       upcoming.push({ ...s, formattedDate, isLive: false });
     });
 
@@ -849,6 +903,75 @@ const StudentDashboard: React.FC = () => {
 
     return { liveSession, upcoming: upcoming.slice(0, 3) };
   }, [studentSchedules]);
+
+  // Submit Google Link for an assignment
+  const handleOpenSubmitModal = (assignment: DynamicAssignment) => {
+    setSubmittingAssignment(assignment);
+    setSubmissionGoogleUrl(assignment.submissionUrl || '');
+    setSubmissionNotes(assignment.submissionText || '');
+  };
+
+  const handleSubmitGoogleAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!submittingAssignment) return;
+    const url = submissionGoogleUrl.trim();
+    if (!url) {
+      toast.error('Please enter your Google Drive / Docs / Project link.');
+      return;
+    }
+
+    setIsSubmittingLink(true);
+    try {
+      const user = auth.currentUser;
+      const token = await user?.getIdToken();
+      let submittedSuccessfully = false;
+
+      if (token) {
+        const res = await fetch('/.netlify/functions/academic-assignments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            action: 'submit',
+            assignmentId: submittingAssignment.id,
+            submissionUrl: url,
+            submissionText: submissionNotes.trim()
+          })
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          submittedSuccessfully = true;
+        }
+      }
+
+      // Firestore direct update fallback
+      if (!submittedSuccessfully) {
+        const docRef = doc(db, 'assignments', submittingAssignment.id);
+        await updateDoc(docRef, {
+          submissionUrl: url,
+          submissionText: submissionNotes.trim(),
+          submittedAt: new Date().toISOString(),
+          status: 'SUBMITTED',
+          reviewStatus: 'AWAITING_REVIEW',
+          updatedAt: new Date().toISOString()
+        });
+        submittedSuccessfully = true;
+      }
+
+      toast.success('Assignment submitted with your Google link! Your tutor has been notified for review.');
+      setSubmittingAssignment(null);
+      setSubmissionGoogleUrl('');
+      setSubmissionNotes('');
+      await fetchStudentData();
+    } catch (err: any) {
+      console.error('Assignment submission error:', err);
+      toast.error(err?.message || 'Failed to submit assignment link. Please try again.');
+    } finally {
+      setIsSubmittingLink(false);
+    }
+  };
 
   const handleDownloadCertificate = (module: ProgramModule, customName?: string) => {
     if (!module.completed) return;
@@ -884,6 +1007,8 @@ const StudentDashboard: React.FC = () => {
     }
   };
 
+  const schoolDisplayName = student?.schoolName || student?.school || sessionStorage.getItem('studentSchoolName');
+
   if (loading) {
     return (
       <div className="min-h-[360px] flex items-center justify-center p-8">
@@ -901,7 +1026,7 @@ const StudentDashboard: React.FC = () => {
   }
 
   return (
-    <div className="dashboard-interface space-y-6 md:space-y-8">
+    <div className="dashboard-interface space-y-6 md:space-y-8 bg-transparent text-slate-900 dark:text-slate-100">
       <SEO
         title="Student Workspace Dashboard"
         description="A focused overview of your learning progress, programme assignment and class analytics."
@@ -909,7 +1034,7 @@ const StudentDashboard: React.FC = () => {
       />
 
       {!student ? (
-        <section className="pro-surface rounded-3xl p-8 text-center">
+        <section className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-8 text-center shadow-xs">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-red/10 text-brand-red">
             <Lock size={26} aria-hidden="true" />
           </div>
@@ -926,7 +1051,7 @@ const StudentDashboard: React.FC = () => {
           <DashboardGreeting
             name={student.fullName || undefined}
             role="Student"
-            subtitle="Your learning overview, kept focused on the things that matter most."
+            subtitle={schoolDisplayName ? `${schoolDisplayName} • ${enrolledProgramName || student.plan || 'Digital Literacy Junior'}` : "Your learning overview, kept focused on the things that matter most."}
           />
 
           {/* 🔴 ACTIVE LIVE CLASS BANNER (If Active Today and In Session) */}
@@ -943,7 +1068,7 @@ const StudentDashboard: React.FC = () => {
                     </span>
                   </div>
                   <h3 className="text-lg font-black text-white">
-                    {scheduleAnalysis.liveSession.title || scheduleAnalysis.liveSession.programName || 'Live Coding Class'}
+                    {scheduleAnalysis.liveSession.title || scheduleAnalysis.liveSession.programName || 'Live Classroom Session'}
                   </h3>
                   <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-300 font-medium">
                     {scheduleAnalysis.liveSession.startTime && (
@@ -972,78 +1097,169 @@ const StudentDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* 🚀 LEADER PANEL: CURRENT PROGRAMME, FOCUS & PROGRESS (Strict high-contrast pure white text in all modes) */}
+          {/* 🚀 LEADER PANEL: CURRENT PROGRAMME & PROGRESS OVERVIEW (Light & pleasant in light mode, dark & rich in dark mode) */}
           <section 
-            style={{ color: '#ffffff', backgroundColor: '#0B1120' }}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0B1120] via-[#151F32] to-[#0B1120] !text-white p-6 sm:p-7 shadow-xl border-2 border-slate-700/80"
+            className="relative overflow-hidden rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white p-6 sm:p-7 shadow-sm border border-slate-200/90 dark:border-slate-800"
           >
-            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 md:items-center">
-              <div className="space-y-1.5">
-                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-red-300 bg-red-950/90 px-2.5 py-0.5 rounded-md border border-red-700/80 shadow-xs">
-                  Current Programme
-                </span>
-                <h2 style={{ color: '#ffffff' }} className="text-lg sm:text-xl font-black !text-white tracking-tight leading-snug">
-                  {student.plan || enrolledProgramName || currentModule?.trackName || 'Coding and Tech Track'}
-                </h2>
-                <p style={{ color: '#cbd5e1' }} className="text-xs font-bold !text-slate-300">
-                  {student.class || student.grade ? `Class Cohort: ${student.class || student.grade}` : 'Class Cohort Assigned'}
-                </p>
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              {/* Left Column (7 cols): Current Program, Class Cohort & Milestone Stats */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="space-y-1">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
+                    {enrolledProgramName || student.plan || 'Digital Literacy Junior'}
+                  </h2>
+                  <p className="text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300">
+                    {student.class || student.grade ? `Class Cohort: ${student.class || student.grade}` : 'Standard Curriculum Track'}
+                    {(student.schoolName || schoolDisplayName) ? ` • ${student.schoolName || schoolDisplayName}` : ''}
+                  </p>
+                </div>
+
+                {/* Quick Dynamic Milestones Progress Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 p-3.5 shadow-xs">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Curriculum Score</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{curriculumScorePercentage}%</p>
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      {dynamicMilestones.length > 0 
+                        ? `${completedMilestonesCount} of ${dynamicMilestones.length} Milestones`
+                        : 'No milestones set yet'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 p-3.5 shadow-xs">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Active Tasks</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{assignmentStats.total}</p>
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      {assignmentStats.completed} Completed
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 p-3.5 shadow-xs col-span-2 sm:col-span-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current Stage</p>
+                    <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-0.5 truncate">
+                      {programDetails.hasStages
+                        ? (programDetails.stageName || `Stage ${programDetails.stageNumber || 1}`)
+                        : (student.class || student.grade || 'Standard Track')}
+                    </p>
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      {programDetails.hasStages ? (programDetails.nextProgramTitle ? `Next: ${programDetails.nextProgramTitle}` : 'Series Program') : 'Enrolled Course'}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-sky-300 bg-sky-950/90 px-2.5 py-0.5 rounded-md border border-sky-700/80 shadow-xs">
-                  Current Focus
-                </span>
-                <p style={{ color: '#ffffff' }} className="text-base sm:text-lg font-black !text-white leading-snug">
-                  {currentModule?.title || 'Core Engineering Track'}
-                </p>
-                {currentModule?.stageName && (
-                  <p style={{ color: '#cbd5e1' }} className="text-xs font-bold !text-slate-300">{currentModule.stageName}</p>
-                )}
-              </div>
+              {/* Right Column (5 cols): Recharts Donut Chart for Active Assignment Completion */}
+              <div className="lg:col-span-5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 p-4 sm:p-5 flex flex-col justify-between shadow-xs">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                      Progress Overview &amp; Deliverables
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Real-time assignment submission velocity
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
+                    Live
+                  </span>
+                </div>
 
-              <div className="md:text-right space-y-1.5">
-                <span className="inline-block text-[10px] font-black uppercase tracking-widest text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-md border border-emerald-700/80 shadow-xs">
-                  Programme Progress
-                </span>
-                <p style={{ color: '#ffffff' }} className="text-3xl sm:text-4xl font-black !text-white tracking-tight">{overallProgress}%</p>
-                <p style={{ color: '#cbd5e1' }} className="text-xs font-semibold !text-slate-300">
-                  {completedModulesCount} of {modules.length} milestones mastered
-                </p>
+                <div className="h-44 w-full relative flex items-center justify-center my-1">
+                  {assignmentStats.total === 0 ? (
+                    <div className="text-center p-4">
+                      <ClipboardList size={28} className="mx-auto text-slate-400 mb-1" />
+                      <p className="text-xs font-bold text-slate-700 dark:text-white">No active assignments</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tasks assigned by your tutor will display here.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={assignmentStats.chartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={48}
+                            outerRadius={68}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {assignmentStats.chartData.map((entry, index) => (
+                              <Cell key={`donut-${index}`} fill={entry.color} stroke="transparent" />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip
+                            content={({ active, payload }: any) => {
+                              if (active && payload && payload.length) {
+                                const d = payload[0];
+                                return (
+                                  <div className="bg-slate-900 text-white border border-slate-700 rounded-xl p-2.5 text-xs shadow-xl">
+                                    <p className="font-bold flex items-center gap-1.5">
+                                      <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: d.payload.color }} />
+                                      {d.name}: <span className="font-mono font-black">{d.value}</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Donut Center Completion Rate */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono leading-none">
+                          {assignmentStats.rate}%
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-300 mt-1">
+                          Completed
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Donut Legend Breakdown Pills */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1 text-center">
+                  <div className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-700/50">
+                    <p className="text-[9px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">Done</p>
+                    <p className="text-xs font-black text-slate-900 dark:text-white font-mono">{assignmentStats.completed}</p>
+                  </div>
+                  <div className="p-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-700/50">
+                    <p className="text-[9px] font-bold text-sky-700 dark:text-sky-300 uppercase">In Progress</p>
+                    <p className="text-xs font-black text-slate-900 dark:text-white font-mono">{assignmentStats.inProgress}</p>
+                  </div>
+                  <div className="p-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-700/50">
+                    <p className="text-[9px] font-bold text-amber-700 dark:text-amber-300 uppercase">Pending</p>
+                    <p className="text-xs font-black text-slate-900 dark:text-white font-mono">{assignmentStats.pending}</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Stage Progression Pipeline (If modules or stages exist) */}
-            {modules.length > 1 && (
-              <div className="mt-5 pt-4 border-t border-slate-700/70">
+            {/* Dynamic Curriculum Progression Path (Only rendered if actual topics/syllabus exist) */}
+            {curriculumTopics.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700/70">
                 <div className="flex items-center justify-between mb-2">
-                  <span style={{ color: '#94a3b8' }} className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Curriculum Stage Progression Path
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    Curriculum Stage Progression Path ({curriculumTopics.length} Weekly Topics)
                   </span>
                   <Link 
-                    to="/portal/student/courses" 
-                    className="text-[10px] font-bold text-red-400 hover:text-red-300 hover:underline inline-flex items-center gap-1"
+                    to="/portal/student/assignments" 
+                    className="text-[10px] font-bold text-red-600 dark:text-red-400 hover:underline inline-flex items-center gap-1"
                   >
-                    View All Stages <ArrowRight size={10} />
+                    View All Topics <ArrowRight size={10} />
                   </Link>
                 </div>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                  {modules.map((m, idx) => (
+                  {curriculumTopics.map((topic, idx) => (
                     <div 
-                      key={m.id || idx}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold shrink-0 ${
-                        m.completed
-                          ? 'bg-emerald-950/80 border-emerald-600/80 text-emerald-200'
-                          : idx === completedModulesCount
-                          ? 'bg-red-950/80 border-red-600/80 text-white ring-1 ring-red-500/50'
-                          : 'bg-slate-900/80 border-slate-700 text-slate-400'
-                      }`}
+                      key={`topic-${idx}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/80 text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0 shadow-xs"
                     >
-                      <span className="w-4 h-4 rounded-full bg-black/40 flex items-center justify-center text-[10px] font-black">
-                        {idx + 1}
+                      <span className="w-4 h-4 rounded-full bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 flex items-center justify-center text-[10px] font-black">
+                        W{idx + 1}
                       </span>
-                      <span className="truncate max-w-[120px]">{m.title}</span>
-                      {m.completed && <CheckCircle2 size={12} className="text-emerald-400" />}
+                      <span className="truncate max-w-[140px]">{topic}</span>
                     </div>
                   ))}
                 </div>
@@ -1051,7 +1267,131 @@ const StudentDashboard: React.FC = () => {
             )}
           </section>
 
-          {/* ⌨️ TYPING MASTERS ACADEMY & EDCLUB WORKSPACE (Prominently rendered for EdClub-eligible tracks) */}
+          {/* 📝 ACTIVE ASSIGNMENTS & GOOGLE LINK SUBMISSION SECTION */}
+          <section className="rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <ClipboardList size={18} className="text-brand-red" /> Active Assignments &amp; Tasks ({studentAssignments.length})
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  Submit your completed homework, practical drills, or Google Drive / Docs project links for tutor review.
+                </p>
+              </div>
+              <Link
+                to="/portal/student/assignments"
+                className="text-xs font-black text-brand-red inline-flex items-center gap-1 hover:underline"
+              >
+                All Assignments <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {studentAssignments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center space-y-1.5">
+                <ClipboardList size={30} className="mx-auto text-slate-400" />
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No assignments currently assigned</p>
+                <p className="text-[11px] text-slate-500">When your instructor assigns an active task or project, it will appear here with an instant Google Link upload button.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {studentAssignments.map((a) => {
+                  const isSubmitted = ['SUBMITTED', 'AWAITING_REVIEW'].includes(a.status || a.reviewStatus || '');
+                  const isCompleted = ['COMPLETED', 'REVIEWED'].includes(a.status || a.reviewStatus || '');
+                  const isResubmit = a.status === 'RESUBMISSION_REQUIRED' || a.reviewStatus === 'RESUBMISSION_REQUIRED';
+
+                  return (
+                    <div
+                      key={a.id}
+                      className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-4 flex flex-col justify-between shadow-xs hover:border-brand-red/40 transition-colors gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-black uppercase ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                              : isSubmitted
+                              ? 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300'
+                              : isResubmit
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                              : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
+                          }`}>
+                            {isCompleted ? <CheckCircle2 size={10} /> : isSubmitted ? <Clock size={10} /> : <AlertCircle size={10} />}
+                            {isCompleted ? 'Completed' : isSubmitted ? 'Under Review' : isResubmit ? 'Resubmission Requested' : 'Active Task'}
+                          </span>
+                          {a.dueDate && (
+                            <span className="text-[10px] font-bold text-slate-500 font-mono">
+                              Due: {formatDate(a.dueDate)}
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 className="mt-2 text-sm font-black text-slate-900 dark:text-white line-clamp-1">
+                          {a.title}
+                        </h4>
+                        {a.instructions && (
+                          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                            {a.instructions}
+                          </p>
+                        )}
+                        {a.tutorName && (
+                          <p className="mt-1.5 text-[11px] text-slate-500 flex items-center gap-1">
+                            <UserCheck size={12} className="text-brand-red shrink-0" />
+                            Assigned by: <strong className="text-slate-700 dark:text-slate-300">{a.tutorName}</strong>
+                          </p>
+                        )}
+
+                        {a.submissionUrl && (
+                          <div className="mt-2 text-[11px] flex items-center gap-1.5 text-sky-600 dark:text-sky-400 font-bold truncate">
+                            <LinkIcon size={12} className="shrink-0" />
+                            <a href={a.submissionUrl} target="_blank" rel="noreferrer" className="hover:underline truncate">
+                              {a.submissionUrl}
+                            </a>
+                          </div>
+                        )}
+
+                        {a.feedback && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 text-[11px] text-emerald-900 dark:text-emerald-300">
+                            <strong>Tutor Feedback:</strong> {a.feedback}
+                            {a.grade !== undefined && <span> (Score: {a.grade}/100)</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                        {isCompleted ? (
+                          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 size={13} /> Verified by Tutor
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSubmitModal(a)}
+                            className="px-3.5 py-1.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                          >
+                            <Upload size={12} />
+                            <span>{isSubmitted ? 'Update Google Link' : 'Submit Google Link'}</span>
+                          </button>
+                        )}
+
+                        {a.resourceUrl && (
+                          <a
+                            href={a.resourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white inline-flex items-center gap-1"
+                          >
+                            <FileText size={12} /> {a.resourceTitle || 'Resource'}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* ⌨️ TYPING MASTERS ACADEMY & EDCLUB WORKSPACE */}
           {isEdclubAllowed && (
             <TypingMastersAcademyCard
               studentName={student.fullName || student.name || 'Student'}
@@ -1063,30 +1403,38 @@ const StudentDashboard: React.FC = () => {
           )}
 
           {/* 📅 UPCOMING CLASS SCHEDULE & TIMETABLE WIDGET */}
-          {scheduleAnalysis.upcoming.length > 0 && (
-            <section className="pro-surface rounded-2xl p-5 sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Calendar size={16} className="text-brand-red" /> Upcoming Class Schedule
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    Your next scheduled learning sessions and virtual classes.
-                  </p>
-                </div>
+          <section className="rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-brand-red" /> Upcoming Class Schedule
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  Your upcoming virtual classrooms, timetable sessions, and tutor schedules.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
                 <Link
-                  to="/portal/student/live-classes"
-                  className="text-xs font-bold text-brand-red inline-flex items-center gap-1 hover:underline"
+                  to="/portal/student/calendar"
+                  className="text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-brand-red dark:hover:text-brand-red inline-flex items-center gap-1 transition-colors"
+                >
+                  <Calendar size={12} /> Timetable
+                </Link>
+                <Link
+                  to="/portal/student/live-classrooms"
+                  className="text-xs font-black text-brand-red inline-flex items-center gap-1 hover:underline"
                 >
                   All Live Classes <ArrowRight size={13} />
                 </Link>
               </div>
+            </div>
 
+            {scheduleAnalysis.upcoming.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {scheduleAnalysis.upcoming.map((occ: any) => (
                   <div
                     key={occ.id}
-                    className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 p-3.5 flex flex-col justify-between"
+                    className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-4 flex flex-col justify-between shadow-xs hover:border-brand-red/40 transition-colors"
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2">
@@ -1094,98 +1442,98 @@ const StudentDashboard: React.FC = () => {
                           <Calendar size={10} /> UPCOMING
                         </span>
                         {occ.startTime && (
-                          <span className="text-[10px] font-bold text-slate-500">
+                          <span className="text-[10px] font-bold text-slate-500 font-mono">
                             ⏰ {occ.startTime} – {occ.endTime}
                           </span>
                         )}
                       </div>
-                      <h4 className="mt-2 text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
+                      <h4 className="mt-2.5 text-xs sm:text-sm font-black text-slate-900 dark:text-white line-clamp-1">
                         {occ.title || occ.programName || 'Class Session'}
                       </h4>
                       <p className="mt-0.5 text-[11px] font-bold text-brand-red dark:text-red-400">
                         {occ.formattedDate || occ.date}
                       </p>
                       {occ.tutorName && (
-                        <p className="mt-1 text-[10px] text-slate-500 flex items-center gap-1">
-                          <UserCheck size={11} className="text-slate-400" />
-                          Faculty: {occ.tutorName}
+                        <p className="mt-1.5 text-[11px] text-slate-500 flex items-center gap-1 font-medium">
+                          <UserCheck size={12} className="text-brand-red shrink-0" />
+                          Faculty: <strong className="text-slate-700 dark:text-slate-300 font-bold">{occ.tutorName}</strong>
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">
-                        {occ.classLevel ? `Class: ${occ.classLevel}` : 'Assigned Class'}
+                    <div className="mt-4 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {occ.classLevel ? `Cohort: ${occ.classLevel}` : 'Assigned Cohort'}
                       </span>
                       {occ.meetingLink ? (
                         <a
                           href={occ.meetingLink}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[10px] font-bold text-brand-red inline-flex items-center gap-1 hover:underline"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-black inline-flex items-center gap-1 hover:bg-emerald-500 hover:text-white transition-all"
                         >
-                          Meeting Link <ExternalLink size={11} />
+                          Join Room <ExternalLink size={10} />
                         </a>
                       ) : (
-                        <span className="text-[10px] text-slate-400">Link on start</span>
+                        <span className="text-[10px] font-medium text-slate-400">Link on start</span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
-            </section>
-          )}
-
-          <section className="pro-surface rounded-2xl p-5 sm:p-6">
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">Learning Analytics</h2>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Your recorded progress across assigned learning tracks.</p>
-              </div>
-              <Activity size={16} className="text-brand-red" aria-hidden="true" />
-            </div>
-            <StudentAnalyticsVisualizer
-              studentName={student.fullName || 'Student'}
-              studentClass={student.class || student.grade || 'Not recorded'}
-              enrolledSubjects={student.subjects || []}
-              completedModulesCount={completedModulesCount}
-              totalModulesCount={modules.length}
-              learningTracks={courseProgressList.map((track) => ({
-                subject: track.label,
-                progress: track.percentage,
-                modulesDone: track.modulesDone,
-                modulesTotal: track.modulesTotal,
-              }))}
-            />
-          </section>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="pro-surface rounded-2xl p-5 sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Learning Tracks</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Progress from your assigned modules.</p>
-                </div>
-                <Link to="/portal/student/courses" className="text-xs font-bold text-brand-red inline-flex items-center gap-1">
-                  Open Learning <ArrowRight size={13} />
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
+                <Calendar size={28} className="mx-auto text-slate-400 dark:text-slate-500" />
+                <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No upcoming class sessions scheduled today</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Your upcoming weekly timetable and sessions will appear here once timetabled by your instructor.</p>
+                <Link
+                  to="/portal/student/calendar"
+                  className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-brand-red hover:underline"
+                >
+                  View Full Schedule <ArrowRight size={12} />
                 </Link>
               </div>
-              {courseProgressList.length === 0 ? (
+            )}
+          </section>
+
+          {/* 📊 ROADMAP MILESTONES & RECENT ACTIVITIES */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <section className="rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Curriculum Milestones</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Target milestones calibrated by your instructor.</p>
+                </div>
+                <Link to="/portal/student/milestones" className="text-xs font-bold text-brand-red inline-flex items-center gap-1">
+                  All Milestones <ArrowRight size={13} />
+                </Link>
+              </div>
+
+              {dynamicMilestones.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
-                  <BookOpenIcon />
-                  <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">No learning tracks assigned</p>
-                  <p className="mt-1 text-[11px] text-slate-500">Your school administrator or instructor has not assigned a track yet.</p>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No milestones published yet</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Your tutor will publish term milestones dynamically for your program.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {courseProgressList.map(track => (
-                    <CircularProgress key={track.label} {...track} />
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                  {dynamicMilestones.map((m, idx) => (
+                    <div key={m.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                        m.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {m.status === 'COMPLETED' ? <CheckCircle2 size={14} /> : <span className="text-[10px] font-black">{idx + 1}</span>}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">{m.title}</p>
+                        {m.description && <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{m.description}</p>}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
             </section>
 
-            <section className="pro-surface rounded-2xl p-5 sm:p-6">
+            <section className="rounded-2xl bg-white dark:bg-slate-900 p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h2 className="text-base font-bold text-slate-900 dark:text-white">Recent Learning Activity</h2>
@@ -1193,14 +1541,15 @@ const StudentDashboard: React.FC = () => {
                 </div>
                 <Award size={16} className="text-brand-red" aria-hidden="true" />
               </div>
-              {recentActivities.length === 0 ? (
+
+              {modules.filter(m => m.completed).length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6 text-center">
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No completed activity yet</p>
-                  <p className="mt-1 text-[11px] text-slate-500">Completed milestones will appear in the Achievements section.</p>
+                  <p className="mt-1 text-[11px] text-slate-500">Completed milestones and assignments will appear here once approved by your tutor.</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {recentActivities.slice(0, 5).map(module => (
+                  {modules.filter(m => m.completed).slice(0, 5).map(module => (
                     <div key={module.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-900/50">
                       <Award size={15} className="mt-0.5 text-emerald-600" />
                       <div className="min-w-0">
@@ -1213,42 +1562,88 @@ const StudentDashboard: React.FC = () => {
               )}
             </section>
           </div>
+
+          {/* 🚀 MODAL: SUBMIT ASSIGNMENT VIA GOOGLE LINK */}
+          {submittingAssignment && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Submit Assignment Work</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{submittingAssignment.title}</p>
+                  </div>
+                  <button
+                    onClick={() => setSubmittingAssignment(null)}
+                    type="button"
+                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubmitGoogleAssignment} className="space-y-4">
+                  <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200">
+                    <p className="font-bold flex items-center gap-1.5 mb-1">
+                      <LinkIcon size={14} /> Google Link Submission
+                    </p>
+                    <p className="leading-relaxed">
+                      Upload or share your Google Docs, Google Drive file, Google Slides presentation, or public project URL below. Make sure link sharing is set to <em>"Anyone with the link can view"</em>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Google Drive / Docs / Project URL *
+                    </label>
+                    <input
+                      required
+                      type="url"
+                      value={submissionGoogleUrl}
+                      onChange={(e) => setSubmissionGoogleUrl(e.target.value)}
+                      placeholder="https://docs.google.com/... or https://drive.google.com/..."
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                      Optional Notes or Message to Tutor
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={submissionNotes}
+                      onChange={(e) => setSubmissionNotes(e.target.value)}
+                      placeholder="Any additional explanations or questions for your instructor..."
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-red outline-none resize-y"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSubmittingAssignment(null)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingLink}
+                      className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-black inline-flex items-center gap-2 shadow-md shadow-red-900/20 disabled:opacity-50"
+                    >
+                      {isSubmittingLink ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                      <span>{isSubmittingLink ? 'Submitting…' : 'Submit to Tutor'}</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
   );
 };
-
-const ProfileRow: React.FC<{
-  label: string;
-  value: string;
-  mono?: boolean;
-  highlight?: boolean;
-  highlightSuccess?: boolean;
-}> = ({ label, value, mono = false, highlight = false, highlightSuccess = false }) => (
-  <div className="flex items-start justify-between gap-4 border-b border-slate-100 py-2.5 dark:border-slate-800">
-    <span className="text-xs text-slate-500">{label}</span>
-    <span
-      className={`max-w-[58%] text-right text-xs font-bold ${
-        mono ? 'font-mono' : ''
-      } ${
-        highlight
-          ? 'rounded-md bg-brand-red/10 px-2 py-1 text-brand-red'
-          : highlightSuccess
-            ? 'text-emerald-600 dark:text-emerald-400'
-            : 'text-slate-800 dark:text-slate-200'
-      }`}
-    >
-      {value}
-    </span>
-  </div>
-);
-
-const BookOpenIcon = () => (
-  <svg className="mx-auto text-slate-300 dark:text-slate-700" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M2 4.8A2.8 2.8 0 0 1 4.8 2H12v18H4.8A2.8 2.8 0 0 0 2 22V4.8Z" />
-    <path d="M22 4.8A2.8 2.8 0 0 0 19.2 2H12v18h7.2a2.8 2.8 0 0 1 2.8 2V4.8Z" />
-  </svg>
-);
 
 export default StudentDashboard;

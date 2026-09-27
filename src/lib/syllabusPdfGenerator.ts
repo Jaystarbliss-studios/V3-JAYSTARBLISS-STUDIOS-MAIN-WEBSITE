@@ -99,7 +99,7 @@ export function generateSyllabusPdf(program: SyllabusProgramData): void {
     doc.setTextColor(slate500[0], slate500[1], slate500[2]);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      'Jaystarbliss Studios • Learning & Innovation Ecosystem • contact@jaystarbliss.com',
+      'Jaystarbliss Studios • Learning & Innovation Ecosystem • jaystarblissstudios@gmail.com',
       margin,
       pageHeight - 10
     );

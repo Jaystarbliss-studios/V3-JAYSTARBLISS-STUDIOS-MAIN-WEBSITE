@@ -64,7 +64,9 @@ const SchoolRoster: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [filterTab, setFilterTab] = useState<'all' | 'classes' | 'tracks'>('all');
   const [selectedClass, setSelectedClass] = useState('All Classes');
+  const [selectedTrack, setSelectedTrack] = useState('All Tracks');
   
   // Credential issuance state
   const [issuingStudent, setIssuingStudent] = useState<Student | null>(null);
@@ -98,156 +100,187 @@ const SchoolRoster: React.FC = () => {
 
     try {
       let roster: Student[] = [];
-      const sId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || (effective.effectiveRole === 'school' ? effective.effectiveUid : '');
-      
+      let targetSchoolId = effective.effectiveSchoolId || sessionStorage.getItem('schoolId') || (effective.effectiveRole === 'school' ? effective.effectiveUid : '');
+      let schoolNameCandidate = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name') || '';
+
+      // 1. Resolve school ID from current user profile if needed
+      if (!targetSchoolId && effective.effectiveUid) {
+        try {
+          const uSnap = await getDoc(doc(db, 'users', effective.effectiveUid));
+          if (uSnap.exists()) {
+            const uData = uSnap.data();
+            if (uData.schoolId) targetSchoolId = uData.schoolId;
+            if (uData.schoolName) schoolNameCandidate = uData.schoolName;
+          }
+        } catch (e) {
+          console.warn('User profile school lookup error:', e);
+        }
+      }
+
+      // 2. If still not resolved, check schools collection
+      if (!targetSchoolId && effective.effectiveUid) {
+        try {
+          const schoolsSnap = await getDocs(collection(db, 'schools'));
+          const found = schoolsSnap.docs.find(d => 
+            d.id === effective.effectiveUid ||
+            d.data().email?.toLowerCase() === effective.effectiveEmail?.toLowerCase() ||
+            d.data().adminUid === effective.effectiveUid ||
+            d.data().firebaseUid === effective.effectiveUid
+          );
+          if (found) {
+            targetSchoolId = found.id;
+            schoolNameCandidate = found.data().name || schoolNameCandidate;
+          }
+        } catch (e) {
+          console.warn('School collection lookup error:', e);
+        }
+      }
+
+      if (targetSchoolId) {
+        sessionStorage.setItem('schoolId', targetSchoolId);
+      }
+
+      // Try backend endpoint first
       if (!effective.isMasquerading && auth.currentUser) {
         try {
           const token = await auth.currentUser.getIdToken(true);
-          const response = await fetch('/.netlify/functions/school-students', {
+          const response = await fetch('/.netlify/functions/school-students' + (targetSchoolId ? `?schoolId=${encodeURIComponent(targetSchoolId)}` : ''), {
             headers: { Authorization: `Bearer ${token}` }
           });
           const result = await response.json().catch(() => ({}));
           if (response.ok && Array.isArray(result.students)) {
-            roster = result.students;
+            // Filter strictly for this school
+            roster = result.students.filter((s: any) => {
+              if (!targetSchoolId) return true;
+              return s.schoolId === targetSchoolId;
+            });
             if (result.schoolName) {
               sessionStorage.setItem('schoolName', result.schoolName);
             }
-          } else {
-            throw new Error(result.error || 'Endpoint unavailable');
           }
         } catch {
-          // Proceed to Firestore fallback
+          // Proceed to Firestore query
         }
       }
 
-      if (roster.length === 0) {
-        // Direct client-side Firestore query for the school
-        let targetSchoolId = sId;
-        let schoolNameCandidate = sessionStorage.getItem('schoolName') || localStorage.getItem('jaystar_cached_school_name') || '';
-        let schoolCodeCandidate = '';
-
-        // 1. Resolve school metadata if available
-        if (targetSchoolId) {
-          try {
-            const schDoc = await getDoc(doc(db, 'schools', targetSchoolId));
-            if (schDoc.exists()) {
-              const sd = schDoc.data();
-              if (sd.name) schoolNameCandidate = sd.name;
-              if (sd.schoolCode) schoolCodeCandidate = sd.schoolCode;
-            }
-          } catch (e) {
-            console.warn('SchoolRoster direct school lookup:', e);
-          }
-        }
-
-        if (!targetSchoolId && effective.effectiveUid) {
-          const uSnap = await getDoc(doc(db, 'users', effective.effectiveUid)).catch(() => null);
-          const uData = uSnap?.data() || {};
-          targetSchoolId = uData.schoolId || '';
-          if (uData.schoolName) schoolNameCandidate = uData.schoolName;
-          if (uData.schoolCode) schoolCodeCandidate = uData.schoolCode;
-        }
-
-        // If targetSchoolId is still missing, lookup schools collection
-        if (!targetSchoolId) {
-          try {
-            const schoolsSnap = await getDocs(collection(db, 'schools'));
-            const found = schoolsSnap.docs.find(d => 
-              d.id === effective.effectiveUid ||
-              d.data().email?.toLowerCase() === effective.effectiveEmail?.toLowerCase() ||
-              d.data().adminUid === effective.effectiveUid ||
-              d.data().firebaseUid === effective.effectiveUid
-            );
-            if (found) {
-              targetSchoolId = found.id;
-              schoolNameCandidate = found.data().name || schoolNameCandidate;
-              schoolCodeCandidate = found.data().schoolCode || '';
-            }
-          } catch (e) {
-            console.warn('School collection lookup in roster:', e);
-          }
-        }
-
-        if (targetSchoolId || schoolNameCandidate) {
-          const [sSnap, iSnap, allStudSnap, allIndivSnap] = await Promise.all([
-            targetSchoolId ? getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })) : { docs: [] },
-            targetSchoolId ? getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })) : { docs: [] },
-            getDocs(collection(db, 'students')).catch(() => ({ docs: [] })),
-            getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] }))
+      // Direct Firestore queries strictly scoped to targetSchoolId
+      if (roster.length === 0 && targetSchoolId) {
+        try {
+          const [sSnap, iSnap, uSnap] = await Promise.all([
+            getDocs(fsQuery(collection(db, 'students'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })),
+            getDocs(fsQuery(collection(db, 'individualStudents'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] })),
+            getDocs(fsQuery(collection(db, 'users'), where('schoolId', '==', targetSchoolId))).catch(() => ({ docs: [] }))
           ]);
 
           const list: Student[] = [];
-          const seen = new Set<string>();
-          const targetLow = (targetSchoolId || '').toLowerCase();
-          const nameLow = (schoolNameCandidate || '').toLowerCase();
-          const codeLow = (schoolCodeCandidate || '').toLowerCase();
+          const seenKeys = new Set<string>();
 
-          const addCandidate = (d: any, collName: 'students' | 'individualStudents') => {
-            if (seen.has(d.id)) return;
-            const data = d.data();
-            const sIdField = String(data.schoolId || data.school_id || '').trim().toLowerCase();
-            const sNameField = String(data.schoolName || data.school || data.institutionName || data.institution || '').trim().toLowerCase();
-            const sCodeField = String(data.schoolCode || '').trim().toLowerCase();
+          const isDuplicate = (d: any, docId: string): boolean => {
+            const uname = String(d.username || '').toLowerCase().trim();
+            const email = String(d.email || '').toLowerCase().trim();
+            const uid = String(d.firebaseUid || d.userId || '').trim();
+            const sDocId = String(d.studentDocId || docId).trim();
+            const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
 
-            const isMatch = (
-              (targetLow && (sIdField === targetLow || sIdField.includes(targetLow) || targetLow.includes(sIdField))) ||
-              (nameLow && (sNameField === nameLow || sNameField.includes(nameLow) || nameLow.includes(sNameField) || sIdField === nameLow || sIdField.includes(nameLow))) ||
-              (codeLow && (sCodeField === codeLow || sCodeField === targetLow || sIdField === codeLow))
-            );
-
-            if (isMatch) {
-              seen.add(d.id);
-              list.push({
-                id: d.id,
-                collection: collName,
-                fullName: data.fullName || data.studentName || data.name || 'Student',
-                username: data.username || d.id,
-                email: data.email || null,
-                class: data.class || data.grade || 'General',
-                track: data.track || data.programName || 'Coding & Tech',
-                parentId: data.parentId || null,
-                tutorId: data.tutorId || null,
-                staffId: data.staffId || null,
-                portalAccessEnabled: data.portalAccessEnabled !== false,
-                accountStatus: data.accountStatus || 'ACTIVE',
-                source: collName
-              });
-            }
+            if (docId && seenKeys.has(`id:${docId}`)) return true;
+            if (sDocId && seenKeys.has(`docId:${sDocId}`)) return true;
+            if (uid && seenKeys.has(`uid:${uid}`)) return true;
+            if (uname && seenKeys.has(`u:${uname}`)) return true;
+            if (email && !email.endsWith('.local') && seenKeys.has(`e:${email}`)) return true;
+            if (name && seenKeys.has(`name:${name}`)) return true;
+            return false;
           };
 
+          const recordSeen = (d: any, docId: string) => {
+            const uname = String(d.username || '').toLowerCase().trim();
+            const email = String(d.email || '').toLowerCase().trim();
+            const uid = String(d.firebaseUid || d.userId || '').trim();
+            const sDocId = String(d.studentDocId || docId).trim();
+            const name = String(d.fullName || d.studentName || d.name || '').toLowerCase().trim();
+
+            if (docId) seenKeys.add(`id:${docId}`);
+            if (sDocId) seenKeys.add(`docId:${sDocId}`);
+            if (uid) seenKeys.add(`uid:${uid}`);
+            if (uname) seenKeys.add(`u:${uname}`);
+            if (email && !email.endsWith('.local')) seenKeys.add(`e:${email}`);
+            if (name) seenKeys.add(`name:${name}`);
+          };
+
+          const addCandidate = (d: any, collName: string) => {
+            const data = d.data();
+            const sId = String(data.schoolId || data.school_id || data.schoolDocId || '').trim();
+            // Strict match on targetSchoolId - NEVER include private students or other schools
+            if (!sId || sId !== targetSchoolId) return;
+
+            if (isDuplicate(data, d.id)) return;
+            recordSeen(data, d.id);
+
+            const resolvedClass = (data.class || data.grade || data.classLevel || '').trim() || 'Year 1';
+
+            const defaultProg = schoolPrograms[0]?.name || 'Digital Literacy Junior';
+            list.push({
+              id: d.id,
+              collection: collName,
+              fullName: data.fullName || data.studentName || data.name || 'Student',
+              username: data.username || d.id,
+              email: data.email || null,
+              class: resolvedClass,
+              track: data.track || data.programName || data.plan || defaultProg,
+              parentId: data.parentId || null,
+              tutorId: data.tutorId || null,
+              staffId: data.staffId || null,
+              portalAccessEnabled: data.portalAccessEnabled !== false,
+              accountStatus: data.accountStatus || 'ACTIVE',
+              source: collName,
+              enrolledPrograms: Array.isArray(data.enrolledPrograms) ? data.enrolledPrograms : [],
+              subjects: Array.isArray(data.subjects) ? data.subjects : []
+            });
+          };
+
+          // Priority 1: Primary school student collections
           sSnap.docs.forEach((d: any) => addCandidate(d, 'students'));
           iSnap.docs.forEach((d: any) => addCandidate(d, 'individualStudents'));
-          allStudSnap.docs.forEach((d: any) => addCandidate(d, 'students'));
-          allIndivSnap.docs.forEach((d: any) => addCandidate(d, 'individualStudents'));
+
+          // Priority 2: Users collection (only if not already found in primary student tables)
+          uSnap.docs.forEach((d: any) => {
+            const data = d.data();
+            const role = String(data.role || '').toUpperCase();
+            if (role === 'STUDENT' || role === 'SCHOLAR' || data.isStudent) {
+              addCandidate(d, 'users');
+            }
+          });
 
           roster = list;
-        }
-
-        // Fetch strictly the programs assigned to this school by administration
-        try {
-          const availableProgsMap = new Map<string, { id: string; name: string }>();
-
-          if (targetSchoolId) {
-            const schDoc = await getDoc(doc(db, 'schools', targetSchoolId));
-            if (schDoc.exists()) {
-              const sd = schDoc.data();
-              if (Array.isArray(sd.programs) && sd.programs.length > 0) {
-                sd.programs.forEach((p: any) => {
-                  const pName = p.name || p.title || 'Program Track';
-                  availableProgsMap.set(pName.toLowerCase().trim(), { id: p.id || pName, name: pName });
-                });
-              }
-              if (Array.isArray(sd.assignedStaff)) {
-                setSchoolTutors(sd.assignedStaff.map((s: any) => ({ id: s.id || s.uid || s.email, name: s.name || s.fullName || s.email })));
-              }
-            }
-          }
-
-          setSchoolPrograms(Array.from(availableProgsMap.values()));
-        } catch (pErr) {
-          console.warn('School programs lookup error in roster:', pErr);
+        } catch (fsErr) {
+          console.warn('Firestore school roster fetch error:', fsErr);
         }
       }
+
+      // Fetch strictly the programs assigned to this school
+      try {
+        const availableProgsMap = new Map<string, { id: string; name: string }>();
+
+        if (targetSchoolId) {
+          const schDoc = await getDoc(doc(db, 'schools', targetSchoolId));
+          if (schDoc.exists()) {
+            const sd = schDoc.data();
+            if (Array.isArray(sd.programs) && sd.programs.length > 0) {
+              sd.programs.forEach((p: any) => {
+                const pName = p.name || p.title || 'Program Track';
+                availableProgsMap.set(pName.toLowerCase().trim(), { id: p.id || pName, name: pName });
+              });
+            }
+            if (Array.isArray(sd.assignedStaff)) {
+              setSchoolTutors(sd.assignedStaff.map((s: any) => ({ id: s.id || s.uid || s.email, name: s.name || s.fullName || s.email })));
+            }
+          }
+        }
+
+        setSchoolPrograms(Array.from(availableProgsMap.values()));
+      } catch (pErr) {
+        console.warn('School programs lookup error in roster:', pErr);
+      }
+
       setStudents(roster);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to load roster.');
@@ -259,13 +292,14 @@ const SchoolRoster: React.FC = () => {
 
   const openEditModal = (student: Student) => {
     setEditingStudent(student);
+    const defaultProg = schoolPrograms[0]?.name || 'Digital Literacy Junior';
     const existingProgs = Array.isArray((student as any).enrolledPrograms) && (student as any).enrolledPrograms.length > 0
       ? (student as any).enrolledPrograms
       : Array.isArray(student.subjects) && student.subjects.length > 0
       ? student.subjects
       : student.track
       ? student.track.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : ['Coding & Tech'];
+      : [defaultProg];
 
     setEditForm({
       fullName: student.fullName || '',
@@ -291,7 +325,8 @@ const SchoolRoster: React.FC = () => {
         ...(editForm.customProgram ? [editForm.customProgram.trim()] : [])
       ])).filter(Boolean);
 
-      const finalPrograms = combinedSelected.length > 0 ? combinedSelected : ['Coding & Tech'];
+      const defaultProg = schoolPrograms[0]?.name || 'Digital Literacy Junior';
+      const finalPrograms = combinedSelected.length > 0 ? combinedSelected : [defaultProg];
       const primaryProgram = finalPrograms[0];
       const trackString = finalPrograms.join(', ');
 
@@ -473,60 +508,115 @@ Important Security Notice:
   const classGroups = useMemo(() => {
     const map = new Map<string, number>();
     students.forEach(s => {
-      const key = s.class || 'Not Assigned';
+      const key = (s.class || s.grade || '').trim() || 'Year 1';
       map.set(key, (map.get(key) || 0) + 1);
     });
-    const ordered = ['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'JSS 1', 'JSS 2', 'JSS 3', 'SS1', 'SS2', 'SS3'];
+    const ordered = [
+      'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+      'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6',
+      'JSS 1', 'JSS 2', 'JSS 3',
+      'SS 1', 'SS 2', 'SS 3',
+      'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
+    ];
     return [...map.entries()].sort((a, b) => {
       const ia = ordered.indexOf(a[0]), ib = ordered.indexOf(b[0]);
       if (ia >= 0 && ib >= 0) return ia - ib;
       if (ia >= 0) return -1;
-      if (ib >= 0) return 1;
-      return a[0].localeCompare(b[0]);
+      if (ia < 0 && ib >= 0) return 1;
+      return a[0].localeCompare(b[0], undefined, { numeric: true });
     });
   }, [students]);
 
+  const trackGroups = useMemo(() => {
+    const map = new Map<string, number>();
+    students.forEach(s => {
+      const defaultProg = schoolPrograms[0]?.name || 'Digital Literacy Junior';
+      const progs = Array.isArray(s.enrolledPrograms) && s.enrolledPrograms.length > 0
+        ? s.enrolledPrograms
+        : Array.isArray(s.subjects) && s.subjects.length > 0
+        ? s.subjects
+        : s.track
+        ? s.track.split(',').map((p: string) => p.trim()).filter(Boolean)
+        : [defaultProg];
+      progs.forEach((p: string) => {
+        const cleanName = p.trim();
+        if (cleanName) {
+          map.set(cleanName, (map.get(cleanName) || 0) + 1);
+        }
+      });
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [students, schoolPrograms]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return students.filter(student => 
-      (selectedClass === 'All Classes' || String(student.class || 'Not Assigned') === selectedClass) &&
-      (!term || [student.fullName, student.username, student.email, student.class, student.track].some(value => 
-        String(value || '').toLowerCase().includes(term)
-      ))
-    );
-  }, [students, query, selectedClass]);
+    const defaultProg = schoolPrograms[0]?.name || 'Digital Literacy Junior';
+    return students.filter(student => {
+      // 1. Tab-based scoping
+      if (filterTab === 'classes' && selectedClass !== 'All Classes') {
+        const sClass = (student.class || student.grade || '').trim();
+        if (sClass !== selectedClass) return false;
+      }
+
+      if (filterTab === 'tracks' && selectedTrack !== 'All Tracks') {
+        const progs = Array.isArray(student.enrolledPrograms) && student.enrolledPrograms.length > 0
+          ? student.enrolledPrograms
+          : Array.isArray(student.subjects) && student.subjects.length > 0
+          ? student.subjects
+          : student.track
+          ? student.track.split(',').map((p: string) => p.trim()).filter(Boolean)
+          : [defaultProg];
+        if (!progs.includes(selectedTrack)) return false;
+      }
+
+      // 2. Text Search
+      if (term) {
+        const match = [
+          student.fullName,
+          student.username,
+          student.email,
+          student.class,
+          student.track,
+          ...(Array.isArray(student.enrolledPrograms) ? student.enrolledPrograms : [])
+        ].some(value => String(value || '').toLowerCase().includes(term));
+        if (!match) return false;
+      }
+
+      return true;
+    });
+  }, [students, query, filterTab, selectedClass, selectedTrack]);
 
   return (
     <div className="space-y-6">
       <SEO title="Students Roster & Credentials | Jaystarbliss Studios" description="Secure school learner roster and portal access management." noindex />
       
       {/* Header Banner */}
-      <div className="pro-surface rounded-3xl p-6 md:p-8">
+      <div className="pro-surface rounded-3xl p-6 md:p-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-          <div className="flex items-start gap-3">
-            <div className="rounded-2xl bg-brand-red/10 p-3 text-brand-red">
+          <div className="flex items-start gap-3.5">
+            <div className="rounded-2xl bg-brand-red/10 p-3 text-brand-red shrink-0">
               <GraduationCap size={24}/>
             </div>
             <div>
-              <div className="text-xs uppercase tracking-widest font-black text-brand-red">School Operations</div>
-              <h1 className="text-2xl md:text-3xl font-black mt-1">Students Roster & Credentials</h1>
-              <p className="text-sm text-slate-500 mt-2 max-w-2xl">
-                View enrolled learners, assign learning tracks, and issue or rotate secure portal access credentials directly to students.
+              <div className="text-[11px] uppercase tracking-wider font-bold text-brand-red">School Administration</div>
+              <h1 className="text-2xl md:text-3xl font-black mt-0.5 text-slate-900 dark:text-white">Students Roster &amp; Credentials</h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                Manage enrolled learners strictly registered under your school, assign academic curriculum tracks, and issue secure portal access credentials.
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5 shrink-0">
             <button 
               type="button" 
               onClick={() => void load(true)} 
               disabled={loading || refreshing} 
-              className="min-h-11 rounded-xl border border-slate-200 dark:border-slate-800 px-4 text-xs font-black inline-flex items-center gap-2 disabled:opacity-50"
+              className="min-h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-xs font-bold text-slate-700 dark:text-slate-300 inline-flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors cursor-pointer"
             >
               {refreshing ? <Loader2 size={15} className="animate-spin"/> : <RefreshCw size={15}/>} Refresh
             </button>
             <Link 
               to="/portal/school/onboard-student" 
-              className="min-h-11 rounded-xl bg-brand-red text-white px-4 text-xs font-black inline-flex items-center gap-2 shadow-xs"
+              className="min-h-11 rounded-xl bg-brand-red hover:bg-red-700 text-white px-5 text-xs font-bold inline-flex items-center gap-2 shadow-xs transition-colors"
             >
               <Plus size={16}/> Onboard Student
             </Link>
@@ -534,55 +624,147 @@ Important Security Notice:
         </div>
       </div>
 
-      {/* Class Group Filters */}
-      <div className="pro-surface rounded-2xl p-4 md:p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Users size={16} className="text-brand-red"/>
-          <h2 className="text-sm font-black">Filter by Class Level</h2>
-          <span className="text-xs text-slate-500">({students.length} total students)</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button 
-            type="button" 
-            onClick={() => setSelectedClass("All Classes")} 
-            className={`min-h-9 rounded-xl px-3 text-xs font-black border transition-all ${
-              selectedClass === "All Classes" 
-                ? "bg-brand-red text-white border-brand-red shadow-xs" 
-                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300"
+      {/* 3 Dedicated Filter Tabs */}
+      <div className="pro-surface rounded-2xl p-4 md:p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+        {/* Main 3 Filter Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl w-full sm:w-fit">
+          <button
+            type="button"
+            onClick={() => { setFilterTab('all'); setSelectedClass('All Classes'); setSelectedTrack('All Tracks'); }}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'all'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            All Classes ({students.length})
+            All Students ({students.length})
           </button>
-          {classGroups.map(([name, count]) => (
-            <button 
-              type="button" 
-              key={name} 
-              onClick={() => setSelectedClass(name)} 
-              className={`min-h-9 rounded-xl px-3 text-xs font-black border inline-flex items-center gap-1 transition-all ${
-                selectedClass === name 
-                  ? "bg-brand-red text-white border-brand-red shadow-xs" 
-                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300"
-              }`}
-            >
-              {name} ({count})<ChevronRight size={12}/>
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => setFilterTab('classes')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'classes'
+                ? 'bg-white dark:bg-slate-900 text-brand-red font-black shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Classes ({classGroups.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterTab('tracks')}
+            className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filterTab === 'tracks'
+                ? 'bg-white dark:bg-slate-900 text-brand-red font-black shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            Program Tracks ({trackGroups.length})
+          </button>
         </div>
+
+        {/* Tab Content: Classes Selector */}
+        {filterTab === 'classes' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Select School Class Cohort
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Showing students registered under your school only
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedClass('All Classes')}
+                className={`min-h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  selectedClass === 'All Classes'
+                    ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                }`}
+              >
+                All Classes ({students.length})
+              </button>
+              {classGroups.map(([name, count]) => (
+                <button
+                  type="button"
+                  key={name}
+                  onClick={() => setSelectedClass(name)}
+                  className={`min-h-9 px-3.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                    selectedClass === name
+                      ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{name}</span>
+                  <span className={`text-[10px] font-mono ${selectedClass === name ? 'text-white/80' : 'text-slate-400'}`}>
+                    ({count})
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tab Content: Program Tracks Selector */}
+        {filterTab === 'tracks' && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Filter by Assigned Curriculum Track
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Tracks configured for your school
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedTrack('All Tracks')}
+                className={`min-h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  selectedTrack === 'All Tracks'
+                    ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                }`}
+              >
+                All Tracks ({students.length})
+              </button>
+              {trackGroups.map(([name, count]) => (
+                <button
+                  type="button"
+                  key={name}
+                  onClick={() => setSelectedTrack(name)}
+                  className={`min-h-9 px-3.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                    selectedTrack === name
+                      ? 'bg-brand-red text-white border-brand-red shadow-xs'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                  }`}
+                >
+                  <span>{name}</span>
+                  <span className={`text-[10px] font-mono ${selectedTrack === name ? 'text-white/80' : 'text-slate-400'}`}>
+                    ({count})
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Search Bar */}
-      <div className="pro-surface rounded-2xl p-4 md:p-5">
+      <div className="pro-surface rounded-2xl p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-xl">
-            <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/>
             <input 
               value={query} 
               onChange={e => setQuery(e.target.value)} 
-              placeholder="Search by student name, username, class or track..." 
-              className="w-full min-h-11 rounded-xl border border-slate-200 dark:border-slate-800 pl-10 pr-3 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/30"
+              placeholder="Search by student name, username, class cohort, or track..." 
+              className="w-full min-h-10 rounded-xl border border-slate-200 dark:border-slate-800 pl-10 pr-3 bg-slate-50 dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-red/30"
             />
           </div>
-          <div className="text-xs font-bold text-slate-500">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
             Showing {filtered.length} of {students.length} students
           </div>
         </div>
@@ -590,66 +772,66 @@ Important Security Notice:
 
       {/* Main Student List / Table */}
       {loading ? (
-        <div className="pro-surface rounded-2xl p-12 flex items-center justify-center gap-3 text-sm text-slate-500">
-          <Loader2 className="animate-spin text-brand-red" size={22}/> Loading students roster…
+        <div className="pro-surface rounded-2xl p-12 flex items-center justify-center gap-3 text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+          <Loader2 className="animate-spin text-brand-red" size={20}/> Loading student roster…
         </div>
       ) : students.length === 0 ? (
-        <div className="pro-surface rounded-2xl p-12 text-center">
+        <div className="pro-surface rounded-2xl p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
           <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-            <UserRound size={30}/>
+            <UserRound size={28}/>
           </div>
-          <h2 className="font-black text-lg mt-4">No students enrolled yet</h2>
-          <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-            Start by onboarding the first student into your school's portal roster.
+          <h2 className="font-black text-base mt-4 text-slate-900 dark:text-white">No students onboarded in your school yet</h2>
+          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            Add learners to your institution's portal roster to generate login credentials and assign curriculum courses.
           </p>
           <Link 
             to="/portal/school/onboard-student" 
-            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-red px-5 text-xs font-black text-white shadow-xs"
+            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-red px-5 text-xs font-bold text-white shadow-xs hover:bg-red-700 transition-colors"
           >
-            <Plus size={16}/> Onboard First Student
+            <Plus size={15}/> Onboard First Student
           </Link>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="pro-surface rounded-2xl p-12 text-center">
-          <Search size={28} className="mx-auto text-slate-400"/>
-          <h2 className="font-black mt-3">No matching students found</h2>
-          <p className="text-sm text-slate-500 mt-1">Try searching with a different keyword or select another class.</p>
+        <div className="pro-surface rounded-2xl p-12 text-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+          <Search size={26} className="mx-auto text-slate-400"/>
+          <h2 className="font-bold text-sm mt-3 text-slate-900 dark:text-white">No matching students found</h2>
+          <p className="text-xs text-slate-500 mt-1">Try a different keyword or switch the class filter tab above.</p>
         </div>
       ) : (
-        <div className="pro-surface rounded-2xl overflow-hidden shadow-xs">
-          <div className="hidden md:grid grid-cols-[1.5fr_1fr_1fr_1fr_1.6fr] gap-4 px-5 py-3.5 border-b border-slate-200/70 dark:border-slate-800 text-[11px] uppercase tracking-widest font-black text-slate-500">
-            <span>Student & Account</span>
+        <div className="pro-surface rounded-2xl overflow-hidden shadow-xs border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="hidden md:grid grid-cols-[1.5fr_1fr_1.2fr_0.9fr_1.8fr] gap-4 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 text-[11px] uppercase tracking-wider font-bold text-slate-400 bg-slate-50/70 dark:bg-slate-950">
+            <span>Student &amp; Account</span>
             <span>Class Level</span>
-            <span>Learning Track</span>
+            <span>Curriculum Track</span>
             <span>Portal Status</span>
-            <span className="text-right">Credential & Actions</span>
+            <span className="text-right">Actions</span>
           </div>
-          <div className="divide-y divide-slate-200/70 dark:divide-slate-800/80">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
             {filtered.map(student => (
               <div 
                 key={`${student.collection}-${student.id}`} 
-                className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr_1.6fr] gap-3 md:gap-4 px-5 py-4 items-center hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors"
+                className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1.2fr_0.9fr_1.8fr] gap-3 md:gap-4 px-5 py-3.5 items-center hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
               >
                 {/* Student Info */}
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 font-bold text-sm">
-                    {student.fullName ? student.fullName.charAt(0).toUpperCase() : <UserRound size={18}/>}
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 text-white dark:bg-slate-800 flex items-center justify-center shrink-0 font-black text-xs">
+                    {student.fullName ? student.fullName.charAt(0).toUpperCase() : <UserRound size={16}/>}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-black text-sm truncate text-slate-900 dark:text-white">
+                    <div className="font-bold text-xs sm:text-sm truncate text-slate-900 dark:text-white">
                       {student.fullName || 'Unnamed Student'}
                     </div>
-                    <div className="text-xs text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
+                    <div className="text-[11px] text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
                       <span className="font-mono text-brand-red">@{student.username || 'pending'}</span>
-                      {student.email && <span>• {student.email}</span>}
+                      {student.email && <span className="text-slate-400">• {student.email}</span>}
                     </div>
                   </div>
                 </div>
 
                 {/* Class */}
-                <div className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   <span className="md:hidden text-[10px] uppercase text-slate-400 mr-2 font-normal">Class:</span>
-                  {student.class || 'Not assigned'}
+                  {student.class || student.grade || 'Year 1'}
                 </div>
 
                 {/* Track / Programs */}
@@ -662,32 +844,29 @@ Important Security Notice:
                       ? student.subjects
                       : student.track
                       ? student.track.split(',').map((s: string) => s.trim()).filter(Boolean)
-                      : ['General Tech'];
+                      : [schoolPrograms[0]?.name || 'Digital Literacy Junior'];
 
                     return (
-                      <div className="flex flex-wrap gap-1">
-                        {progList.map((pName: string, pIdx: number) => (
-                          <span 
-                            key={pIdx} 
-                            className="inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-red-50 dark:bg-red-950/40 text-brand-red border border-red-100 dark:border-red-900/30 truncate max-w-[160px]"
-                          >
-                            {pName}
-                          </span>
-                        ))}
-                      </div>
+                      <span className="font-medium truncate block max-w-xs" title={progList.join(', ')}>
+                        {progList.join(' • ')}
+                      </span>
                     );
                   })()}
                 </div>
 
                 {/* Status */}
                 <div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black ${
-                    student.portalAccessEnabled && student.accountStatus.toUpperCase() === 'ACTIVE'
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${
+                    student.portalAccessEnabled && String(student.accountStatus).toUpperCase() === 'ACTIVE'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
                   }`}>
-                    <ShieldCheck size={13}/>
-                    {student.portalAccessEnabled && student.accountStatus.toUpperCase() === 'ACTIVE' ? 'Active' : 'Restricted'}
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      student.portalAccessEnabled && String(student.accountStatus).toUpperCase() === 'ACTIVE'
+                        ? 'bg-emerald-500'
+                        : 'bg-amber-500'
+                    }`} />
+                    {student.portalAccessEnabled && String(student.accountStatus).toUpperCase() === 'ACTIVE' ? 'Active' : 'Restricted'}
                   </span>
                 </div>
 
@@ -696,40 +875,40 @@ Important Security Notice:
                   <button 
                     type="button" 
                     onClick={() => openEditModal(student)} 
-                    className="min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-xs font-black inline-flex items-center gap-1.5 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-                    title="Edit student details & assign track/faculty"
+                    className="min-h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs font-bold inline-flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                    title="Edit student details & assign track"
                   >
-                    <Edit3 size={13}/> Edit &amp; Assign Track
+                    <Edit3 size={12}/> Edit
                   </button>
 
                   <button 
                     type="button" 
                     onClick={() => void handleIssueCredentials(student)} 
                     disabled={isIssuing && issuingStudent?.id === student.id}
-                    className="min-h-9 rounded-xl bg-brand-red text-white px-3 text-xs font-black inline-flex items-center gap-1.5 shadow-xs hover:bg-brand-red/90 disabled:opacity-50"
+                    className="min-h-8 rounded-lg bg-brand-red text-white px-3 text-xs font-bold inline-flex items-center gap-1 hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer"
                     title="Generate and issue new login access code"
                   >
                     {isIssuing && issuingStudent?.id === student.id ? (
-                      <Loader2 size={13} className="animate-spin"/>
+                      <Loader2 size={12} className="animate-spin"/>
                     ) : (
-                      <KeyRound size={13}/>
+                      <KeyRound size={12}/>
                     )}
-                    Issue Credentials
+                    Issue Code
                   </button>
 
                   <button 
                     type="button" 
                     onClick={() => void updateAccess(student, student.portalAccessEnabled ? 'disable' : 'enable')} 
-                    className={`min-h-9 rounded-xl border px-2.5 text-xs font-black inline-flex items-center gap-1 transition-colors ${
-                      student.portalAccessEnabled && student.accountStatus.toUpperCase() === 'ACTIVE'
-                        ? 'border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-950/30'
-                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:hover:bg-emerald-950/30'
+                    className={`min-h-8 rounded-lg border px-2 text-xs font-bold inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                      student.portalAccessEnabled && String(student.accountStatus).toUpperCase() === 'ACTIVE'
+                        ? 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-red-600'
+                        : 'border-emerald-300 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
                     }`}
                   >
-                    {student.portalAccessEnabled && student.accountStatus.toUpperCase() === 'ACTIVE' ? (
-                      <><UserX size={13}/> Disable</>
+                    {student.portalAccessEnabled && String(student.accountStatus).toUpperCase() === 'ACTIVE' ? (
+                      <><UserX size={12}/> Disable</>
                     ) : (
-                      <><UserCheck size={13}/> Enable</>
+                      <><UserCheck size={12}/> Enable</>
                     )}
                   </button>
                 </div>

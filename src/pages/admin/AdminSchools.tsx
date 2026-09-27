@@ -760,12 +760,28 @@ const AdminSchools: React.FC = () => {
       toast.error('No contact email configured for this school.');
       return;
     }
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      await sendPasswordResetEmail(auth, email);
-      toast.success(`Password reset email sent to ${email}`);
-    } catch (err) {
+      // 1. Try sending branded email via Resend
+      const res = await fetch('/.netlify/functions/auth-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      if (res.ok) {
+        toast.success(`Password reset link dispatched to ${cleanEmail} via Resend.`);
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      toast.success(`Password reset email sent to ${cleanEmail}`);
+    } catch (err: any) {
       console.error('Password reset failed:', err);
-      toast.error('Unable to send password reset email.');
+      toast.error(err?.message || 'Unable to send password reset email.');
     }
   };
 

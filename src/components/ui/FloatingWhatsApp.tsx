@@ -3,9 +3,11 @@ import { useLocation } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
+const VERIFIED_WHATSAPP_NUMBER = '2349136518194';
+
 export const FloatingWhatsApp: React.FC = () => {
   const location = useLocation();
-  const [phoneNumber, setPhoneNumber] = useState('2349136518194');
+  const [phoneNumber, setPhoneNumber] = useState(VERIFIED_WHATSAPP_NUMBER);
 
   // Show ONLY on the main public website, never on login, portal, or admin dashboards
   const isExcluded = 
@@ -22,12 +24,16 @@ export const FloatingWhatsApp: React.FC = () => {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
-          const raw = data.whatsappNumber || data.contactPhone || '+234 913 651 8194';
-          const clean = raw.replace(/[^0-9]/g, '');
-          if (clean) setPhoneNumber(clean);
+          const raw = data.whatsappNumber || data.contactPhone || VERIFIED_WHATSAPP_NUMBER;
+          const clean = String(raw).replace(/[^0-9]/g, '');
+          if (clean && !clean.includes('913658194') && clean !== '234913658194') {
+            setPhoneNumber(clean);
+          } else {
+            setPhoneNumber(VERIFIED_WHATSAPP_NUMBER);
+          }
         }
       } catch {
-        // Fallback default
+        setPhoneNumber(VERIFIED_WHATSAPP_NUMBER);
       }
     };
     fetchNumber();
@@ -38,20 +44,27 @@ export const FloatingWhatsApp: React.FC = () => {
   const defaultMsg = encodeURIComponent(
     'Hello Jaystarbliss Studios! I would like to make an inquiry regarding your coding programs and services.'
   );
-  const whatsappUrl = `https://wa.me/${phoneNumber}?text=${defaultMsg}`;
+  const activeNumber = phoneNumber && !phoneNumber.includes('913658194') && phoneNumber !== '234913658194' 
+    ? phoneNumber 
+    : VERIFIED_WHATSAPP_NUMBER;
+  const whatsappUrl = `https://wa.me/${activeNumber}?text=${defaultMsg}`;
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex items-center justify-center pointer-events-auto animate-in fade-in slide-in-from-bottom-6 duration-500 ease-out">
+    <div className="fixed bottom-6 right-6 z-40 flex items-center justify-center pointer-events-auto animate-in fade-in slide-in-from-bottom-6 duration-500 ease-out group">
+      {/* Subtle Ambient Pulse Ring Effect */}
+      <span className="absolute -inset-1 rounded-full bg-[#25D366]/40 animate-ping duration-1000 opacity-60 pointer-events-none" />
+      <span className="absolute -inset-2.5 rounded-full bg-[#25D366]/20 animate-pulse duration-2000 pointer-events-none" />
+
       <a
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat with us on WhatsApp"
         title="Chat with us on WhatsApp"
-        className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/30 flex items-center justify-center transition-all hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 group"
+        className="relative w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-lg shadow-emerald-900/30 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 focus:outline-none focus:ring-4 focus:ring-emerald-400/40 group"
       >
         <svg
-          className="w-6.5 h-6.5 sm:w-7 sm:h-7 fill-current transition-transform group-hover:scale-105"
+          className="w-6.5 h-6.5 sm:w-7 sm:h-7 fill-current transition-transform duration-300 group-hover:scale-105"
           viewBox="0 0 24 24"
           xmlns="http://www.w3.org/2000/svg"
         >

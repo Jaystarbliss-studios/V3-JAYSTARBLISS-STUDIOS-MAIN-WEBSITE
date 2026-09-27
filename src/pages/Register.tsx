@@ -4,7 +4,7 @@ import {
   Sun, Moon, CheckCircle2, Users, GraduationCap, 
   User, Phone, Mail, Lock, BookOpen, 
   ArrowLeft, ArrowRight, Award, Calendar,
-  Clock, MapPin, Eye, EyeOff, Check, Sparkles,
+  Clock, MapPin, Eye, EyeOff, Check,
   ShieldCheck, AlertCircle, HelpCircle
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
