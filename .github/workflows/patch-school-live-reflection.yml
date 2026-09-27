@@ -1,0 +1,42 @@
+name: Patch school live reflection
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch student and parent school-scoped views
+        shell: python
+        run: |
+          from pathlib import Path
+          def patch(path, old, new):
+            p = Path(path); s = p.read_text()
+            if old not in s: raise SystemExit(f'Marker not found in {path}')
+            p.write_text(s.replace(old, new, 1))
+
+          patch('src/pages/portal/StudentDashboard.tsx',
+            """              ...(currentUid\n                ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]\n                : []),\n            ])""",
+            """              ...(currentUid\n                ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]\n                : []),\n              ...(studentRecord.schoolId\n                ? [getDocs(query(collection(db, 'personalLinks'), where('schoolId', '==', studentRecord.schoolId)))]\n                : []),\n            ])""")
+
+          patch('src/pages/portal/ParentDashboard.tsx',
+            """          const childEmails = childList.map(c => (c.email || '').toLowerCase());\n          const parentScheds = allScheds.filter((s: any) => {""",
+            """          const childEmails = childList.map(c => (c.email || '').toLowerCase());\n          const childSchoolIds = childList.map(c => (c as any).schoolId).filter(Boolean);\n          const parentScheds = allScheds.filter((s: any) => {""")
+          patch('src/pages/portal/ParentDashboard.tsx',
+            """            if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;\n            return false;""",
+            """            if (s.studentEmail && childEmails.includes(String(s.studentEmail).toLowerCase())) return true;\n            if (s.schoolId && childSchoolIds.includes(s.schoolId)) return true;\n            return false;""")
+      - name: Install and build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Commit patch and remove verifier
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/portal/StudentDashboard.tsx src/pages/portal/ParentDashboard.tsx
+          git rm .github/workflows/patch-school-live-reflection.yml
+          git commit -m "fix: reflect school live links and schedules in portals"
+          git push
