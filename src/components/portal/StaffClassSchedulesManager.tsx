@@ -308,6 +308,12 @@ export const StaffClassSchedulesManager: React.FC<StaffClassSchedulesManagerProp
 
       const session = sessionMap.get(groupKey)!;
       session.occurrences.push(item);
+      // The header represents the overall timetable window; expanded rows retain each class's exact time.
+      const times = session.occurrences.flatMap(o => [o.startTime, o.endTime]).filter(Boolean).sort();
+      if (times.length) {
+        session.startTime = times[0];
+        session.endTime = times[times.length - 1];
+      }
 
       if (item.classLevel && !session.classLevels.includes(item.classLevel)) {
         session.classLevels.push(item.classLevel);

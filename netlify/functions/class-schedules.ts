@@ -72,108 +72,84 @@ const canTutorAccessRecord = (record: any, identity: { ids: Set<string>; names: 
   return false;
 };
 
+const resolveTutorScope = async (uid: string, user: any, identity: { ids: Set<string>; names: Set<string>; emails: Set<string> }) => {
+  const schoolIds = new Set<string>();
+  const studentIds = new Set<string>();
+  const add = (set: Set<string>, values: any[]) => values.filter(Boolean).forEach(v => set.add(String(v)));
+
+  add(schoolIds, [user.schoolId, ...(Array.isArray(user.schoolIds) ? user.schoolIds : []), ...(Array.isArray(user.assignedSchoolIds) ? user.assignedSchoolIds : [])]);
+  add(studentIds, [user.studentId, ...(Array.isArray(user.assignedStudentIds) ? user.assignedStudentIds : [])]);
+
+  const assignmentFields = ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId'];
+  for (const field of assignmentFields) {
+    for (const collectionName of ['students', 'individualStudents']) {
+      const snap = await adminDb.collection(collectionName).where(field, '==', uid).limit(500).get().catch(() => null);
+      snap?.docs.forEach(d => {
+        const data = d.data() || {};
+        studentIds.add(d.id);
+        if (data.schoolId) schoolIds.add(String(data.schoolId));
+      });
+    }
+  }
+
+  const schoolsSnap = await adminDb.collection('schools').limit(500).get().catch(() => null);
+  schoolsSnap?.docs.forEach(d => {
+    const data = d.data() || {};
+    const direct = assignmentFields.some(field => String(data[field] || '') === uid);
+    const assigned = [data.assignedTutors, data.tutors].some(list => Array.isArray(list) && list.some((t: any) => {
+      if (typeof t === 'string') return t === uid;
+      return String(t?.id || t?.uid || t?.tutorId || t?.staffId || '') === uid || normalize(t?.email) === normalize(user.email);
+    }));
+    if (direct || assigned) schoolIds.add(d.id);
+  });
+
+  return { schoolIds, studentIds };
+};
+
 const resolveStudentIdentity = async (uid: string, decoded: any, user: any) => {
   const ids = new Set<string>([uid]);
   const emails = new Set<string>();
   const schoolIds = new Set<string>();
-  const schoolNames = new Set<string>();
   const classesForStudent = new Set<string>();
-  const programNames = new Set<string>();
 
   const emailValues = [user.email, decoded?.email].filter(Boolean).map(normalize);
   emailValues.forEach(email => emails.add(email));
-  ['studentId', 'studentDocId', 'individualStudentId', 'studentRecordId', 'id'].forEach(key => {
+  ['studentId', 'studentDocId', 'individualStudentId', 'studentRecordId'].forEach(key => {
     if (user[key]) ids.add(String(user[key]));
   });
-
-  if (user.programName) programNames.add(normalize(user.programName));
-  if (user.plan) programNames.add(normalize(user.plan));
-  if (user.track) programNames.add(normalize(user.track));
-  if (user.schoolId) schoolIds.add(String(user.schoolId));
-  if (user.schoolName) schoolNames.add(normalize(user.schoolName));
-  if (user.school) schoolNames.add(normalize(user.school));
 
   const absorb = (doc: any) => {
     const data = doc.data() || {};
     ids.add(doc.id);
-    [data.id, data.studentId, data.studentDocId, data.individualStudentId, data.firebaseUid, data.uid, data.username, data.accessCode].forEach(v => {
+    [data.id, data.studentId, data.studentDocId, data.individualStudentId, data.firebaseUid, data.uid].forEach(v => {
       if (v) ids.add(String(v));
     });
-    [data.email, data.studentEmail, data.parentEmail].forEach(v => {
+    [data.email, data.parentEmail].forEach(v => {
       if (v) emails.add(normalize(v));
     });
-    [data.schoolId, data.schoolDocId, data.school_id].forEach(v => {
+    [data.schoolId].forEach(v => {
       if (v) schoolIds.add(String(v));
     });
-    [data.schoolName, data.school, data.schoolTitle].forEach(v => {
-      if (v) schoolNames.add(normalize(v));
-    });
-    [data.programName, data.program, data.plan, data.track, data.programTitle].forEach(v => {
-      if (v) programNames.add(normalize(v));
-    });
-    if (Array.isArray(data.enrolledPrograms)) {
-      data.enrolledPrograms.forEach((p: any) => { if (p) programNames.add(normalize(p)); });
-    }
-    if (Array.isArray(data.subjects)) {
-      data.subjects.forEach((p: any) => { if (p) programNames.add(normalize(p)); });
-    }
     [data.class, data.grade, data.classLevel, data.year, data.level].forEach(v => {
-      if (v) {
-        classesForStudent.add(normalize(v));
-        const num = String(v).replace(/\D/g, '');
-        if (num) classesForStudent.add(num);
-      }
+      if (v) classesForStudent.add(normalize(v));
     });
   };
 
   const lookups: Promise<any>[] = [];
-  lookups.push(adminDb.collection('students').where('firebaseUid', '==', uid).limit(10).get().catch(() => null));
-  lookups.push(adminDb.collection('individualStudents').where('firebaseUid', '==', uid).limit(10).get().catch(() => null));
-  if (user.studentDocId) {
-    lookups.push(adminDb.collection('students').doc(String(user.studentDocId)).get().catch(() => null));
-    lookups.push(adminDb.collection('individualStudents').doc(String(user.studentDocId)).get().catch(() => null));
-  }
-  if (user.studentId) {
-    lookups.push(adminDb.collection('students').doc(String(user.studentId)).get().catch(() => null));
-    lookups.push(adminDb.collection('individualStudents').doc(String(user.studentId)).get().catch(() => null));
-  }
+  lookups.push(adminDb.collection('students').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
+  lookups.push(adminDb.collection('individualStudents').where('firebaseUid', '==', uid).limit(5).get().catch(() => null));
   for (const email of emailValues) {
     lookups.push(adminDb.collection('students').where('email', '==', email).limit(5).get().catch(() => null));
     lookups.push(adminDb.collection('individualStudents').where('email', '==', email).limit(5).get().catch(() => null));
   }
 
   const snapshots = await Promise.all(lookups);
-  snapshots.forEach(snapshot => {
-    if (!snapshot) return;
-    if (snapshot.docs) {
-      snapshot.docs.forEach((doc: any) => absorb(doc));
-    } else if (snapshot.exists) {
-      absorb(snapshot);
-    }
-  });
+  snapshots.forEach(snapshot => snapshot?.docs?.forEach((doc: any) => absorb(doc)));
 
-  // If schoolId is found, look up school doc to get all name variations
-  if (schoolIds.size > 0) {
-    const schLookups = Array.from(schoolIds).map(sid => adminDb.collection('schools').doc(sid).get().catch(() => null));
-    const schSnaps = await Promise.all(schLookups);
-    schSnaps.forEach(snap => {
-      if (snap && snap.exists) {
-        const sd = snap.data();
-        if (sd?.name) schoolNames.add(normalize(sd.name));
-        if (sd?.title) schoolNames.add(normalize(sd.title));
-      }
-    });
-  }
+  if (user.schoolId) schoolIds.add(String(user.schoolId));
+  [user.class, user.grade, user.classLevel].forEach(v => { if (v) classesForStudent.add(normalize(v)); });
 
-  [user.class, user.grade, user.classLevel].forEach(v => { 
-    if (v) {
-      classesForStudent.add(normalize(v));
-      const num = String(v).replace(/\D/g, '');
-      if (num) classesForStudent.add(num);
-    }
-  });
-
-  return { ids, emails, schoolIds, schoolNames, classes: classesForStudent, programNames };
+  return { ids, emails, schoolIds, classes: classesForStudent };
 };
 
 const loadRecords = async () => {
@@ -212,47 +188,38 @@ export const handler: Handler = async event => {
         });
       } else if (role === 'STUDENT') {
         const identity = await resolveStudentIdentity(uid, decoded, user);
-        if (requestedSchoolId) identity.schoolIds.add(requestedSchoolId);
-        if (requestedStudentId) identity.ids.add(requestedStudentId);
-
         records = records.filter((r: any) => {
           const recordStudentId = String(r.studentId || '').trim();
           const recordStudentEmail = normalize(r.studentEmail);
-          const directStudentMatch = (
+          const directStudentMatch = r.targetType === 'STUDENT' && (
             (recordStudentId && identity.ids.has(recordStudentId)) ||
             (recordStudentEmail && identity.emails.has(recordStudentEmail))
           );
           if (directStudentMatch) return true;
 
           const recordSchoolId = String(r.schoolId || '').trim();
-          const recordSchoolName = normalize(r.schoolName);
-          const isSchoolMatch = (recordSchoolId && identity.schoolIds.has(recordSchoolId)) ||
-            (recordSchoolName && Array.from(identity.schoolNames).some(sn => sn === recordSchoolName || sn.includes(recordSchoolName) || recordSchoolName.includes(sn)));
-
-          const recordProgName = normalize(r.programName || r.title);
-          const isProgramMatch = recordProgName && Array.from(identity.programNames).some(pn => pn === recordProgName || pn.includes(recordProgName) || recordProgName.includes(pn));
-
-          if (!isSchoolMatch && !isProgramMatch && r.targetType !== 'ALL') return false;
+          if (!recordSchoolId || !identity.schoolIds.has(recordSchoolId)) return false;
 
           const recordClasses = Array.isArray(r.classLevels)
             ? r.classLevels.map((value: any) => normalize(value))
             : r.classLevel ? [normalize(r.classLevel)] : [];
 
-          // Universal school or class schedule
+          // A school-wide schedule is visible to the student's school. A class-specific
+          // schedule is visible only when the student's current class is included.
           if (!recordClasses.length) return true;
-          return recordClasses.some((level: string) => 
-            level === 'all' || 
-            level === 'all classes' || 
-            level === 'general' || 
-            identity.classes.has(level) || 
-            Array.from(identity.classes).some(c => c === level || c.includes(level) || level.includes(c))
-          );
+          return recordClasses.some((level: string) => identity.classes.has(level));
         });
       } else if (role === 'PARENT') {
         records = records.filter((r: any) => String(r.parentId || '') === uid || normalize(r.parentEmail) === normalize(user.email));
       } else if (isTutor(role)) {
         const identity = await resolveTutorIdentity(uid, user);
-        records = records.filter((r: any) => canTutorAccessRecord(r, identity));
+        const scope = await resolveTutorScope(uid, user, identity);
+        records = records.filter((r: any) => {
+          if (canTutorAccessRecord(r, identity)) return true;
+          if (String(r.targetType || '').toUpperCase() === 'SCHOOL' && scope.schoolIds.has(String(r.schoolId || ''))) return true;
+          if (String(r.targetType || '').toUpperCase() === 'STUDENT' && scope.studentIds.has(String(r.studentId || ''))) return true;
+          return false;
+        });
       } else if (isAdmin(role)) {
         if (requestedSchoolId) records = records.filter((r: any) => String(r.schoolId || '') === requestedSchoolId);
         if (requestedStudentId) records = records.filter((r: any) => String(r.studentId || '') === requestedStudentId);
