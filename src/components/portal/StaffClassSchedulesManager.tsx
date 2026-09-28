@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Clock, Edit3, FileText, Loader2, Save, Umbrella, X, XCircle } from 'lucide-react';
-import { collection, doc, getDocs, serverTimestamp, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { getEffectiveAuth } from '../../utils/impersonation';
@@ -42,10 +42,7 @@ export const StaffClassSchedulesManager: React.FC<Props> = ({ tutorId, tutorName
   };
   useEffect(() => { void load(); }, [tutorId, tutorName, effective.effectiveUid, effective.effectiveName]);
 
-  const filteredRows = useMemo(() => {
-    const sorted = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.startTime).localeCompare(String(b.startTime)));
-    return filterStatus === 'ALL' ? sorted : sorted.filter(r => String(r.status || 'SCHEDULED').toUpperCase() === filterStatus);
-  }, [rows, filterStatus]);
+  const filteredRows = useMemo(() => { const sorted = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.startTime).localeCompare(String(b.startTime))); return filterStatus === 'ALL' ? sorted : sorted.filter(r => String(r.status || 'SCHEDULED').toUpperCase() === filterStatus); }, [rows, filterStatus]);
   const weeks = useMemo(() => { const map = new Map<string, Schedule[]>(); filteredRows.forEach(r => { const w = monday(r.date); if (!map.has(w)) map.set(w, []); map.get(w)!.push(r); }); return Array.from(map.entries()); }, [filteredRows]);
   const counts = useMemo(() => rows.reduce((acc, r) => { const s = String(r.status || 'SCHEDULED').toUpperCase(); acc[s] = (acc[s] || 0) + 1; return acc; }, {} as Record<string, number>), [rows]);
 
@@ -54,11 +51,7 @@ export const StaffClassSchedulesManager: React.FC<Props> = ({ tutorId, tutorName
 
   const saveEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editing) return; setSaving(true);
-    try {
-      if (!form.date || !form.startTime || !form.endTime || form.endTime <= form.startTime) throw new Error('Please provide a valid date and time range.');
-      await updateDoc(doc(db, 'classSchedules', editing.id), { date: form.date, dayOfWeek: new Date(`${form.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' }), startTime: form.startTime, endTime: form.endTime, title: form.title.trim() || editing.title || 'Class session', meetingLink: form.meetingLink.trim(), updatedAt: serverTimestamp(), editedBy: effective.effectiveUid || auth.currentUser?.uid || null });
-      toast.success('Class session updated.'); setEditing(null); await load();
-    } catch (e: any) { toast.error(e.message || 'Unable to update class session.'); } finally { setSaving(false); }
+    try { if (!form.date || !form.startTime || !form.endTime || form.endTime <= form.startTime) throw new Error('Please provide a valid date and time range.'); await updateDoc(doc(db, 'classSchedules', editing.id), { date: form.date, dayOfWeek: new Date(`${form.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' }), startTime: form.startTime, endTime: form.endTime, title: form.title.trim() || editing.title || 'Class session', meetingLink: form.meetingLink.trim(), updatedAt: serverTimestamp(), editedBy: effective.effectiveUid || auth.currentUser?.uid || null }); toast.success('Class session updated.'); setEditing(null); await load(); } catch (e: any) { toast.error(e.message || 'Unable to update class session.'); } finally { setSaving(false); }
   };
 
   const saveStatus = async (e: React.FormEvent) => {
@@ -69,26 +62,12 @@ export const StaffClassSchedulesManager: React.FC<Props> = ({ tutorId, tutorName
     if (next === 'RESCHEDULED' && statusForm.newDate === statusEditing.date && statusForm.newStartTime === statusEditing.startTime) return toast.error('The rescheduled class must have a new date or time.');
     setStatusSaving(true);
     try {
-      const actorId = effective.effectiveUid || auth.currentUser?.uid || null;
-      const baseUpdate: Record<string, any> = { status: next, updatedAt: serverTimestamp(), statusUpdatedAt: serverTimestamp(), statusUpdatedBy: actorId };
-      if (next === 'ABSENT') baseUpdate.absenceReason = statusForm.reason.trim();
-      if (next === 'CANCELLED') baseUpdate.cancellationReason = statusForm.reason.trim();
-      if (next === 'RESCHEDULED') {
-        baseUpdate.rescheduleReason = statusForm.reason.trim(); baseUpdate.rescheduledToDate = statusForm.newDate; baseUpdate.rescheduledToStartTime = statusForm.newStartTime; baseUpdate.rescheduledToEndTime = statusForm.newEndTime;
-        const replacementId = `${statusEditing.id}-rescheduled-${statusForm.newDate}-${statusForm.newStartTime.replace(':', '')}`;
-        await updateDoc(doc(db, 'classSchedules', statusEditing.id), baseUpdate);
-        await setDoc(doc(db, 'classSchedules', replacementId), {
-          id: replacementId, scheduleGroupId: statusEditing.scheduleGroupId || statusEditing.id, title: statusEditing.title || statusEditing.programName || 'Class session',
-          programName: statusEditing.programName || '', programId: statusEditing.programId || '', studentId: statusEditing.studentId || '', studentName: statusEditing.studentName || '', studentEmail: statusEditing.studentEmail || '',
-          parentId: statusEditing.parentId || '', parentEmail: statusEditing.parentEmail || '', parentName: statusEditing.parentName || '', schoolId: statusEditing.schoolId || '', schoolName: statusEditing.schoolName || '',
-          classLevel: statusEditing.classLevel || '', classLevels: statusEditing.classLevels || [], targetType: statusEditing.targetType || 'parent', tutorId: statusEditing.tutorId || actorId || '', tutorName: statusEditing.tutorName || tutorName || '', tutorEmail: statusEditing.tutorEmail || '',
-          deliveryMode: statusEditing.deliveryMode || 'online', meetingLink: statusEditing.meetingLink || '', date: statusForm.newDate, dayOfWeek: new Date(`${statusForm.newDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' }),
-          startTime: statusForm.newStartTime, endTime: statusForm.newEndTime, daySessionStartTime: statusForm.newStartTime, daySessionEndTime: statusForm.newEndTime, status: 'SCHEDULED',
-          rescheduledFromId: statusEditing.id, rescheduledFromDate: statusEditing.date, rescheduledReason: statusForm.reason.trim(), createdAt: serverTimestamp(), updatedAt: serverTimestamp()
-        }, { merge: true });
-      } else {
-        await updateDoc(doc(db, 'classSchedules', statusEditing.id), baseUpdate);
-      }
+      const user = auth.currentUser;
+      if (!user) throw new Error('Your session has expired. Please sign in again.');
+      const token = await user.getIdToken();
+      const response = await fetch('/.netlify/functions/class-schedule-status', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ scheduleId: statusEditing.id, status: next, reason: statusForm.reason.trim(), newDate: statusForm.newDate, newStartTime: statusForm.newStartTime, newEndTime: statusForm.newEndTime }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Unable to update class status.');
       toast.success(next === 'RESCHEDULED' ? 'Class rescheduled. The new session has been added to the new date.' : `Class marked ${statusLabel(next).toLowerCase()}.`);
       setStatusEditing(null); await load();
     } catch (e: any) { toast.error(e.message || 'Unable to update class status.'); } finally { setStatusSaving(false); }
