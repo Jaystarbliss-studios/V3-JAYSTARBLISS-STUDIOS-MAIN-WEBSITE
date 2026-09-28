@@ -436,7 +436,7 @@ const AdminDashboard: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center font-black animate-pulse">
-                <Sparkles size={20} />
+                <AlertCircle size={20} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
