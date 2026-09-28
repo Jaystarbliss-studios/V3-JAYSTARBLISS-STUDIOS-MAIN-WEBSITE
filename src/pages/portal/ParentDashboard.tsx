@@ -76,11 +76,19 @@ const ParentDashboard: React.FC = () => {
         const userEmail = (effective.effectiveEmail || user?.email || '').toLowerCase();
         const userUid = effective.effectiveUid || user?.uid || '';
         const allStudentsMap = new Map<string, ChildRecord>();
+        const studentIdentityKey = (studentDoc: any, data: any) => String(
+          data.firebaseUid || data.studentUid || data.username || data.accessCode || data.email || data.parentChildId || studentDoc.id
+        ).trim().toLowerCase();
         const collectChildren = (snap: any) => {
           snap.forEach((studentDoc: any) => {
             const data = studentDoc.data();
             const matchesParent = data.parentId === userUid || data.parentId === userEmail || data.parentEmail?.toLowerCase() === userEmail;
-            if (matchesParent) allStudentsMap.set(studentDoc.id, { id: studentDoc.id, ...data } as ChildRecord);
+            if (!matchesParent) return;
+            const key = studentIdentityKey(studentDoc, data);
+            const existing = allStudentsMap.get(key);
+            if (!existing || (String(data.status || '').toLowerCase() === 'active' && String(existing.status || '').toLowerCase() !== 'active')) {
+              allStudentsMap.set(key, { id: studentDoc.id, ...data } as ChildRecord);
+            }
           });
         };
         if (userUid) {

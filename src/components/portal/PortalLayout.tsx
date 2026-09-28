@@ -8,7 +8,8 @@ import {
   ExternalLink, Award, Headphones, HelpCircle
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Tooltip } from '../ui/Tooltip';
@@ -38,6 +39,7 @@ const PortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [impersonation, setImpersonation] = useState<any>(() => getActiveImpersonation());
+  const [studentFeatures, setStudentFeatures] = useState<{ assessments?: boolean; edgeClub?: boolean }>({});
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,6 +91,15 @@ const PortalLayout: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (role !== 'student') return;
+    const studentDocId = sessionStorage.getItem('studentDocId') || '';
+    if (!studentDocId) return;
+    void getDoc(doc(db, 'students', studentDocId)).then(snap => {
+      if (snap.exists()) setStudentFeatures((snap.data() as any).featureAccess || {});
+    }).catch(() => undefined);
+  }, [role, location.pathname]);
+
   const navLinks: NavItem[] = (() => {
     const items: NavItem[] = [
       { name: 'Dashboard', path: `/portal/${role}`, icon: <LayoutDashboard size={18} />, desc: 'Portal Overview' }
@@ -100,7 +111,7 @@ const PortalLayout: React.FC = () => {
         { name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live lessons & sessions' },
         { name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' },
         { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' },
-        { name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }
+        ...(studentFeatures.assessments ? [{ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }] : [])
       );
       if (sessionStorage.getItem('studentRegistrationType') === 'individual') {
         items.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
