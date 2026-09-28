@@ -1,5 +1,5 @@
 [build]
-  command = "node scripts/netlify-prebuild-fix.mjs && npm run build"
+  command = "npm run build"
   publish = "dist"
 
 [build.environment]
