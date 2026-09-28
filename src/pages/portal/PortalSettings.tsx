@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { User, Lock, Moon, Sun, Bell, Save, Contrast, KeyRound, RefreshCw, CheckCircle2, AlertCircle, Smartphone, MessageCircle } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { sendEmailVerification, updateProfile, updateEmail } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, getDoc, limit, query, updateDoc, where } from 'firebase/firestore';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useToast } from '../../contexts/ToastContext';
 import ChangePasswordModal from '../../components/portal/ChangePasswordModal';
@@ -16,6 +16,7 @@ export const PortalSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [role, setRole] = useState('student');
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
@@ -45,6 +46,7 @@ export const PortalSettings: React.FC = () => {
         if (!snap.exists()) return;
         const data = snap.data();
         if (data.name) setFullName(String(data.name));
+        if (data.username) setUsername(String(data.username));
         if (data.phone) setPhone(String(data.phone));
         if (data.whatsapp || data.whatsappContact) setWhatsapp(String(data.whatsapp || data.whatsappContact));
       } catch (error) {
@@ -67,10 +69,12 @@ export const PortalSettings: React.FC = () => {
     setSavingProfile(true);
     try {
       const cleanName = fullName.trim();
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
       const cleanEmail = email.trim().toLowerCase();
       const cleanPhone = phone.trim();
       const cleanWhatsapp = whatsapp.trim();
       if (!cleanName || !cleanEmail) throw new Error('Full name and email are required.');
+      if (role === 'student' && (cleanUsername.length < 3 || cleanUsername.length > 30)) throw new Error('Student username must be 3–30 characters.');
 
       await updateProfile(user, { displayName: cleanName });
       sessionStorage.setItem('userName', cleanName);
@@ -85,8 +89,20 @@ export const PortalSettings: React.FC = () => {
         }
       }
 
+      if (role === 'student') {
+        const studentDocId = sessionStorage.getItem('studentDocId') || '';
+        if (studentDocId) {
+          const duplicate = await getDocs(query(collection(db, 'individualStudents'), where('username', '==', cleanUsername), limit(1)));
+          if (!duplicate.empty && duplicate.docs[0].id !== studentDocId) throw new Error('That username is already in use. Please choose another.');
+          await updateDoc(doc(db, 'individualStudents', studentDocId), { username: cleanUsername, updatedAt: new Date().toISOString() }).catch(() => undefined);
+          await updateDoc(doc(db, 'students', studentDocId), { username: cleanUsername, updatedAt: new Date().toISOString() }).catch(() => undefined);
+          sessionStorage.setItem('studentUsername', cleanUsername);
+        }
+      }
+
       await updateDoc(doc(db, 'users', user.uid), {
         name: cleanName,
+        username: role === 'student' ? cleanUsername : undefined,
         email: cleanEmail,
         phone: cleanPhone,
         whatsapp: cleanWhatsapp,
@@ -166,6 +182,7 @@ export const PortalSettings: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <label className="block"><span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Full Name</span><input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-red" /></label>
+              {role === 'student' && <label className="block"><span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Student Username</span><input required minLength={3} maxLength={30} value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))} placeholder="your_username" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-red" /><span className="block mt-1 text-[10px] text-slate-500">Use this username with your student access code.</span></label>}
               <label className="block"><span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Email Address</span><input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-red" /></label>
               <label className="block"><span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider flex items-center gap-1.5"><Smartphone size={13} /> Phone Number</span><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+234 800 000 0000" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-red" /></label>
               <label className="block"><span className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider flex items-center gap-1.5"><MessageCircle size={13} /> WhatsApp Contact</span><input type="tel" value={whatsapp} onChange={e => setWhatsapp(e.target.value)} placeholder="+234 800 000 0000" className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-red" /></label>

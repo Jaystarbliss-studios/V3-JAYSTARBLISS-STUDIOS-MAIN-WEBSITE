@@ -47,10 +47,15 @@ export const handler: Handler = async (event) => {
       studentId = studentId || String(enrollment.studentId || "").trim();
     }
 
-    let plan = config.plans[planId];
-    const customAmount = Number(body.amount || body.customAmount || 0);
+    // Resolve the selected child before applying any parent billing configuration.
+    // For parent payments, the approved child's tuitionFee/fee is the authoritative
+    // amount whenever it exists. This prevents a stale parent-level billing record
+    // (for example ₦45,000) from replacing an approved child fee (for example ₦35,000).
+    if (actualRole === "parent" && studentId) student = await findStudent(studentId, decoded.uid, "parent");
 
-    // Check if school or user has an admin-assigned billing configuration
+    const customAmount = Number(body.amount || body.customAmount || 0);
+    let plan = config.plans[planId];
+
     let assignedBilling = (user as any).billing || null;
     let schoolDocData: any = null;
     if (actualRole === "school") {
@@ -58,16 +63,43 @@ export const handler: Handler = async (event) => {
       const schoolSnap = await adminDb.collection("schools").doc(sId).get();
       if (schoolSnap.exists) {
         schoolDocData = schoolSnap.data() || {};
-        if (schoolDocData.billing) {
-          assignedBilling = schoolDocData.billing;
-        }
+        if (schoolDocData.billing) assignedBilling = schoolDocData.billing;
       }
     }
 
-    // Admin-assigned billing is authoritative. The portal may arrive here with a
-    // generic/default plan ID from the payment UI, but an assigned school/user
-    // billing record must take precedence so the customer never pays against a
-    // stale or unrelated plan.
+    // Parent billing is child-specific when the selected student has an approved fee.
+    if (actualRole === "parent" && student) {
+      const childAmount = Number(student.tuitionFee ?? student.fee ?? student.amount ?? 0);
+      if (childAmount > 0) {
+        assignedBilling = {
+          planId: String(student.programId || planId || "assigned_student_plan"),
+          planName: String(student.programName || student.programTitle || student.plan || student.track || body.planName || "Assigned Tuition Plan"),
+          baseAmount: childAmount,
+          cycle: String(student.cycle || "monthly"),
+          status: "ACTIVE"
+        };
+        planId = assignedBilling.planId;
+      }
+    }
+
+    // If the parent is paying an enrollment request before the student record exists,
+    // use the amount recorded on the request when available.
+    if (actualRole === "parent" && !student && enrollment) {
+      const enrollmentAmount = Number(enrollment.tuitionFee ?? enrollment.fee ?? enrollment.amount ?? 0);
+      if (enrollmentAmount > 0) {
+        assignedBilling = {
+          planId: String(enrollment.planId || planId || "assigned_enrollment_plan"),
+          planName: String(enrollment.programName || enrollment.programTitle || enrollment.plan || body.planName || "Assigned Tuition Plan"),
+          baseAmount: enrollmentAmount,
+          cycle: String(enrollment.cycle || "monthly"),
+          status: "ACTIVE"
+        };
+        planId = assignedBilling.planId;
+      }
+    }
+
+    // Admin-assigned billing remains authoritative for records without a child-specific
+    // approved fee. Client custom amounts are accepted only when explicitly permitted.
     if (assignedBilling && Number(assignedBilling.baseAmount) > 0 && assignedBilling.status !== "DISABLED") {
       const cycle = String(assignedBilling.cycle || body.cycle || "monthly").toLowerCase();
       const baseAmt = customAmount > 0 && Boolean(body.allowCustomAmount) ? customAmount : Number(assignedBilling.baseAmount);
@@ -85,6 +117,7 @@ export const handler: Handler = async (event) => {
 
     if (!plan && customAmount > 0) {
       plan = {
+        id: planId || "custom_plan",
         name: String(body.planName || (actualRole === "school" ? "Institutional Partner Fee" : actualRole === "parent" ? "Parent Tuition Fee" : "Course Tuition Fee")),
         baseAmount: customAmount,
         durationWeeks: actualRole === "school" ? (String(body.cycle || "").toLowerCase() === "termly" ? 12 : 4) : 4,
@@ -92,21 +125,15 @@ export const handler: Handler = async (event) => {
         role: actualRole === "school" ? "school" : "student",
         active: true
       };
-      planId = planId || "custom_plan";
+      planId = plan.id;
     }
 
-    // If plan was found in config, activate it if the admin has assigned it or if user is paying their assigned plan
-    if (plan && !plan.active) {
-      plan = { ...plan, active: true };
-    }
-
+    if (plan && !plan.active) plan = { ...plan, active: true };
     if (!plan) return json(400, { error: "The selected payment plan or fee is unavailable." });
     if (actualRole === "school" && plan.role !== "school" && !customAmount && !assignedBilling) return json(400, { error: "Please select a school payment plan." });
     if (actualRole !== "school" && plan.role !== "student" && !customAmount && !assignedBilling) return json(400, { error: "Please select a parent/student payment plan." });
     if (actualRole === "parent" && !studentId && !enrollmentRequestId && !customAmount && !assignedBilling) return json(400, { error: "Select the child this parent payment is for." });
 
-
-    if (actualRole === "parent" && studentId) student = await findStudent(studentId, decoded.uid, "parent");
     if (actualRole === "school") {
       const schoolId = String((user as any).schoolId || decoded.uid);
       if (studentId) student = await findStudent(studentId, schoolId, "school");
@@ -125,9 +152,8 @@ export const handler: Handler = async (event) => {
     const schoolId = actualRole === "school" ? String((user as any).schoolId || decoded.uid) : String(student?.schoolId || "").trim();
     const feeRole = actualRole === "school" ? "school" : "parent";
 
-    // IMPORTANT: Paystack itself is configured to pass transaction fees to the customer.
-    // We therefore send ONLY the base amount to Paystack. The fee is previewed here for
-    // transparency, but must never be baked into the gateway amount or it will be charged twice.
+    // Paystack is configured to pass transaction fees to the customer. Only the base
+    // tuition amount is sent to Paystack. The estimated gateway fee is metadata/UI data.
     const chargePreview = calculateCustomerCharge(plan.baseAmount, getFeePolicy(config, feeRole));
     const paymentMethod = String(body.paymentMethod || "card").toLowerCase();
     const channelMap: Record<string, string> = { card: "card", bank_transfer: "bank_transfer", opay: "mobile_money" };
@@ -138,7 +164,8 @@ export const handler: Handler = async (event) => {
     const callbackPath = actualRole === "school" ? "/portal/school/payments" : actualRole === "parent" ? "/portal/parent/payments" : "/portal/student/payments";
 
     const response = await fetch("https://api.paystack.co/transaction/initialize", {
-      method: "POST", headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         email: decoded.email,
         amount: Math.round(plan.baseAmount * 100),
@@ -170,21 +197,7 @@ export const handler: Handler = async (event) => {
     if (!response.ok || !data.status || !data.data?.authorization_url) { console.error("Paystack initialization failed:", data); return json(502, { error: "Unable to initialize payment." }); }
 
     if (enrollmentRequestId) await adminDb.collection("enrollment_requests").doc(enrollmentRequestId).set({ planId, teachingMode, durationWeeks, paymentPlanName: plan.name, paymentBaseAmount: plan.baseAmount, paymentTransactionFee: chargePreview.transactionFee, paymentTotal: chargePreview.totalAmount, paymentFeeStatus: "PAYSTACK_CALCULATED_AT_CHECKOUT", studentId: studentId || null, tutorId: tutorId || null, schoolId: schoolId || null, paymentReference: data.data.reference, paymentStatus: "PENDING", updatedAt: new Date() }, { merge: true });
-    return json(200, {
-      authorizationUrl: data.data.authorization_url,
-      reference: data.data.reference,
-      planId,
-      planName: plan.name,
-      baseAmount: plan.baseAmount,
-      transactionFee: chargePreview.transactionFee,
-      totalAmount: chargePreview.totalAmount,
-      feeIsEstimated: true,
-      feeSource: "Paystack checkout",
-      durationWeeks,
-      teachingMode,
-      studentId: studentId || null,
-      tutorId: tutorId || null
-    });
+    return json(200, { authorizationUrl: data.data.authorization_url, reference: data.data.reference, planId, planName: plan.name, baseAmount: plan.baseAmount, transactionFee: chargePreview.transactionFee, totalAmount: chargePreview.totalAmount, feeIsEstimated: true, feeSource: "Paystack checkout", durationWeeks, teachingMode, studentId: studentId || null, tutorId: tutorId || null });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "STUDENT_OWNER_MISMATCH") return json(403, { error: "That student is not linked to your account." });
