@@ -3,7 +3,7 @@ import { Check, CheckCircle2, Loader2, RotateCcw, Save } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 
-interface Student { id: string; fullName?: string; name?: string; username?: string; plan?: string; track?: string; programName?: string; programTitle?: string; enrolledPrograms?: string[]; subjects?: string[]; currentProgramId?: string; currentProgramName?: string; learningTracks?: Track[]; }
+interface Student { id: string; fullName?: string; name?: string; username?: string; plan?: string; track?: string; programId?: string; programName?: string; programTitle?: string; enrolledPrograms?: string[]; subjects?: string[]; currentProgramId?: string; currentProgramName?: string; learningTracks?: Track[]; }
 interface Track { programId: string; programName: string; seriesName?: string; stageNumber?: number; stageName?: string; progress: number; completed: boolean; status: 'CURRENT' | 'COMPLETED' | 'UPCOMING'; completedAt?: string; }
 interface Program { id: string; title: string; seriesName?: string; stageNumber: number; stageName?: string; lessonsCount?: number; }
 
