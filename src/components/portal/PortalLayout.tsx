@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X,
   Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound,
-  Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards,
+  Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards, Sparkles,
   ExternalLink, Award, Headphones, HelpCircle
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
@@ -96,7 +96,7 @@ const PortalLayout: React.FC = () => {
     const studentDocId = sessionStorage.getItem('studentDocId') || '';
     if (!studentDocId) return;
     void getDoc(doc(db, 'students', studentDocId)).then(snap => {
-      if (snap.exists()) setStudentFeatures((snap.data() as any).featureAccess || {});
+      if (snap.exists()) { const features=(snap.data() as any).featureAccess || {}; setStudentFeatures(features); sessionStorage.setItem('studentEdgeClubEnabled', String(features.edgeClub === true)); }
     }).catch(() => undefined);
   }, [role, location.pathname]);
 
@@ -111,7 +111,8 @@ const PortalLayout: React.FC = () => {
         { name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live lessons & sessions' },
         { name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' },
         { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' },
-        ...(studentFeatures.assessments ? [{ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }] : [])
+        ...(studentFeatures.assessments ? [{ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' }] : []),
+        ...(studentFeatures.edgeClub ? [{ name: 'Edge Club', path: '/portal/student/edge-club', icon: <Sparkles size={18} />, desc: 'Enabled Edge Club workspace' }] : [])
       );
       if (sessionStorage.getItem('studentRegistrationType') === 'individual') {
         items.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
