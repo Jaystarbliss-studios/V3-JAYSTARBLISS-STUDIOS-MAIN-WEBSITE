@@ -1,0 +1,31 @@
+name: Fix approval modal typo
+on:
+  push:
+    branches:
+      - feat/student-schedule-and-portal-controls
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[approval-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/student-schedule-and-portal-controls
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: node scripts/fix-approval-typo.mjs
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/fix-approval-typo.mjs .github/workflows/fix-approval-typo.yml scripts/PORTAL_FIX_TRIGGER.txt
+          git add src/components/admin/StudentEnrollmentApprovalModal.tsx package-lock.json scripts/fix-approval-typo.mjs .github/workflows/fix-approval-typo.yml scripts/PORTAL_FIX_TRIGGER.txt
+          git commit -m "fix: approval modal declaration [approval-fix]"
+          git push origin HEAD:feat/student-schedule-and-portal-controls
