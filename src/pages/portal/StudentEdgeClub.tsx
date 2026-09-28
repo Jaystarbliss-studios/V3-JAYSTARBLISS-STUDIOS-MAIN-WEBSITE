@@ -1,24 +1,18 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
 import EdClubLaunchBanner from '../../components/portal/EdClubLaunchBanner';
 
 /**
- * Compatibility entry kept for older deep links. Ed Club is a banner/launch
- * feature, not a separate student workspace or portal route.
+ * Compatibility entry for an older deep link. Ed Club remains the existing
+ * banner/launch feature; there is no separate club workspace here.
  */
-const StudentEdgeClub: React.FC = () => {
-  const enabled = sessionStorage.getItem('studentEdClubEnabled') === 'true';
-  if (!enabled) return <Navigate to="/portal/student" replace />;
-  return (
-    <div className="max-w-5xl mx-auto py-6">
-      <EdClubLaunchBanner
-        studentName={sessionStorage.getItem('studentName') || sessionStorage.getItem('userName') || 'Student'}
-        studentClass={sessionStorage.getItem('studentClass') || ''}
-        schoolId={sessionStorage.getItem('studentSchoolId') || sessionStorage.getItem('schoolId') || ''}
-        enabled
-      />
-    </div>
-  );
-};
+const StudentEdgeClub: React.FC = () => (
+  <div className="max-w-5xl mx-auto py-6">
+    <EdClubLaunchBanner
+      studentName={sessionStorage.getItem('studentName') || sessionStorage.getItem('userName') || 'Student'}
+      studentClass={sessionStorage.getItem('studentClass') || ''}
+      schoolId={sessionStorage.getItem('studentSchoolId') || sessionStorage.getItem('schoolId') || ''}
+    />
+  </div>
+);
 
 export default StudentEdgeClub;
