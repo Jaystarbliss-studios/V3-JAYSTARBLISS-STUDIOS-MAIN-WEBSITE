@@ -4,7 +4,7 @@ import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { getEffectiveAuth } from '../../utils/impersonation';
 
-interface Child { id: string; name: string; plan?: string; track?: string; programName?: string; programTitle?: string; enrolledPrograms?: string[]; subjects?: string[]; currentProgramId?: string; currentProgramName?: string; learningTracks?: LearningTrack[]; }
+interface Child { id: string; name: string; status?: string; plan?: string; track?: string; programName?: string; programTitle?: string; enrolledPrograms?: string[]; subjects?: string[]; currentProgramId?: string; currentProgramName?: string; learningTracks?: LearningTrack[]; }
 interface LearningTrack { programId?: string; programName?: string; seriesName?: string; stageNumber?: number; stageName?: string; progress?: number; completed?: boolean; status?: string; }
 interface Program { id: string; title: string; seriesName?: string; stageNumber: number; stageName?: string; lessonsCount?: number; }
 
