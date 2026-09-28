@@ -3,10 +3,13 @@ import { db } from '../../lib/firebase';
 import { collection, doc, setDoc, addDoc, updateDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   CheckCircle2, XCircle, Clock, ExternalLink, Award, 
-  Calendar, Phone, Mail, Eye, ChevronDown, Search, Loader2, X
+  Calendar, Phone, Mail, Eye, ChevronDown, Search, Loader2, X,
+  Sparkles, UserCheck
 } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import SEO from '../../components/ui/SEO';
+import { StudentEnrollmentApprovalModal } from '../../components/admin/StudentEnrollmentApprovalModal';
+import { resolveRealName } from '../../utils/userNames';
 
 const AdminApprovals: React.FC = () => {
   const { toast } = useToast();
@@ -19,6 +22,7 @@ const AdminApprovals: React.FC = () => {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [selectedTutorDetail, setSelectedTutorDetail] = useState<any | null>(null);
   const [selectedSubjectDetail, setSelectedSubjectDetail] = useState<any | null>(null);
+  const [selectedRequestForModal, setSelectedRequestForModal] = useState<any | null>(null);
 
   useEffect(() => {
     const qStudents = query(collection(db, 'student_requests'), where('status', '==', 'pending'));
@@ -177,13 +181,16 @@ const AdminApprovals: React.FC = () => {
   };
 
   const approveTutor = async (req: any) => {
-    if (!window.confirm(`Approve tutor ${req.name} and grant instructor permissions?`)) return;
+    const tutorRealName = resolveRealName(req, req.email);
+    if (!window.confirm(`Approve tutor ${tutorRealName} and grant instructor permissions?`)) return;
     setLoadingId(req.id);
     try {
       const subjects = Array.isArray(req.subjects) ? req.subjects : (req.subjects || '').split(',').map((s: string) => s.trim()).filter(Boolean);
       
       await setDoc(doc(db, 'tutors', req.id), {
-        name: req.name,
+        name: tutorRealName,
+        fullName: tutorRealName,
+        displayName: tutorRealName,
         email: req.email?.toLowerCase(),
         phone: req.phone || '',
         location: req.location || '',
@@ -198,9 +205,10 @@ const AdminApprovals: React.FC = () => {
         role: 'tutor',
         status: 'ACTIVE',
         createdAt: serverTimestamp()
-      });
+      }, { merge: true });
 
       await updateDoc(doc(db, 'tutor_applications', req.id), {
+        name: tutorRealName,
         status: 'approved',
         approvedAt: serverTimestamp()
       });
@@ -209,7 +217,7 @@ const AdminApprovals: React.FC = () => {
         setSelectedTutorDetail(null);
       }
 
-      toast.success(`Tutor ${req.name} approved into faculty!`);
+      toast.success(`Tutor ${tutorRealName} approved into faculty!`);
     } catch (e: any) {
       toast.error('Error: ' + e.message);
     } finally {
@@ -391,7 +399,9 @@ const AdminApprovals: React.FC = () => {
               {activeTab === 'tutors' && filteredTutors.map(req => (
                 <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-950/40 transition-colors">
                   <td className="py-3 px-3.5 max-w-[200px]">
-                    <div className="font-bold text-slate-900 dark:text-white truncate">{req.name}</div>
+                    <div className="font-bold text-slate-900 dark:text-white truncate">
+                      {resolveRealName(req, req.email)}
+                    </div>
                     <div className="text-[11px] text-slate-400 truncate flex items-center gap-1 mt-0.5">
                       <Mail size={11} /> {req.email}
                     </div>
@@ -495,11 +505,11 @@ const AdminApprovals: React.FC = () => {
                     <div className="flex items-center justify-end gap-1.5">
                       <button 
                         type="button" 
-                        onClick={() => void approveStudent(req)} 
+                        onClick={() => setSelectedRequestForModal(req)} 
                         disabled={loadingId === req.id} 
-                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-50 inline-flex items-center gap-1"
+                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-50 inline-flex items-center gap-1 shadow-sm cursor-pointer"
                       >
-                        {loadingId === req.id ? <Loader2 className="animate-spin" size={11} /> : <CheckCircle2 size={11} />} Approve & Code
+                        <UserCheck size={11} /> Approve &amp; Configure Access
                       </button>
                       <button 
                         type="button" 
@@ -533,11 +543,11 @@ const AdminApprovals: React.FC = () => {
                     <div className="flex items-center justify-end gap-1.5">
                       <button 
                         type="button" 
-                        onClick={() => void approveEnrollment(req)} 
+                        onClick={() => setSelectedRequestForModal(req)} 
                         disabled={loadingId === req.id} 
-                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1"
+                        className="min-h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
                       >
-                        {loadingId === req.id ? <Loader2 className="animate-spin" size={11} /> : <CheckCircle2 size={11} />} Approve Access
+                        <UserCheck size={11} /> Approve &amp; Configure Access
                       </button>
                       <button 
                         type="button" 
@@ -668,6 +678,18 @@ const AdminApprovals: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Student Enrollment & Access Approval Modal */}
+      {selectedRequestForModal && (
+        <StudentEnrollmentApprovalModal
+          request={selectedRequestForModal}
+          isOpen={Boolean(selectedRequestForModal)}
+          onClose={() => setSelectedRequestForModal(null)}
+          onSuccess={() => {
+            setSelectedRequestForModal(null);
+          }}
+        />
       )}
     </div>
   );

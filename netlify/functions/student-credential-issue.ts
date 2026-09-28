@@ -78,6 +78,9 @@ export const handler: Handler = async event => {
     const now = new Date();
     await studentRef.update({ 
       username,
+      accessCode,
+      passcode: accessCode,
+      code: accessCode,
       accessCodeHash, 
       portalAccessEnabled: true, 
       accountStatus: 'ACTIVE', 
@@ -91,6 +94,9 @@ export const handler: Handler = async event => {
       if (authUser && authUser.disabled) await adminAuth.updateUser(uid, { disabled: false }).catch(() => null);
       await adminDb.collection('users').doc(uid).set({ 
         username,
+        accessCode,
+        passcode: accessCode,
+        code: accessCode,
         accessCodeHash,
         portalAccessEnabled: true, 
         accountStatus: 'ACTIVE', 

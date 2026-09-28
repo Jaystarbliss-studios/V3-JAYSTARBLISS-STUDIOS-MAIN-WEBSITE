@@ -5,6 +5,7 @@ import { Shield, User, Download, Plus, X, KeyRound, Copy, Check, Search, Filter,
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { startImpersonation } from '../../utils/impersonation';
+import { resolveRealName } from '../../utils/userNames';
 
 const ROLE_OPTIONS = [
   ['USER', 'User (Default)'],
@@ -435,7 +436,7 @@ const AdminUsers: React.FC = () => {
                       </div>
                       <div className="min-w-0">
                         <div className="font-bold text-slate-900 dark:text-white truncate">
-                          {user.name || user.displayName || 'Cadet / User'}
+                          {resolveRealName(user, user.email, 'Registered User')}
                         </div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                           {user.email || 'No email registered'}

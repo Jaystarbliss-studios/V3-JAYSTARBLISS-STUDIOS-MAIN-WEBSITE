@@ -5,7 +5,7 @@ import {
   BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X,
   Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound,
   Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards,
-  ExternalLink, Award
+  ExternalLink, Award, Headphones, HelpCircle
 } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -131,6 +131,7 @@ const PortalLayout: React.FC = () => {
         { name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'School fees & payments' }
       );
     }
+    items.push({ name: 'Help & Support', path: `/portal/${role}/support`, icon: <Headphones size={18} />, desc: 'Help desk & live support chat' });
     items.push({ name: 'Settings', path: `/portal/${role}/settings`, icon: <SlidersHorizontal size={18} />, desc: 'Account preferences' });
     return items;
   })();
@@ -162,15 +163,6 @@ const PortalLayout: React.FC = () => {
     <div className="h-screen w-full bg-[#F8FAFC] dark:bg-[#243246] text-slate-900 dark:text-slate-100 flex flex-col md:flex-row overflow-hidden font-sans">
       <SEO title={`${roleTitle} Portal | Jaystarbliss Studios`} description={`Jaystarbliss Studios ${roleTitle} portal.`} noindex />
 
-      {impersonation?.isMasquerading && (
-        <div className="shrink-0 bg-brand-red text-white border-b border-red-800/50 px-3 py-2">
-          <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 text-[11px] font-bold">
-            <span className="truncate">Admin impersonation mode active · Viewing {impersonation.targetUser?.name || impersonation.targetUser?.email || 'portal user'} ({String(impersonation.targetRole || role).toLowerCase()})</span>
-            <button type="button" onClick={() => stopImpersonation(navigate)} className="shrink-0 rounded-lg bg-white text-brand-red px-3 py-1.5 font-black hover:bg-slate-100 transition-colors">Exit session</button>
-          </div>
-        </div>
-      )}
-
       <div className="md:hidden bg-[#182335] text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30 border-b border-white/10 shrink-0">
         <Link to="/" className="flex items-center gap-2 min-w-0">
           <JaystarblissIcon className="w-7 h-7 shrink-0" />
@@ -178,6 +170,9 @@ const PortalLayout: React.FC = () => {
           <span className="text-[10px] uppercase font-bold bg-brand-red px-2 py-0.5 rounded text-white">{role}</span>
         </Link>
         <div className="flex items-center gap-2 shrink-0">
+          <Link to={`/portal/${role}/support`} className="p-2 rounded-xl bg-white/10 text-slate-300 hover:text-white" aria-label="Support & Help">
+            <HelpCircle size={16} />
+          </Link>
           <NotificationBell role={role} />
           <button type="button" onClick={toggleTheme} className="p-2 rounded-xl bg-white/10 text-slate-300" aria-label="Toggle theme">
             {theme === 'dark' ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} />}
@@ -263,6 +258,16 @@ const PortalLayout: React.FC = () => {
         <header className="hidden md:flex items-center justify-between px-6 py-3.5 bg-white/85 dark:bg-[#2B394D]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-20 shrink-0">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">{roleTitle} Workspace</h2>
           <div className="flex items-center gap-3">
+            <Tooltip content="Customer Support & Help Desk" placement="bottom">
+              <Link
+                to={`/portal/${role}/support`}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+                aria-label="Customer Support"
+              >
+                <HelpCircle size={18} />
+                <span className="hidden lg:inline text-xs font-bold text-slate-600 dark:text-slate-300">Support</span>
+              </Link>
+            </Tooltip>
             <NotificationBell role={role} />
             <div className="relative" ref={profileRef}>
               <button type="button" onClick={() => setShowProfileMenu(v => !v)} className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="User profile menu">

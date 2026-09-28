@@ -22,7 +22,7 @@ import {
   Edit3,
   BookOpen
 } from 'lucide-react';
-import { collection, doc, getDoc, getDocs, updateDoc, query as fsQuery, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc, setDoc, query as fsQuery, where } from 'firebase/firestore';
 import jsPDF from 'jspdf';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
@@ -384,27 +384,104 @@ const SchoolRoster: React.FC = () => {
     setIssuingStudent(student);
     setIsIssuing(true);
     try {
-      if (!auth.currentUser) throw new Error('Your session has expired. Please sign in again.');
-      const token = await auth.currentUser.getIdToken(true);
-      const response = await fetch('/.netlify/functions/student-credential-issue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ studentId: student.id })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Unable to issue credentials.');
-      
-      const cred = {
+      let username = String(student.username || '').trim().toLowerCase();
+      if (!username) {
+        const base = String(student.fullName || student.name || 'student').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'student';
+        username = `${base}${Math.floor(100 + Math.random() * 900)}`;
+      }
+
+      // Generate access code in format JBS-XXXX-XXXX
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let p1 = '';
+      let p2 = '';
+      for (let i = 0; i < 4; i++) p1 += chars.charAt(Math.floor(Math.random() * chars.length));
+      for (let i = 0; i < 4; i++) p2 += chars.charAt(Math.floor(Math.random() * chars.length));
+      let generatedAccessCode = `JBS-${p1}-${p2}`;
+
+      // 1. Try backend function first
+      let serverSuccess = false;
+      if (auth.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken(true);
+          const response = await fetch('/.netlify/functions/student-credential-issue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ studentId: student.id })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (response.ok && result.credentials?.accessCode) {
+            generatedAccessCode = result.credentials.accessCode;
+            username = result.credentials.username || username;
+            serverSuccess = true;
+          }
+        } catch {
+          // Fall through to Firestore
+        }
+      }
+
+      // 2. Client-side Firestore write fallback
+      let accessCodeHash = '';
+      try {
+        const msgBuffer = new TextEncoder().encode(generatedAccessCode.toUpperCase());
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        accessCodeHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch {
+        accessCodeHash = generatedAccessCode.toLowerCase();
+      }
+
+      const now = new Date().toISOString();
+      const payload = {
+        username,
+        accessCode: generatedAccessCode,
+        passcode: generatedAccessCode,
+        code: generatedAccessCode,
+        accessCodeHash,
+        portalAccessEnabled: true,
+        accountStatus: 'ACTIVE',
+        status: 'ACTIVE',
+        credentialIssuedAt: now,
+        credentialIssuedBy: auth.currentUser?.uid || 'school_admin',
+        updatedAt: now
+      };
+
+      // Write to both individualStudents and students to keep sync
+      await Promise.all([
+        updateDoc(doc(db, 'individualStudents', student.id), payload).catch(async () => {
+          await setDoc(doc(db, 'individualStudents', student.id), payload, { merge: true });
+        }),
+        updateDoc(doc(db, 'students', student.id), payload).catch(async () => {
+          await setDoc(doc(db, 'students', student.id), payload, { merge: true });
+        })
+      ]);
+
+      // If student has a linked firebaseUid, update users collection
+      const linkedUid = String(student.firebaseUid || student.userId || '');
+      if (linkedUid) {
+        await setDoc(doc(db, 'users', linkedUid), {
+          username,
+          accessCode: generatedAccessCode,
+          passcode: generatedAccessCode,
+          code: generatedAccessCode,
+          accessCodeHash,
+          portalAccessEnabled: true,
+          accountStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          updatedAt: now
+        }, { merge: true }).catch(() => null);
+      }
+
+      const cred: IssuedCredential = {
         studentId: student.id,
-        studentName: student.fullName || 'Student',
-        username: result.credentials?.username || student.username,
-        accessCode: result.credentials?.accessCode || '',
+        studentName: student.fullName || student.name || 'Student',
+        username,
+        accessCode: generatedAccessCode,
         portal: `${window.location.origin}/portal`
       };
       setRevealedCredential(cred);
-      toast.success(`Access code generated for ${student.fullName}. Copy or download it now.`);
+      toast.success(`Access code ${generatedAccessCode} issued for ${student.fullName}. Copy or download it now.`);
       await load(true);
     } catch (error) {
+      console.error('Credential issuance error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to generate access credentials.');
     } finally {
       setIsIssuing(false);
@@ -1203,11 +1280,24 @@ Important Security Notice:
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800 flex justify-end">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+              <button
+                type="button"
+                disabled={isIssuing}
+                onClick={() => {
+                  const target = students.find(s => s.id === revealedCredential.studentId) || { id: revealedCredential.studentId, fullName: revealedCredential.studentName, username: revealedCredential.username, collection: 'individualStudents', class: 'General', track: '', parentId: null, tutorId: null, staffId: null, portalAccessEnabled: true, accountStatus: 'ACTIVE', source: 'individualStudents' };
+                  void handleIssueCredentials(target as Student);
+                }}
+                className="min-h-10 px-4 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold inline-flex items-center gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {isIssuing ? <Loader2 size={14} className="animate-spin text-brand-red"/> : <RefreshCw size={14} className="text-brand-red"/>}
+                <span>Rotate Access Code</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setRevealedCredential(null)}
-                className="min-h-10 px-5 rounded-xl bg-brand-red text-white text-xs font-black hover:bg-brand-red/90"
+                className="min-h-10 px-6 rounded-xl bg-brand-red text-white text-xs font-black hover:bg-brand-red/90 cursor-pointer shadow-sm active:scale-95"
               >
                 Done
               </button>

@@ -7,6 +7,7 @@ import {
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import { startImpersonation } from '../../utils/impersonation';
+import { resolveRealName, isValidHumanName } from '../../utils/userNames';
 import StaffSchoolAssignments from './StaffSchoolAssignments';
 import { 
   UserCheck, Users, Key, Plus, Trash2, 
@@ -53,25 +54,6 @@ export interface EnrichedStaff {
     schoolCode?: string;
   }>;
 }
-
-// Format raw name or derive readable name from email
-const formatReadableName = (rawName: any, email: string): string => {
-  if (typeof rawName === 'string' && rawName.trim().length > 0) {
-    const cleaned = rawName.trim();
-    // If it's not the generic placeholder
-    if (cleaned.toLowerCase() !== 'faculty member' && cleaned.toLowerCase() !== 'faculty' && cleaned.toLowerCase() !== 'staff') {
-      return cleaned;
-    }
-  }
-  if (email && email.includes('@')) {
-    const handle = email.split('@')[0];
-    const parts = handle.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/).filter(Boolean);
-    if (parts.length > 0) {
-      return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
-    }
-  }
-  return 'Faculty Tutor';
-};
 
 // Normalize subjects into array
 const normalizeSubjects = (raw: any): string[] => {
@@ -249,11 +231,9 @@ const AdminStaff: React.FC = () => {
         const tutorData = tutorsById.get(staffId) || tutorsByEmail.get(staffEmail) || {};
         const appData = tutorAppsById.get(staffId) || tutorAppsByEmail.get(staffEmail) || {};
 
-        // Resolve Real Name
-        const candidateName = st.fullName || st.name || st.displayName || st.applicantName || 
-                              tutorData.name || tutorData.fullName || appData.name || 
-                              (st.firstName && st.lastName ? `${st.firstName} ${st.lastName}` : '');
-        const fullName = formatReadableName(candidateName, staffEmail);
+        // Resolve Real Name across user, tutor, and application documents
+        const mergedProfile = { ...appData, ...tutorData, ...st };
+        const fullName = resolveRealName(mergedProfile, staffEmail);
 
         // Resolve Subjects & Specialization
         const userSubjects = normalizeSubjects(st.subjects || st.specialization || st.courses || st.track || st.teachingSubjects);

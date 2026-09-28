@@ -134,6 +134,17 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
       const result = await billingGet<any>(endpoint);
       const currentUser = auth.currentUser;
 
+      // Always fetch live academy programs from Firestore
+      try {
+        const progsSnap = await getDocs(collection(db, 'programs')).catch(() => ({ docs: [] } as any));
+        const liveProgs = (progsSnap.docs || []).map((d: any) => ({ id: d.id, ...d.data() }));
+        if (liveProgs.length > 0) {
+          result.programs = liveProgs;
+        }
+      } catch (pErr) {
+        console.warn('Live programs lookup notice:', pErr);
+      }
+
       // Direct Firestore School Fallback if role is school to guarantee live, fresh custom fees
       if (role === 'school') {
         let directSchoolDoc: any = null;
@@ -212,6 +223,30 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         }
       }
 
+      // If parent and students list is empty, lookup children from Firestore
+      if (role === 'parent' && currentUser) {
+        const pEmail = (currentUser.email || '').toLowerCase();
+        const pUid = currentUser.uid;
+        try {
+          const [indivSnap, studSnap] = await Promise.all([
+            getDocs(query(collection(db, 'individualStudents'), limit(150))).catch(() => ({ docs: [] } as any)),
+            getDocs(query(collection(db, 'students'), limit(150))).catch(() => ({ docs: [] } as any))
+          ]);
+          const childMap = new Map<string, any>();
+          (result.students || []).forEach((s: any) => childMap.set(s.id, s));
+          [...indivSnap.docs, ...studSnap.docs].forEach(d => {
+            const data = d.data();
+            const matches = data.parentId === pUid || data.userId === pUid || (pEmail && String(data.parentEmail || '').toLowerCase() === pEmail);
+            if (matches && !childMap.has(d.id)) {
+              childMap.set(d.id, { id: d.id, ...data });
+            }
+          });
+          result.students = Array.from(childMap.values());
+        } catch (cErr) {
+          console.warn('Parent children lookup fallback notice:', cErr);
+        }
+      }
+
       setData({ ...result, payments: mergedPayments });
       if (result.schoolBilling?.mode) {
         setSelectedMode(result.schoolBilling.mode);
@@ -243,11 +278,31 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
     }).catch(error => toast.error(error instanceof Error ? error.message : 'Payment verification failed.')); 
   }, []);
 
-  // Filter plans based on role
+  // Filter plans dynamically based on database programs and configured fee policies
   const standardPlans = useMemo(() => {
-    return Object.values((data.config?.plans || {}) as Record<string, Plan>)
+    const customConfigPlans = Object.values((data.config?.plans || {}) as Record<string, Plan>)
       .filter(p => p?.active && ((role === 'school' && p.role === 'school') || (role !== 'school' && p.role !== 'school')));
-  }, [data.config, role]);
+    
+    if (customConfigPlans.length > 0) return customConfigPlans;
+
+    const livePrograms: any[] = data.programs || [];
+    return livePrograms
+      .filter((p: any) => p.status !== 'DRAFT' && p.status !== 'ARCHIVED')
+      .map((p: any) => ({
+        id: p.id,
+        name: p.title || p.name || 'Academy Course Track',
+        baseAmount: Number(p.fee || p.price || p.baseAmount || p.tuition || 0),
+        durationWeeks: Number(p.durationWeeks || (String(p.duration || '').toLowerCase().includes('month') ? 4 : 4)),
+        teachingModes: Array.isArray(p.teachingModes) && p.teachingModes.length ? p.teachingModes : ['Interactive Live Session', 'Personalized Mentorship'],
+        description: p.description || p.subtitle || p.curriculumSummary || (p.seriesName ? `Series: ${p.seriesName} • Stage ${p.stageNumber || 1}` : 'Curriculum Track'),
+        active: true,
+        role: 'student',
+        category: p.categoryId || p.category || 'Technology',
+        seriesName: p.seriesName,
+        stageName: p.stageName,
+        stageNumber: p.stageNumber
+      }));
+  }, [data.config, data.programs, role]);
 
   const feePolicy = role === 'school' ? data.config?.schoolFeePolicy : data.config?.parentFeePolicy;
 
@@ -974,68 +1029,223 @@ const BillingCenter: React.FC<{ role: BillingCenterRole }> = ({ role }) => {
         </div>
       )}
 
-      {/* Parent / Student Plan Selection */}
+      {/* Parent / Student Plan & Child Tuition Settlement Section */}
       {role !== 'staff' && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
-          <div className="mb-5">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">
-              {role === 'parent' ? 'Select Advance Payment Plan' : 'Choose a Payment Plan'}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {role === 'parent' 
-                ? 'Parents pay upfront advance tuition (Monthly, Quarterly, or Yearly) with transparent fees.' 
-                : 'Select your preferred curriculum track to continue.'}
-            </p>
-          </div>
+        <div className="space-y-6">
+          {/* Linked Children Tuition Cards for Parents */}
+          {role === 'parent' && data.students && data.students.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
+              <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <UserCheck className="text-brand-red" size={20} />
+                    <span>Linked Children &amp; Tuition Accounts ({data.students.length})</span>
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Settle tuition directly for your linked students or fund their ongoing learning cycles.
+                  </p>
+                </div>
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {standardPlans.map(plan => {
-              const fee = feeFromBase(plan.baseAmount, feePolicy);
-              return (
-                <article key={plan.id} className="rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between hover:border-brand-red/40 transition-all">
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-black text-slate-900 dark:text-white text-base">{plan.name}</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{plan.description}</p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:text-slate-300">
-                        {plan.durationWeeks} weeks
-                      </span>
-                    </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {data.students.map((child: any) => {
+                  const childName = child.fullName || child.studentName || child.name || 'Student';
+                  const childPlan = child.plan || child.track || child.programName || 'Academy Track';
+                  const childClass = child.class || child.grade || 'Standard Track';
+                  const matchedPlan = standardPlans.find(p => 
+                    p.name.toLowerCase() === childPlan.toLowerCase() || 
+                    childPlan.toLowerCase().includes(p.name.toLowerCase())
+                  ) || standardPlans[0];
+                  const childFee = Number(child.tuitionFee || child.fee || matchedPlan?.baseAmount || 35000);
+                  const effectivePlan = matchedPlan ? { ...matchedPlan, baseAmount: childFee } : { id: 'parent_custom_tuition', name: childPlan, baseAmount: childFee, durationWeeks: 4, teachingModes: ['Standard Delivery'], description: 'Assigned Academy Tuition', active: true, role: 'parent' };
 
-                    <div className="mt-5 grid grid-cols-3 gap-2 text-xs p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl">
+                  return (
+                    <article key={child.id} className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 p-5 flex flex-col justify-between hover:border-brand-red/40 transition-all shadow-xs">
                       <div>
-                        <span className="block text-slate-400 text-[10px] font-bold uppercase">Base</span>
-                        <strong className="font-mono text-slate-900 dark:text-white">{formatNaira(plan.baseAmount)}</strong>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-brand-red text-white font-black text-xs flex items-center justify-center shrink-0">
+                              {childName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-black text-sm text-slate-900 dark:text-white truncate">{childName}</h3>
+                              <p className="text-[11px] text-slate-500 truncate">@{child.username || 'student'}</p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                            {child.status || 'Active'}
+                          </span>
+                        </div>
+
+                        <div className="mt-3.5 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>Track:</span>
+                            <strong className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[150px]">{childPlan}</strong>
+                          </div>
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span>Cohort:</span>
+                            <strong className="text-slate-800 dark:text-slate-200">{childClass}</strong>
+                          </div>
+                          {child.tutorName && (
+                            <div className="flex items-center justify-between text-slate-500">
+                              <span>Mentor:</span>
+                              <strong className="text-slate-800 dark:text-slate-200 truncate max-w-[150px]">{child.tutorName}</strong>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-slate-500 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                            <span>Tuition Fee:</span>
+                            <strong className="text-brand-red font-mono font-black">{formatNaira(childFee)}</strong>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="block text-slate-400 text-[10px] font-bold uppercase">Est. fee</span>
-                        <strong className="font-mono text-slate-900 dark:text-white">{formatNaira(fee.transactionFee)}</strong>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 text-[10px] font-bold uppercase">Est. total</span>
-                        <strong className="font-mono text-brand-red font-black">{formatNaira(fee.totalAmount)}</strong>
-                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isMasqueradingActive()}
+                        onClick={() => startCheckout({ 
+                          studentId: child.id, 
+                          plan: effectivePlan,
+                          planName: childPlan 
+                        })}
+                        className={`mt-4 min-h-10 w-full rounded-xl px-4 text-xs font-black shadow-xs transition-all inline-flex items-center justify-center gap-1.5 ${
+                          isMasqueradingActive()
+                            ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                            : 'bg-brand-red hover:bg-red-700 text-white cursor-pointer'
+                        }`}
+                      >
+                        <CreditCard size={13} />
+                        <span>{isMasqueradingActive() ? 'Disabled in Impersonation' : `Settle Tuition (${formatNaira(childFee)})`}</span>
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Pending Enrollment Requests for Parents */}
+          {role === 'parent' && data.enrollments && data.enrollments.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">
+                    Pending Enrollment Requests ({data.enrollments.length})
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Settle tuition online for children currently awaiting admissions review.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                {data.enrollments.map((req: any) => (
+                  <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">{req.studentName || 'Child'}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{req.plan || 'Learning Track'} • {req.studentAge || 'Age not specified'}</p>
                     </div>
+                    <button
+                      type="button"
+                      disabled={isMasqueradingActive()}
+                      onClick={() => startCheckout({ 
+                        plan: standardPlans.find(p => p.name === req.plan) || standardPlans[0],
+                        planName: req.plan 
+                      })}
+                      className="px-4 py-2 rounded-xl bg-brand-red hover:bg-red-700 text-white text-xs font-bold transition-all shrink-0"
+                    >
+                      Pay for {req.studentName ? req.studentName.split(' ')[0] : 'Child'}
+                    </button>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                  <button 
-                    type="button" 
-                    disabled={isMasqueradingActive()}
-                    onClick={() => startCheckout({ plan })} 
-                    className={`mt-5 min-h-11 w-full rounded-xl px-4 text-xs font-black shadow-sm transition-all ${
-                      isMasqueradingActive()
-                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-                        : 'bg-brand-red hover:bg-red-700 text-white cursor-pointer'
-                    }`}
-                  >
-                    {isMasqueradingActive() ? `Payment Disabled in Impersonation Mode` : `Continue to Payment (${formatNaira(plan.baseAmount)})`}
-                  </button>
-                </article>
-              );
-            })}
-          </div>
+          {/* Dynamic Academy Learning Tracks from Database */}
+          {standardPlans.length > 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-sm">
+              <div className="mb-5">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                  {role === 'parent' ? 'Published Academy Learning Tracks & Programs' : 'Available Learning Programs'}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {role === 'parent'
+                    ? 'Active curriculum tracks and technology programs configured directly in the academy database.'
+                    : 'Select your enrolled curriculum track to proceed with tuition settlement.'}
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {standardPlans.map(plan => {
+                  const hasFee = plan.baseAmount > 0;
+                  const fee = hasFee ? feeFromBase(plan.baseAmount, feePolicy) : null;
+                  return (
+                    <article key={plan.id} className="rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between hover:border-brand-red/40 transition-all">
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black text-slate-900 dark:text-white text-base">{plan.name}</h3>
+                            </div>
+                            {plan.description && (
+                              <p className="mt-1 text-xs leading-5 text-slate-500">{plan.description}</p>
+                            )}
+                          </div>
+                          <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:text-slate-300 shrink-0">
+                            {plan.durationWeeks} weeks
+                          </span>
+                        </div>
+
+                        {hasFee && fee && (
+                          <div className="mt-5 grid grid-cols-3 gap-2 text-xs p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl">
+                            <div>
+                              <span className="block text-slate-400 text-[10px] font-bold uppercase">Base</span>
+                              <strong className="font-mono text-slate-900 dark:text-white">{formatNaira(plan.baseAmount)}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-slate-400 text-[10px] font-bold uppercase">Est. fee</span>
+                              <strong className="font-mono text-slate-900 dark:text-white">{formatNaira(fee.transactionFee)}</strong>
+                            </div>
+                            <div>
+                              <span className="block text-slate-400 text-[10px] font-bold uppercase">Est. total</span>
+                              <strong className="font-mono text-brand-red font-black">{formatNaira(fee.totalAmount)}</strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <button 
+                        type="button" 
+                        disabled={isMasqueradingActive()}
+                        onClick={() => startCheckout({ plan })} 
+                        className={`mt-5 min-h-11 w-full rounded-xl px-4 text-xs font-black shadow-sm transition-all ${
+                          isMasqueradingActive()
+                            ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                            : 'bg-brand-red hover:bg-red-700 text-white cursor-pointer'
+                        }`}
+                      >
+                        {isMasqueradingActive()
+                          ? `Payment Disabled in Impersonation Mode`
+                          : hasFee
+                            ? `Continue to Payment (${formatNaira(plan.baseAmount)})`
+                            : `Select & Proceed to Checkout`}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            role === 'parent' && (!data.students || data.students.length === 0) && (
+              <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center space-y-2 shadow-xs">
+                <CreditCard size={32} className="mx-auto text-slate-400" />
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">No active tuition plans or linked children</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Once your child's enrollment is registered and approved by the admissions desk, customized tuition and payment schedules will appear here.
+                </p>
+              </div>
+            )
+          )}
         </div>
       )}
 

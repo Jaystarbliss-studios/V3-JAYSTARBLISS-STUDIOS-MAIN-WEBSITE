@@ -9,7 +9,8 @@ import {
   Briefcase, FolderOpen, Gamepad2, FileText, 
   Bell, Activity, Search, ChevronsUpDown,
   ExternalLink, CalendarDays, Library, ShieldCheck,
-  SlidersHorizontal, Trophy, Radio, GraduationCap, Award
+  SlidersHorizontal, Trophy, Radio, GraduationCap, Award,
+  HelpCircle, Headphones
 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -114,6 +115,7 @@ const AdminLayout: React.FC = () => {
     {
       sectionTitle: "System & Management",
       items: [
+        { name: "Support Center", href: "/admin/support", icon: Headphones, desc: "Support inquiries, chat & contacts" },
         { name: "Notifications", href: "/admin/notifications", icon: Bell, desc: "Push broadcasts & alerts" },
         { name: "Users & RBAC", href: "/admin/users", icon: ShieldCheck, desc: "User accounts & role permissions" },
         { name: "Settings & Cloud", href: "/admin/settings", icon: SlidersHorizontal, desc: "Cloudinary & system configuration" },
@@ -510,6 +512,17 @@ const AdminLayout: React.FC = () => {
               >
                 <Search size={17} />
               </button>
+            </Tooltip>
+
+            {/* Help & Support Button */}
+            <Tooltip content="Help & Support Desk" placement="bottom">
+              <Link
+                to="/admin/support"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center gap-1"
+                aria-label="Support Desk"
+              >
+                <HelpCircle size={17} />
+              </Link>
             </Tooltip>
 
             {/* Theme Toggle */}

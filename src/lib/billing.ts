@@ -18,27 +18,25 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   schoolFeePolicy: { ...defaultFeePolicy },
   withdrawalFeePolicy: { ...defaultWithdrawalFeePolicy },
   minimumWithdrawalAmount: 10000,
-  plans: {
-    plan_weekend: { id: 'plan_weekend', name: 'Weekend Coding & Tech Track', role: 'student', baseAmount: 45000, durationWeeks: 4, teachingModes: ['Weekend group class', 'Hybrid support'], description: 'Structured weekend coding, software engineering and project-based learning.', active: true },
-    plan_mentorship: { id: 'plan_mentorship', name: '1-on-1 Intensive Mentorship', role: 'student', baseAmount: 120000, durationWeeks: 4, teachingModes: ['1-on-1 intensive', 'Private scheduled sessions'], description: 'Dedicated mentor support with a personalised 4-week learning cycle.', active: true },
-    plan_robotics: { id: 'plan_robotics', name: 'Smart Robotics & IoT Hardware Lab', role: 'student', baseAmount: 85000, durationWeeks: 4, teachingModes: ['Hands-on lab', 'Hybrid robotics lab'], description: 'Robotics, electronics and IoT practical laboratory learning.', active: true },
-    school_standard: { id: 'school_standard', name: 'Institutional Technology Partner', role: 'school', baseAmount: 350000, durationWeeks: 12, teachingModes: ['On-site school delivery', 'Hybrid school delivery'], description: 'Institutional coding curriculum and tutor dispatch for partner schools.', active: true },
-    school_cbt: { id: 'school_cbt', name: 'CBT Exam Portal & Lab Suite', role: 'school', baseAmount: 600000, durationWeeks: 52, teachingModes: ['School laboratory', 'Hybrid CBT programme'], description: 'School-wide CBT, laboratory and teacher enablement suite.', active: true }
-  }
+  plans: {}
 };
 
 const mergeClientConfig = (raw: Record<string, any> | undefined): PaymentConfig => {
   const value = raw || {};
-  const plans = { ...DEFAULT_PAYMENT_CONFIG.plans };
+  const plans: Record<string, PaymentPlan> = {};
   Object.entries(value.plans || {}).forEach(([id, plan]) => {
     if (plan && typeof plan === 'object') {
       plans[id] = {
-        ...plans[id],
-        ...(plan as any),
         id,
+        name: (plan as any).name || (plan as any).title || 'Tuition Plan',
+        role: (plan as any).role || 'student',
+        baseAmount: Number((plan as any).baseAmount || (plan as any).fee || (plan as any).price || 0),
+        durationWeeks: Number((plan as any).durationWeeks || 4),
         teachingModes: Array.isArray((plan as any).teachingModes)
           ? (plan as any).teachingModes.filter((item: unknown): item is string => typeof item === 'string')
-          : (plans[id]?.teachingModes || [])
+          : ['Interactive Live Session', 'Personalized Mentorship'],
+        description: (plan as any).description || '',
+        active: (plan as any).active !== false
       } as PaymentPlan;
     }
   });
@@ -231,21 +229,42 @@ export const billingGet = async <T>(path: string): Promise<T> => {
 
       // 3. Parent Role Handler
       if (effectiveRole === 'parent') {
-        const [paymentsSnap, enrollmentsSnap, studentsSnap, notifSnap] = await Promise.all([
-          getDocs(query(collection(db, 'payments'), limit(100))).catch(() => ({ docs: [] } as any)),
+        const userEmail = (user.email || '').toLowerCase();
+        const [paymentsSnap, enrollmentsSnap, studentsSnap, indivStudentsSnap, programsSnap, notifSnap] = await Promise.all([
+          getDocs(query(collection(db, 'payments'), limit(150))).catch(() => ({ docs: [] } as any)),
           getDocs(query(collection(db, 'enrollment_requests'), limit(50))).catch(() => ({ docs: [] } as any)),
-          getDocs(query(collection(db, 'students'), limit(50))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'students'), limit(100))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'individualStudents'), limit(100))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'programs'), limit(50))).catch(() => ({ docs: [] } as any)),
           getDocs(query(collection(db, 'notifications'), limit(25))).catch(() => ({ docs: [] } as any))
         ]);
 
-        const parentPayments = paymentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((p: any) => String(p.parentId || p.userId || '') === user.uid);
-        const parentStudents = studentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((s: any) => String(s.parentId || '') === user.uid);
+        const parentPayments = paymentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((p: any) => 
+          String(p.parentId || '') === user.uid || 
+          String(p.userId || '') === user.uid ||
+          (userEmail && String(p.parentEmail || p.email || '').toLowerCase() === userEmail)
+        );
+
+        const childrenMap = new Map<string, any>();
+        [...indivStudentsSnap.docs, ...studentsSnap.docs].forEach((d: any) => {
+          const data = d.data();
+          const matches = String(data.parentId || '') === user.uid || 
+            String(data.userId || '') === user.uid ||
+            (userEmail && String(data.parentEmail || '').toLowerCase() === userEmail);
+          if (matches) {
+            childrenMap.set(d.id, { id: d.id, ...data });
+          }
+        });
+
+        const parentStudents = Array.from(childrenMap.values());
+        const publishedPrograms = programsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
         return {
           role: 'parent',
           config,
           parentBilling: userDocData?.billing || null,
           payments: parentPayments,
+          programs: publishedPrograms,
           billingSummary: {
             totalPaid: parentPayments.reduce((acc: number, p: any) => acc + Number(p.baseAmount || p.amount || 0), 0),
             monthlyRevenue: 0,
@@ -255,7 +274,10 @@ export const billingGet = async <T>(path: string): Promise<T> => {
             nextPaymentDue: null,
             overdue: false
           },
-          enrollments: enrollmentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((e: any) => String(e.parentId || '') === user.uid),
+          enrollments: enrollmentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((e: any) => 
+            String(e.parentId || '') === user.uid ||
+            (userEmail && String(e.parentEmail || '').toLowerCase() === userEmail)
+          ),
           students: parentStudents,
           notifications: notifSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })).filter((n: any) => String(n.recipientId || '') === user.uid)
         } as unknown as T;
@@ -433,6 +455,118 @@ export const billingPost = async <T>(path: string, body: Record<string, unknown>
 
   if (path === 'wallet-withdraw') {
     throw new Error('The wallet payout service is unavailable. Please try again when the payout service is online.');
+  }
+
+  if (path === 'student-credential-issue' || path.includes('student-credential-issue')) {
+    const studentId = String(body.studentId || '').trim();
+    if (!studentId) throw new Error('Student ID is required.');
+
+    let targetDocRef: any = null;
+    let studentData: any = null;
+    let collectionName = 'individualStudents';
+
+    // Try finding in individualStudents first, then students
+    const indDoc = await getDoc(doc(db, 'individualStudents', studentId)).catch(() => null);
+    if (indDoc && indDoc.exists()) {
+      targetDocRef = doc(db, 'individualStudents', studentId);
+      studentData = indDoc.data();
+      collectionName = 'individualStudents';
+    } else {
+      const stdDoc = await getDoc(doc(db, 'students', studentId)).catch(() => null);
+      if (stdDoc && stdDoc.exists()) {
+        targetDocRef = doc(db, 'students', studentId);
+        studentData = stdDoc.data();
+        collectionName = 'students';
+      }
+    }
+
+    if (!targetDocRef || !studentData) {
+      // Create or update in individualStudents
+      targetDocRef = doc(db, 'individualStudents', studentId);
+      studentData = {};
+      collectionName = 'individualStudents';
+    }
+
+    // Generate random code in format JBS-XXXX-XXXX
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let p1 = '';
+    let p2 = '';
+    for (let i = 0; i < 4; i++) p1 += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 4; i++) p2 += chars.charAt(Math.floor(Math.random() * chars.length));
+    const accessCode = `JBS-${p1}-${p2}`;
+
+    let username = String(studentData.username || '').trim().toLowerCase();
+    if (!username) {
+      const baseName = String(studentData.fullName || studentData.studentName || 'student').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'student';
+      username = `${baseName}${Math.floor(100 + Math.random() * 900)}`;
+    }
+
+    // Calculate sha256 hash using browser crypto
+    let accessCodeHash = '';
+    try {
+      const msgBuffer = new TextEncoder().encode(accessCode.toUpperCase());
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      accessCodeHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      accessCodeHash = accessCode.toLowerCase();
+    }
+
+    const now = new Date().toISOString();
+    const updatePayload = {
+      username,
+      accessCode,
+      passcode: accessCode,
+      code: accessCode,
+      accessCodeHash,
+      portalAccessEnabled: true,
+      accountStatus: 'ACTIVE',
+      status: 'ACTIVE',
+      credentialIssuedAt: now,
+      credentialIssuedBy: user.uid,
+      updatedAt: serverTimestamp()
+    };
+
+    await setDoc(targetDocRef, updatePayload, { merge: true });
+
+    // Also mirror to students collection to keep legacy and current queries synchronized
+    if (collectionName === 'individualStudents') {
+      await setDoc(doc(db, 'students', studentId), updatePayload, { merge: true }).catch(() => null);
+    } else {
+      await setDoc(doc(db, 'individualStudents', studentId), updatePayload, { merge: true }).catch(() => null);
+    }
+
+    // Sync to linked users doc if available
+    const linkedUid = String(studentData.firebaseUid || studentData.userId || '');
+    if (linkedUid) {
+      await setDoc(doc(db, 'users', linkedUid), {
+        username,
+        accessCode,
+        passcode: accessCode,
+        code: accessCode,
+        accessCodeHash,
+        portalAccessEnabled: true,
+        accountStatus: 'ACTIVE',
+        status: 'ACTIVE',
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => null);
+    }
+
+    // Add activity log
+    await addDoc(collection(db, 'activityLogs'), {
+      actorId: user.uid,
+      action: 'STUDENT_CREDENTIAL_ISSUED',
+      targetId: studentId,
+      targetType: 'student',
+      schoolId: studentData.schoolId || null,
+      timestamp: serverTimestamp(),
+      metadata: { username, accessCode, issuedRole: 'school_admin' }
+    }).catch(() => null);
+
+    return {
+      success: true,
+      student: { id: studentId, fullName: studentData.fullName || studentData.studentName || 'Student', username, portal: '/portal' },
+      credentials: { username, accessCode, portal: `${window.location.origin}/portal` }
+    } as unknown as T;
   }
 
   if (action === 'set_school_billing') {

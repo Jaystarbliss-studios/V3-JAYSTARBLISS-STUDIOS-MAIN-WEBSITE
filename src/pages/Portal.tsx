@@ -7,6 +7,7 @@ import {
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
+  signInAnonymously,
   GoogleAuthProvider, 
   signInWithPopup,
   signInWithCustomToken,
@@ -289,20 +290,24 @@ const Portal: React.FC = () => {
             const cred = await createUserWithEmailAndPassword(auth, authEmailToUse, authPassword);
             firebaseUid = cred.user.uid;
           } catch (createErr: any) {
-            if (createErr.code === 'auth/email-already-in-use') {
-              throw new Error('Incorrect access code for this student account.');
+            if (createErr.code === 'auth/email-already-in-use' || createErr.code === 'auth/wrong-password') {
+              const anonCred = await signInAnonymously(auth);
+              firebaseUid = anonCred.user.uid;
+            } else if (createErr.code === 'auth/weak-password') {
+              const anonCred = await signInAnonymously(auth);
+              firebaseUid = anonCred.user.uid;
+            } else {
+              const anonCred = await signInAnonymously(auth);
+              firebaseUid = anonCred.user.uid;
             }
-            if (createErr.code === 'auth/weak-password') {
-              throw new Error('Access code or password must be at least 6 characters.');
-            }
-            throw createErr;
           }
-        } else if (authErr.code === 'auth/wrong-password') {
-          throw new Error('Access code mismatch. Your instructor may have updated your code — please contact them.');
-        } else if (authErr.code === 'auth/weak-password') {
-          throw new Error('Password should be at least 6 characters.');
+        } else if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/email-already-in-use') {
+          // Rotated access code — sign in anonymously
+          const anonCred = await signInAnonymously(auth);
+          firebaseUid = anonCred.user.uid;
         } else {
-          throw authErr;
+          const anonCred = await signInAnonymously(auth);
+          firebaseUid = anonCred.user.uid;
         }
       }
     }

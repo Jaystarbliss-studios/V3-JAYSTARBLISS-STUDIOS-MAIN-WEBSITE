@@ -12,6 +12,7 @@ import {
   query, where, writeBatch, serverTimestamp 
 } from 'firebase/firestore';
 import { useToast } from '../../contexts/ToastContext';
+import { resolveRealName, formatTutorDropdownLabel } from '../../utils/userNames';
 
 const CLASS_OPTIONS = [
   'Early Years', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6',
@@ -233,6 +234,7 @@ const AdminClassSchedules: React.FC = () => {
   const [parents, setParents] = useState<ParentItem[]>([]);
   const [individuals, setIndividuals] = useState<IndividualItem[]>([]);
   const [groups, setGroups] = useState<ScheduleGroup[]>([]);
+  const [tutors, setTutors] = useState<Array<{ id: string; name: string; email: string; qualification?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
@@ -317,14 +319,83 @@ const AdminClassSchedules: React.FC = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [schoolSnap, usersSnap, enrollSnap, indivSnap, studSnap, schedSnap] = await Promise.all([
+      const [
+        schoolSnap, 
+        usersSnap, 
+        enrollSnap, 
+        indivSnap, 
+        studSnap, 
+        schedSnap,
+        tutorsSnap,
+        staffSnap,
+        appsSnap
+      ] = await Promise.all([
         getDocs(collection(db, 'schools')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'users')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'enrollment_requests')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'individualStudents')).catch(() => ({ docs: [] } as any)),
         getDocs(collection(db, 'students')).catch(() => ({ docs: [] } as any)),
-        getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any))
+        getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'tutors')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'staff')).catch(() => ({ docs: [] } as any)),
+        getDocs(collection(db, 'tutor_applications')).catch(() => ({ docs: [] } as any))
       ]);
+
+      // 0. Process Registered Tutors & Instructors with Real Names
+      const tutorMap = new Map<string, { id: string; name: string; email: string; qualification?: string }>();
+      const emailToRealName = new Map<string, string>();
+
+      appsSnap.docs.forEach((d: any) => {
+        const data = d.data();
+        const email = (data.email || '').toLowerCase().trim();
+        const realName = resolveRealName(data, email);
+        if (email && realName) emailToRealName.set(email, realName);
+      });
+
+      tutorsSnap.docs.forEach((d: any) => {
+        const data = d.data();
+        const email = (data.email || '').toLowerCase().trim();
+        const realName = resolveRealName(data, email) || emailToRealName.get(email) || 'Faculty Mentor';
+        tutorMap.set(d.id, {
+          id: d.id,
+          name: realName,
+          email: data.email || '',
+          qualification: data.qualification || ''
+        });
+      });
+
+      staffSnap.docs.forEach((d: any) => {
+        const data = d.data();
+        const email = (data.email || '').toLowerCase().trim();
+        const realName = resolveRealName(data, email) || emailToRealName.get(email) || 'Faculty Mentor';
+        if (!tutorMap.has(d.id)) {
+          tutorMap.set(d.id, {
+            id: d.id,
+            name: realName,
+            email: data.email || '',
+            qualification: data.qualification || data.role || ''
+          });
+        }
+      });
+
+      usersSnap.docs.forEach((d: any) => {
+        const data = d.data();
+        const role = String(data.role || '').toLowerCase();
+        if (['tutor', 'instructor', 'staff', 'faculty', 'teacher'].includes(role)) {
+          const email = (data.email || '').toLowerCase().trim();
+          const realName = resolveRealName(data, email) || emailToRealName.get(email) || 'Faculty Mentor';
+          if (!tutorMap.has(d.id)) {
+            tutorMap.set(d.id, {
+              id: d.id,
+              name: realName,
+              email: data.email || '',
+              qualification: data.qualification || ''
+            });
+          }
+        }
+      });
+
+      setTutors(Array.from(tutorMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
 
       // 1. Process Schools
       const loadedSchools = schoolSnap.docs.map((d: any) => {
@@ -1500,13 +1571,52 @@ const AdminClassSchedules: React.FC = () => {
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
                 Faculty Instructor / Mentor
               </label>
-              <input
-                type="text"
-                value={form.tutorName}
-                onChange={e => setForm({ ...form, tutorName: e.target.value })}
-                className={inputClass}
-                placeholder="Assigned instructor name"
-              />
+              {tutors.length > 0 ? (
+                <div className="space-y-1.5">
+                  <select
+                    value={form.tutorId || (tutors.some(t => t.name === form.tutorName) ? tutors.find(t => t.name === form.tutorName)?.id : '')}
+                    onChange={e => {
+                      const selectedId = e.target.value;
+                      if (selectedId === 'custom') {
+                        setForm({ ...form, tutorId: '' });
+                      } else {
+                        const selectedT = tutors.find(t => t.id === selectedId);
+                        setForm({
+                          ...form,
+                          tutorId: selectedId,
+                          tutorName: selectedT?.name || form.tutorName
+                        });
+                      }
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">Select registered faculty tutor...</option>
+                    {tutors.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {formatTutorDropdownLabel(t.name, t.email, t.qualification)}
+                      </option>
+                    ))}
+                    <option value="custom">+ Custom / Other Instructor Name</option>
+                  </select>
+                  {(!form.tutorId || !tutors.some(t => t.id === form.tutorId)) && (
+                    <input
+                      type="text"
+                      value={form.tutorName}
+                      onChange={e => setForm({ ...form, tutorName: e.target.value })}
+                      className={inputClass}
+                      placeholder="Or enter instructor real name"
+                    />
+                  )}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={form.tutorName}
+                  onChange={e => setForm({ ...form, tutorName: e.target.value })}
+                  className={inputClass}
+                  placeholder="Assigned instructor full name"
+                />
+              )}
             </div>
 
             <div>

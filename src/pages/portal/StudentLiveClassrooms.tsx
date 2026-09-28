@@ -3,6 +3,8 @@ import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { ExternalLink, Video, Clock, Calendar, Radio, CheckCircle2, UserCheck, Search, Filter } from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import { auth, db } from '../../lib/firebase';
+import { isStudentClassMatch } from '../../utils/classMatching';
+import { getEffectiveAuth } from '../../utils/impersonation';
 
 interface LiveSession {
   id: string;
@@ -63,8 +65,8 @@ const StudentLiveClassrooms: React.FC = () => {
         // Fetch personal links, school links, and class schedules in parallel
         const [linkSnaps, schSnap, netlifySchedules] = await Promise.all([
           Promise.all([
-            ...(studentId ? [getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId)))] : []),
-            ...(uid ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', uid)))] : [])
+            ...(studentId ? [getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', studentId))).catch(() => ({ docs: [] } as any))] : []),
+            ...(uid ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', uid))).catch(() => ({ docs: [] } as any))] : [])
           ]),
           getDocs(collection(db, 'classSchedules')).catch(() => ({ docs: [] } as any)),
           auth.currentUser?.getIdToken().then(token => 
@@ -132,28 +134,28 @@ const StudentLiveClassrooms: React.FC = () => {
 
           const rSchId = (r.schoolId || '').trim();
           const rSchName = (r.schoolName || '').trim().toLowerCase();
-          const isSchoolMatch = (cachedSchoolId && rSchId === cachedSchoolId) ||
-            (cachedSchoolName && rSchName && (rSchName === cachedSchoolName.toLowerCase() || rSchName.includes(cachedSchoolName.toLowerCase()) || cachedSchoolName.toLowerCase().includes(rSchName)));
 
-          const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
-          const isProgramMatch = cachedProgram && (rProgName === cachedProgram || rProgName.includes(cachedProgram) || cachedProgram.includes(rProgName));
+          // 1. School check
+          if (cachedSchoolId || cachedSchoolName) {
+            const isSchoolMatch = (cachedSchoolId && rSchId === cachedSchoolId) ||
+              (cachedSchoolName && rSchName && (rSchName === cachedSchoolName.toLowerCase() || rSchName.includes(cachedSchoolName.toLowerCase()) || cachedSchoolName.toLowerCase().includes(rSchName)));
+            if (!isSchoolMatch) return false;
+          }
 
-          if (isSchoolMatch || isProgramMatch || r.targetType === 'ALL') {
-            if (cachedClass) {
-              const rClass = String(r.classLevel || '').trim().toLowerCase();
-              const rLevels = Array.isArray(r.classLevels) ? r.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
-              if (!rClass && rLevels.length === 0) return true;
-              if (rClass === 'all' || rClass === 'all classes' || rClass === 'general' || rClass === cachedClass || cachedClass.includes(rClass) || rClass.includes(cachedClass)) return true;
-              if (rLevels.some((l: string) => l === 'all' || l === 'all classes' || l === 'general' || l === cachedClass || cachedClass.includes(l) || l.includes(cachedClass))) return true;
-              
-              const studentClassNum = cachedClass.replace(/\D/g, '');
-              const rClassNum = rClass.replace(/\D/g, '');
-              if (studentClassNum && rClassNum && studentClassNum === rClassNum) return true;
-            } else {
-              return true;
+          // 2. Class Level strict check
+          const isClassMatch = isStudentClassMatch(cachedClass, r.classLevel, r.classLevels);
+          if (!isClassMatch) return false;
+
+          // 3. Program check
+          if (cachedProgram) {
+            const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
+            const isProgramMatch = !rProgName || rProgName === cachedProgram || rProgName.includes(cachedProgram) || cachedProgram.includes(rProgName);
+            if (!isProgramMatch && r.targetType !== 'ALL') {
+              return false;
             }
           }
-          return false;
+
+          return true;
         });
 
         studentSchedules.forEach((r: any) => {

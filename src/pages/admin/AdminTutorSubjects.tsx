@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import SEO from '../../components/ui/SEO';
 import { SUBJECT_TAXONOMY } from '../../data/subjectCatalog';
 import { useToast } from '../../contexts/ToastContext';
+import { resolveRealName } from '../../utils/userNames';
 
 type AppRow = { id: string; tutorId: string; tutorEmail?: string; subjectId: string; subjectName: string; categoryId?: string; categoryName?: string; status: string; createdAt?: any };
 type TutorProfile = { name: string; email: string; rank: string };
@@ -39,9 +40,9 @@ const AdminTutorSubjects: React.FC = () => {
       usersSnap.docs.forEach(d => {
         const data = d.data();
         profiles[d.id] = {
-          name: String(data.fullName || data.name || data.displayName || data.email || 'Tutor'),
+          name: resolveRealName(data, data.email, 'Faculty Instructor'),
           email: String(data.email || ''),
-          rank: String(data.rank || data.tutorRank || data.title || 'Tutor')
+          rank: String(data.rank || data.tutorRank || data.title || 'Faculty Lead')
         };
       });
       setApplications(pendingRows);
@@ -60,7 +61,7 @@ const AdminTutorSubjects: React.FC = () => {
   const pendingGroups = useMemo<PendingGroup[]>(() => {
     const map = new Map<string, PendingGroup>();
     applications.forEach(row => {
-      const profile = tutorProfiles[row.tutorId] || { name: row.tutorEmail || 'Tutor', email: row.tutorEmail || '', rank: 'Tutor' };
+      const profile = tutorProfiles[row.tutorId] || { name: resolveRealName(null, row.tutorEmail, 'Faculty Instructor'), email: row.tutorEmail || '', rank: 'Faculty Lead' };
       const existing = map.get(row.tutorId);
       if (existing) existing.applications.push(row);
       else map.set(row.tutorId, { tutorId: row.tutorId, profile, applications: [row] });

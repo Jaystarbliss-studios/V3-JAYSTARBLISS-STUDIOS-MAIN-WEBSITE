@@ -13,6 +13,7 @@ import {
   GraduationCap, UserCheck, Download, Link as LinkIcon,
   Filter, ChevronDown, Plus, Settings, ChevronRight
 } from 'lucide-react';
+import { resolveRealName, formatTutorDropdownLabel } from '../../utils/userNames';
 
 export interface AssignedStudentTutor {
   tutorId: string;
@@ -161,6 +162,8 @@ const AdminStudents: React.FC = () => {
         usersSnap,
         schoolsSnap,
         parentsSnap,
+        tutorsSnap,
+        staffSnap,
         resSnap,
         linkSnap
       ] = await Promise.all([
@@ -169,6 +172,8 @@ const AdminStudents: React.FC = () => {
         getDocs(collection(db, 'users')).catch((err) => { console.warn('Fetch users collection error:', err); return { docs: [] }; }),
         getDocs(collection(db, 'schools')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'parents')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'tutors')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'staff')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalResources')).catch(() => ({ docs: [] })),
         getDocs(collection(db, 'personalLinks')).catch(() => ({ docs: [] })),
       ]);
@@ -183,40 +188,67 @@ const AdminStudents: React.FC = () => {
       });
       setSchools(loadedSchools);
 
-      const loadedTutors: { id: string; name: string; email: string }[] = [];
       const tutorMap = new Map<string, { id: string; name: string; email: string }>();
+
+      // Load from tutors collection
+      tutorsSnap.docs?.forEach((d: any) => {
+        const data = d.data();
+        const email = (data.email || '').toLowerCase().trim();
+        const resolvedName = resolveRealName(data, email);
+        const tObj = { id: d.id, name: resolvedName, email: data.email || '' };
+        tutorMap.set(d.id, tObj);
+        if (email) tutorMap.set(email, tObj);
+      });
+
+      // Load from staff collection
+      staffSnap.docs?.forEach((d: any) => {
+        const data = d.data();
+        const email = (data.email || '').toLowerCase().trim();
+        const resolvedName = resolveRealName(data, email);
+        const tObj = { id: d.id, name: resolvedName, email: data.email || '' };
+        if (!tutorMap.has(d.id)) tutorMap.set(d.id, tObj);
+        if (email && !tutorMap.has(email)) tutorMap.set(email, tObj);
+      });
+
       const loadedParents: { id: string; name: string; email: string; phone?: string }[] = [];
       const parentMap = new Map<string, { id: string; name: string; email: string; phone?: string }>();
 
       usersSnap.docs.forEach((d: any) => {
         const u = d.data();
         const role = String(u.role || '').toUpperCase();
-        const name = u.name || u.fullName || u.displayName || u.email || 'User';
+        const email = (u.email || '').toLowerCase().trim();
+        const resolvedName = resolveRealName(u, email, role === 'PARENT' ? 'Parent' : 'Instructor');
+
         if (['STAFF', 'TUTOR', 'INSTRUCTOR', 'TEACHER'].includes(role)) {
-          const tObj = { id: d.id, name, email: u.email || '' };
-          loadedTutors.push(tObj);
-          tutorMap.set(d.id, tObj);
-          if (u.email) tutorMap.set(u.email.toLowerCase(), tObj);
+          const tObj = { id: d.id, name: resolvedName, email: u.email || '' };
+          if (!tutorMap.has(d.id)) tutorMap.set(d.id, tObj);
+          if (email && !tutorMap.has(email)) tutorMap.set(email, tObj);
         }
         if (['PARENT', 'GUARDIAN'].includes(role)) {
-          const pObj = { id: d.id, name, email: u.email || '', phone: u.phone || u.phoneNumber };
+          const pObj = { id: d.id, name: resolvedName, email: u.email || '', phone: u.phone || u.phoneNumber };
           loadedParents.push(pObj);
           parentMap.set(d.id, pObj);
-          if (u.email) parentMap.set(u.email.toLowerCase(), pObj);
+          if (email) parentMap.set(email, pObj);
         }
       });
 
       parentsSnap.docs.forEach((d: any) => {
         const p = d.data();
-        const name = p.name || p.fullName || p.displayName || p.email || 'Parent';
-        const pObj = { id: d.id, name, email: p.email || '', phone: p.phone || p.phoneNumber };
+        const email = (p.email || '').toLowerCase().trim();
+        const resolvedName = resolveRealName(p, email, 'Parent');
+        const pObj = { id: d.id, name: resolvedName, email: p.email || '', phone: p.phone || p.phoneNumber };
         if (!parentMap.has(d.id)) {
           loadedParents.push(pObj);
           parentMap.set(d.id, pObj);
         }
       });
 
-      setTutors(loadedTutors);
+      // Deduplicate tutors by ID and sort alphabetically by Real Name
+      const uniqueTutors = Array.from(
+        new Map(Array.from(tutorMap.values()).map(t => [t.id, t])).values()
+      ).sort((a, b) => a.name.localeCompare(b.name));
+
+      setTutors(uniqueTutors);
       setParents(loadedParents);
 
       const mergedDispatches: Dispatch[] = [];
@@ -590,22 +622,46 @@ const AdminStudents: React.FC = () => {
     try {
       const generatedCode = `CADET-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
       
-      // Update in Firestore
-      const collectionTarget = student.docSource === 'students' ? 'students' : 'individualStudents';
-      await setDoc(doc(db, collectionTarget, student.id), {
+      let accessCodeHash = '';
+      try {
+        const msgBuffer = new TextEncoder().encode(generatedCode.toUpperCase());
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        accessCodeHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch {
+        accessCodeHash = generatedCode.toLowerCase();
+      }
+
+      const updatePayload = {
         accessCode: generatedCode,
+        passcode: generatedCode,
+        code: generatedCode,
+        accessCodeHash,
+        portalAccessEnabled: true,
+        accountStatus: 'ACTIVE',
+        status: 'ACTIVE',
+        credentialIssuedAt: new Date().toISOString(),
         updatedAt: serverTimestamp()
-      }, { merge: true });
+      };
+
+      // Update in both students and individualStudents
+      await Promise.all([
+        setDoc(doc(db, 'individualStudents', student.id), updatePayload, { merge: true }).catch(() => null),
+        setDoc(doc(db, 'students', student.id), updatePayload, { merge: true }).catch(() => null)
+      ]);
+
+      if (student.firebaseUid) {
+        await setDoc(doc(db, 'users', student.firebaseUid), updatePayload, { merge: true }).catch(() => null);
+      }
 
       setCredentials({
         fullName: student.fullName,
         username: student.username,
         accessCode: generatedCode,
-        portal: '/portal/student',
+        portal: '/portal',
         email: student.email
       });
 
-      toast.success(`New Access Pack generated for ${student.fullName}!`);
+      toast.success(`New Access Pack (${generatedCode}) generated for ${student.fullName}!`);
       await loadAllData();
     } catch (err: any) {
       toast.error('Could not generate credentials: ' + err.message);

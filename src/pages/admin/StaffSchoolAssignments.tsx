@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
+import { resolveRealName } from '../../utils/userNames';
 import { Check, ChevronDown, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 
 type StaffMember = { id: string; name?: string; email?: string; role?: string; accountStatus?: string };
@@ -100,12 +101,24 @@ const StaffSchoolAssignments: React.FC = () => {
             <div className="relative">
               <select id="staff-access-member" value={selectedStaffId} onChange={(e) => setSelectedStaffId(e.target.value)} className="min-h-11 w-full appearance-none rounded-xl border border-gray-300 bg-white px-3 pr-10 text-sm font-semibold text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white">
                 <option value="">Select a staff member…</option>
-                {staff.map((member) => <option key={member.id} value={member.id}>{member.name || member.email || member.id} — {String(member.role || 'STAFF').toUpperCase()}</option>)}
+                {staff.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {resolveRealName(member, member.email, 'Faculty Member')} {member.email ? `(${member.email})` : ''} — {String(member.role || 'STAFF').toUpperCase()}
+                  </option>
+                ))}
               </select>
               <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3.5 text-gray-400" />
             </div>
 
-            {selectedStaff && <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/70"><div className="font-bold text-gray-900 dark:text-white">{selectedStaff.name || 'Staff Member'}</div><div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{selectedStaff.email || 'No email on file'}</div><div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-emerald-600">ACTIVE ACCOUNT</div></div>}
+            {selectedStaff && (
+              <div className="mt-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/70">
+                <div className="font-bold text-gray-900 dark:text-white">
+                  {resolveRealName(selectedStaff, selectedStaff.email, 'Staff Member')}
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{selectedStaff.email || 'No email on file'}</div>
+                <div className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-emerald-600">ACTIVE ACCOUNT</div>
+              </div>
+            )}
           </div>
 
           <div>

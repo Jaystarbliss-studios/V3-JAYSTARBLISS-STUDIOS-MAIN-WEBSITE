@@ -131,16 +131,33 @@ export const PortalPayments: React.FC = () => {
       try {
         const config = await getClientPaymentConfig();
         const roleKey = isSchool ? 'school' : 'student';
-        const fetchedPlans = Object.values(config.plans || {})
+        let fetchedPlans = Object.values(config.plans || {})
           .filter((p: any) => p.role === roleKey && p.active !== false)
           .map((p: any) => ({
             id: p.id,
             name: p.name,
             price: `₦${Number(p.baseAmount || 0).toLocaleString()}`,
             period: isSchool ? '/ Term' : '/ Term',
-            popular: p.id.includes('mentorship') || p.id.includes('cbt'),
+            popular: p.id.includes('mentorship') || p.id.includes('cbt') || p.id.includes('ai'),
             features: p.teachingModes?.length ? p.teachingModes : [p.description || 'Institutional technology track']
           }));
+
+        if (fetchedPlans.length === 0) {
+          const programsSnap = await getDocs(query(collection(db, 'programs'), where('status', '==', 'PUBLISHED'))).catch(() => getDocs(collection(db, 'programs')));
+          fetchedPlans = programsSnap.docs.map((docSnap: any) => {
+            const p = docSnap.data();
+            return {
+              id: docSnap.id,
+              name: p.title || p.name || 'Academy Tech Program',
+              price: `₦${Number(p.price || p.tuition || p.baseAmount || 25000).toLocaleString()}`,
+              period: '/ Term',
+              popular: !!p.popular,
+              features: Array.isArray(p.teachingModes) && p.teachingModes.length > 0 
+                ? p.teachingModes 
+                : [p.description || p.category || 'Hands-on practical curriculum & live labs']
+            };
+          });
+        }
 
         if (!cancelled) {
           setPlans(fetchedPlans);

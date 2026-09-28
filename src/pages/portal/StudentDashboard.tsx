@@ -48,6 +48,7 @@ import { TypingMastersAcademyCard } from '../../components/portal/TypingMastersA
 import { useToast } from '../../contexts/ToastContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { getEffectiveAuth } from '../../utils/impersonation';
+import { isStudentClassMatch } from '../../utils/classMatching';
 import {
   generateModuleCertificatePdf,
   type ModuleCertificateData,
@@ -566,39 +567,59 @@ export const StudentDashboard: React.FC = () => {
       setStudentAssignments(assignmentList);
 
       // 3. Resources & Schedules
-      const [personalResourceResults, personalLinkResults, resourceSnapshot, examSnapshot] = await Promise.all([
-        currentStudentId || currentUid
-          ? Promise.all([
-              getDocs(query(collection(db, 'personalResources'), where('studentId', '==', currentStudentId))),
+      let personalResourceResults: any[] = [];
+      let personalLinkResults: any[] = [];
+      let resourceSnapshot: any = { docs: [] };
+      let examSnapshot: any = { docs: [] };
+
+      try {
+        const pResQueries = currentStudentId || currentUid
+          ? [
+              getDocs(query(collection(db, 'personalResources'), where('studentId', '==', currentStudentId))).catch(() => ({ docs: [] } as any)),
               ...(currentUid
-                ? [getDocs(query(collection(db, 'personalResources'), where('userId', '==', currentUid)))]
+                ? [getDocs(query(collection(db, 'personalResources'), where('userId', '==', currentUid))).catch(() => ({ docs: [] } as any))]
                 : []),
-            ])
-          : Promise.resolve([]),
-        currentStudentId || currentUid
-          ? Promise.all([
-              getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', currentStudentId))),
+            ]
+          : [];
+
+        const pLinkQueries = currentStudentId || currentUid
+          ? [
+              getDocs(query(collection(db, 'personalLinks'), where('studentId', '==', currentStudentId))).catch(() => ({ docs: [] } as any)),
               ...(currentUid
-                ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid)))]
+                ? [getDocs(query(collection(db, 'personalLinks'), where('userId', '==', currentUid))).catch(() => ({ docs: [] } as any))]
                 : []),
               ...(studentRecord.schoolId
-                ? [getDocs(query(collection(db, 'personalLinks'), where('schoolId', '==', studentRecord.schoolId)))]
+                ? [getDocs(query(collection(db, 'personalLinks'), where('schoolId', '==', studentRecord.schoolId))).catch(() => ({ docs: [] } as any))]
                 : []),
-            ])
-          : Promise.resolve([]),
-        getDocs(query(collection(db, 'resources'), limit(25))),
-        getDocs(query(collection(db, 'exams'), limit(15))),
-      ]);
+            ]
+          : [];
+
+        const [pRes, pLink, rSnap, eSnap] = await Promise.all([
+          Promise.all(pResQueries),
+          Promise.all(pLinkQueries),
+          getDocs(query(collection(db, 'resources'), limit(25))).catch(() => ({ docs: [] } as any)),
+          getDocs(query(collection(db, 'exams'), limit(15))).catch(() => ({ docs: [] } as any)),
+        ]);
+
+        personalResourceResults = pRes;
+        personalLinkResults = pLink;
+        resourceSnapshot = rSnap;
+        examSnapshot = eSnap;
+      } catch (rErr) {
+        console.warn('Resources & schedules fetch warning:', rErr);
+      }
 
       const personalResourceMap = new Map<string, ResourceItem>();
       personalResourceResults.forEach((snap) => {
-        snap.forEach((item) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem));
+        snap?.docs?.forEach?.((item: any) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem)) ||
+        snap?.forEach?.((item: any) => personalResourceMap.set(item.id, { id: item.id, ...item.data() } as ResourceItem));
       });
       setPersonalResources(Array.from(personalResourceMap.values()));
 
       const personalLinkMap = new Map<string, LinkItem>();
       personalLinkResults.forEach((snap) => {
-        snap.forEach((item) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem));
+        snap?.docs?.forEach?.((item: any) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem)) ||
+        snap?.forEach?.((item: any) => personalLinkMap.set(item.id, { id: item.id, ...item.data() } as LinkItem));
       });
       setPersonalLinks(Array.from(personalLinkMap.values()));
 
@@ -640,7 +661,7 @@ export const StudentDashboard: React.FC = () => {
         return false;
       };
 
-      resourceSnapshot.forEach((resourceDoc) => {
+      (resourceSnapshot.docs || []).forEach((resourceDoc: any) => {
         const item = { id: resourceDoc.id, ...resourceDoc.data() } as ResourceItem;
         if (isItemForClass(item)) {
           classList.push({ ...item, isClassSpecific: true });
@@ -680,7 +701,7 @@ export const StudentDashboard: React.FC = () => {
       setClassResources(classList);
       setGeneralResources(generalList);
 
-      const examList: ExamItem[] = examSnapshot.docs.map((examDoc) => ({
+      const examList: ExamItem[] = (examSnapshot.docs || []).map((examDoc: any) => ({
         id: examDoc.id,
         ...examDoc.data(),
       } as ExamItem));
@@ -689,15 +710,15 @@ export const StudentDashboard: React.FC = () => {
       // Student verified modules (for certificates)
       try {
         const moduleQueries = [
-          query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId)),
+          getDocs(query(collection(db, 'studentModules'), where('studentId', '==', currentStudentId))).catch(() => ({ docs: [] } as any)),
           ...(currentUid
-            ? [query(collection(db, 'studentModules'), where('studentId', '==', currentUid))]
+            ? [getDocs(query(collection(db, 'studentModules'), where('studentId', '==', currentUid))).catch(() => ({ docs: [] } as any))]
             : []),
         ];
         const moduleMap = new Map<string, ProgramModule>();
-        const moduleSnapshots = await Promise.all(moduleQueries.map(getDocs));
-        moduleSnapshots.forEach((snap) => {
-          snap.forEach((moduleDoc) => {
+        const moduleSnapshots = await Promise.all(moduleQueries);
+        moduleSnapshots.forEach((snap: any) => {
+          snap?.docs?.forEach?.((moduleDoc: any) => {
             const data = moduleDoc.data();
             if (
               data.studentId === currentStudentId ||
@@ -764,29 +785,28 @@ export const StudentDashboard: React.FC = () => {
 
           const rSchId = (r.schoolId || '').trim();
           const rSchName = (r.schoolName || '').trim().toLowerCase();
-          const isSchoolMatch = (schId && rSchId === schId) ||
-            (schName && rSchName && (rSchName === schName || rSchName.includes(schName) || schName.includes(rSchName)));
 
-          const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
-          const isProgramMatch = currentProg && (rProgName === currentProg || rProgName.includes(currentProg) || currentProg.includes(rProgName));
+          // 1. If student belongs to a school, the schedule MUST belong to their school
+          if (schId || schName) {
+            const isSchoolMatch = (schId && rSchId === schId) ||
+              (schName && rSchName && (rSchName === schName || rSchName.includes(schName) || schName.includes(rSchName)));
+            if (!isSchoolMatch) return false;
+          }
 
-          if (isSchoolMatch || isProgramMatch || r.targetType === 'ALL') {
-            if (studentClass) {
-              const rClass = String(r.classLevel || '').trim().toLowerCase();
-              const rLevels = Array.isArray(r.classLevels) ? r.classLevels.map((l: string) => String(l).trim().toLowerCase()) : [];
-              if (!rClass && rLevels.length === 0) return true;
-              if (rClass === 'all' || rClass === 'all classes' || rClass === 'general' || rClass === studentClass || studentClass.includes(rClass) || rClass.includes(studentClass)) return true;
-              if (rLevels.some((l: string) => l === 'all' || l === 'all classes' || l === 'general' || l === studentClass || studentClass.includes(l) || l.includes(studentClass))) return true;
-              
-              // Number matching (e.g. Year 5 and 5)
-              const studentClassNum = studentClass.replace(/\D/g, '');
-              const rClassNum = rClass.replace(/\D/g, '');
-              if (studentClassNum && rClassNum && studentClassNum === rClassNum) return true;
-            } else {
-              return true;
+          // 2. Class Level Strict Filtering (e.g. Primary 4A only sees Primary 4A)
+          const isClassMatch = isStudentClassMatch(studentClass, r.classLevel, r.classLevels);
+          if (!isClassMatch) return false;
+
+          // 3. Program matching (if student is enrolled in a program, check match)
+          if (currentProg) {
+            const rProgName = String(r.programName || r.title || '').trim().toLowerCase();
+            const isProgramMatch = !rProgName || rProgName === currentProg || rProgName.includes(currentProg) || currentProg.includes(rProgName);
+            if (!isProgramMatch && r.targetType !== 'ALL') {
+              return false;
             }
           }
-          return false;
+
+          return true;
         });
 
         setStudentSchedules(filtered);

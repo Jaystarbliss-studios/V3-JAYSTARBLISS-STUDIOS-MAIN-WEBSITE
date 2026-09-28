@@ -3,17 +3,19 @@ import {
   Users, BookOpen, Download, 
   RefreshCw, School, Award, ArrowUpRight,
   ShieldCheck, CheckCircle2, MessageSquare,
-  Keyboard, ExternalLink, Copy, Check, Edit2, Save, X, Image as ImageIcon
+  Keyboard, ExternalLink, Copy, Check, Edit2, Save, X, Image as ImageIcon,
+  Clock, AlertCircle, ChevronRight, UserCheck, XCircle, Mail, Phone
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { 
   collection, getDocs, query, orderBy, limit,
-  doc, getDoc, setDoc, serverTimestamp 
+  doc, getDoc, setDoc, updateDoc, serverTimestamp, where 
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useToast } from '../../contexts/ToastContext';
 import AdminAnalyticsWidget from '../../components/admin/AdminAnalyticsWidget';
 import PhotoUpload from '../../components/admin/PhotoUpload';
+import { StudentEnrollmentApprovalModal } from '../../components/admin/StudentEnrollmentApprovalModal';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -34,7 +36,8 @@ const AdminDashboard: React.FC = () => {
     inquiries: 0,
     services: 0,
     resources: 0,
-    exams: 0
+    exams: 0,
+    pendingEnrollments: 0
   });
 
   const [inquiriesData, setInquiriesData] = useState<any[]>([]);
@@ -43,6 +46,11 @@ const AdminDashboard: React.FC = () => {
   const [activityLogsData, setActivityLogsData] = useState<any[]>([]);
   const [resourcesData, setResourcesData] = useState<any[]>([]);
   const [examsData, setExamsData] = useState<any[]>([]);
+  const [pendingEnrollmentList, setPendingEnrollmentList] = useState<any[]>([]);
+  
+  // Student Approval Modal State
+  const [selectedRequestForApproval, setSelectedRequestForApproval] = useState<any | null>(null);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 
   // Typing Masters Academy (EdClub Collaboration) State
   const [edclubUrl, setEdclubUrl] = useState('https://jaystarbliss-studios.edclub.com');
@@ -73,7 +81,9 @@ const AdminDashboard: React.FC = () => {
         examsSnap,
         schoolExamsSnap,
         activitySnap,
-        edclubSnap
+        edclubSnap,
+        pendingEnrollmentsSnap,
+        pendingStudentReqsSnap
       ] = await Promise.all([
         getDocs(collection(db, 'users')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'students')).catch(() => ({ size: 0, docs: [] })),
@@ -87,7 +97,9 @@ const AdminDashboard: React.FC = () => {
         getDocs(collection(db, 'exams')).catch(() => ({ size: 0, docs: [] })),
         getDocs(collection(db, 'schoolExams')).catch(() => ({ size: 0, docs: [] })),
         getDocs(query(collection(db, 'activityLogs'), orderBy('timestamp', 'desc'), limit(100))).catch(() => ({ size: 0, docs: [] })),
-        getDoc(doc(db, 'settings', 'edclub')).catch(() => null)
+        getDoc(doc(db, 'settings', 'edclub')).catch(() => null),
+        getDocs(query(collection(db, 'enrollment_requests'), where('status', '==', 'pending'))).catch(() => ({ size: 0, docs: [] })),
+        getDocs(query(collection(db, 'student_requests'), where('status', '==', 'pending'))).catch(() => ({ size: 0, docs: [] }))
       ]);
 
       if (edclubSnap && edclubSnap.exists()) {
@@ -140,6 +152,22 @@ const AdminDashboard: React.FC = () => {
 
       const activityList = activitySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+      // Merge pending enrollment requests
+      const pendingEnrollMap = new Map<string, any>();
+      pendingEnrollmentsSnap.docs.forEach(doc => pendingEnrollMap.set(doc.id, { id: doc.id, ...doc.data(), reqType: 'enrollment' }));
+      pendingStudentReqsSnap.docs.forEach(doc => {
+        if (!pendingEnrollMap.has(doc.id)) {
+          pendingEnrollMap.set(doc.id, { 
+            id: doc.id, 
+            studentName: doc.data().name || doc.data().studentName, 
+            ...doc.data(), 
+            reqType: 'student_request' 
+          });
+        }
+      });
+      const pendingList = Array.from(pendingEnrollMap.values());
+      setPendingEnrollmentList(pendingList);
+
       setMetrics({
         users: usersSnap.size,
         students: studentsList.length,
@@ -148,7 +176,8 @@ const AdminDashboard: React.FC = () => {
         inquiries: inquiriesSnap.size,
         services: servicesSnap.size,
         resources: resourcesList.length,
-        exams: examsList.length
+        exams: examsList.length,
+        pendingEnrollments: pendingList.length
       });
 
       setUsersData(usersList);
@@ -372,7 +401,7 @@ const AdminDashboard: React.FC = () => {
       {/* Quick Navigation Shortcuts Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Pending Approvals', href: '/admin/approvals', icon: ShieldCheck, badge: 'Schools' },
+          { label: 'Pending Approvals', href: '/admin/approvals', icon: ShieldCheck, badge: `${metrics.pendingEnrollments} Requests` },
           { label: 'Students', href: '/admin/students', icon: Users, badge: 'Registry' },
           { label: 'Curriculum & CBT', href: '/admin/resources', icon: BookOpen, badge: 'Library' },
           { label: 'Public Inquiries', href: '/admin/inquiries', icon: MessageSquare, badge: 'Admissions' },
@@ -398,6 +427,122 @@ const AdminDashboard: React.FC = () => {
           );
         })}
       </div>
+
+      {/* ========================================================================= */}
+      {/* 🚀 PENDING STUDENT ENROLLMENTS & ACCESS APPROVALS QUEUE */}
+      {/* ========================================================================= */}
+      {pendingEnrollmentList.length > 0 && (
+        <div className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-900 border-2 border-brand-red/30 p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-brand-red/10 text-brand-red flex items-center justify-center font-black animate-pulse">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    Pending Student Enrollments &amp; Access Approvals
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full bg-brand-red text-white text-[10px] font-black uppercase shadow-xs">
+                    {pendingEnrollmentList.length} Action{pendingEnrollmentList.length > 1 ? 's' : ''} Needed
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Parents requested enrollment for these children. Review requested courses, configure fees, assign a mentor, and schedule class times to activate student access.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/admin/approvals"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-red hover:underline shrink-0"
+            >
+              <span>Full Approvals Center</span>
+              <ChevronRight size={14} />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+            {pendingEnrollmentList.slice(0, 6).map((req) => {
+              const reqStudentName = req.studentName || req.name || 'Student Candidate';
+              const reqParentEmail = req.parentEmail || req.email || '';
+              const reqParentName = req.parentName || 'Parent';
+              const reqPlan = req.plan || (Array.isArray(req.subjects) ? req.subjects.join(', ') : req.subjects) || 'Technology Program';
+              const reqAge = req.studentAge || req.studentClass || req.class || req.grade || 'Junior Cadet';
+
+              return (
+                <div
+                  key={req.id}
+                  className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-950/70 p-4 flex flex-col justify-between shadow-xs hover:border-brand-red/50 hover:shadow-md transition-all space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Child / Student</span>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white">{reqStudentName}</h4>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                        {reqAge}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/90 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span className="text-slate-400 font-medium">Programme:</span>
+                        <span className="font-bold text-brand-red truncate max-w-[150px]">{reqPlan}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span className="text-slate-400 font-medium">Parent:</span>
+                        <span className="font-bold truncate max-w-[150px]">{reqParentName}</span>
+                      </div>
+                      {reqParentEmail && (
+                        <div className="flex items-center gap-1 text-[10px] text-slate-400 truncate">
+                          <Mail size={10} className="shrink-0" />
+                          <span className="truncate">{reqParentEmail}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm(`Reject enrollment request for ${reqStudentName}?`)) return;
+                        try {
+                          await updateDoc(doc(db, req.reqType === 'student_request' ? 'student_requests' : 'enrollment_requests', req.id), {
+                            status: 'rejected',
+                            rejectedAt: serverTimestamp()
+                          });
+                          toast.info(`Request for ${reqStudentName} rejected.`);
+                          void fetchDashboardData();
+                        } catch (err: any) {
+                          toast.error('Error rejecting: ' + err.message);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-[11px] font-bold transition-colors cursor-pointer"
+                    >
+                      Reject
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedRequestForApproval(req);
+                        setIsApprovalModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <UserCheck size={13} />
+                      <span>Approve &amp; Configure Access</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TYPING MASTERS ACADEMY • EDCLUB COLLABORATION HUB & BANNER DESIGN */}
@@ -697,6 +842,21 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Student Enrollment & Access Approval Modal */}
+      {isApprovalModalOpen && selectedRequestForApproval && (
+        <StudentEnrollmentApprovalModal
+          request={selectedRequestForApproval}
+          isOpen={isApprovalModalOpen}
+          onClose={() => {
+            setIsApprovalModalOpen(false);
+            setSelectedRequestForApproval(null);
+          }}
+          onSuccess={() => {
+            void fetchDashboardData();
+          }}
+        />
+      )}
     </div>
   );
 };

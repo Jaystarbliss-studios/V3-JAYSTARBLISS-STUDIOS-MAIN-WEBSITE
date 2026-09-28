@@ -1,14 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../../lib/firebase';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
-import { GraduationCap, PlusCircle, CreditCard, Bell, CheckCircle2, AlertCircle, ArrowRight, ChevronRight, Download, Receipt, Calendar, ExternalLink } from 'lucide-react';
+import { collection, getDocs, query, where, limit, setDoc, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  GraduationCap, PlusCircle, CreditCard, Bell, CheckCircle2, AlertCircle, 
+  ArrowRight, ChevronRight, Download, Receipt, Calendar, ExternalLink,
+  Clock, User, BookOpen, Headphones, MessageCircle, KeyRound, Copy, Check,
+  Sparkles, ShieldCheck
+} from 'lucide-react';
 import SEO from '../../components/ui/SEO';
 import DashboardGreeting from '../../components/portal/DashboardGreeting';
+import { useToast } from '../../contexts/ToastContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { FintechTransactionDetailsModal } from '../../components/portal/FintechTransactionDetailsModal';
 import type { TransactionReceiptData } from '../../lib/receiptGenerator';
 import { getEffectiveAuth } from '../../utils/impersonation';
+import { formatNaira } from '../../lib/billing';
 
 interface ChildRecord {
   id: string;
@@ -16,17 +23,29 @@ interface ChildRecord {
   name?: string;
   username?: string;
   email?: string;
+  accessCode?: string;
+  track?: string;
   subjects?: string[] | string;
   schedule?: string;
   grade?: string;
   class?: string;
   plan?: string;
+  programTitle?: string;
+  programName?: string;
+  tuitionFee?: number;
+  fee?: number;
+  paymentStatus?: string;
   status?: string;
+  tutorName?: string;
+  tutorId?: string;
+  mentorName?: string;
+  meetingLink?: string;
 }
 interface ProgressRecord { completed: number; total: number; }
 
 const ParentDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { notifications: parentNotifs, unreadCount, openDrawer, isNotificationRead } = useNotifications();
   const [children, setChildren] = useState<ChildRecord[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -146,18 +165,85 @@ const ParentDashboard: React.FC = () => {
     }
     try {
       const user = auth.currentUser;
-      if (!user) throw new Error('Your parent session has expired. Please sign in again.');
-      const token = await user.getIdToken();
-      const response = await fetch('/api/parent-enrollment-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Could not submit the enrollment request.');
-      const request = result.request;
-      setEnrollments(current => [{ id: request.id, ...request }, ...current]);
-      setEnrollSuccess(`Enrollment request submitted for ${trimmedName}. The admissions team can now review it from Admin Approvals.`);
+      const effective = getEffectiveAuth();
+      if (!user && !effective.isMasquerading) throw new Error('Your parent session has expired. Please sign in again.');
+      
+      const userUid = effective.effectiveUid || user?.uid || '';
+      const userEmail = (effective.effectiveEmail || user?.email || '').toLowerCase();
+      const parentName = sessionStorage.getItem('userName') || user?.displayName || userEmail.split('@')[0] || 'Parent';
+
+      let requestCreated: any = null;
+
+      // 1. Try backend endpoint first if available
+      if (user && !effective.isMasquerading) {
+        try {
+          const token = await user.getIdToken();
+          const response = await fetch('/api/parent-enrollment-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
+          });
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const result = await response.json().catch(() => ({}));
+            if (response.ok && result.request) {
+              requestCreated = result.request;
+            }
+          }
+        } catch {
+          // Proceed to direct Firestore fallback
+        }
+      }
+
+      // 2. Direct Firestore fallback
+      if (!requestCreated) {
+        const reqRef = doc(collection(db, 'enrollment_requests'));
+        const now = new Date();
+        const docPayload = {
+          studentName: trimmedName,
+          studentAge: trimmedAge,
+          plan: selectedPlan,
+          subjects,
+          parentId: userUid,
+          parentEmail: userEmail,
+          parentName: parentName,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          source: 'parent_portal'
+        };
+
+        await setDoc(reqRef, docPayload);
+        requestCreated = { id: reqRef.id, ...docPayload, createdAt: now.toISOString() };
+
+        // Write to activity logs
+        await addDoc(collection(db, 'activityLogs'), {
+          actorId: userUid,
+          action: 'PARENT_ENROLLMENT_REQUEST_CREATED',
+          targetId: reqRef.id,
+          targetType: 'enrollment_request',
+          timestamp: serverTimestamp(),
+          metadata: { studentName: trimmedName, plan: selectedPlan, subjects, parentEmail: userEmail }
+        }).catch(() => undefined);
+
+        // Notify admins
+        await addDoc(collection(db, 'notifications'), {
+          title: `New Enrollment: ${trimmedName}`,
+          message: `${parentName} requested enrollment for ${trimmedName} (${selectedPlan}).`,
+          recipientId: 'all',
+          targetRole: 'super_admin',
+          type: 'alert',
+          priority: 'high',
+          read: false,
+          readBy: [],
+          timestamp: serverTimestamp(),
+          senderName: parentName,
+          senderRole: 'Parent'
+        }).catch(() => undefined);
+      }
+
+      setEnrollments(current => [requestCreated, ...current.filter(e => e.id !== requestCreated.id)]);
+      setEnrollSuccess(`Enrollment request submitted for ${trimmedName}! The admissions team can now review it from Admin Approvals, configure billing, assign a mentor, and schedule class times.`);
       setStudentName(''); setStudentAge(''); setPreferredSubjects('Scratch, Python, Web Development'); setShowEnrollModal(false);
     } catch (error: any) {
       console.error('Enrollment request submission failed:', error);
@@ -196,7 +282,7 @@ const ParentDashboard: React.FC = () => {
           </span>
           <h2 className="text-lg sm:text-xl font-bold mt-2 tracking-tight">Parent & Guardian Hub</h2>
           <p className="text-xs text-slate-300 mt-1">
-            Stay aligned with your student's coding journey, tech projects, and tuition schedules.
+            Stay aligned with your student's coding journey, tech projects, mentor assignments, and tuition schedules.
           </p>
         </div>
         <div className="flex items-center gap-2.5 shrink-0">
@@ -207,6 +293,14 @@ const ParentDashboard: React.FC = () => {
           >
             <PlusCircle size={14} />
             <span>Enroll New Child</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/portal/parent/support')}
+            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all border border-white/10 inline-flex items-center gap-2"
+          >
+            <Headphones size={14} />
+            <span>Support Desk</span>
           </button>
         </div>
       </div>
@@ -255,59 +349,105 @@ const ParentDashboard: React.FC = () => {
             {children.map(child => {
               const progress = childProgress[child.id];
               const percentage = progress?.total ? Math.round((progress.completed / progress.total) * 100) : 0;
-              const subjects = Array.isArray(child.subjects) ? child.subjects : String(child.subjects || 'General Tech Track').split(',').map(subject => subject.trim()).filter(Boolean);
+              const subjects = Array.isArray(child.subjects) ? child.subjects : String(child.subjects || child.track || 'General Tech Track').split(',').map(subject => subject.trim()).filter(Boolean);
+              const feeAmount = Number(child.tuitionFee || child.fee || 0);
+
               return (
-                <article key={child.id} className="flex flex-col justify-between rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-4">
+                <article key={child.id} className="flex flex-col justify-between rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-5 shadow-xs hover:border-brand-red/40 transition-all space-y-4">
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-red text-xs font-bold text-white">
-                          {(child.fullName || 'C').charAt(0).toUpperCase()}
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-red text-xs font-black text-white shadow-xs">
+                          {(child.fullName || child.name || 'C').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <h3 className="truncate text-xs font-bold text-slate-900 dark:text-white">{child.fullName || 'Student'}</h3>
-                          <p className="truncate text-[11px] text-slate-500">@{child.username || 'student'}</p>
+                          <h3 className="truncate text-sm font-black text-slate-900 dark:text-white">{child.fullName || child.name || 'Student'}</h3>
+                          <p className="truncate text-xs font-mono font-bold text-slate-500 dark:text-slate-400">@{child.username || 'cadet'}</p>
                         </div>
                       </div>
-                      <span className="shrink-0 rounded-md bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
+                      <span className="shrink-0 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">
                         {child.status || 'Active'}
                       </span>
                     </div>
 
+                    {/* Student Access Keys Box */}
+                    {child.accessCode && (
+                      <div className="mt-3 p-2.5 rounded-xl bg-slate-900 text-white border border-slate-800 space-y-1.5 shadow-inner">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <KeyRound size={11} className="text-emerald-400" /> Student Access Code
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(child.accessCode || '');
+                              toast.success(`Copied access code for ${child.fullName || child.name}: ${child.accessCode}`);
+                            }}
+                            className="text-[10px] font-bold text-brand-red hover:text-red-400 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Copy size={11} /> Copy Code
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between font-mono">
+                          <span className="text-xs font-black tracking-wider text-emerald-400">{child.accessCode}</span>
+                          <span className="text-[10px] text-slate-400">User: {child.username}</span>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-3 space-y-2.5 text-xs">
                       <div>
-                        <p className="mb-1 text-[11px] font-semibold text-slate-500">Learning Track</p>
+                        <p className="mb-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Enrolled Programme Track</p>
                         <div className="flex flex-wrap gap-1">
                           {subjects.map(subject => (
-                            <span key={subject} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300">
+                            <span key={subject} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2.5 py-1 text-[10px] font-bold text-slate-800 dark:text-slate-200">
                               {subject}
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-slate-500">Module Progress</span>
-                          <strong className="text-xs text-slate-900 dark:text-white">{percentage}%</strong>
+                          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Module Progress</span>
+                          <strong className="text-xs font-black text-slate-900 dark:text-white">{percentage}%</strong>
                         </div>
-                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+                        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" aria-hidden="true">
                           <div className="h-full rounded-full bg-brand-red transition-all" style={{ width: `${percentage}%` }} />
                         </div>
                         <p className="mt-1 text-[10px] text-slate-500">
-                          {progress ? `${progress.completed} of ${progress.total} modules completed` : 'No modules logged yet'}
+                          {progress ? `${progress.completed} of ${progress.total} modules completed` : 'Modules will be tracked as classes proceed'}
                         </p>
                       </div>
 
-                      {(child.class || child.grade) && <InfoRow label="Class" value={child.class || child.grade || '—'} />}
-                      {child.schedule && <InfoRow label="Schedule" value={child.schedule} />}
-                      {child.plan && <InfoRow label="Plan" value={child.plan} />}
+                      {(child.class || child.grade) && <InfoRow label="Class / Grade" value={child.class || child.grade || '—'} />}
+                      {child.schedule && <InfoRow label="Class Schedule" value={child.schedule} />}
+                      {(child.tutorName || child.mentorName) && <InfoRow label="Assigned Mentor" value={child.tutorName || child.mentorName || 'Faculty Instructor'} />}
+                      {child.plan && <InfoRow label="Programme Track" value={child.plan} />}
+                      {feeAmount > 0 && <InfoRow label="Tuition Fee" value={`₦${feeAmount.toLocaleString()}`} />}
                     </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3 text-[11px]">
-                    <span className="text-slate-500">Portal access</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Active</span>
+                    {feeAmount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/portal/parent/billing')}
+                        className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+                      >
+                        <CreditCard size={12} /> Settle Tuition (₦{feeAmount.toLocaleString()})
+                      </button>
+                    ) : (
+                      <span className="text-slate-500">Portal Ready</span>
+                    )}
+
+                    <button 
+                      type="button" 
+                      onClick={() => navigate('/portal/parent/calendar')}
+                      className="font-black text-brand-red hover:underline inline-flex items-center gap-1"
+                    >
+                      Timetable <ChevronRight size={12} />
+                    </button>
                   </div>
                 </article>
               );
@@ -315,6 +455,61 @@ const ParentDashboard: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* Class Schedule & Timetable Section */}
+      {schedules.length > 0 && (
+        <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <Calendar size={18} className="text-brand-red" />
+                <span>Assigned Class Schedules & Times</span>
+              </h2>
+              <p className="text-xs text-slate-500">Weekly coding sessions and lab hours assigned to your learners.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/portal/parent/calendar')}
+              className="text-xs font-bold text-brand-red hover:underline inline-flex items-center gap-1"
+            >
+              Full Calendar <ArrowRight size={13} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {schedules.slice(0, 6).map((sched: any) => (
+              <div key={sched.id} className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">{sched.title || sched.programName || sched.subject || 'Coding Lab'}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-brand-red/10 text-brand-red">
+                    {sched.classLevel || sched.class || sched.dayOfWeek || 'Scheduled'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={13} />
+                    <span>{sched.dayOfWeek || sched.day || sched.date || 'Weekly'} • {sched.startTime || sched.time || '10:00 AM'} - {sched.endTime || '12:00 PM'}</span>
+                  </div>
+                  {sched.tutorName && (
+                    <div className="flex items-center gap-1.5">
+                      <User size={13} />
+                      <span>Mentor: <strong>{sched.tutorName}</strong></span>
+                    </div>
+                  )}
+                  {sched.meetingLink && (
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <ExternalLink size={12} className="text-sky-500 shrink-0" />
+                      <a href={sched.meetingLink} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline truncate">
+                        Join Virtual Lab
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Enrollment Requests Section */}
       <section className="bg-white dark:bg-[#161B26] rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
@@ -340,19 +535,19 @@ const ParentDashboard: React.FC = () => {
                   <div>
                     <p className="text-xs font-bold text-slate-900 dark:text-white">{request.studentName || 'Child enrollment'}</p>
                     <p className="text-[11px] text-slate-500 mt-0.5">{request.plan || 'Learning plan'} • {request.studentAge || 'Age/grade not supplied'}</p>
-                  </div>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${tone}`}>{status}</span>
-                    {status !== 'rejected' && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/portal/parent/payments?enrollmentRequestId=${encodeURIComponent(request.id)}`)}
-                        className="min-h-8 rounded-lg border border-brand-red px-2.5 text-[11px] font-bold text-brand-red hover:bg-brand-red hover:text-white transition-colors"
-                      >
-                        Pay for this child
-                      </button>
+                    {status === 'approved' && request.accessCode && (
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px]">
+                        <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
+                          Code: {request.accessCode}
+                        </span>
+                        {request.username && <span className="text-slate-500 font-mono">@{request.username}</span>}
+                      </div>
                     )}
                   </div>
+                  <span className={`inline-flex items-center gap-1 self-start rounded-full px-2.5 py-1 text-[11px] font-black uppercase ${tone}`}>
+                    {status === 'approved' ? <CheckCircle2 size={12} /> : status === 'rejected' ? <AlertCircle size={12} /> : <Clock size={12} />}
+                    {status}
+                  </span>
                 </div>
               );
             })
@@ -367,7 +562,7 @@ const ParentDashboard: React.FC = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 id="parent-enroll-title" className="text-sm font-bold text-slate-900 dark:text-white">Enroll New Child</h2>
-                <p className="text-xs text-slate-500">Submit student details for administrative review and class assignment.</p>
+                <p className="text-xs text-slate-500">Submit student details for administrative review, mentor assignment, and billing setup.</p>
               </div>
               <button
                 type="button"
@@ -381,13 +576,13 @@ const ParentDashboard: React.FC = () => {
 
             <form onSubmit={handleEnrollSubmit} className="space-y-3">
               <Field label="Student Full Name" htmlFor="parent-student-name">
-                <input id="parent-student-name" type="text" required value={studentName} onChange={event => setStudentName(event.target.value)} placeholder="e.g. David Johnson" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900" autoComplete="name" />
+                <input id="parent-student-name" type="text" required value={studentName} onChange={event => setStudentName(event.target.value)} placeholder="e.g. David Johnson" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" autoComplete="name" />
               </Field>
               <Field label="Age / Grade" htmlFor="parent-student-age">
-                <input id="parent-student-age" type="text" required value={studentAge} onChange={event => setStudentAge(event.target.value)} placeholder="e.g. 10 years / Grade 5" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900" />
+                <input id="parent-student-age" type="text" required value={studentAge} onChange={event => setStudentAge(event.target.value)} placeholder="e.g. 10 years / Grade 5" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
               </Field>
               <Field label="Learning Track / Plan" htmlFor="parent-plan">
-                <select id="parent-plan" value={selectedPlan} onChange={event => setSelectedPlan(event.target.value)} className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900">
+                <select id="parent-plan" value={selectedPlan} onChange={event => setSelectedPlan(event.target.value)} className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                   {availablePrograms.length > 0 ? (
                     availablePrograms.map(p => (
                       <option key={p.id} value={p.title}>{p.title}</option>
@@ -398,7 +593,7 @@ const ParentDashboard: React.FC = () => {
                 </select>
               </Field>
               <Field label="Preferred Subjects" htmlFor="parent-subjects">
-                <input id="parent-subjects" type="text" value={preferredSubjects} onChange={event => setPreferredSubjects(event.target.value)} placeholder="e.g. Python, Scratch, Robotics" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900" />
+                <input id="parent-subjects" type="text" value={preferredSubjects} onChange={event => setPreferredSubjects(event.target.value)} placeholder="e.g. Python, Scratch, Robotics" className="w-full min-h-9 rounded-xl border border-slate-200 dark:border-slate-800 px-3 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                 <p className="mt-0.5 text-[10px] text-slate-500">Separate multiple subjects with commas.</p>
               </Field>
               <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
