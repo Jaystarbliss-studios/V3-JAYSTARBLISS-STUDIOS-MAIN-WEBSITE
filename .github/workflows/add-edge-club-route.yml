@@ -1,0 +1,31 @@
+name: Add Edge Club route
+on:
+  push:
+    branches:
+      - feat/student-schedule-and-portal-controls
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[edge-route-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/student-schedule-and-portal-controls
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: node scripts/add-edge-club-route.mjs
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Commit route
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/add-edge-club-route.mjs .github/workflows/add-edge-club-route.yml
+          git add src/components/portal/PortalLayout.tsx src/App.tsx src/pages/portal/StudentEdgeClub.tsx package-lock.json scripts/add-edge-club-route.mjs .github/workflows/add-edge-club-route.yml
+          git commit -m "feat: add gated Edge Club route [edge-route-fix]"
+          git push origin HEAD:feat/student-schedule-and-portal-controls
