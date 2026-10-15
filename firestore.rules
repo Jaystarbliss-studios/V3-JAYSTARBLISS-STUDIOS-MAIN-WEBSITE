@@ -8,8 +8,7 @@ service cloud.firestore {
         request.auth.token.isAdmin == true || 
         request.auth.token.email == 'johnrufai242@gmail.com' || 
         request.auth.token.email == 'admin@jaystarbliss.com' || 
-        request.auth.token.email == 'admin@jaystar.com' || 
-        request.auth.token.email.matches('.*admin.*')
+        request.auth.token.email == 'admin@jaystar.com'
       ); 
     }
     function isActiveUserRecord() { 
