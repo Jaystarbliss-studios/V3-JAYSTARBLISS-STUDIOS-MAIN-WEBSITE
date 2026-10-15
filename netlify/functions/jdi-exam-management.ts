@@ -125,6 +125,10 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
   }
   for(const a of affectedReleased){
     const recipients=[a.studentUid,...schoolRecipients].filter(Boolean);
+    const attemptData=attemptSnap.docs.find(d=>d.id===a.id)?.data()||{};
+    let studentRecord=await adminDb.collection("individualStudents").doc(String(attemptData.studentId||"")).get();
+    if(!studentRecord.exists)studentRecord=await adminDb.collection("students").doc(String(attemptData.studentId||"")).get();
+    const parentId=String(studentRecord.data()?.parentId||studentRecord.data()?.guardianId||"");if(parentId)recipients.push(parentId);
     await notify(recipients,{type:"exam_result_corrected",title:"Examination result corrected",message:"A correction was made to the answer key for "+String(exam.title||"an examination")+". The affected result has been recalculated.",examId,attemptId:a.id});
   }
   return json(200,{ok:true,questionId,regradedAttempts:changed.length,releasedResultsUpdated:affectedReleased.length,auditId:auditRef.id});
