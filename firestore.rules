@@ -125,7 +125,15 @@ service cloud.firestore {
     match /invites/{email} { allow read: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); allow write: if isAnyAdmin(); allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); }
 
     match /individualStudents/{studentId} {
-      allow read: if true;
+      // Student records are private to the learner, their parent, their school,
+      // assigned teaching staff, and administrators. Parent-email queries are
+      // permitted only for the authenticated account's own email.
+      allow read: if isAnyAdmin() ||
+        isOwnStudent(resource.data) ||
+        isOwnParent(resource.data) ||
+        (isAuth() && request.auth.token.email != null && resource.data.get('parentEmail', '') == request.auth.token.email) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        isAssignedStaffToStudent(studentId);
       allow create: if isAnyAdmin() ||
         (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
         (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
@@ -135,7 +143,12 @@ service cloud.firestore {
       allow delete: if isAnyAdmin() || (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
     }
     match /students/{studentId} {
-      allow read: if true;
+      allow read: if isAnyAdmin() ||
+        isOwnStudent(resource.data) ||
+        isOwnParent(resource.data) ||
+        (isAuth() && request.auth.token.email != null && resource.data.get('parentEmail', '') == request.auth.token.email) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        isAssignedStaffToStudent(studentId);
       allow create: if isAnyAdmin() ||
         (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
         (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
