@@ -300,6 +300,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: true, readBy: [...(prev.readBy || []), uid] } : null);
     }
 
+    // Admins can inspect the global JDI event feed, but must not change another
+    // recipient's read state while doing so.
+    const selectedItem = notifications.find(item => item.id === id);
+    if (id.startsWith("jdi:") && selectedItem?.recipientId !== uid) return;
+
     // 2. Persist to Firestore
     try {
       if (id.startsWith("jdi:")) {
@@ -311,7 +316,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err: any) {
       console.warn('Firestore read state update note:', err.message);
     }
-  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification]);
+  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, notifications]);
 
   // Mark a single notification as unread
   const markAsUnread = useCallback(async (id: string, e?: React.MouseEvent) => {
@@ -341,6 +346,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: false, readBy: (prev.readBy || []).filter(u => u !== uid) } : null);
     }
 
+    // Admins may read the global event feed, but cannot reset another user's
+    // recipient-specific read state.
+    const selectedItem = notifications.find(item => item.id === id);
+    if (id.startsWith('jdi:') && selectedItem?.recipientId !== uid) {
+      toast.info('Marked as unread');
+      return;
+    }
+
     // 2. Persist to Firestore
     try {
       if (id.startsWith('jdi:')) {
@@ -353,7 +366,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err: any) {
       console.warn('Firestore unread state update note:', err.message);
     }
-  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, toast]);
+  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, toast, notifications]);
 
   // Mark all currently visible notifications as read
   const markAllAsRead = useCallback(async () => {
@@ -377,7 +390,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       await Promise.allSettled(
         notifications.map(n => n.id.startsWith('jdi:')
-          ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() })
+          ? (n.recipientId === uid ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() }) : Promise.resolve())
           : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid), read: true })
         )
       );
