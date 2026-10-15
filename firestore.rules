@@ -210,12 +210,19 @@ service cloud.firestore {
       allow create, update: if true; 
       allow delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); 
     }
-    match /schoolExams/{examId} { 
-      allow read: if true; 
-      allow create, update: if true; 
-      allow delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); 
+    // Legacy school exam/passcode records are no longer public. JDI exams use the
+    // authenticated Netlify API and hashed passcodes in jdiExams.
+    match /schoolExams/{examId} {
+      allow read: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
+      allow create: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(request.resource.data.schoolId) || isSameSchool(request.resource.data.schoolId);
+      allow update: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
+      allow delete: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
     }
-    match /schoolPasscodes/{docId} { allow read: if true; allow create, update, delete: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); }
+    match /schoolPasscodes/{docId} {
+      allow read: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId);
+      allow create: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(request.resource.data.schoolId);
+      allow update, delete: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId);
+    }
     match /staffGeneralResources/{resId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /staffSchoolAccess/{docId} { allow read: if true; allow write: if isAnyAdmin(); }
     match /staffRegistration/{docId} { allow read, write: if true; }
