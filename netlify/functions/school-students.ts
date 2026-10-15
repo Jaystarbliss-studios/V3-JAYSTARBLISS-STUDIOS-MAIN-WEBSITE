@@ -190,10 +190,14 @@ export const handler: Handler = async event => {
     }
 
     if (isStaff) {
+      // Resolve linked tutor/staff profile IDs as older student records may not store the Firebase UID.
+      const staffIds = Array.from(new Set([decoded.uid, caller.uid, caller.userId, caller.staffId, caller.tutorId, caller.profileId, caller.staffProfileId, caller.tutorProfileId].filter((value: any) => typeof value === 'string' && value.trim()).map((value: string) => value.trim())));
       for (const coll of ['students', 'individualStudents']) {
         for (const field of ['tutorId', 'staffId', 'assignedTutorId', 'assignedStaffId', 'instructorId']) {
-          const snap = await adminDb.collection(coll).where(field, '==', decoded.uid).limit(500).get();
-          snap.docs.forEach(x => addStudent(x.id, x.data(), coll));
+          for (const staffId of staffIds) {
+            const snap = await adminDb.collection(coll).where(field, '==', staffId).limit(500).get();
+            snap.docs.forEach(x => addStudent(x.id, x.data(), coll));
+          }
         }
       }
     }
