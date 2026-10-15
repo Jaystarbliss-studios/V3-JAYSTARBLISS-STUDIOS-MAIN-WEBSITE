@@ -97,13 +97,11 @@ export const handler: Handler = async (event) => {
       if (failedCount >= 5) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
       if (!validCode) { await throttleRef.set({ windowStart: failedCount === 0 ? Date.now() : windowStart || Date.now(), failedCount: failedCount + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); }
       else if (throttleSnap.exists) await throttleRef.delete();
-      const attemptQuery = await adminDb.collection("jdiExamAttempts").where("examId", "==", examId).where("studentId", "==", student.id).limit(1).get();
-      const existing = attemptQuery.empty ? null : attemptQuery.docs[0];
       if (!assigned || !active || !validCode) return json(403, { error: "The passcode could not be validated for this examination." });
-      if (existing && ["submitted", "expired", "graded"].includes(String(existing.data().status))) return json(409, { error: "An attempt for this examination has already been submitted." });
-      if (existing) return json(200, { attemptId: existing.id, resumed: true });
+      const attemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex"); const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId); const prior = await attemptRef.get();
+      if (prior.exists && ["submitted", "expired", "graded"].includes(String(prior.data()?.status))) return json(409, { error: "An attempt for this examination has already been submitted." });
+      if (prior.exists && prior.data()?.status === "in_progress" && prior.data()?.studentUid === c.uid) return json(200, { attemptId, resumed: true });
       const duration = Math.min(300, Math.max(1, Number(exam.durationMinutes || 30)));
-      const attemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex"); const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId);
       const attempt = { examId, studentId: student.id, studentUid: c.uid, schoolId, status: "in_progress", startedAt: FieldValue.serverTimestamp(), deadlineAt: new Date(now + duration * 60000).toISOString(), answers: {}, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }; let resumed = false;
       await adminDb.runTransaction(async tx => {
         const existingSnap = await tx.get(attemptRef); const existingExam = await tx.get(ref);
