@@ -23,7 +23,6 @@ export default function StudentExaminations() {
   const [message, setMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
   const filtered = useMemo(() => exams.filter(e => e.status === tab), [exams, tab]);
 
-  // Endpoint is intentionally fail-closed until the server API is implemented and deployed.
   const load = async () => {
     setLoading(true); setMessage(null);
     try { const result = await api("/.netlify/functions/student-examinations"); setExams(Array.isArray(result.exams) ? result.exams : []); }
@@ -32,7 +31,7 @@ export default function StudentExaminations() {
   };
   useEffect(() => { void load(); }, []);
 
-  // Load on demand, avoiding permanent polling/listeners on free-tier projects.
+  // Refresh manually rather than polling continuously to keep free-tier reads low.
   const unlock = async (examId: string) => {
     const passcode = (passcodes[examId] || "").trim();
     if (!passcode) { setMessage({ id: examId, text: "Enter the passcode provided by your school.", error: true }); return; }
