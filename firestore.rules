@@ -344,7 +344,7 @@ service cloud.firestore {
       ));
       allow create: if isAnyAdmin();
       allow delete: if isAnyAdmin();
-      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy);
+      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','read']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy);
     }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin() || isAuth(); }
     match /treasuryLogs/{logId} { allow read, write: if isAnyAdmin(); }
