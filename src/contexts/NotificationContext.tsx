@@ -51,6 +51,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      setNotifications([]);
+      setLoading(true);
+      setSelectedNotification(null);
       if (user) {
         // Load role & identifiers from sessionStorage or cached storage
         const r = (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || '').toLowerCase();
@@ -337,11 +340,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Persist to Firestore
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayRemove(uid),
-        read: false
-      });
+      if (id.startsWith('jdi:')) {
+        await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: false, readAt: null });
+      } else {
+        const notifRef = doc(db, 'notifications', id);
+        await updateDoc(notifRef, { readBy: arrayRemove(uid), read: false });
+      }
       toast.info('Marked as unread');
     } catch (err: any) {
       console.warn('Firestore unread state update note:', err.message);
@@ -369,11 +373,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // 2. Batch Firestore updates asynchronously
     try {
       await Promise.allSettled(
-        notifications.map(n => 
-          updateDoc(doc(db, 'notifications', n.id), {
-            readBy: arrayUnion(uid),
-            read: true
-          })
+        notifications.map(n => n.id.startsWith('jdi:')
+          ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() })
+          : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid), read: true })
         )
       );
     } catch (err) {
@@ -406,20 +408,54 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const refreshNotifications = useCallback(async () => {
     if (!currentUser) return;
+    // Refresh only recipient-scoped records. Broad collection reads here would
+    // bypass the audience filtering used by the live listeners.
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(50)));
-      const items: AppNotification[] = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      } as AppNotification));
-      setNotifications(items);
+      const uid = currentUser.uid;
+      const [direct, jdi] = await Promise.all([
+        getDocs(query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(50))),
+        getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50)))
+      ]);
+      const toNotification = (d: any, isJdi = false): AppNotification => {
+        const data = d.data();
+        return {
+          id: isJdi ? `jdi:${d.id}` : d.id,
+          title: data.title || 'System Notification',
+          message: data.message || '',
+          type: data.type || 'system',
+          priority: data.priority || 'normal',
+          recipientType: data.recipientType,
+          recipientId: data.recipientId || data.recipientUid || uid,
+          schoolId: data.schoolId,
+          schoolName: data.schoolName,
+          targetRole: data.targetRole,
+          targetName: data.targetName,
+          targetEmail: data.targetEmail,
+          targetUid: data.targetUid,
+          link: data.link,
+          linkText: data.linkText,
+          read: data.isRead === true || data.read === true,
+          readBy: Array.isArray(data.readBy) ? data.readBy : [],
+          timestamp: data.timestamp || data.createdAt || Date.now(),
+          createdAt: data.createdAt,
+          senderName: data.senderName || 'Jaystar Central',
+          senderRole: data.senderRole || 'Administration'
+        };
+      };
+      const refreshed = [...direct.docs.map(d => toNotification(d)), ...jdi.docs.map(d => toNotification(d, true))];
+      const byId = new Map(notifications.map(n => [n.id, n]));
+      refreshed.forEach(n => byId.set(n.id, n));
+      setNotifications(Array.from(byId.values()).sort((a, b) => {
+        const time = (value: any) => value instanceof Timestamp ? value.toMillis() : new Date(value || 0).getTime() || 0;
+        return time(b.timestamp) - time(a.timestamp);
+      }));
     } catch (e) {
       console.warn('Refresh notifications note:', e);
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, notifications]);
 
   const handleSetActiveFilter = useCallback((filter: NotificationFilter) => {
     setActiveFilter(filter);
