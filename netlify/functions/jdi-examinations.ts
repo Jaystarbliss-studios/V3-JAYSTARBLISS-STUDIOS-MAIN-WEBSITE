@@ -30,7 +30,7 @@ async function getStudent(uid: string) {
   return null;
 }
 function studentSafe(exam: any) {
-  const { passcodeHash, passcodeSalt, questions, answerKey, createdBy, ...safe } = exam;
+  const { passcodeHash, passcodeSalt, questions, answerKey, createdBy, studentIds, studentUids, ...safe } = exam;
   return { ...safe, questions: Array.isArray(questions) ? questions.map((q: any) => { const { correctOptionIds, acceptedAnswers, answer, explanation, ...studentQuestion } = q; return studentQuestion; }) : [] };
 }
 async function permittedSchool(callerInfo: any, schoolId: string) {
