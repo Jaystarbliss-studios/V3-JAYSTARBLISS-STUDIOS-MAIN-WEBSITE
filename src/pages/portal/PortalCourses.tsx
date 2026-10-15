@@ -140,17 +140,30 @@ export const PortalCourses: React.FC = () => {
           studentRecord.enrolledPrograms.forEach((p: string) => p && assignedNames.add(p.toLowerCase().trim()));
         }
         
-        // If school student, check school programs matching class
+        // School offerings are not automatically student enrolments. Include a
+        // school programme only when it is explicitly assigned to this student
+        // or to the student's class; never expose every school offering by default.
         if (studentRecord.schoolId) {
           try {
             const schDoc = await getDoc(doc(db, 'schools', studentRecord.schoolId));
-            if (schDoc.exists() && Array.isArray(schDoc.data().programs)) {
-              schDoc.data().programs.forEach((prog: any) => {
-                if (prog.name) assignedNames.add(prog.name.toLowerCase().trim());
-              });
-            }
+            const schoolPrograms = schDoc.exists() && Array.isArray(schDoc.data().programs) ? schDoc.data().programs : [];
+            const studentClass = String(studentRecord.class || studentRecord.classLevel || studentRecord.grade || '').trim().toLowerCase();
+            const studentIds = [studentDocId, currentUid, studentRecord.id, studentRecord.studentId].filter(Boolean).map(String);
+            schoolPrograms.forEach((prog: any) => {
+              const name = String(prog.name || prog.title || prog.programName || '').trim();
+              if (!name) return;
+              const explicitStudentIds = [prog.studentIds, prog.assignedStudentIds, prog.enrolledStudentIds]
+                .filter(Array.isArray).flat().map(String);
+              const classes = [prog.assignedClasses, prog.classLevels, prog.classes]
+                .filter(Array.isArray).flat().map((value: any) => String(value).trim().toLowerCase());
+              const assignedToStudent = studentIds.some(id => explicitStudentIds.includes(id));
+              const assignedToClass = Boolean(studentClass) && classes.some((value: string) => value === studentClass);
+              if (prog.assignedToAllStudents === true || assignedToStudent || assignedToClass) {
+                assignedNames.add(name.toLowerCase());
+              }
+            });
           } catch (e) {
-            console.warn('School program lookup in courses:', e);
+            console.warn('School programme assignment lookup in courses:', e);
           }
         }
       }
@@ -197,13 +210,8 @@ export const PortalCourses: React.FC = () => {
         }
       }
 
-      // If no explicit filter match was found, show default/first
-      if (relevantPrograms.length === 0) {
-        relevantPrograms = allPublished.filter(p => (p as any).isGeneralProgram || p.stage === 1);
-        if (relevantPrograms.length === 0 && allPublished.length > 0) {
-          relevantPrograms = [allPublished[0]];
-        }
-      }
+      // Never substitute a hardcoded/default programme when no programme is
+      // assigned. An empty state is more accurate than showing unrelated courses.
 
       relevantPrograms.forEach(mod => programMap.set(mod.id, mod));
 
