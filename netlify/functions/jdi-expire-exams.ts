@@ -21,31 +21,38 @@ export const handler: Handler = async () => {
       const examRef = adminDb.collection("jdiExams").doc(String(attempt.examId || ""));
       const examSnap = await examRef.get();
       const exam = examSnap.data() || {};
-      if (exam.gradingMode !== "manual") {
-        let score = 0; let autoGraded = true;
-        const answers = attempt.answers || {};
-        for (const q of Array.isArray(exam.questions) ? exam.questions : []) {
-          const answer = answers[q.id];
-          if (["single_choice", "multiple_choice", "true_false"].includes(String(q.type))) {
-            const expected = Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String).sort() : [];
-            if (!expected.length) { autoGraded = false; continue; }
-            const actual = (Array.isArray(answer) ? answer : [String(answer || "")]).map(String).sort();
-            if (expected.length === actual.length && expected.every((v: string, i: number) => v === actual[i])) score += Number(q.points || 0);
-          } else if (q.type === "short_answer" && Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) {
-            const normal = (v: unknown) => String(v || "").trim().toLowerCase();
-            if (q.acceptedAnswers.some((v: string) => normal(v) === normal(answer))) score += Number(q.points || 0);
-          } else autoGraded = false;
-        }
-        await doc.ref.update({ score, autoGraded, updatedAt: FieldValue.serverTimestamp() });
+      let score = 0; let autoGraded = exam.gradingMode !== "manual"; const questionResults: any[] = [];
+      const answers = attempt.answers || {};
+      for (const q of Array.isArray(exam.questions) ? exam.questions : []) {
+        const answer = answers[q.id]; let correct = false; let manualReview = false; let pointsAwarded = 0;
+        if (exam.gradingMode === "manual") { autoGraded = false; manualReview = true; }
+        else if (["single_choice", "multiple_choice", "true_false"].includes(String(q.type))) {
+          const expected = Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String).sort() : [];
+          const actual = (Array.isArray(answer) ? answer : [String(answer || "")]).map(String).sort();
+          if (!expected.length) { autoGraded = false; manualReview = true; }
+          else correct = expected.length === actual.length && expected.every((v: string, i: number) => v === actual[i]);
+        } else if (q.type === "short_answer" && Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) {
+          const normal = (v: unknown) => String(v || "").trim().toLowerCase();
+          correct = q.acceptedAnswers.some((v: string) => normal(v) === normal(answer));
+        } else { autoGraded = false; manualReview = true; }
+        if (correct) pointsAwarded = Math.max(0, Number(q.points) || 0);
+        score += pointsAwarded;
+        questionResults.push({ questionId: q.id, answer, correct: manualReview ? undefined : correct, manualReview, pointsAwarded, maxPoints: Math.max(0, Number(q.points) || 0) });
       }
-      await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: attempt.schoolId, createdAt: FieldValue.serverTimestamp() });
+      await doc.ref.update({ score, autoGraded, questionResults, updatedAt: FieldValue.serverTimestamp() });
+      await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: schoolId || null, createdAt: FieldValue.serverTimestamp() });
       const recipients = new Set<string>(); if (exam.createdBy) recipients.add(String(exam.createdBy));
-      const access = await adminDb.collection("staffSchoolAccess").where("schoolId", "==", String(attempt.schoolId || "")).limit(50).get().catch(() => null); access?.docs.forEach(item => recipients.add(item.id));
-      const schoolUsers = await adminDb.collection("users").where("schoolId", "==", String(attempt.schoolId || "")).limit(50).get().catch(() => null);
-      schoolUsers?.docs.forEach(item => {
-        const role = String(item.data().role || "").toUpperCase();
-        if (["SCHOOL", "SCHOOL_ADMIN", "ADMIN", "EDUCATION_ADMIN", "SUPER_ADMIN"].includes(role)) recipients.add(item.id);
-      });
+      const schoolId = String(attempt.schoolId || exam.schoolId || "");
+      if (schoolId) {
+        const access = await adminDb.collection("staffSchoolAccess").where("schoolId", "==", schoolId).limit(50).get().catch(() => null); access?.docs.forEach(item => recipients.add(item.id));
+        const schoolUsers = await adminDb.collection("users").where("schoolId", "==", schoolId).limit(50).get().catch(() => null);
+        schoolUsers?.docs.forEach(item => { const role = String(item.data().role || "").toUpperCase(); if (["SCHOOL", "SCHOOL_ADMIN", "ADMIN", "EDUCATION_ADMIN", "SUPER_ADMIN"].includes(role)) recipients.add(item.id); });
+      } else {
+        let student = await adminDb.collection("individualStudents").doc(String(attempt.studentId || "")).get();
+        if (!student.exists) student = await adminDb.collection("students").doc(String(attempt.studentId || "")).get();
+        const parentId = String(student.data()?.parentId || student.data()?.guardianId || "");
+        if (parentId) recipients.add(parentId);
+      }
       const batch = adminDb.batch();
       recipients.delete(String(attempt.studentUid || ""));
       for (const uid of recipients) {
