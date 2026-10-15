@@ -180,7 +180,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (isAdmin) {
           isRelevant = true;
         } else if (notif.recipientId === 'all' || notif.recipientType === 'all') {
-          isRelevant = true;
+          const targetRole = String(notif.targetRole || '').trim().toLowerCase();
+          const roleMatches = !targetRole || targetRole === 'all' || targetRole === role ||
+            (targetRole === 'super_admin' && ['super_admin', 'superadmin'].includes(role)) ||
+            (targetRole === 'admin' && ['admin', 'super_admin', 'superadmin'].includes(role));
+          isRelevant = roleMatches;
         } else if (notif.recipientId === uid || notif.targetUid === uid) {
           isRelevant = true;
         } else if (notif.targetEmail && email && notif.targetEmail.toLowerCase() === email) {
