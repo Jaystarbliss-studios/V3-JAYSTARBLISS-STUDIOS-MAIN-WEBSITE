@@ -152,6 +152,7 @@ const AdminNotifications: React.FC = () => {
       const adminEmail = adminUser?.email || 'admin@jaystar.com';
 
       const payload: any = {
+        ...(recipientType === 'all' ? { targetRole: 'all' } : {}),
         title: title.trim(),
         message: message.trim(),
         type: category,
