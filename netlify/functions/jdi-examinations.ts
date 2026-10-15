@@ -20,6 +20,7 @@ async function caller(event: any) {
   return { uid: decoded.uid, role: norm(user.role), user };
 }
 async function getStudent(uid: string) {
+  for (const collectionName of ["students", "individualStudents"]) { const direct = await adminDb.collection(collectionName).doc(uid).get(); if (direct.exists) return { id: direct.id, data: direct.data() || {} }; }
   for (const collectionName of ["students", "individualStudents"]) {
     const q = await adminDb.collection(collectionName).where("firebaseUid", "==", uid).limit(1).get();
     if (!q.empty) return { id: q.docs[0].id, data: q.docs[0].data() };
