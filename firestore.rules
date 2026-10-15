@@ -227,7 +227,8 @@ service cloud.firestore {
     }
     match /schoolPasscodes/{docId} {
       allow read: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId);
-      allow create, update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
+      allow create: if isAnyAdmin() || hasStaffSchoolAccess(request.resource.data.schoolId);
+      allow update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
     }
     match /staffGeneralResources/{resId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /staffSchoolAccess/{docId} { allow read: if true; allow write: if isAnyAdmin(); }
