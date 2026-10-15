@@ -4,7 +4,7 @@ const makeId=()=>typeof crypto!=="undefined"&&"randomUUID" in crypto?crypto.rand
 export function parseExamScript(source:string,defaultPoints=1):ExamQuestion[]{
  const lines=source.replace(/\r\n?/g,"\n").split("\n");const blocks:string[]=[];let current="";let answerKeyLine="";
  for(const line of lines){
-  if(/^\s*(answer\s*key|answers)\s*[:\-]/i.test(line)){if(current.trim())blocks.push(current.trim());current="";answerKeyLine=line.replace(/^\s*(answer\s*key|answers)\s*[:\-]\s*/i,"");continue;}
+  if(/^\s*(answer\s*key|answers)\s*[:-]/i.test(line)){if(current.trim())blocks.push(current.trim());current="";answerKeyLine=line.replace(/^\s*(answer\s*key|answers)\s*[:-]\s*/i,"");continue;}
   if(/^\s*\d+[.)]\s+/.test(line)){if(current.trim())blocks.push(current.trim());current=line.replace(/^\s*\d+[.)]\s+/,"");}
   else if(current)current+="\n"+line;
  }
