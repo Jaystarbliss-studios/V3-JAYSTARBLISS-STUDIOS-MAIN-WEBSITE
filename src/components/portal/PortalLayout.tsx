@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X, Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound, Users, ShieldCheck, FileCheck2, Library, SlidersHorizontal, WalletCards, ExternalLink, Award, Headphones, HelpCircle, Keyboard, ChevronDown } from 'lucide-react';
+import { BookOpen, LogOut, LayoutDashboard, CreditCard, Moon, Sun, Menu, X, Radio, Trophy, GraduationCap, ClipboardCheck, CalendarDays, KeyRound, Users, FileCheck2, Library, SlidersHorizontal, WalletCards, ExternalLink, Award, Headphones, HelpCircle, Keyboard, ChevronDown } from 'lucide-react';
 import { signOut, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
