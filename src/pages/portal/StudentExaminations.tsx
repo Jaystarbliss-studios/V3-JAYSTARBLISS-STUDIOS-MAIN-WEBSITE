@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { BookOpenCheck, Clock3, LockKeyhole, ShieldCheck, Eye, EyeOff, CircleAlert, CalendarDays } from "lucide-react";
 import { auth } from "../../lib/firebase";
 
@@ -30,6 +30,8 @@ export default function StudentExaminations() {
     catch (error) { setMessage({ id: "list", text: error instanceof Error ? error.message : "Examinations are temporarily unavailable.", error: true }); }
     finally { setLoading(false); }
   };
+  useEffect(() => { void load(); }, []);
+
   // Load on demand, avoiding permanent polling/listeners on free-tier projects.
   const unlock = async (examId: string) => {
     const passcode = (passcodes[examId] || "").trim();
