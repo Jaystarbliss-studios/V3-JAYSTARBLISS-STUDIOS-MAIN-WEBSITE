@@ -20,12 +20,15 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
  if(action==="update"){
   if(!tutors.includes(c.role)&&!admins.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can edit examinations."});
   const updates=body.updates;if(!updates||typeof updates!=="object"||Array.isArray(updates))return json(400,{error:"Provide valid examination settings."});
-  const attemptsStarted=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(1).get();if(!attemptsStarted.empty&&["durationMinutes","gradingMode","classIds","availableFrom","availableUntil","questions"].some(key=>updates[key]!==undefined))return json(409,{error:"Timing, class assignment, marking mode, and questions are locked after a student attempt starts. Create a new exam version to change them."});
+  const attemptsStarted=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(1).get();if(!attemptsStarted.empty&&["durationMinutes","gradingMode","classIds","availableFrom","availableUntil","questions","maxAttempts","shuffleQuestions","shuffleOptions"].some(key=>updates[key]!==undefined))return json(409,{error:"Timing, class assignment, marking mode, and questions are locked after a student attempt starts. Create a new exam version to change them."});
   const patch:any={updatedAt:FieldValue.serverTimestamp(),updatedBy:c.uid};
   if(updates.title!==undefined){const value=String(updates.title).trim();if(!value||value.length>200)return json(400,{error:"Title must be 1–200 characters."});patch.title=value;}
   if(updates.subject!==undefined){const value=String(updates.subject).trim();if(!value||value.length>120)return json(400,{error:"Subject must be 1–120 characters."});patch.subject=value;}
   if(updates.instructions!==undefined)patch.instructions=String(updates.instructions).slice(0,5000);
   if(updates.durationMinutes!==undefined){const value=Number(updates.durationMinutes);if(!Number.isFinite(value)||value<1||value>300)return json(400,{error:"Duration must be from 1 to 300 minutes."});patch.durationMinutes=value;}
+  if(updates.maxAttempts!==undefined){const value=Number(updates.maxAttempts);if(!Number.isInteger(value)||value<1||value>10)return json(400,{error:"Maximum attempts must be an integer from 1 to 10."});patch.maxAttempts=value;}
+  if(updates.shuffleQuestions!==undefined){if(typeof updates.shuffleQuestions!=="boolean")return json(400,{error:"Invalid question randomisation setting."});patch.shuffleQuestions=updates.shuffleQuestions;}
+  if(updates.shuffleOptions!==undefined){if(typeof updates.shuffleOptions!=="boolean")return json(400,{error:"Invalid option randomisation setting."});patch.shuffleOptions=updates.shuffleOptions;}
   if(updates.gradingMode!==undefined){if(!["automatic","manual"].includes(String(updates.gradingMode)))return json(400,{error:"Invalid grading mode."});patch.gradingMode=String(updates.gradingMode);}
   if(updates.status!==undefined){if(!["draft","scheduled","active","completed","archived"].includes(String(updates.status)))return json(400,{error:"Invalid examination status."});patch.status=String(updates.status);}
   if(updates.classIds!==undefined){if(!Array.isArray(updates.classIds)||updates.classIds.length>100)return json(400,{error:"Invalid class assignment."});patch.classIds=updates.classIds.map(String);}
