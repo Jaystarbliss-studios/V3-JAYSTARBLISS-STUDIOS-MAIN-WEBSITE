@@ -100,6 +100,7 @@ export const PortalCourses: React.FC = () => {
     notifyUsers: true
   });
   const [uploading, setUploading] = useState(false);
+  const [canManageCurriculum, setCanManageCurriculum] = useState(false);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -258,13 +259,37 @@ export const PortalCourses: React.FC = () => {
   };
 
   useEffect(() => {
+    let active = true;
+    const checkCurriculumAccess = async () => {
+      const user = auth.currentUser;
+      if (!user) { if (active) setCanManageCurriculum(false); return; }
+      try {
+        const [userSnap, adminSnap, tokenResult] = await Promise.all([
+          getDoc(doc(db, 'users', user.uid)).catch(() => null),
+          getDoc(doc(db, 'admins', user.uid)).catch(() => null),
+          user.getIdTokenResult().catch(() => null)
+        ]);
+        const role = String(userSnap?.data()?.role || sessionStorage.getItem('userRole') || '').toLowerCase();
+        const isTutor = ['staff', 'tutor', 'instructor', 'teacher'].includes(role);
+        const isAdmin = ['admin', 'super_admin', 'superadmin'].includes(role) ||
+          Boolean(adminSnap?.exists()) || tokenResult?.claims?.super_admin === true ||
+          user.email?.toLowerCase() === 'johnrufai242@gmail.com';
+        if (active) setCanManageCurriculum(isTutor || isAdmin);
+      } catch (error) {
+        console.warn('Program curriculum permission check failed:', error);
+        if (active) setCanManageCurriculum(false);
+      }
+    };
+    void checkCurriculumAccess();
     void loadCourses();
+    return () => { active = false; };
   }, []);
 
   const selectedModule = useMemo(() => modules.find(m => m.id === selectedId) || null, [modules, selectedId]);
 
   // Open upload curriculum modal
   const handleOpenCurriculumModal = (mod: CourseModule) => {
+    if (!canManageCurriculum) { toast.error('Only tutors and the super admin can update program curriculum.'); return; }
     setCurriculumForm({
       title: mod.curriculumTitle || `${mod.title} Curriculum Syllabus`,
       pdfUrl: mod.curriculumPdfUrl || '',
@@ -278,6 +303,7 @@ export const PortalCourses: React.FC = () => {
   // Save Curriculum to Firestore and dispatch notifications
   const handleSaveCurriculum = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageCurriculum) { toast.error('Only tutors and the super admin can update program curriculum.'); return; }
     if (!selectedModule) return;
     if (!curriculumForm.pdfUrl.trim() && !curriculumForm.topicsText.trim()) {
       toast.error('Please enter a curriculum document/drive link or syllabus topics.');
@@ -487,6 +513,16 @@ export const PortalCourses: React.FC = () => {
                       </button>
                     ) : (
                       <span className="px-3.5 py-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 text-xs font-bold">Curriculum not linked yet</span>
+                    )}
+                    {canManageCurriculum && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCurriculumModal(selectedModule)}
+                        className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand-red hover:text-brand-red text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+                      >
+                        <Upload size={14} />
+                        <span>{selectedModule.curriculumPdfUrl ? 'Update Curriculum' : 'Upload Curriculum'}</span>
+                      </button>
                     )}
                   </div>
                 </div>
