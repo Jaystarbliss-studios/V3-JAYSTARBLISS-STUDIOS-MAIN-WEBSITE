@@ -199,11 +199,19 @@ service cloud.firestore {
     match /resources/{resourceId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /links/{linkId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /exams/{examId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
-    match /schoolResources/{resourceId} { 
-      allow read: if true; 
-      allow create: if isAnyAdmin() || isSchoolUser() || isSameSchool(request.resource.data.schoolId) || isAuth();
-      allow update: if isAnyAdmin() || isSchoolUser() || (isSameSchool(resource.data.schoolId) && isSameSchool(request.resource.data.schoolId)) || isAuth();
-      allow delete: if isAnyAdmin() || isSchoolUser() || isSameSchool(resource.data.schoolId);
+    match /schoolResources/{resourceId} {
+      allow read: if true;
+      // School admins can manage resources for their own school. Tutors can
+      // manage school resources only for schools assigned to them.
+      allow create: if isAnyAdmin() ||
+        (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && hasStaffSchoolAccess(request.resource.data.get('schoolId', null)));
+      allow update: if isAnyAdmin() ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)) && isSameSchool(request.resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && hasStaffSchoolAccess(resource.data.get('schoolId', null)) && hasStaffSchoolAccess(request.resource.data.get('schoolId', null)));
+      allow delete: if isAnyAdmin() ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && hasStaffSchoolAccess(resource.data.get('schoolId', null)));
     }
     match /schoolLinks/{linkId} { 
       allow read: if true; 
