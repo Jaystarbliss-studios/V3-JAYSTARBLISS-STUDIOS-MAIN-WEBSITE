@@ -7,8 +7,26 @@ const norm=(v:unknown)=>String(v||"").trim().toUpperCase();
 async function authUser(event:any){const h=event.headers?.authorization||event.headers?.Authorization||"";if(!h.startsWith("Bearer "))throw new Error("AUTH");const d=await adminAuth.verifyIdToken(h.slice(7));const s=await adminDb.collection("users").doc(d.uid).get();if(!s.exists)throw new Error("PROFILE");const u=s.data()||{};if(["DISABLED","SUSPENDED","BANNED"].includes(norm(u.status||u.accountStatus)))throw new Error("INACTIVE");return {uid:d.uid,role:norm(u.role),user:u};}
 const admins=["SUPER_ADMIN","SUPERADMIN"];
 const tutors=["TUTOR","STAFF","INSTRUCTOR"];
-async function canSchool(c:any,schoolId:string){if(admins.includes(c.role))return true;if(c.role==="SCHOOL")return String(c.user.schoolId||c.uid)===schoolId;if(tutors.includes(c.role)){if(String(c.user.schoolId||c.user.school_id||"")===schoolId)return true;const s=await adminDb.collection("staffSchoolAccess").doc(c.uid).get();const d=s.data()||{};return d.schoolId===schoolId||(Array.isArray(d.schoolIds)&&d.schoolIds.includes(schoolId));}return false;}
-async function canManageExam(c:any,exam:any){const schoolId=String(exam.schoolId||"");if(schoolId)return canSchool(c,schoolId);if(exam.audienceType==="individual")return admins.includes(c.role)||(tutors.includes(c.role)&&String(exam.createdBy||"")===c.uid);return false;}
+async function canSchool(c:any,schoolId:string){
+ if(admins.includes(c.role))return true;
+ // School administrators may view reports for their own school, but do not manage exams.
+ if(["SCHOOL","SCHOOL_ADMIN"].includes(c.role))return String(c.user.schoolId||c.user.school_id||c.uid)===schoolId;
+ if(tutors.includes(c.role)){
+  if(String(c.user.schoolId||c.user.school_id||"")===schoolId)return true;
+  const s=await adminDb.collection("staffSchoolAccess").doc(c.uid).get();
+  const d=s.data()||{};
+  return d.schoolId===schoolId||(Array.isArray(d.schoolIds)&&d.schoolIds.includes(schoolId));
+ }
+ return false;
+}
+async function canManageExam(c:any,exam:any){
+ // Do not reuse the reporting permission for writes: only tutors/staff and Super Admins may mutate exams.
+ if(!admins.includes(c.role)&&!tutors.includes(c.role))return false;
+ const schoolId=String(exam.schoolId||"");
+ if(schoolId)return canSchool(c,schoolId);
+ if(exam.audienceType==="individual")return admins.includes(c.role)||(tutors.includes(c.role)&&String(exam.createdBy||"")===c.uid);
+ return false;
+}
 async function notify(uids:string[],payload:any){const batch=adminDb.batch();for(const uid of [...new Set(uids)].filter(Boolean)){const ref=adminDb.collection("jdiNotifications").doc();batch.set(ref,{...payload,recipientUid:uid,isRead:false,createdAt:FieldValue.serverTimestamp()});}await batch.commit();}
 export const handler:Handler=async event=>{try{const c=await authUser(event);const method=event.httpMethod||"GET";const body=JSON.parse(event.body||"{}");const path=String(event.path||"");const action=String(body.action||"");
  if(method==="GET"){
