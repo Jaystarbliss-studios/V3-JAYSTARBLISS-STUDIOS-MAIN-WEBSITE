@@ -315,21 +315,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: true, readBy: [...(prev.readBy || []), uid] } : null);
     }
 
-    // Admins can inspect the global JDI event feed, but must not change another
-    // recipient's read state while doing so.
+    // Admins may inspect the global feed, but only the actual JDI recipient
+    // can persist read state. General notifications use UID-scoped local state
+    // so one viewer cannot change the shared document for everyone.
     const selectedItem = notifications.find(item => item.id === id);
-    if (id.startsWith("jdi:") && selectedItem?.recipientId !== uid) return;
+    if (!id.startsWith("jdi:") || selectedItem?.recipientId !== uid) return;
 
-    // 2. Persist to Firestore
     try {
-      if (id.startsWith("jdi:")) {
-        await updateDoc(doc(db, "jdiNotifications", id.slice(4)), { isRead: true, readAt: Timestamp.now() });
-      } else {
-        const notifRef = doc(db, 'notifications', id);
-        await updateDoc(notifRef, { readBy: arrayUnion(uid) });
-      }
+      await updateDoc(doc(db, "jdiNotifications", id.slice(4)), { isRead: true, readAt: Timestamp.now() });
     } catch (err: any) {
-      console.warn('Firestore read state update note:', err.message);
+      console.warn('JDI notification read-state update note:', err.message);
     }
   }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, notifications]);
 
@@ -361,25 +356,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: false, readBy: (prev.readBy || []).filter(u => u !== uid) } : null);
     }
 
-    // Admins may read the global event feed, but cannot reset another user's
-    // recipient-specific read state.
+    // General notification read state is local to this UID. Only the JDI
+    // recipient may persist changes to its private notification document.
     const selectedItem = notifications.find(item => item.id === id);
-    if (id.startsWith('jdi:') && selectedItem?.recipientId !== uid) {
+    if (!id.startsWith('jdi:') || selectedItem?.recipientId !== uid) {
       toast.info('Marked as unread');
       return;
     }
 
-    // 2. Persist to Firestore
     try {
-      if (id.startsWith('jdi:')) {
-        await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: false, readAt: null });
-      } else {
-        const notifRef = doc(db, 'notifications', id);
-        await updateDoc(notifRef, { readBy: arrayRemove(uid) });
-      }
+      await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: false, readAt: null });
       toast.info('Marked as unread');
     } catch (err: any) {
-      console.warn('Firestore unread state update note:', err.message);
+      console.warn('JDI notification unread-state update note:', err.message);
     }
   }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, toast, notifications]);
 
@@ -404,10 +393,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // 2. Batch Firestore updates asynchronously
     try {
       await Promise.allSettled(
-        notifications.map(n => n.id.startsWith('jdi:')
-          ? (n.recipientId === uid ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() }) : Promise.resolve())
-          : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid) })
-        )
+        notifications
+          .filter(n => n.id.startsWith('jdi:') && n.recipientId === uid)
+          .map(n => updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() }))
       );
     } catch (err) {
       console.warn('Batch mark all read note:', err);
