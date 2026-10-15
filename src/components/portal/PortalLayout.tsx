@@ -37,6 +37,7 @@ const PortalLayout: React.FC = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [collapsedNavGroups, setCollapsedNavGroups] = useState<Record<string, boolean>>({});
   const [collapsedGroupOpen, setCollapsedGroupOpen] = useState<string | null>(null);
+  const [collapsedGroupTop, setCollapsedGroupTop] = useState(112);
   const [impersonation, setImpersonation] = useState<any>(() => getActiveImpersonation());
   const [studentFeatures, setStudentFeatures] = useState<StudentPortalFeatures>({});
   const profileRef = useRef<HTMLDivElement>(null);
@@ -141,11 +142,11 @@ const PortalLayout: React.FC = () => {
       const flyoutOpen = collapsedGroupOpen === group.label;
       return <div key={group.label} className="relative flex justify-center py-0.5">
         <Tooltip content={group.label} placement="right" delay={150}>
-          <button type="button" aria-label={group.label} aria-expanded={flyoutOpen} onClick={() => setCollapsedGroupOpen(prev => prev === group.label ? null : group.label)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${hasActive || flyoutOpen ? "bg-brand-red text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}>
+          <button type="button" aria-label={group.label} aria-expanded={flyoutOpen} onClick={event => { if (collapsedGroupOpen === group.label) { setCollapsedGroupOpen(null); return; } const rect = event.currentTarget.getBoundingClientRect(); setCollapsedGroupTop(Math.max(12, Math.min(rect.top, window.innerHeight - 360))); setCollapsedGroupOpen(group.label); }} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${hasActive || flyoutOpen ? "bg-brand-red text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`}>
             {groupIcons[group.label]}
           </button>
         </Tooltip>
-        {flyoutOpen && <div className="fixed left-[76px] top-28 z-[100] w-56 rounded-2xl border border-white/10 bg-[#182335] p-2 shadow-2xl space-y-1" role="menu" aria-label={group.label}>
+        {flyoutOpen && <div className="fixed left-[76px] z-[100] w-56 max-h-[80vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#182335] p-2 shadow-2xl space-y-1" style={{ top: collapsedGroupTop }} role="menu" aria-label={group.label}>
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{group.label}</div>
           {group.items.map(item => <NavLink key={item.name} item={item} flyout />)}
         </div>}
