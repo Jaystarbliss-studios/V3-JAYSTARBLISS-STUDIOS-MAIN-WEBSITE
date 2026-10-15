@@ -6,7 +6,7 @@ export const config = { schedule: "*/5 * * * *" };
 export const handler: Handler = async () => {
   try {
     const now = new Date().toISOString();
-    const due = await adminDb.collection("jdiExamAttempts").where("status", "==", "in_progress").where("deadlineAt", "<=", now).limit(100).get();
+    const candidates = await adminDb.collection("jdiExamAttempts").where("status", "==", "in_progress").limit(200).get(); const due = { docs: candidates.docs.filter(d => String(d.data().deadlineAt || "") <= now).slice(0, 100) };
     let expired = 0;
     for (const doc of due.docs) {
       const attempt = doc.data();
