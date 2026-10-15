@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { BookOpenCheck, Clock3, LockKeyhole, ShieldCheck, Eye, EyeOff, CircleAlert, CalendarDays } from "lucide-react";
 import { auth } from "../../lib/firebase";
 
-type ExamCard = { id: string; title: string; subject: string; status: "active" | "upcoming" | "completed"; durationMinutes: number; availableFrom?: string; availableUntil?: string; };
+type ExamCard = { id: string; title: string; subject: string; status: "active" | "upcoming" | "completed"; durationMinutes: number; availableFrom?: string; availableUntil?: string; attemptId?: string; attemptStatus?: string; score?: number; releasedAt?: unknown; };
 const api = async (path: string, options: RequestInit = {}) => {
   if (!auth.currentUser) throw new Error("Please sign in again.");
   const token = await auth.currentUser.getIdToken();
@@ -63,7 +63,7 @@ export default function StudentExaminations() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start">
             <div className="rounded-xl bg-blue-50 p-3 text-blue-700"><BookOpenCheck size={28}/></div>
             <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-bold text-slate-900">{exam.title}</h2><span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${exam.status === "active" ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-700"}`}>{exam.status}</span></div>
-              <p className="mt-1 text-sm text-slate-600">{exam.subject}</p>
+              <p className="mt-1 text-sm text-slate-600">{exam.subject}</p>{exam.attemptStatus && <p className="mt-2 text-sm font-medium text-slate-700">Your attempt: <span className="capitalize">{exam.attemptStatus.replace("_"," ")}</span>{exam.releasedAt && exam.score !== undefined ? " · Released score: "+exam.score : ""}</p>}
               <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-600"><span className="inline-flex items-center gap-1"><Clock3 size={16}/>{exam.durationMinutes} minutes</span>{exam.availableFrom && <span className="inline-flex items-center gap-1"><CalendarDays size={16}/>{new Date(exam.availableFrom).toLocaleString()}</span>}</div>
             </div>
           </div>
