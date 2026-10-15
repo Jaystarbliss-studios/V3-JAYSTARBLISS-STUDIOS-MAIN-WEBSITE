@@ -337,7 +337,7 @@ service cloud.firestore {
     match /jdiAttemptLimits/{limitId} { allow read, write: if false; }
     match /jdiPasscodeAttempts/{attemptId} { allow read, write: if false; }
     match /jdiNotifications/{notificationId} {
-      allow read: if isAuth() && (resource.data.recipientUid == request.auth.uid || (resource.data.recipientRole == 'ADMIN' && isAnyAdmin()));
+      allow read: if isAnyAdmin() || (isAuth() && resource.data.recipientUid == request.auth.uid);
       allow create, delete: if isAnyAdmin();
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt','isRead'])
@@ -353,7 +353,7 @@ service cloud.firestore {
         (resource.data.get('recipientId', '') == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['PARENT','parent']) ||
         (resource.data.get('recipientId', '') == 'all_staff' && isStaffOrTutor()) ||
         (resource.data.get('recipientId', '') == 'all_schools' && isSchoolUser()) ||
-        (resource.data.get('schoolId', null) != null && resource.data.get('schoolId', null) == userSchoolId()) ||
+        (isSchoolUser() && resource.data.get('schoolId', null) != null && resource.data.get('schoolId', null) == userSchoolId()) ||
         (resource.data.get('recipientType', '') == 'school_students' && resource.data.get('schoolId', null) == userSchoolId())
       ));
       allow create, delete: if isAnyAdmin();
