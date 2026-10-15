@@ -119,6 +119,7 @@ export const handler: Handler = async (event) => {
       return json(200, { exams: exams.docs.map(d => ({ id: d.id, ...studentSafe(d.data()) })) });
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
+      if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role) && c.role !== "SCHOOL") return json(403, { error: "Not authorised." });
       const body = JSON.parse(event.body || "{}");
       const schoolId = String(body.schoolId || c.user.schoolId || "").trim();
