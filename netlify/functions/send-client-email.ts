@@ -72,7 +72,7 @@ export const handler: Handler = async (event) => {
       // In-app lead alerts are targeted to administrator UIDs, never broadcast.
       try {
         const userSnap = await adminDb.collection('users').limit(1000).get();
-        const adminSet = new Set(['admin', 'super_admin', 'superadmin', 'finance_admin', 'education_admin', 'content_admin', 'services_admin', 'marketing_admin', 'support_admin']);
+        const adminSet = new Set(['admin', 'super_admin', 'superadmin']);
         const admins = userSnap.docs.filter(d => adminSet.has(String(d.data().role || '').trim().toLowerCase()));
         const batch = adminDb.batch();
         for (const admin of admins) {
