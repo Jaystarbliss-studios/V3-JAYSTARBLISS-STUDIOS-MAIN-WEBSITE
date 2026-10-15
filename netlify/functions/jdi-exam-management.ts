@@ -106,7 +106,7 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
         correct=Array.isArray(question.acceptedAnswers)&&question.acceptedAnswers.some((v:string)=>normAnswer(v)===normAnswer(answer));
       }
       if(correct) {points=Math.max(0,Number(question.points)||0);score+=points;}
-      results.push({questionId:question.id,answer,correct,pointsAwarded:points,maxPoints:Math.max(0,Number(question.points)||0)});
+      results.push({questionId:question.id,...(answer===undefined?{}:{answer}),correct,pointsAwarded:points,maxPoints:Math.max(0,Number(question.points)||0)});
     }
     changed.push({id:attemptDoc.id,studentUid:String(a.studentUid||""),oldScore:Number(a.score||0),newScore:score,released:Boolean(a.releasedAt)});
     batchWrites.push({ref:attemptDoc.ref,data:{score,questionResults:results,regradedAt:FieldValue.serverTimestamp(),regradedBy:c.uid,updatedAt:FieldValue.serverTimestamp()}});
