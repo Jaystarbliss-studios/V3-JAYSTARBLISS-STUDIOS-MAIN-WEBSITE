@@ -46,9 +46,18 @@ service cloud.firestore {
       );
     }
     function notificationTargetRoleMatches(targetRole) {
-      return targetRole == null || targetRole == '' ||
+      // Broadcasts must explicitly name their audience. Missing/empty roles
+      // are not a public broadcast and must never match every signed-in user.
+      return targetRole == 'all' ||
         (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '').lower() == targetRole.lower());
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == targetRole ||
+            (targetRole == 'student' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT', 'student']) ||
+            (targetRole == 'parent' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['PARENT', 'parent']) ||
+            (targetRole == 'school' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SCHOOL', 'school', 'SCHOOL_ADMIN', 'school_admin', 'schoolAdmin', 'SCHOOLADMIN', 'institution', 'INSTITUTION']) ||
+            (targetRole == 'staff' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STAFF', 'staff', 'TUTOR', 'tutor', 'INSTRUCTOR', 'instructor']) ||
+            (targetRole == 'admin' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'admin', 'SUPER_ADMIN', 'super_admin', 'SUPERADMIN', 'superadmin'])
+          ));
     }
     function isTutorOrSuperAdmin() {
       return isAuth() && (
@@ -373,7 +382,10 @@ service cloud.firestore {
         (resource.data.get('recipientType', '') == 'school_students' && resource.data.get('schoolId', null) == userSchoolId())
       ));
       allow create, delete: if isAnyAdmin();
-      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','read']) && request.resource.data.readBy is list && (request.auth.uid in request.resource.data.readBy || request.auth.uid in resource.data.get('readBy', [])));
+      // Recipient read state is kept per-user in the client. Only admins may
+      // mutate the shared notification document, preventing one recipient
+      // from changing the global read flag or another recipient's read state.
+      allow update: if isAnyAdmin();
     }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin() || isAuth(); }
     match /treasuryLogs/{logId} { allow read, write: if isAnyAdmin(); }
