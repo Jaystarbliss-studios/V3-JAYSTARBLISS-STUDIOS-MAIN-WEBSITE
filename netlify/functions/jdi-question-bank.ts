@@ -73,7 +73,7 @@ export const handler: Handler = async event => {
 
     if (method === "GET") {
       const snap = await adminDb.collection("jdiQuestionBank").where("schoolId", "==", schoolId).limit(500).get();
-      const questions = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => String(a.prompt || "").localeCompare(String(b.prompt || "")));
+      const questions = snap.docs.map(d => ({ ...d.data(), bankId: d.id })).sort((a: any, b: any) => String(a.prompt || "").localeCompare(String(b.prompt || "")));
       return json(200, { questions });
     }
     if (method !== "POST") return json(405, { error: "Method not allowed." });
