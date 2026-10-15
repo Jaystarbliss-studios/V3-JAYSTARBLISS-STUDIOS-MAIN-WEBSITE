@@ -40,7 +40,7 @@ export const handler: Handler = async event => {
         registeredUserId: decoded.uid,
         targetRole: role,
         targetName: String(user.name || user.fullName || ""),
-        targetEmail: String(user.email || decoded.email || ""),
+        registeredEmail: String(user.email || decoded.email || ""),
         readBy: [],
         read: false,
         timestamp: now,
