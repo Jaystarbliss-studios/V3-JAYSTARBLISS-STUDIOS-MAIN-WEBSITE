@@ -37,7 +37,7 @@ export const handler: Handler = async () => {
         } else { autoGraded = false; manualReview = true; }
         if (correct) pointsAwarded = Math.max(0, Number(q.points) || 0);
         score += pointsAwarded;
-        questionResults.push({ questionId: q.id, answer, correct: manualReview ? undefined : correct, manualReview, pointsAwarded, maxPoints: Math.max(0, Number(q.points) || 0) });
+        questionResults.push({ questionId: q.id, ...(answer === undefined ? {} : { answer }), ...(manualReview ? {} : { correct }), manualReview, pointsAwarded, maxPoints: Math.max(0, Number(q.points) || 0) });
       }
       await doc.ref.update({ score, autoGraded, questionResults, updatedAt: FieldValue.serverTimestamp() });
       await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: schoolId || null, createdAt: FieldValue.serverTimestamp() });
