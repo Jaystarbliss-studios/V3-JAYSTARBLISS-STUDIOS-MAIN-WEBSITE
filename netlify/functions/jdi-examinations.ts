@@ -101,14 +101,15 @@ export const handler: Handler = async (event) => {
       if (existing && ["submitted", "expired", "graded"].includes(String(existing.data().status))) return json(409, { error: "An attempt for this examination has already been submitted." });
       if (existing) return json(200, { attemptId: existing.id, resumed: true });
       const duration = Math.min(300, Math.max(1, Number(exam.durationMinutes || 30)));
-      const attemptRef = adminDb.collection("jdiExamAttempts").doc();
-      const attempt = { examId, studentId: student.id, studentUid: c.uid, schoolId, status: "in_progress", startedAt: FieldValue.serverTimestamp(), deadlineAt: new Date(now + duration * 60000).toISOString(), answers: {}, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+      const attemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex"); const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId);
+      const attempt = { examId, studentId: student.id, studentUid: c.uid, schoolId, status: "in_progress", startedAt: FieldValue.serverTimestamp(), deadlineAt: new Date(now + duration * 60000).toISOString(), answers: {}, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }; let resumed = false;
       await adminDb.runTransaction(async tx => {
-        const existingSnap = await tx.get(ref);
-        if (!existingSnap.exists || existingSnap.data()?.status !== "active") throw new Error("INACTIVE_EXAM");
+        const existingSnap = await tx.get(attemptRef); const existingExam = await tx.get(ref);
+        if (!existingExam.exists || existingExam.data()?.status !== "active") throw new Error("INACTIVE_EXAM");
+        if (existingSnap.exists) { if (existingSnap.data()?.status === "in_progress" && existingSnap.data()?.studentUid === c.uid) { resumed = true; return; } throw new Error("ATTEMPT_EXISTS"); }
         tx.create(attemptRef, attempt);
       });
-      return json(200, { attemptId: attemptRef.id, resumed: false });
+      return json(200, { attemptId: attemptRef.id, resumed });
     }
     if (method === "GET" && path.endsWith("/tutor-examinations")) {
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role) && c.role !== "SCHOOL") return json(403, { error: "Not authorised." });
@@ -144,6 +145,7 @@ export const handler: Handler = async (event) => {
     if (error instanceof Error && error.message === "PROFILE") return json(403, { error: "Portal profile not found." });
     if (error instanceof Error && error.message === "INACTIVE") return json(403, { error: "Your account is not active." });
     if (error instanceof Error && error.message === "INACTIVE_EXAM") return json(409, { error: "This examination is no longer active." });
+    if (error instanceof Error && error.message === "ATTEMPT_EXISTS") return json(409, { error: "An attempt for this examination has already been submitted." });
     console.error("JDI examination handler failed", error);
     return json(500, { error: "Unable to process the examination request." });
   }
