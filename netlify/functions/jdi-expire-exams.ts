@@ -40,6 +40,7 @@ export const handler: Handler = async () => {
       }
       await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: attempt.schoolId, createdAt: FieldValue.serverTimestamp() });
       const recipients = new Set<string>(); if (exam.createdBy) recipients.add(String(exam.createdBy));
+      const access = await adminDb.collection("staffSchoolAccess").where("schoolId", "==", String(attempt.schoolId || "")).limit(50).get().catch(() => null); access?.docs.forEach(item => recipients.add(item.id));
       const schoolUsers = await adminDb.collection("users").where("schoolId", "==", String(attempt.schoolId || "")).limit(50).get().catch(() => null);
       schoolUsers?.docs.forEach(item => {
         const role = String(item.data().role || "").toUpperCase();
