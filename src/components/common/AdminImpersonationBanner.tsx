@@ -1,12 +1,28 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ShieldCheck, LogOut, School, GraduationCap, User } from 'lucide-react';
 import { getActiveImpersonation, stopImpersonation } from '../../utils/impersonation';
 
+let activeBannerOwner: string | null = null;
+
 export const AdminImpersonationBanner: React.FC = () => {
+  const instanceId = useId();
+  const [ownsBanner, setOwnsBanner] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [impersonation, setImpersonation] = useState<any>(null);
+
+  useEffect(() => {
+    // Only one instance may render globally; nested portal/admin shells can otherwise
+    // mount the shared banner twice and create duplicate full-width bars.
+    if (!activeBannerOwner) {
+      activeBannerOwner = instanceId;
+      setOwnsBanner(true);
+    }
+    return () => {
+      if (activeBannerOwner === instanceId) activeBannerOwner = null;
+    };
+  }, [instanceId]);
 
   useEffect(() => {
     const check = () => {
@@ -19,7 +35,7 @@ export const AdminImpersonationBanner: React.FC = () => {
     return () => window.removeEventListener('storage', check);
   }, [location.pathname]);
 
-  if (!impersonation) {
+  if (!ownsBanner || !impersonation) {
     return null;
   }
 
