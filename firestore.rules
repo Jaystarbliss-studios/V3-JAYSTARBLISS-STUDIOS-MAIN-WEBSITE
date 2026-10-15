@@ -45,6 +45,11 @@ service cloud.firestore {
         (request.auth.token.email != null && request.auth.token.email in ['johnrufai242@gmail.com','admin@jaystarbliss.com','admin@jaystar.com'])
       );
     }
+    function notificationTargetRoleMatches(targetRole) {
+      return targetRole == null || targetRole == '' ||
+        (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '').lower() == targetRole.lower());
+    }
     function isTutorOrSuperAdmin() {
       return isAuth() && (
         isSuperAdmin() ||
@@ -358,7 +363,8 @@ service cloud.firestore {
         (isSchoolUser() && (resource.data.get('recipientId', '') == userSchoolId() || resource.data.get('recipientId', '') == 'school_' + userSchoolId())) ||
         (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT', 'student'] && resource.data.get('recipientId', '') == 'school_students_' + userSchoolId()) ||
         (request.auth.token.email != null && resource.data.get('targetEmail', '') == request.auth.token.email) ||
-        resource.data.get('recipientId', '') == 'all' ||
+        (resource.data.get('recipientId', '') == 'all' && notificationTargetRoleMatches(resource.data.get('targetRole', '')) ) ||
+        (resource.data.get('recipientType', '') == 'all' && resource.data.get('targetRole', '') == 'all') ||
         (resource.data.get('recipientId', '') == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT','student']) ||
         (resource.data.get('recipientId', '') == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['PARENT','parent']) ||
         (resource.data.get('recipientId', '') == 'all_staff' && isStaffOrTutor()) ||
