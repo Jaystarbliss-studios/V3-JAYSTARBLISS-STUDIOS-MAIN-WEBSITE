@@ -221,7 +221,7 @@ service cloud.firestore {
     // Legacy school exam records remain visible only to authorised portal roles.
     // Exam authoring and passcode changes are handled by the tutor/Super Admin API.
     match /schoolExams/{examId} {
-      allow read: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
+      allow read: if isAnyAdmin() || (isSchoolUser() && isSameSchool(resource.data.schoolId)) || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
       allow create: if isAnyAdmin() || hasStaffSchoolAccess(request.resource.data.schoolId);
       allow update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
     }
