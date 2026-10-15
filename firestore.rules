@@ -342,7 +342,7 @@ service cloud.firestore {
         (resource.data.get('schoolId', null) != null && resource.data.get('schoolId', null) == userSchoolId()) ||
         (resource.data.get('recipientType', '') == 'school_students' && resource.data.get('schoolId', null) == userSchoolId())
       ));
-      allow create: if isAnyAdmin() || (isAuth() && request.resource.data.get('senderUid', request.auth.uid) == request.auth.uid);
+      allow create: if isAnyAdmin();
       allow delete: if isAnyAdmin();
       allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy);
     }
