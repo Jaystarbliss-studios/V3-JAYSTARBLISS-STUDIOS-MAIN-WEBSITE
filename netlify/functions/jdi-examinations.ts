@@ -135,7 +135,7 @@ export const handler: Handler = async (event) => {
       return json(200, { attemptId: finalAttemptId, resumed });
     }
     if (method === "GET" && path.endsWith("/tutor-examinations")) {
-      if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role) && c.role !== "SCHOOL") return json(403, { error: "Not authorised." });
+      if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only tutors and Super Admins can access examination authoring data." });
       const schoolId = String(event.queryStringParameters?.schoolId || c.user.schoolId || "");
       if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
       const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
