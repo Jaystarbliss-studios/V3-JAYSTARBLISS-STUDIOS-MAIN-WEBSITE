@@ -58,7 +58,7 @@ export const handler: Handler = async (event) => {
       const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
       const now = Date.now();
       const rows = exams.docs.map(doc => ({ id: doc.id, ...studentSafe(doc.data()) })).filter((exam: any) => {
-        const classes = Array.isArray(exam.classIds) ? exam.classIds.map(String) : [String(exam.targetClass || "")];
+        const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
         const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
         return (!classes.length || classes.includes(classId) || classes.includes("all")) && exam.status !== "draft" && exam.status !== "archived";
       }).map((exam: any) => {
@@ -84,8 +84,8 @@ export const handler: Handler = async (event) => {
       const now = Date.now();
       const from = exam.availableFrom ? new Date(exam.availableFrom).getTime() : 0;
       const until = exam.availableUntil ? new Date(exam.availableUntil).getTime() : Number.MAX_SAFE_INTEGER;
-      const schoolId = String(student.data.schoolId || student.data.school_id || "");
-      const classes = Array.isArray(exam.classIds) ? exam.classIds.map(String) : [String(exam.targetClass || "")];
+      const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
+      const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
       const classId = String(student.data.classId || student.data.classLevel || student.data.class || "");
       const assigned = exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all"));
       const active = exam.status === "active" && now >= from && now <= until;
