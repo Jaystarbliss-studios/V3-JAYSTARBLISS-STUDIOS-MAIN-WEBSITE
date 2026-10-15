@@ -153,7 +153,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           targetUid: data.targetUid,
           link: data.link,
           linkText: data.linkText,
-          read: data.read,
+          read: data.read ?? data.isRead,
           readBy: Array.isArray(data.readBy) ? data.readBy : [],
           timestamp: data.timestamp || data.createdAt || Date.now(),
           createdAt: data.createdAt,
