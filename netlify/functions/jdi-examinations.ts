@@ -9,7 +9,8 @@ const hashCode = (salt: string, code: string) => createHash("sha256").update(sal
 const constantEqual = (a: string, b: string) => { const aa = Buffer.from(a, "hex"), bb = Buffer.from(b, "hex"); return aa.length === bb.length && timingSafeEqual(aa, bb); };
 const norm = (value: unknown) => String(value || "").trim().toUpperCase();
 const staffRoles = ["TUTOR", "STAFF", "INSTRUCTOR"];
-const adminRoles = ["ADMIN", "SUPER_ADMIN", "EDUCATION_ADMIN", "CONTENT_ADMIN", "DIRECTOR"];
+const adminRoles = ["SUPER_ADMIN", "SUPERADMIN"];
+const readAdminRoles = ["ADMIN", "SUPER_ADMIN", "SUPERADMIN", "EDUCATION_ADMIN", "CONTENT_ADMIN", "DIRECTOR"];
 async function caller(event: any) {
   const token = bearer(event); if (!token) throw new Error("AUTH");
   const decoded = await adminAuth.verifyIdToken(token);
@@ -34,7 +35,7 @@ function studentSafe(exam: any) {
   return { ...safe, questions: Array.isArray(questions) ? questions.map((q: any) => { const { correctOptionIds, acceptedAnswers, answer, explanation, ...studentQuestion } = q; return studentQuestion; }) : [] };
 }
 async function permittedSchool(callerInfo: any, schoolId: string) {
-  if (adminRoles.includes(callerInfo.role) || callerInfo.role === "SUPERADMIN") return true;
+  if (adminRoles.includes(callerInfo.role)) return true;
   if (callerInfo.role === "SCHOOL") return String(callerInfo.user.schoolId || callerInfo.uid) === schoolId;
   if (staffRoles.includes(callerInfo.role)) {
     if (String(callerInfo.user.schoolId || callerInfo.user.school_id || "") === schoolId) return true;
@@ -117,7 +118,7 @@ export const handler: Handler = async (event) => {
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
       if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
-      if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role) && c.role !== "SCHOOL") return json(403, { error: "Not authorised." });
+      if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only authorised tutors and Super Admins can create examinations." });
       const body = JSON.parse(event.body || "{}");
       const schoolId = String(body.schoolId || c.user.schoolId || "").trim();
       if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
