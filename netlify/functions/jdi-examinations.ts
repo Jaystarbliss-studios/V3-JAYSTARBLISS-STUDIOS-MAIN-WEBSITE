@@ -145,9 +145,16 @@ export const handler: Handler = async (event) => {
     if (method === "GET" && path.endsWith("/tutor-examinations")) {
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only tutors and Super Admins can access examination authoring data." });
       const schoolId = String(event.queryStringParameters?.schoolId || c.user.schoolId || "");
-      if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
-      const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
-      return json(200, { exams: exams.docs.map(d => ({ id: d.id, ...studentSafe(d.data()) })) });
+      let exams:any;
+      if (schoolId) {
+        if (!(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
+        exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
+      } else if (adminRoles.includes(c.role)) {
+        exams = await adminDb.collection("jdiExams").where("audienceType", "==", "individual").limit(100).get();
+      } else {
+        exams = await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
+      }
+      return json(200, { exams: exams.docs.map((d:any) => ({ id: d.id, ...studentSafe(d.data()) })) });
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
       if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
