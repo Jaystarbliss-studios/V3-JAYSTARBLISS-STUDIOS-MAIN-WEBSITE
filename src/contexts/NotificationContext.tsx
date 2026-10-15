@@ -49,21 +49,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Watch Auth State and Session Role
   useEffect(() => {
+    let authSequence = 0;
     const unsub = onAuthStateChanged(auth, async (user) => {
+      const sequence = ++authSequence;
       setCurrentUser(user);
       setNotifications([]);
       setLoading(true);
       setSelectedNotification(null);
       if (user) {
+        setUserRole('');
+        setSchoolId('');
+        setStudentDocId('');
         // Resolve the role from the authenticated user's Firestore profile.
         // Cached session roles are not an authorization source for notifications.
         try {
           const profile = await getDoc(doc(db, 'users', user.uid));
+          if (sequence !== authSequence) return;
           const data = profile.exists() ? profile.data() : {};
           setUserRole(String(data.role || '').trim().toLowerCase());
           setSchoolId(String(data.schoolId || data.school_id || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || ''));
           setStudentDocId(String(data.studentDocId || data.studentId || sessionStorage.getItem('studentDocId') || ''));
         } catch (error) {
+          if (sequence !== authSequence) return;
           console.warn('Could not resolve notification audience from user profile:', error);
           setUserRole('');
           setSchoolId('');
