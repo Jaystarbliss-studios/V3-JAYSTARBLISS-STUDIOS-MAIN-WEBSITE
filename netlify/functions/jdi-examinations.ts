@@ -95,18 +95,37 @@ export const handler: Handler = async (event) => {
       const throttleRef = adminDb.collection("jdiPasscodeAttempts").doc(c.uid + "_" + examId); const throttleDecision = await adminDb.runTransaction(async tx => { const snap = await tx.get(throttleRef); const data = snap.data() || {}; const nowMs = Date.now(); const oldStart = Number(data.windowStart || 0); const count = nowMs - oldStart > 15 * 60 * 1000 ? 0 : Number(data.failedCount || 0); if (count >= 5) return { blocked: true }; if (!validCode) { tx.set(throttleRef, { windowStart: count === 0 ? nowMs : oldStart || nowMs, failedCount: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); } else if (assigned && active && snap.exists) tx.delete(throttleRef); return { blocked: false }; });
       if (throttleDecision.blocked) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
       if (!assigned || !active || !validCode) return json(403, { error: "The passcode could not be validated for this examination." });
-      const attemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex"); const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId); const prior = await attemptRef.get();
-      if (prior.exists && ["submitted", "expired", "graded"].includes(String(prior.data()?.status))) return json(409, { error: "An attempt for this examination has already been submitted." });
-      if (prior.exists && prior.data()?.status === "in_progress" && prior.data()?.studentUid === c.uid) return json(200, { attemptId, resumed: true });
+      const lockId = createHash("sha256").update(examId + ":" + student.id).digest("hex");
+      const lockRef = adminDb.collection("jdiAttemptLimits").doc(lockId);
+      const attemptId = randomBytes(16).toString("hex");
+      const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId);
       const duration = Math.min(300, Math.max(1, Number(exam.durationMinutes || 30)));
-      const attempt = { examId, studentId: student.id, studentUid: c.uid, schoolId, status: "in_progress", startedAt: FieldValue.serverTimestamp(), deadlineAt: new Date(now + duration * 60000).toISOString(), answers: {}, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }; let resumed = false;
+      const questions = Array.isArray(exam.questions) ? exam.questions : [];
+      const shuffle = <T,>(items: T[]) => { const copy = [...items]; for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]]; } return copy; };
+      const questionOrder = exam.shuffleQuestions === true ? shuffle(questions.map((q: any) => String(q.id))) : questions.map((q: any) => String(q.id));
+      const optionOrderMap: Record<string, string[]> = {};
+      for (const q of questions) { const ids = Array.isArray(q.options) ? q.options.map((o: any) => String(o.id)) : []; optionOrderMap[String(q.id)] = exam.shuffleOptions === true ? shuffle(ids) : ids; }
+      const attempt = { examId, studentId: student.id, studentUid: c.uid, schoolId, status: "in_progress", startedAt: FieldValue.serverTimestamp(), deadlineAt: new Date(now + duration * 60000).toISOString(), answers: {}, questionOrder, optionOrderMap, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+      let resumed = false; let finalAttemptId = attemptId;
       await adminDb.runTransaction(async tx => {
-        const existingSnap = await tx.get(attemptRef); const existingExam = await tx.get(ref);
+        const [lockSnap, existingExam] = await Promise.all([tx.get(lockRef), tx.get(ref)]);
         if (!existingExam.exists || existingExam.data()?.status !== "active") throw new Error("INACTIVE_EXAM");
-        if (existingSnap.exists) { if (existingSnap.data()?.status === "in_progress" && existingSnap.data()?.studentUid === c.uid) { resumed = true; return; } throw new Error("ATTEMPT_EXISTS"); }
+        const lock = lockSnap.data() || {};
+        const maxAttempts = Math.min(10, Math.max(1, Number(existingExam.data()?.maxAttempts || 1)));
+        if (lock.activeAttemptId) {
+          const activeRef = adminDb.collection("jdiExamAttempts").doc(String(lock.activeAttemptId));
+          const activeSnap = await tx.get(activeRef);
+          const active = activeSnap.data() || {};
+          if (activeSnap.exists && active.status === "in_progress" && active.studentUid === c.uid && new Date(active.deadlineAt).getTime() > Date.now()) {
+            resumed = true; finalAttemptId = activeRef.id; return;
+          }
+        }
+        const usedAttempts = Number(lock.attemptCount || 0);
+        if (usedAttempts >= maxAttempts) throw new Error("ATTEMPT_LIMIT");
         tx.create(attemptRef, attempt);
+        tx.set(lockRef, { examId, studentId: student.id, studentUid: c.uid, schoolId, attemptCount: usedAttempts + 1, activeAttemptId: attemptId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       });
-      return json(200, { attemptId: attemptRef.id, resumed });
+      return json(200, { attemptId: finalAttemptId, resumed });
     }
     if (method === "GET" && path.endsWith("/tutor-examinations")) {
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role) && c.role !== "SCHOOL") return json(403, { error: "Not authorised." });
