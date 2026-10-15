@@ -232,7 +232,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Build specific targeted listeners
         const queryList = [
           query(collection(db, 'notifications'), where('recipientId', '==', 'all'), limit(30)),
-          query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(30))
+          query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(30)),
+          query(collection(db, 'notifications'), where('targetUid', '==', uid), limit(30))
         ];
 
         if (role === 'student') {
