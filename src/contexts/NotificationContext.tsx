@@ -49,28 +49,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Watch Auth State and Session Role
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       setNotifications([]);
       setLoading(true);
       setSelectedNotification(null);
       if (user) {
-        // Load role & identifiers from sessionStorage or cached storage
-        const r = (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || '').toLowerCase();
-        const sId = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || '';
-        const stId = sessionStorage.getItem('studentDocId') || '';
-        setUserRole(r);
-        setSchoolId(sId);
-        setStudentDocId(stId);
+        // Resolve the role from the authenticated user's Firestore profile.
+        // Cached session roles are not an authorization source for notifications.
+        try {
+          const profile = await getDoc(doc(db, 'users', user.uid));
+          const data = profile.exists() ? profile.data() : {};
+          setUserRole(String(data.role || '').trim().toLowerCase());
+          setSchoolId(String(data.schoolId || data.school_id || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || ''));
+          setStudentDocId(String(data.studentDocId || data.studentId || sessionStorage.getItem('studentDocId') || ''));
+        } catch (error) {
+          console.warn('Could not resolve notification audience from user profile:', error);
+          setUserRole('');
+          setSchoolId('');
+          setStudentDocId('');
+        }
 
-        // Load local read IDs for this specific user
         try {
           const stored = localStorage.getItem(`jaystar_notif_read_${user.uid}`);
-          if (stored) {
-            setLocalReadIds(new Set(JSON.parse(stored)));
-          } else {
-            setLocalReadIds(new Set());
-          }
+          setLocalReadIds(stored ? new Set(JSON.parse(stored)) : new Set());
         } catch {
           setLocalReadIds(new Set());
         }
@@ -80,6 +82,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setStudentDocId('');
         setNotifications([]);
         setLocalReadIds(new Set());
+        setLoading(false);
       }
     });
 
@@ -127,9 +130,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const uid = currentUser.uid;
     const email = currentUser.email?.toLowerCase() || '';
-    const role = userRole || (sessionStorage.getItem('userRole') || '').toLowerCase();
-    const currentSchoolId = schoolId || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || '';
-    const currentStudentDocId = studentDocId || sessionStorage.getItem('studentDocId') || '';
+    const role = userRole;
+    const currentSchoolId = schoolId;
+    const currentStudentDocId = studentDocId;
 
     const isAdmin = ['super_admin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
 
