@@ -57,7 +57,7 @@ export const handler: Handler = async (event) => {
       if (!schoolId) return json(200, { exams: [] });
       const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
       const now = Date.now();
-      const rows = exams.docs.map(doc => { const safe = studentSafe(doc.data()); const { questions: _hiddenQuestions, ...metadata } = safe; return { id: doc.id, ...metadata }; }).filter((exam: any) => {
+      const rows = exams.docs.map(doc => { const metadata: any = { ...studentSafe(doc.data()) }; delete metadata.questions; return { id: doc.id, ...metadata }; }).filter((exam: any) => {
         const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
         const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
         return (!classes.length || classes.includes(classId) || classes.includes("all")) && exam.status !== "draft" && exam.status !== "archived";
