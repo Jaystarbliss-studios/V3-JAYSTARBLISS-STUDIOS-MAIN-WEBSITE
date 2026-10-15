@@ -1,0 +1,110 @@
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+
+const projectId = "demo-jaystarbliss-lms-rules";
+const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+let env;
+
+before(async () => {
+  env = await initializeTestEnvironment({
+    projectId,
+    firestore: { rules },
+  });
+
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, "users", "school-admin"), { role: "SCHOOL_ADMIN", schoolId: "school-a" });
+    await setDoc(doc(db, "users", "parent-a"), { role: "PARENT", email: "parent-a@example.com" });
+    await setDoc(doc(db, "users", "parent-b"), { role: "PARENT", email: "parent-b@example.com" });
+    await setDoc(doc(db, "users", "super-admin"), { role: "SUPER_ADMIN" });
+
+    await setDoc(doc(db, "students", "child-a"), {
+      fullName: "Child A",
+      parentId: "parent-a",
+      parentEmail: "parent-a@example.com",
+      schoolId: "school-a",
+      firebaseUid: "student-a",
+    });
+    await setDoc(doc(db, "students", "child-b"), {
+      fullName: "Child B",
+      parentId: "parent-b",
+      parentEmail: "parent-b@example.com",
+      schoolId: "school-b",
+      firebaseUid: "student-b",
+    });
+    await setDoc(doc(db, "individualStudents", "child-a"), {
+      fullName: "Child A",
+      parentId: "parent-a",
+      parentEmail: "parent-a@example.com",
+      firebaseUid: "student-a",
+    });
+
+    await setDoc(doc(db, "notifications", "direct-parent-a"), {
+      recipientId: "parent-a",
+      recipientType: "specific_user",
+      title: "Private notice",
+      readBy: [],
+    });
+    await setDoc(doc(db, "notifications", "unscoped-broadcast"), {
+      recipientId: "all",
+      recipientType: "all",
+      title: "Missing audience",
+    });
+    await setDoc(doc(db, "notifications", "explicit-broadcast"), {
+      recipientId: "all",
+      recipientType: "all",
+      targetRole: "all",
+      title: "Public announcement",
+    });
+  });
+});
+
+after(async () => {
+  await env?.cleanup();
+});
+
+test("parent can read their child using parentId", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "students", "child-a")));
+});
+
+test("parent can read legacy child records by their own verified email", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "individualStudents", "child-a")));
+});
+
+test("a parent cannot read another parent's child record", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertFails(getDoc(doc(db, "students", "child-b")));
+});
+
+test("school administrators can read only students linked to their school", async () => {
+  const db = env.authenticatedContext("school-admin", { email: "school@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "students", "child-a")));
+  await assertFails(getDoc(doc(db, "students", "child-b")));
+});
+
+test("unscoped broadcasts are not readable by ordinary users", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertFails(getDoc(doc(db, "notifications", "unscoped-broadcast")));
+});
+
+test("explicit all-audience announcements and direct notices are readable by intended recipients", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "notifications", "direct-parent-a")));
+  await assertSucceeds(getDoc(doc(db, "notifications", "explicit-broadcast")));
+});
+
+test("a recipient cannot change the shared notification document read state", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertFails(updateDoc(doc(db, "notifications", "direct-parent-a"), { readBy: ["parent-a"] }));
+});
+
+test("Super Admin can read student records across schools", async () => {
+  const db = env.authenticatedContext("super-admin", { email: "admin@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "students", "child-a")));
+  await assertSucceeds(getDoc(doc(db, "students", "child-b")));
+});
