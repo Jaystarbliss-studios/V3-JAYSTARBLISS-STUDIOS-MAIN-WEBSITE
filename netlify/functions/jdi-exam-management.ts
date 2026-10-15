@@ -60,7 +60,7 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
   }else return json(409,{error:"Essay questions require manual grading; an answer-key correction cannot regrade them automatically."});
   questions[index]=q;
   await ref.update({questions,updatedAt:FieldValue.serverTimestamp(),updatedBy:c.uid});
-  const attemptSnap=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(500).get();
+  const attemptSnap=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).get();
   const changed:Array<{id:string;studentUid:string;oldScore:number;newScore:number;released:boolean}>=[];
   const batchWrites:any[]=[];
   for(const attemptDoc of attemptSnap.docs){
