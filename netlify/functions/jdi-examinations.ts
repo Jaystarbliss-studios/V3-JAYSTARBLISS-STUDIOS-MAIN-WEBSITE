@@ -51,13 +51,13 @@ export const handler: Handler = async (event) => {
       if (c.role !== "STUDENT") return json(403, { error: "Student access required." });
       const student = await getStudent(c.uid);
       if (!student) return json(200, { exams: [] });
-      const schoolId = String(student.data.schoolId || student.data.school_id || "");
+      const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
       if (!schoolId) return json(200, { exams: [] });
       const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
       const now = Date.now();
       const rows = exams.docs.map(doc => ({ id: doc.id, ...studentSafe(doc.data()) })).filter((exam: any) => {
         const classes = Array.isArray(exam.classIds) ? exam.classIds.map(String) : [String(exam.targetClass || "")];
-        const classId = String(student.data.classId || student.data.classLevel || student.data.class || "");
+        const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
         return (!classes.length || classes.includes(classId) || classes.includes("all")) && exam.status !== "draft" && exam.status !== "archived";
       }).map((exam: any) => {
         const from = exam.availableFrom ? new Date(exam.availableFrom).getTime() : 0;
