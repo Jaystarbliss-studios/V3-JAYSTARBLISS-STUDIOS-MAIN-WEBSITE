@@ -138,7 +138,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       docs.forEach(docSnap => {
         const data = docSnap.data();
         const notif: AppNotification = {
-          id: docSnap.id,
+          id: docSnap.ref.parent.id === "jdiNotifications" ? "jdi:" + docSnap.id : docSnap.id,
           title: data.title || 'System Notification',
           message: data.message || '',
           type: data.type || 'broadcast',
@@ -302,11 +302,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Persist to Firestore
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayUnion(uid),
-        read: true
-      });
+      if (id.startsWith('jdi:')) {
+        await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: true, readAt: Timestamp.now() });
+      } else {
+        const notifRef = doc(db, 'notifications', id);
+        await updateDoc(notifRef, { readBy: arrayUnion(uid), read: true });
+      }
     } catch (err: any) {
       console.warn('Firestore read state update note:', err.message);
     }
@@ -342,11 +343,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Persist to Firestore
     try {
+      if (id.startsWith('jdi:')) { toast.info('JDI system notifications cannot be marked unread after reading.'); return; }
       const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayRemove(uid),
-        read: false
-      });
+      await updateDoc(notifRef, { readBy: arrayRemove(uid), read: false });
       toast.info('Marked as unread');
     } catch (err: any) {
       console.warn('Firestore unread state update note:', err.message);
@@ -374,11 +373,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // 2. Batch Firestore updates asynchronously
     try {
       await Promise.allSettled(
-        notifications.map(n => 
-          updateDoc(doc(db, 'notifications', n.id), {
-            readBy: arrayUnion(uid),
-            read: true
-          })
+        notifications.map(n => n.id.startsWith('jdi:')
+          ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() })
+          : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid), read: true })
         )
       );
     } catch (err) {
