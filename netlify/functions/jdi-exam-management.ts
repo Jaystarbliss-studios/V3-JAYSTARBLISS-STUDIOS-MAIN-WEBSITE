@@ -15,23 +15,25 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
  const examId=String(event.queryStringParameters?.examId||"");
  const schoolId=String(event.queryStringParameters?.schoolId||c.user.schoolId||"");
  let examDocs:any[]=[];
+ const examDocMap=new Map<string,any>();
  if(schoolId){
   if(!(await canSchool(c,schoolId)))return json(403,{error:"Not authorised for this school."});
-  const snap=await adminDb.collection("jdiExams").where("schoolId","==",schoolId).limit(100).get();examDocs=snap.docs;
- }else if(admins.includes(c.role)){
-  const snap=await adminDb.collection("jdiExams").where("audienceType","==","individual").limit(100).get();examDocs=snap.docs;
+  const snap=await adminDb.collection("jdiExams").where("schoolId","==",schoolId).limit(100).get();snap.docs.forEach((d:any)=>examDocMap.set(d.id,d));
+ }
+ if(admins.includes(c.role)){
+  const snap=await adminDb.collection("jdiExams").where("audienceType","==","individual").limit(100).get();snap.docs.forEach((d:any)=>examDocMap.set(d.id,d));
  }else if(tutors.includes(c.role)){
-  const snap=await adminDb.collection("jdiExams").where("createdBy","==",c.uid).limit(100).get();examDocs=snap.docs;
- }else return json(403,{error:"Not authorised to view examination history."});
+  const snap=await adminDb.collection("jdiExams").where("createdBy","==",c.uid).limit(100).get();snap.docs.filter((d:any)=>d.data().audienceType==="individual").forEach((d:any)=>examDocMap.set(d.id,d));
+ }else if(!schoolId)return json(403,{error:"Not authorised to view examination history."});
+ examDocs=Array.from(examDocMap.values());
  if(examId)examDocs=examDocs.filter(d=>d.id===examId);
  const examMap:Record<string,any>={};for(const d of examDocs)examMap[d.id]=d.data();
  let attemptDocs:any[]=[];
- if(schoolId){
-  const attempts=await adminDb.collection("jdiExamAttempts").where("schoolId","==",schoolId).limit(500).get();attemptDocs=attempts.docs;
- }else{
-  const attemptResults=await Promise.all(examDocs.map(d=>adminDb.collection("jdiExamAttempts").where("examId","==",d.id).limit(500).get()));
-  const byId=new Map<string,any>();attemptResults.forEach(s=>s.docs.forEach(d=>byId.set(d.id,d)));attemptDocs=Array.from(byId.values());
- }
+ const attemptMap=new Map<string,any>();
+ if(schoolId){const attempts=await adminDb.collection("jdiExamAttempts").where("schoolId","==",schoolId).limit(500).get();attempts.docs.forEach((d:any)=>attemptMap.set(d.id,d));}
+ const individualExamDocs=examDocs.filter((d:any)=>d.data().audienceType==="individual");
+ const attemptResults=await Promise.all(individualExamDocs.map((d:any)=>adminDb.collection("jdiExamAttempts").where("examId","==",d.id).limit(500).get()));
+ attemptResults.forEach(s=>s.docs.forEach((d:any)=>attemptMap.set(d.id,d)));attemptDocs=Array.from(attemptMap.values());
  const studentMap:Record<string,any>={};
  if(schoolId){
   const students=await adminDb.collection("students").where("schoolId","==",schoolId).limit(500).get();
@@ -43,7 +45,7 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
  return json(200,{exams:examDocs.map(d=>{const e=d.data();const item:any={id:d.id,title:e.title,subject:e.subject,status:e.status,durationMinutes:e.durationMinutes,classIds:e.classIds,audienceType:e.audienceType||"school",studentIds:e.studentIds||[],createdAt:e.createdAt,availableFrom:e.availableFrom,availableUntil:e.availableUntil};if(tutors.includes(c.role)||admins.includes(c.role))item.questions=Array.isArray(e.questions)?e.questions.map((q:any)=>({id:q.id,prompt:q.prompt,points:q.points,type:q.type,options:Array.isArray(q.options)?q.options:[],correctOptionIds:Array.isArray(q.correctOptionIds)?q.correctOptionIds:[],acceptedAnswers:Array.isArray(q.acceptedAnswers)?q.acceptedAnswers:[]})):[];return {id:d.id,...item};}),attempts:rows});
  }
  if(method==="POST"){
- const examId=String(body.examId||"");const ref=adminDb.collection("jdiExams").doc(examId);const snap=await ref.get();if(!snap.exists)return json(404,{error:"Examination not found."});const exam=snap.data()||{};if(!(await canSchool(c,String(exam.schoolId||""))))return json(403,{error:"Not authorised for this school."});
+ const examId=String(body.examId||"");const ref=adminDb.collection("jdiExams").doc(examId);const snap=await ref.get();if(!snap.exists)return json(404,{error:"Examination not found."});const exam=snap.data()||{};if(!(await canManageExam(c,exam)))return json(403,{error:"Not authorised to manage this examination."});
  if(action==="update"){
   if(!tutors.includes(c.role)&&!admins.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can edit examinations."});
   const updates=body.updates;if(!updates||typeof updates!=="object"||Array.isArray(updates))return json(400,{error:"Provide valid examination settings."});
