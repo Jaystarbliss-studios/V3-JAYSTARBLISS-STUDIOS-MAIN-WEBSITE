@@ -92,11 +92,8 @@ export const handler: Handler = async (event) => {
       const validHash = typeof exam.passcodeHash === "string" && typeof exam.passcodeSalt === "string";
       const candidate = validHash ? hashCode(exam.passcodeSalt, passcode) : "";
       const validCode = validHash && constantEqual(candidate, exam.passcodeHash);
-      const throttleRef = adminDb.collection("jdiPasscodeAttempts").doc(c.uid + "_" + examId);
-      const throttleSnap = await throttleRef.get(); const throttle = throttleSnap.data() || {}; const windowStart = Number(throttle.windowStart || 0); const failedCount = Date.now() - windowStart > 15 * 60 * 1000 ? 0 : Number(throttle.failedCount || 0);
-      if (failedCount >= 5) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
-      if (!validCode) { await throttleRef.set({ windowStart: failedCount === 0 ? Date.now() : windowStart || Date.now(), failedCount: failedCount + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); }
-      else if (throttleSnap.exists) await throttleRef.delete();
+      const throttleRef = adminDb.collection("jdiPasscodeAttempts").doc(c.uid + "_" + examId); const throttleDecision = await adminDb.runTransaction(async tx => { const snap = await tx.get(throttleRef); const data = snap.data() || {}; const nowMs = Date.now(); const oldStart = Number(data.windowStart || 0); const count = nowMs - oldStart > 15 * 60 * 1000 ? 0 : Number(data.failedCount || 0); if (count >= 5) return { blocked: true }; if (!validCode) { tx.set(throttleRef, { windowStart: count === 0 ? nowMs : oldStart || nowMs, failedCount: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); } else if (assigned && active && snap.exists) tx.delete(throttleRef); return { blocked: false }; });
+      if (throttleDecision.blocked) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
       if (!assigned || !active || !validCode) return json(403, { error: "The passcode could not be validated for this examination." });
       const attemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex"); const attemptRef = adminDb.collection("jdiExamAttempts").doc(attemptId); const prior = await attemptRef.get();
       if (prior.exists && ["submitted", "expired", "graded"].includes(String(prior.data()?.status))) return json(409, { error: "An attempt for this examination has already been submitted." });
