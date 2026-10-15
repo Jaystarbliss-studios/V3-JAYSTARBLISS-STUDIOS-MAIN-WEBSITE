@@ -263,6 +263,21 @@ const Register: React.FC = () => {
     setCurrentStepIndex(prev => Math.max(prev - 1, 0));
   };
 
+  const notifyAdminsOfRegistration = async (user: import('firebase/auth').User) => {
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/.netlify/functions/admin-registration-notification', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      if (!response.ok) console.warn('Admin registration notification was not dispatched.');
+    } catch (error) {
+      // Registration must succeed even if the notification service is temporarily unavailable.
+      console.warn('Admin registration notification unavailable:', error);
+    }
+  };
+
   // Form submission
   const handleSubmit = async () => {
     if (!validateCurrentStep()) return;
@@ -302,6 +317,7 @@ const Register: React.FC = () => {
         
         await setDoc(doc(db, 'parents', cred.user.uid), data);
         await setDoc(doc(db, 'users', cred.user.uid), data);
+        await notifyAdminsOfRegistration(cred.user);
         
         sessionStorage.setItem('userId', cred.user.uid);
         sessionStorage.setItem('userRole', 'parent');
@@ -349,6 +365,7 @@ const Register: React.FC = () => {
 
         await setDoc(doc(db, 'students', cred.user.uid), data);
         await setDoc(doc(db, 'users', cred.user.uid), data);
+        await notifyAdminsOfRegistration(cred.user);
 
         // Also add reference request for admin audit
         await addDoc(collection(db, 'student_requests'), {
