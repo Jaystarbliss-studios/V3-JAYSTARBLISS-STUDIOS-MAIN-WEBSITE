@@ -16,8 +16,8 @@ Brand education portal surfaces and reports as **JAYSTARBLISS DYNAMIC INSTITUTE 
 
 ## Free-plan constraints
 - Avoid one realtime listener per question. Use bounded reads, batched writes, paginated history and local countdowns with server checks on writes.
-- Core deadline enforcement must not depend on scheduled functions. Add optional cleanup only after verifying project plan and function availability.
-- Prefer bounded CSV and client-generated PDFs initially; add genuine XLSX/ZIP after verifying bundle/runtime cost.
+- The attempt API enforces deadlines on every save/submit. A Netlify scheduled function closes overdue attempts and notifies assigned staff; verify Scheduled Functions are available on the connected Netlify plan before relying on background expiry in production.
+- Keep reads bounded and exports client-generated. XLSX workbooks and ZIP archives are generated with small in-repo utilities, without adding paid services or extra runtime dependencies.
 - No AI grading, webcam proctoring, tab-locking or paid external services in v1.
 
 ## Results, reports and notifications
