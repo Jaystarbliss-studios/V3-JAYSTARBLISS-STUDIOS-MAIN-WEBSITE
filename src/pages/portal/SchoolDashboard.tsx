@@ -89,7 +89,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
     if (path.includes('/schedules')) return 'schedules';
     if (path.includes('/partnership')) return 'partnership';
     const requested = searchParams.get('tab') as SchoolDashboardTab;
-    return ['overview','roster','exams','passcodes','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
+    return ['overview','roster','exams','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
   }, [initialTab, location.pathname, searchParams]);
 
   useEffect(() => {
@@ -355,7 +355,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           <DashboardGreeting
             name={schoolName.split(' ')[0] || schoolName}
             role="Partner Institution"
-            subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
+            subtitle="Manage student enrollment, examination overview, class schedules, and billing."
           />
 
           {/* Focused school overview: operational metrics and shortcuts only. Detailed programmes,
