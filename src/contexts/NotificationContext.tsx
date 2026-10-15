@@ -326,7 +326,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await updateDoc(doc(db, "jdiNotifications", id.slice(4)), { isRead: true, readAt: Timestamp.now() });
       } else {
         const notifRef = doc(db, 'notifications', id);
-        await updateDoc(notifRef, { readBy: arrayUnion(uid), read: true });
+        await updateDoc(notifRef, { readBy: arrayUnion(uid) });
       }
     } catch (err: any) {
       console.warn('Firestore read state update note:', err.message);
@@ -375,7 +375,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: false, readAt: null });
       } else {
         const notifRef = doc(db, 'notifications', id);
-        await updateDoc(notifRef, { readBy: arrayRemove(uid), read: false });
+        await updateDoc(notifRef, { readBy: arrayRemove(uid) });
       }
       toast.info('Marked as unread');
     } catch (err: any) {
@@ -406,7 +406,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await Promise.allSettled(
         notifications.map(n => n.id.startsWith('jdi:')
           ? (n.recipientId === uid ? updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() }) : Promise.resolve())
-          : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid), read: true })
+          : updateDoc(doc(db, 'notifications', n.id), { readBy: arrayUnion(uid) })
         )
       );
     } catch (err) {
