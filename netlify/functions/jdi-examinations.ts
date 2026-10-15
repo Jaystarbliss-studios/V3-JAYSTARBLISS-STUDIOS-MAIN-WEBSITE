@@ -130,7 +130,7 @@ export const handler: Handler = async (event) => {
       if (questions.some((q: any) => !q || !String(q.prompt || "").trim() || String(q.prompt).length > 5000 || !allowedTypes.includes(String(q.type || "single_choice")) || !Number.isFinite(Number(q.points ?? 1)) || Number(q.points ?? 1) < 0 || Number(q.points ?? 1) > 1000)) return json(400, { error: "Each question needs valid text, a supported type, and marks from 0 to 1000." });
       const fromTime = body.availableFrom ? new Date(String(body.availableFrom)).getTime() : null; const untilTime = body.availableUntil ? new Date(String(body.availableUntil)).getTime() : null;
       if ((fromTime !== null && !Number.isFinite(fromTime)) || (untilTime !== null && !Number.isFinite(untilTime)) || (fromTime !== null && untilTime !== null && untilTime <= fromTime)) return json(400, { error: "The examination closing time must be after its opening time." });
-      const passcode = String(body.passcode || randomBytes(4).toString("hex").toUpperCase());
+      const passcode = String(body.passcode || randomBytes(8).toString("hex").toUpperCase());
       if (passcode.length < 6 || passcode.length > 128) return json(400, { error: "Passcodes must be between 6 and 128 characters." });
       const salt = randomBytes(16).toString("hex");
       const status = body.status === "active" ? "active" : body.status === "scheduled" ? "scheduled" : "draft";
