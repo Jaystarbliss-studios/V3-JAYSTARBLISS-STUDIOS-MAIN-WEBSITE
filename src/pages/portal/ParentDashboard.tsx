@@ -234,20 +234,20 @@ const ParentDashboard: React.FC = () => {
           metadata: { studentName: trimmedName, plan: selectedPlan, subjects, parentEmail: userEmail }
         }).catch(() => undefined);
 
-        // Notify admins
-        await addDoc(collection(db, 'notifications'), {
-          title: `New Enrollment: ${trimmedName}`,
-          message: `${parentName} requested enrollment for ${trimmedName} (${selectedPlan}).`,
-          recipientId: 'all',
-          targetRole: 'super_admin',
-          type: 'alert',
-          priority: 'high',
-          read: false,
-          readBy: [],
-          timestamp: serverTimestamp(),
-          senderName: parentName,
-          senderRole: 'Parent'
-        }).catch(() => undefined);
+        // Send a private, recipient-targeted admin alert. Never broadcast a
+        // parent's enrollment details to every portal user.
+        if (user && !effective.isMasquerading) {
+          try {
+            const token = await user.getIdToken();
+            await fetch('/api/parent-enrollment-request', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ action: 'notify_only', requestId: reqRef.id })
+            });
+          } catch (notificationError) {
+            console.warn('Private admin enrollment alert unavailable:', notificationError);
+          }
+        }
       }
 
       setEnrollments(current => [requestCreated, ...current.filter(e => e.id !== requestCreated.id)]);
