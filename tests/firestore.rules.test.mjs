@@ -113,3 +113,23 @@ test("an email merely containing the word admin does not grant administrator acc
   const db = env.authenticatedContext("not-an-admin", { email: "notadmin@example.com" }).firestore();
   await assertFails(getDoc(doc(db, "students", "child-a")));
 });
+
+test("users can create only their own basic parent/student profile", async () => {
+  const parentDb = env.authenticatedContext("new-parent", { email: "new-parent@example.com" }).firestore();
+  await assertSucceeds(setDoc(doc(parentDb, "users", "new-parent"), { role: "parent", email: "new-parent@example.com" }));
+  const attackerDb = env.authenticatedContext("new-admin", { email: "new-admin@example.com" }).firestore();
+  await assertFails(setDoc(doc(attackerDb, "users", "new-admin"), { role: "super_admin", email: "new-admin@example.com" }));
+});
+
+test("users cannot read other users' private profiles", async () => {
+  const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(db, "users", "parent-a")));
+  await assertFails(getDoc(doc(db, "users", "parent-b")));
+});
+
+test("only Super Admin can create administrator records", async () => {
+  const parentDb = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  await assertFails(setDoc(doc(parentDb, "admins", "parent-a"), { role: "SUPER_ADMIN" }));
+  const adminDb = env.authenticatedContext("super-admin", { email: "admin@example.com" }).firestore();
+  await assertSucceeds(setDoc(doc(adminDb, "admins", "new-admin"), { role: "SUPER_ADMIN" }));
+});
