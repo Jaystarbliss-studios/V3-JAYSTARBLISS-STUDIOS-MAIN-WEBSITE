@@ -54,13 +54,21 @@ export const handler: Handler = async (event) => {
       const student = await getStudent(c.uid);
       if (!student) return json(200, { exams: [] });
       const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
-      if (!schoolId) return json(200, { exams: [] });
-      const exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
+      const [schoolExams, individualById, individualByUid] = await Promise.all([
+        schoolId ? adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get() : Promise.resolve(null),
+        adminDb.collection("jdiExams").where("studentIds", "array-contains", student.id).limit(100).get(),
+        adminDb.collection("jdiExams").where("studentUids", "array-contains", c.uid).limit(100).get()
+      ]);
+      const examDocs = new Map<string, any>();
+      for (const snap of [schoolExams, individualById, individualByUid]) snap?.docs.forEach(d => examDocs.set(d.id, d));
       const now = Date.now();
-      const rows = exams.docs.map(doc => { const metadata: any = { ...studentSafe(doc.data()) }; delete metadata.questions; return { id: doc.id, ...metadata }; }).filter((exam: any) => {
+      const rows = Array.from(examDocs.values()).map(doc => { const metadata: any = { ...studentSafe(doc.data()) }; delete metadata.questions; return { id: doc.id, ...metadata }; }).filter((exam: any) => {
+        const individual = exam.audienceType === "individual";
+        const directlyAssigned = (Array.isArray(exam.studentIds) && exam.studentIds.map(String).includes(student.id)) || (Array.isArray(exam.studentUids) && exam.studentUids.map(String).includes(c.uid));
         const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
         const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
-        return (!classes.length || classes.includes(classId) || classes.includes("all")) && exam.status !== "draft" && exam.status !== "archived";
+        const schoolEligible = Boolean(schoolId && exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all")));
+        return (individual ? directlyAssigned : schoolEligible) && exam.status !== "draft" && exam.status !== "archived";
       }).map((exam: any) => {
         const from = exam.availableFrom ? new Date(exam.availableFrom).getTime() : 0;
         const until = exam.availableUntil ? new Date(exam.availableUntil).getTime() : Number.MAX_SAFE_INTEGER;
@@ -87,7 +95,7 @@ export const handler: Handler = async (event) => {
       const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
       const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
       const classId = String(student.data.classId || student.data.classLevel || student.data.class || "");
-      const assigned = exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all"));
+      const assigned = exam.audienceType === "individual" ? ((Array.isArray(exam.studentIds) && exam.studentIds.map(String).includes(student.id)) || (Array.isArray(exam.studentUids) && exam.studentUids.map(String).includes(c.uid))) : (exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all")));
       const active = exam.status === "active" && now >= from && now <= until;
       const validHash = typeof exam.passcodeHash === "string" && typeof exam.passcodeSalt === "string";
       const candidate = validHash ? hashCode(exam.passcodeSalt, passcode) : "";
