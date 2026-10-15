@@ -236,7 +236,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       } else {
         // Build specific targeted listeners
         const queryList = [
-          query(collection(db, 'notifications'), where('recipientId', '==', 'all'), limit(30)),
+          query(collection(db, 'notifications'), where('recipientType', '==', 'all'), where('targetRole', '==', 'all'), limit(30)),
           query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(30)),
           query(collection(db, 'notifications'), where('targetUid', '==', uid), limit(30))
         ];
@@ -446,13 +446,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const uid = currentUser.uid;
       const role = userRole;
       const isAdmin = ['super_admin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
-      const [direct, jdi] = await Promise.all([
+      const [direct, jdi, broadcasts] = await Promise.all([
         isAdmin
           ? getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(100)))
           : getDocs(query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(50))),
         isAdmin
           ? getDocs(query(collection(db, 'jdiNotifications'), orderBy('createdAt', 'desc'), limit(100)))
-          : getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50)))
+          : getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50))),
+        isAdmin
+          ? Promise.resolve(null)
+          : getDocs(query(collection(db, 'notifications'), where('recipientType', '==', 'all'), where('targetRole', '==', 'all'), limit(50)))
       ]);
       const toNotification = (d: any, isJdi = false): AppNotification => {
         const data = d.data();
@@ -480,7 +483,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           senderRole: data.senderRole || 'Administration'
         };
       };
-      const refreshed = [...direct.docs.map(d => toNotification(d)), ...jdi.docs.map(d => toNotification(d, true))];
+      const refreshed = [...direct.docs.map(d => toNotification(d)), ...jdi.docs.map(d => toNotification(d, true)), ...(broadcasts?.docs || []).map(d => toNotification(d))];
       const byId = new Map(notifications.map(n => [n.id, n]));
       refreshed.forEach(n => byId.set(n.id, n));
       setNotifications(Array.from(byId.values()).sort((a, b) => {
