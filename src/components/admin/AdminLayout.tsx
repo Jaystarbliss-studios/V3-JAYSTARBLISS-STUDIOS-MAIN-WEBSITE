@@ -125,8 +125,11 @@ const AdminLayout: React.FC = () => {
   ];
 
   const navigationGroups: NavGroup[] = useMemo(() => {
-    if (currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN' || auth.currentUser?.email === 'johnrufai242@gmail.com') {
+    if (currentRole === 'SUPER_ADMIN' || currentRole === 'SUPERADMIN' || auth.currentUser?.email === 'johnrufai242@gmail.com') {
       return allNavigationGroups;
+    }
+    if (currentRole === 'ADMIN') {
+      return allNavigationGroups.map(group => ({ ...group, items: group.items.filter(item => item.href !== "/admin/examinations") }));
     }
 
     if (currentRole === 'CMS_ADMIN' || currentRole === 'CONTENT_ADMIN') {
