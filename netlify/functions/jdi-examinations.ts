@@ -159,7 +159,22 @@ export const handler: Handler = async (event) => {
         const individualExams=await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
         individualExams.docs.filter((d:any)=>d.data().audienceType==="individual").forEach((d:any)=>docs.set(d.id,d));
       }
-      return json(200, { exams: Array.from(docs.values()).map((d:any) => ({ id: d.id, ...studentSafe(d.data()) })) });
+      const result:any={exams:Array.from(docs.values()).map((d:any)=>({id:d.id,...studentSafe(d.data())}))};
+      if(String(event.queryStringParameters?.includeStudents||"") === "true" && (staffRoles.includes(c.role)||adminRoles.includes(c.role))){
+        const [individuals,schoolStudents]=await Promise.all([
+          adminDb.collection("individualStudents").limit(500).get(),
+          adminDb.collection("students").limit(500).get()
+        ]);
+        const studentMap=new Map<string,any>();
+        for(const snap of [individuals,schoolStudents])for(const d of snap.docs){
+          const s=d.data();const linkedSchool=String(s.schoolId||s.school_id||s.schoolDocId||"");
+          const assigned=[s.tutorId,s.staffId,s.assignedTutorId,s.assignedStaffId,s.instructorId].map((v:any)=>String(v||"")).includes(c.uid);
+          const visible=adminRoles.includes(c.role)||assigned||(Boolean(schoolId&&linkedSchool===schoolId&&await permittedSchool(c,schoolId)));
+          if(visible)studentMap.set(d.id,{id:d.id,name:String(s.fullName||s.studentName||s.name||"Student"),className:String(s.className||s.classLevel||s.classId||s.class||""),schoolId:linkedSchool});
+        }
+        result.students=Array.from(studentMap.values()).slice(0,500);
+      }
+      return json(200,result);
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
       if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
