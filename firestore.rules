@@ -329,6 +329,8 @@ service cloud.firestore {
     match /jdiExamAttempts/{attemptId} { allow read, write: if false; }
     // Reusable exam questions contain answer keys; manage them only through the authenticated server API.
     match /jdiQuestionBank/{questionId} { allow read, write: if false; }
+    // Attempt-limit counters must never be readable or mutable by browser clients.
+    match /jdiAttemptLimits/{limitId} { allow read, write: if false; }
     match /jdiNotifications/{notificationId} {
       allow read: if isAuth() && (resource.data.recipientUid == request.auth.uid || (resource.data.recipientRole == 'ADMIN' && isAnyAdmin()));
       allow create, delete: if isAnyAdmin();
