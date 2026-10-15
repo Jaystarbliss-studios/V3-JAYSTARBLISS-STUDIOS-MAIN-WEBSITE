@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { 
   sendResendEmail, 
   buildBrandedEmailHtml, 
@@ -67,6 +68,37 @@ export const handler: Handler = async (event) => {
         message,
         inquiryType
       });
+
+      // In-app lead alerts are targeted to administrator UIDs, never broadcast.
+      try {
+        const userSnap = await adminDb.collection('users').limit(1000).get();
+        const adminSet = new Set(['admin', 'super_admin', 'superadmin', 'finance_admin', 'education_admin', 'content_admin', 'services_admin', 'marketing_admin', 'support_admin']);
+        const admins = userSnap.docs.filter(d => adminSet.has(String(d.data().role || '').trim().toLowerCase()));
+        const batch = adminDb.batch();
+        for (const admin of admins) {
+          const ref = adminDb.collection('notifications').doc();
+          batch.set(ref, {
+            recipientId: admin.id,
+            recipientType: 'specific_user',
+            type: 'client_inquiry',
+            priority: 'normal',
+            title: 'New client inquiry',
+            message: (clientName || 'A new client') + ' submitted a ' + inquiryType + ' inquiry.',
+            targetName: clientName || 'Anonymous Visitor',
+            targetEmail: clientEmail,
+            data: { subject, phone: clientPhone || null, messagePreview: message.slice(0, 240) },
+            readBy: [],
+            read: false,
+            timestamp: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            senderName: 'Jaystarbliss Central',
+            senderRole: 'System'
+          });
+        }
+        if (admins.length) await batch.commit();
+      } catch (notificationError) {
+        console.warn('Admin inquiry notification could not be saved:', notificationError);
+      }
 
       return json(200, {
         success: true,
