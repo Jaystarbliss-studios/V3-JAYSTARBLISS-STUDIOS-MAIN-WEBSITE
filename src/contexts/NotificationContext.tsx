@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   collection, query, where, orderBy, limit, onSnapshot, 
-  doc, updateDoc, arrayUnion, arrayRemove, getDocs, Timestamp 
+  doc, getDoc, updateDoc, arrayUnion, arrayRemove, getDocs, Timestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
