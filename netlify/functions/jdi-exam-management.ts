@@ -25,6 +25,9 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
   if(updates.title!==undefined){const value=String(updates.title).trim();if(!value||value.length>200)return json(400,{error:"Title must be 1–200 characters."});patch.title=value;}
   if(updates.subject!==undefined){const value=String(updates.subject).trim();if(!value||value.length>120)return json(400,{error:"Subject must be 1–120 characters."});patch.subject=value;}
   if(updates.instructions!==undefined)patch.instructions=String(updates.instructions).slice(0,5000);
+  if(updates.seriesName!==undefined)patch.seriesName=String(updates.seriesName).trim().slice(0,160);
+  if(updates.courseName!==undefined)patch.courseName=String(updates.courseName).trim().slice(0,160);
+  if(updates.learningVideoUrl!==undefined){const value=String(updates.learningVideoUrl||"").trim();if(value){try{const url=new URL(value);if(!["http:","https:"].includes(url.protocol))throw new Error("URL");}catch{return json(400,{error:"Learning video URL must be a valid http or https link."});}}patch.learningVideoUrl=value||null;}
   if(updates.durationMinutes!==undefined){const value=Number(updates.durationMinutes);if(!Number.isFinite(value)||value<1||value>300)return json(400,{error:"Duration must be from 1 to 300 minutes."});patch.durationMinutes=value;}
   if(updates.maxAttempts!==undefined){const value=Number(updates.maxAttempts);if(!Number.isInteger(value)||value<1||value>10)return json(400,{error:"Maximum attempts must be an integer from 1 to 10."});patch.maxAttempts=value;}
   if(updates.shuffleQuestions!==undefined){if(typeof updates.shuffleQuestions!=="boolean")return json(400,{error:"Invalid question randomisation setting."});patch.shuffleQuestions=updates.shuffleQuestions;}
