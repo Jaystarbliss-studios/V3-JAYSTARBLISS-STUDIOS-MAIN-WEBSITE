@@ -104,11 +104,13 @@ export const handler: Handler = async event => {
         });
       });
 
-      if (requested) {
-        validSids.add(requested);
-      }
-
+      // A school account may only request a school already proven to be linked
+      // to its authenticated profile. Never trust a client-supplied schoolId.
       schoolIds = Array.from(validSids).filter(Boolean);
+      if (requested && !schoolIds.includes(requested)) {
+        return json(403, { error: 'You are not authorised to view students for this school.' });
+      }
+      if (requested) schoolIds = [requested];
       if (schoolIds.length === 0) return json(403, { error: 'School account is not linked to a school.' });
     } else {
       // Staff / Tutor
