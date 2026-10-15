@@ -141,7 +141,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const currentSchoolId = schoolId;
     const currentStudentDocId = studentDocId;
 
-    const isAdmin = ['super_admin', 'superadmin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
+    const isAdmin = ['super_admin', 'superadmin', 'admin'].includes(role);
 
     setLoading(true);
     const unsubs: (() => void)[] = [];
