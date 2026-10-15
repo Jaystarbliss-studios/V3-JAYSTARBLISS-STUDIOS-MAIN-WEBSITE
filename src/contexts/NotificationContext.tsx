@@ -211,10 +211,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           updateFromDocs(snap.docs);
         }, (err) => {
           console.warn('Admin notifications stream warning:', err);
-          // Fallback simple query
           getDocs(collection(db, 'notifications')).then(snap => updateFromDocs(snap.docs)).catch(() => {});
         });
-        unsubs.push(unsub);
+        const jdiAdminQ = query(collection(db, 'jdiNotifications'), orderBy('createdAt', 'desc'), limit(100));
+        const unsubJdi = onSnapshot(jdiAdminQ, snap => updateFromDocs(snap.docs), err => {
+          console.warn('Admin JDI notifications stream warning:', err.message);
+        });
+        unsubs.push(unsub, unsubJdi);
       } else {
         // Build specific targeted listeners
         const queryList = [
