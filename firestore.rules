@@ -341,7 +341,7 @@ service cloud.firestore {
       allow create, delete: if isAnyAdmin();
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt','isRead'])
-        && (!request.resource.data.keys().hasAny(['isRead']) || request.resource.data.isRead == true);
+        ;
     }
     match /notifications/{notificationId} {
       allow read: if isAnyAdmin() || (isAuth() && (
@@ -359,7 +359,7 @@ service cloud.firestore {
         (resource.data.get('recipientType', '') == 'school_students' && resource.data.get('schoolId', null) == userSchoolId())
       ));
       allow create, delete: if isAnyAdmin();
-      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','read']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy);
+      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','read']) && request.resource.data.readBy is list && (request.auth.uid in request.resource.data.readBy || request.auth.uid in resource.data.get('readBy', [])));
     }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin() || isAuth(); }
     match /treasuryLogs/{logId} { allow read, write: if isAnyAdmin(); }
