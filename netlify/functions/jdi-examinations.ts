@@ -165,11 +165,11 @@ export const handler: Handler = async (event) => {
           adminDb.collection("individualStudents").limit(500).get(),
           adminDb.collection("students").limit(500).get()
         ]);
-        const studentMap=new Map<string,any>();
+        const studentMap=new Map<string,any>();const canViewSchoolRoster=Boolean(schoolId&&await permittedSchool(c,schoolId));
         for(const snap of [individuals,schoolStudents])for(const d of snap.docs){
           const s=d.data();const linkedSchool=String(s.schoolId||s.school_id||s.schoolDocId||"");
           const assigned=[s.tutorId,s.staffId,s.assignedTutorId,s.assignedStaffId,s.instructorId].map((v:any)=>String(v||"")).includes(c.uid);
-          const visible=adminRoles.includes(c.role)||assigned||(Boolean(schoolId&&linkedSchool===schoolId&&await permittedSchool(c,schoolId)));
+          const visible=adminRoles.includes(c.role)||assigned||(canViewSchoolRoster&&linkedSchool===schoolId);
           if(visible)studentMap.set(d.id,{id:d.id,name:String(s.fullName||s.studentName||s.name||"Student"),className:String(s.className||s.classLevel||s.classId||s.class||""),schoolId:linkedSchool});
         }
         result.students=Array.from(studentMap.values()).slice(0,500);
