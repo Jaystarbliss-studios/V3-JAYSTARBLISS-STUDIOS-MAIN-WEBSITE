@@ -95,6 +95,13 @@ export const handler: Handler = async (event) => {
       const throttleRef = adminDb.collection("jdiPasscodeAttempts").doc(c.uid + "_" + examId); const throttleDecision = await adminDb.runTransaction(async tx => { const snap = await tx.get(throttleRef); const data = snap.data() || {}; const nowMs = Date.now(); const oldStart = Number(data.windowStart || 0); const count = nowMs - oldStart > 15 * 60 * 1000 ? 0 : Number(data.failedCount || 0); if (count >= 5) return { blocked: true }; if (!validCode) { tx.set(throttleRef, { windowStart: count === 0 ? nowMs : oldStart || nowMs, failedCount: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); } else if (assigned && active && snap.exists) tx.delete(throttleRef); return { blocked: false }; });
       if (throttleDecision.blocked) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
       if (!assigned || !active || !validCode) return json(403, { error: "The passcode could not be validated for this examination." });
+      const legacyAttemptId = createHash("sha256").update(examId + ":" + student.id).digest("hex");
+      const legacyAttempt = await adminDb.collection("jdiExamAttempts").doc(legacyAttemptId).get();
+      if (legacyAttempt.exists) {
+        const legacy = legacyAttempt.data() || {};
+        if (legacy.status === "in_progress" && legacy.studentUid === c.uid && new Date(legacy.deadlineAt).getTime() > now) return json(200, { attemptId: legacyAttemptId, resumed: true });
+      }
+      const legacyAttemptsUsed = legacyAttempt.exists ? 1 : 0;
       const lockId = createHash("sha256").update(examId + ":" + student.id).digest("hex");
       const lockRef = adminDb.collection("jdiAttemptLimits").doc(lockId);
       const attemptId = randomBytes(16).toString("hex");
@@ -120,7 +127,7 @@ export const handler: Handler = async (event) => {
             resumed = true; finalAttemptId = activeRef.id; return;
           }
         }
-        const usedAttempts = Number(lock.attemptCount || 0);
+        const usedAttempts = Math.max(Number(lock.attemptCount || 0), legacyAttemptsUsed);
         if (usedAttempts >= maxAttempts) throw new Error("ATTEMPT_LIMIT");
         tx.create(attemptRef, attempt);
         tx.set(lockRef, { examId, studentId: student.id, studentUid: c.uid, schoolId, attemptCount: usedAttempts + 1, activeAttemptId: attemptId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
