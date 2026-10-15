@@ -664,8 +664,11 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
   // Upload New School Resource
   const handleCreateSchoolResource = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageCurriculum) {
-      toast.error('Only tutors and the super admin can upload curriculum resources.');
+    // The school Resource Library is separate from the program-level curriculum
+    // attachment. School administrators retain full control of their own school
+    // resources; tutor/super-admin curriculum permissions remain available.
+    if (role !== 'school' && !canManageCurriculum) {
+      toast.error('Only school administrators, tutors, and the super admin can upload learning resources.');
       return;
     }
     if (!uploadForm.title.trim() || !uploadForm.fileUrl.trim()) {
@@ -772,13 +775,13 @@ export const ResourceLibrary: React.FC<ResourceLibraryProps> = ({ role = 'all' }
               <div className="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Total Resources</div>
             </div>
 
-            {canManageCurriculum && (
+            {(role === 'school' || canManageCurriculum) && (
               <button
                 onClick={() => setIsUploadModalOpen(true)}
                 className="px-4 py-3 bg-brand-red hover:bg-red-700 text-white rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg shadow-brand-red/20 transition-all cursor-pointer"
               >
                 <Plus size={16} />
-                <span>New Lesson Plan</span>
+                <span>{role === 'school' ? 'Upload School Resource' : 'New Lesson Plan'}</span>
               </button>
             )}
           </div>
