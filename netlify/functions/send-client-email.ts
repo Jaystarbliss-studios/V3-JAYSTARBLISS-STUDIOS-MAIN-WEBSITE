@@ -85,7 +85,7 @@ export const handler: Handler = async (event) => {
             title: 'New client inquiry',
             message: (clientName || 'A new client') + ' submitted a ' + inquiryType + ' inquiry.',
             targetName: clientName || 'Anonymous Visitor',
-            targetEmail: clientEmail,
+            clientEmail,
             data: { subject, phone: clientPhone || null, messagePreview: message.slice(0, 240) },
             readBy: [],
             read: false,
