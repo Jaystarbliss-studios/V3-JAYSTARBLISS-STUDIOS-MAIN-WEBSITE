@@ -42,6 +42,12 @@ before(async () => {
       firebaseUid: "student-a",
     });
 
+    await setDoc(doc(db, "schoolPasscodes", "school-a-passcode"), {
+      schoolId: "school-a",
+      passcodeHash: "not-for-client-reading",
+      passcodeSalt: "server-only",
+    });
+
     await setDoc(doc(db, "notifications", "direct-parent-a"), {
       recipientId: "parent-a",
       recipientType: "specific_user",
@@ -132,4 +138,14 @@ test("only Super Admin can create administrator records", async () => {
   await assertFails(setDoc(doc(parentDb, "admins", "parent-a"), { role: "SUPER_ADMIN" }));
   const adminDb = env.authenticatedContext("super-admin", { email: "admin@example.com" }).firestore();
   await assertSucceeds(setDoc(doc(adminDb, "admins", "new-admin"), { role: "SUPER_ADMIN" }));
+});
+
+
+test("school users cannot read or mutate legacy passcode documents directly", async () => {
+  const schoolDb = env.authenticatedContext("school-admin", { email: "school@example.com" }).firestore();
+  await assertFails(getDoc(doc(schoolDb, "schoolPasscodes", "school-a-passcode")));
+  await assertFails(updateDoc(doc(schoolDb, "schoolPasscodes", "school-a-passcode"), { passcodeHash: "changed" }));
+
+  const studentDb = env.authenticatedContext("student-a", { email: "student@example.com" }).firestore();
+  await assertFails(getDoc(doc(studentDb, "schoolPasscodes", "school-a-passcode")));
 });
