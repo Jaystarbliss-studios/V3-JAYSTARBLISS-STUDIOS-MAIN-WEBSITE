@@ -293,10 +293,11 @@ service cloud.firestore {
       allow create: if isAnyAdmin() || hasStaffSchoolAccess(request.resource.data.schoolId);
       allow update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
     }
+    // Passcodes are verified and managed by trusted server functions only.
+    // Direct client reads would expose passcode material to school users and
+    // undermine the server-side attempt/rate-limit checks.
     match /schoolPasscodes/{docId} {
-      allow read: if isAnyAdmin() || (isSchoolUser() && isSameSchool(resource.data.schoolId)) || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
-      allow create: if isAnyAdmin() || hasStaffSchoolAccess(request.resource.data.schoolId);
-      allow update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
+      allow read, write: if false;
     }
     match /staffGeneralResources/{resId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /staffSchoolAccess/{docId} { allow read: if true; allow write: if isAnyAdmin(); }
