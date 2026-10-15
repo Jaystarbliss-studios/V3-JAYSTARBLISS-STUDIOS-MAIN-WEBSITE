@@ -108,3 +108,8 @@ test("Super Admin can read student records across schools", async () => {
   await assertSucceeds(getDoc(doc(db, "students", "child-a")));
   await assertSucceeds(getDoc(doc(db, "students", "child-b")));
 });
+
+test("an email merely containing the word admin does not grant administrator access", async () => {
+  const db = env.authenticatedContext("not-an-admin", { email: "notadmin@example.com" }).firestore();
+  await assertFails(getDoc(doc(db, "students", "child-a")));
+});
