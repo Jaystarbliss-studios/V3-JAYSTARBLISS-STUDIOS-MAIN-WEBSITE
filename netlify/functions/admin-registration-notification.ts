@@ -8,7 +8,7 @@ const json = (statusCode: number, body: Record<string, unknown>) => ({
   body: JSON.stringify(body)
 });
 const normalise = (value: unknown) => String(value || "").trim().toLowerCase();
-const adminRoles = new Set(["super_admin", "superadmin", "admin", "content_admin", "education_admin", "services_admin", "marketing_admin", "support_admin"]);
+const adminRoles = new Set(["super_admin", "superadmin", "admin"]);
 
 export const handler: Handler = async event => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed." });
