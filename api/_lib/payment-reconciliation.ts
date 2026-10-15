@@ -276,7 +276,7 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   if (!created) return { created: false, payment: null };
   // Financial notifications are targeted to each admin UID, never broadcast.
   const adminUsers = await adminDb.collection("users").limit(1000).get();
-  const adminRoles = new Set(["super_admin", "superadmin", "admin", "content_admin", "education_admin", "services_admin", "marketing_admin", "support_admin"]);
+  const adminRoles = new Set(["super_admin", "superadmin", "admin"]);
   const paymentSummary = String(role === "school" ? "School" : role === "parent" ? "Parent" : "Student") + " payment received: " + String(paymentData.plan) + " — ₦" + Number(paymentData.customerTotal).toLocaleString() + " (reference " + reference + ").";
   await Promise.all(adminUsers.docs
     .filter(d => adminRoles.has(String(d.data().role || "").trim().toLowerCase()))
