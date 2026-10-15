@@ -145,7 +145,7 @@ const PortalLayout: React.FC = () => {
             {groupIcons[group.label]}
           </button>
         </Tooltip>
-        {flyoutOpen && <div className="absolute left-[calc(100%+10px)] top-0 z-[60] w-56 rounded-2xl border border-white/10 bg-[#182335] p-2 shadow-2xl space-y-1" role="menu" aria-label={group.label}>
+        {flyoutOpen && <div className="fixed left-[76px] top-28 z-[100] w-56 rounded-2xl border border-white/10 bg-[#182335] p-2 shadow-2xl space-y-1" role="menu" aria-label={group.label}>
           <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">{group.label}</div>
           {group.items.map(item => <NavLink key={item.name} item={item} flyout />)}
         </div>}
