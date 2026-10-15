@@ -159,7 +159,6 @@ export const handler: Handler = async (event) => {
         const individualExams=await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
         individualExams.docs.filter((d:any)=>d.data().audienceType==="individual").forEach((d:any)=>docs.set(d.id,d));
       }
-      if(!docs.size&&!schoolId)return json(403,{error:"You do not have access to examination authoring data."});
       return json(200, { exams: Array.from(docs.values()).map((d:any) => ({ id: d.id, ...studentSafe(d.data()) })) });
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
