@@ -10,7 +10,6 @@ const constantEqual = (a: string, b: string) => { const aa = Buffer.from(a, "hex
 const norm = (value: unknown) => String(value || "").trim().toUpperCase();
 const staffRoles = ["TUTOR", "STAFF", "INSTRUCTOR"];
 const adminRoles = ["SUPER_ADMIN", "SUPERADMIN"];
-const readAdminRoles = ["ADMIN", "SUPER_ADMIN", "SUPERADMIN", "EDUCATION_ADMIN", "CONTENT_ADMIN", "DIRECTOR"];
 async function caller(event: any) {
   const token = bearer(event); if (!token) throw new Error("AUTH");
   const decoded = await adminAuth.verifyIdToken(token);
