@@ -146,15 +146,21 @@ export const handler: Handler = async (event) => {
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only tutors and Super Admins can access examination authoring data." });
       const schoolId = String(event.queryStringParameters?.schoolId || c.user.schoolId || "");
       let exams:any;
+      const docs=new Map<string,any>();
       if (schoolId) {
         if (!(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
-        exams = await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
-      } else if (adminRoles.includes(c.role)) {
-        exams = await adminDb.collection("jdiExams").where("audienceType", "==", "individual").limit(100).get();
-      } else {
-        exams = await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
+        const schoolExams=await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
+        schoolExams.docs.forEach((d:any)=>docs.set(d.id,d));
       }
-      return json(200, { exams: exams.docs.map((d:any) => ({ id: d.id, ...studentSafe(d.data()) })) });
+      if (adminRoles.includes(c.role)) {
+        const individualExams=await adminDb.collection("jdiExams").where("audienceType", "==", "individual").limit(100).get();
+        individualExams.docs.forEach((d:any)=>docs.set(d.id,d));
+      } else if (staffRoles.includes(c.role)) {
+        const individualExams=await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
+        individualExams.docs.filter((d:any)=>d.data().audienceType==="individual").forEach((d:any)=>docs.set(d.id,d));
+      }
+      if(!docs.size&&!schoolId)return json(403,{error:"You do not have access to examination authoring data."});
+      return json(200, { exams: Array.from(docs.values()).map((d:any) => ({ id: d.id, ...studentSafe(d.data()) })) });
     }
     if (method === "POST" && path.endsWith("/tutor-examinations")) {
       if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
