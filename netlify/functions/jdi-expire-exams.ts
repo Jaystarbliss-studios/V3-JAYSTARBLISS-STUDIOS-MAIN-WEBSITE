@@ -44,9 +44,8 @@ export const handler: Handler = async () => {
       const recipients = new Set<string>(); if (exam.createdBy) recipients.add(String(exam.createdBy));
       const schoolId = String(attempt.schoolId || exam.schoolId || "");
       if (schoolId) {
-        const access = await adminDb.collection("staffSchoolAccess").where("schoolId", "==", schoolId).limit(50).get().catch(() => null); access?.docs.forEach(item => recipients.add(item.id));
         const schoolUsers = await adminDb.collection("users").where("schoolId", "==", schoolId).limit(50).get().catch(() => null);
-        schoolUsers?.docs.forEach(item => { const role = String(item.data().role || "").toUpperCase(); if (["SCHOOL", "SCHOOL_ADMIN", "ADMIN", "EDUCATION_ADMIN", "SUPER_ADMIN"].includes(role)) recipients.add(item.id); });
+        schoolUsers?.docs.forEach(item => { const role = String(item.data().role || "").toUpperCase(); if (["SCHOOL", "SCHOOL_ADMIN"].includes(role)) recipients.add(item.id); });
       } else {
         let student = await adminDb.collection("individualStudents").doc(String(attempt.studentId || "")).get();
         if (!student.exists) student = await adminDb.collection("students").doc(String(attempt.studentId || "")).get();
