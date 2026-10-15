@@ -242,7 +242,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
           if (currentSchoolId) {
             queryList.push(query(collection(db, 'notifications'), where('recipientId', '==', `school_students_${currentSchoolId}`), limit(30)));
-            queryList.push(query(collection(db, 'notifications'), where('schoolId', '==', currentSchoolId), limit(30)));
           }
         } else if (role === 'parent') {
           queryList.push(query(collection(db, 'notifications'), where('recipientId', '==', 'all_parents'), limit(30)));
