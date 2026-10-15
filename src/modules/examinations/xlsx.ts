@@ -2,7 +2,7 @@ import { createZip, type ZipFile } from "./zip";
 function xml(value:unknown){return String(value??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");}
 function column(index:number){let n=index+1;let label="";while(n){const r=(n-1)%26;label=String.fromCharCode(65+r)+label;n=Math.floor((n-1)/26);}return label;}
 export function createXlsx(rows:(string|number|null|undefined)[][],sheetName="JDI Exam Results"):Uint8Array{
- const safeName=sheetName.replace(/[\\/?*[\]:]/g," ").slice(0,31)||"Results";
+ const safeName=sheetName.replace(/[\\/?*:\[\]]/g," ").slice(0,31)||"Results";
  const sheetRows=rows.map((row,ri)=>"<row r=\""+(ri+1)+"\">"+row.map((value,ci)=>{const ref=column(ci)+(ri+1);if(typeof value==="number"&&Number.isFinite(value))return "<c r=\""+ref+"\" t=\"n\"><v>"+value+"</v></c>";return "<c r=\""+ref+"\" t=\"inlineStr\"><is><t xml:space=\"preserve\">"+xml(value)+"</t></is></c>";}).join("")+"</row>").join("");
  const sheet="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheetData>"+sheetRows+"</sheetData></worksheet>";
  const files:ZipFile[]=[
