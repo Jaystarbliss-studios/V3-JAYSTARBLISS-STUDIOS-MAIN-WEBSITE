@@ -1,5 +1,6 @@
 import type { Handler } from '@netlify/functions';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({
   statusCode,
@@ -29,6 +30,45 @@ export const handler: Handler = async event => {
 
     let body: any = {};
     try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid request payload.' }); }
+    const notifyGlobalAdmins = async (requestId: string, record: any) => {
+      try {
+        const users = await adminDb.collection('users').limit(1000).get();
+        const admins = users.docs.filter(d => ['admin','super_admin','superadmin'].includes(String(d.data().role || '').trim().toLowerCase()));
+        const batch = adminDb.batch();
+        for (const admin of admins) {
+          const notification = adminDb.collection('notifications').doc('parent-enrollment-' + requestId + '-' + admin.id);
+          batch.set(notification, {
+            recipientId: admin.id,
+            recipientType: 'specific_user',
+            type: 'registration',
+            priority: 'high',
+            title: 'New parent enrollment request',
+            message: String(record.parentName || 'A parent') + ' requested enrollment for ' + String(record.studentName || 'a student') + '.',
+            enrollmentRequestId: requestId,
+            studentName: String(record.studentName || ''),
+            plan: String(record.plan || ''),
+            parentId: decoded.uid,
+            readBy: [],
+            read: false,
+            timestamp: FieldValue.serverTimestamp(),
+            createdAt: FieldValue.serverTimestamp(),
+            senderName: 'Jaystarbliss Central',
+            senderRole: 'System'
+          });
+        }
+        if (admins.length) await batch.commit();
+      } catch (notificationError) {
+        console.warn('Admin enrollment notification failed:', notificationError);
+      }
+    };
+    if (body.action === 'notify_only') {
+      const requestId = clean(body.requestId, 160);
+      if (!requestId) return json(400, { error: 'Enrollment request ID is required.' });
+      const requestSnap = await adminDb.collection('enrollment_requests').doc(requestId).get();
+      if (!requestSnap.exists || String(requestSnap.data()?.parentId || '') !== decoded.uid) return json(404, { error: 'Enrollment request not found.' });
+      await notifyGlobalAdmins(requestId, requestSnap.data() || {});
+      return json(200, { ok: true });
+    }
     const studentName = clean(body.studentName);
     const studentAge = clean(body.studentAge, 40);
     const plan = clean(body.plan, 120);
@@ -65,6 +105,7 @@ export const handler: Handler = async event => {
       timestamp: now,
       metadata: { studentName, plan, subjects },
     });
+    await notifyGlobalAdmins(ref.id, record);
 
     return json(201, { request: { id: ref.id, ...record } });
   } catch (error) {
