@@ -6,14 +6,14 @@ export const config = { schedule: "*/5 * * * *" };
 export const handler: Handler = async () => {
   try {
     const now = new Date().toISOString();
-    const candidates = await adminDb.collection("jdiExamAttempts").where("status", "==", "in_progress").limit(200).get(); const due = { docs: candidates.docs.filter(d => String(d.data().deadlineAt || "") <= now).slice(0, 100) };
+    const due = await adminDb.collection("jdiExamAttempts").where("deadlineAt", "<=", now).orderBy("deadlineAt", "asc").limit(100).get();
     let expired = 0;
     for (const doc of due.docs) {
       const attempt = doc.data();
       const changed = await adminDb.runTransaction(async tx => {
         const current = await tx.get(doc.ref);
         if (!current.exists || current.data()?.status !== "in_progress" || String(current.data()?.deadlineAt || "") > now) return false;
-        tx.update(doc.ref, { status: "expired", submittedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        tx.update(doc.ref, { status: "expired", deadlineAt: FieldValue.delete(), submittedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
         return true;
       });
       if (!changed) continue;
