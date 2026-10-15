@@ -88,6 +88,11 @@ export const handler: Handler = async (event) => {
       const validHash = typeof exam.passcodeHash === "string" && typeof exam.passcodeSalt === "string";
       const candidate = validHash ? hashCode(exam.passcodeSalt, passcode) : "";
       const validCode = validHash && constantEqual(candidate, exam.passcodeHash);
+      const throttleRef = adminDb.collection("jdiPasscodeAttempts").doc(c.uid + "_" + examId);
+      const throttleSnap = await throttleRef.get(); const throttle = throttleSnap.data() || {}; const windowStart = Number(throttle.windowStart || 0); const failedCount = Date.now() - windowStart > 15 * 60 * 1000 ? 0 : Number(throttle.failedCount || 0);
+      if (failedCount >= 5) return json(429, { error: "Too many incorrect attempts. Wait 15 minutes before trying again." });
+      if (!validCode) { await throttleRef.set({ windowStart: failedCount === 0 ? Date.now() : windowStart || Date.now(), failedCount: failedCount + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); }
+      else if (throttleSnap.exists) await throttleRef.delete();
       const attemptQuery = await adminDb.collection("jdiExamAttempts").where("examId", "==", examId).where("studentId", "==", student.id).limit(1).get();
       const existing = attemptQuery.empty ? null : attemptQuery.docs[0];
       if (!assigned || !active || !validCode) return json(403, { error: "The passcode could not be validated for this examination." });
