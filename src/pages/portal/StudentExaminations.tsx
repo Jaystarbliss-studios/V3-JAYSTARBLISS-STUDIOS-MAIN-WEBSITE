@@ -26,7 +26,7 @@ export default function StudentExaminations() {
   // Endpoint is intentionally fail-closed until the server API is implemented and deployed.
   const load = async () => {
     setLoading(true); setMessage(null);
-    try { const result = await api("/api/student-examinations"); setExams(Array.isArray(result.exams) ? result.exams : []); }
+    try { const result = await api("/.netlify/functions/student-examinations"); setExams(Array.isArray(result.exams) ? result.exams : []); }
     catch (error) { setMessage({ id: "list", text: error instanceof Error ? error.message : "Examinations are temporarily unavailable.", error: true }); }
     finally { setLoading(false); }
   };
@@ -36,7 +36,7 @@ export default function StudentExaminations() {
     if (!passcode) { setMessage({ id: examId, text: "Enter the passcode provided by your school.", error: true }); return; }
     setBusy(examId); setMessage(null);
     try {
-      const result = await api("/api/examination-passcode", { method: "POST", body: JSON.stringify({ examId, passcode }) });
+      const result = await api("/.netlify/functions/examination-passcode", { method: "POST", body: JSON.stringify({ examId, passcode }) });
       if (!result.attemptId) throw new Error("The server did not return a valid examination session.");
       window.location.assign(`/portal/student/exams/${encodeURIComponent(result.attemptId)}`);
     } catch (error) {
