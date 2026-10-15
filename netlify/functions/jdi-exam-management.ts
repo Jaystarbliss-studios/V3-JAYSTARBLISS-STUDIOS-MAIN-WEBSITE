@@ -1,6 +1,7 @@
 import type {Handler} from "@netlify/functions";
 import {adminAuth,adminDb} from "../../api/_lib/firebase-admin";
 import {FieldValue} from "firebase-admin/firestore";
+import {createHash,randomBytes} from "node:crypto";
 const json=(statusCode:number,body:Record<string,unknown>)=>({statusCode,headers:{"Content-Type":"application/json","Cache-Control":"no-store"},body:JSON.stringify(body)});
 const norm=(v:unknown)=>String(v||"").trim().toUpperCase();
 async function authUser(event:any){const h=event.headers?.authorization||event.headers?.Authorization||"";if(!h.startsWith("Bearer "))throw new Error("AUTH");const d=await adminAuth.verifyIdToken(h.slice(7));const s=await adminDb.collection("users").doc(d.uid).get();if(!s.exists)throw new Error("PROFILE");const u=s.data()||{};if(["DISABLED","SUSPENDED","BANNED"].includes(norm(u.status||u.accountStatus)))throw new Error("INACTIVE");return {uid:d.uid,role:norm(u.role),user:u};}
@@ -12,8 +13,8 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
  if(method==="GET"){const examId=String(event.queryStringParameters?.examId||"");const schoolId=String(event.queryStringParameters?.schoolId||c.user.schoolId||"");if(!schoolId||!(await canSchool(c,schoolId)))return json(403,{error:"Not authorised for this school."});
  const [exams,attempts]=await Promise.all([adminDb.collection("jdiExams").where("schoolId","==",schoolId).limit(100).get(),adminDb.collection("jdiExamAttempts").where("schoolId","==",schoolId).limit(500).get()]);
  const students=await adminDb.collection("students").where("schoolId","==",schoolId).limit(500).get();const studentMap:Record<string,any>={};for(const d of students.docs){const s=d.data();studentMap[d.id]={name:String(s.fullName||s.name||[s.firstName,s.lastName].filter(Boolean).join(" ")||"Student"),className:String(s.className||s.classLevel||s.classId||"")};}
- const examMap:Record<string,any>={};for(const d of exams.docs)examMap[d.id]=d.data();const rows=attempts.docs.filter(d=>!examId||d.data().examId===examId).map(d=>{const a=d.data();const student=studentMap[String(a.studentId)]||{};const e=examMap[String(a.examId)]||{};const row:any={id:d.id,examId:a.examId,studentId:a.studentId,studentName:student.name||"Student",className:student.className||"",status:a.status,score:(a.releasedAt||tutors.includes(c.role)||admins.includes(c.role))?a.score:undefined,submittedAt:a.submittedAt?.toDate?a.submittedAt.toDate().toISOString():null,deadlineAt:a.deadlineAt||null,releasedAt:a.releasedAt?.toDate?a.releasedAt.toDate().toISOString():null,autoGraded:a.autoGraded};if(tutors.includes(c.role)||admins.includes(c.role)){row.answers=a.answers||{};row.questions=Array.isArray(e.questions)?e.questions.map((q:any)=>({id:q.id,prompt:q.prompt,points:q.points,type:q.type})):[];}return row;});
- return json(200,{exams:exams.docs.map(d=>{const e=d.data();return {id:d.id,title:e.title,subject:e.subject,status:e.status,durationMinutes:e.durationMinutes,classIds:e.classIds,createdAt:e.createdAt,availableFrom:e.availableFrom,availableUntil:e.availableUntil};}),attempts:rows});
+ const examMap:Record<string,any>={};for(const d of exams.docs)examMap[d.id]=d.data();const rows=attempts.docs.filter(d=>!examId||d.data().examId===examId).map(d=>{const a=d.data();const student=studentMap[String(a.studentId)]||{};const e=examMap[String(a.examId)]||{};const row:any={id:d.id,examId:a.examId,studentId:a.studentId,studentName:student.name||"Student",className:student.className||"",status:a.status,score:(a.releasedAt||tutors.includes(c.role)||admins.includes(c.role))?a.score:undefined,submittedAt:a.submittedAt?.toDate?a.submittedAt.toDate().toISOString():null,deadlineAt:a.deadlineAt||null,releasedAt:a.releasedAt?.toDate?a.releasedAt.toDate().toISOString():null,autoGraded:a.autoGraded};if(tutors.includes(c.role)||admins.includes(c.role)||a.releasedAt){row.answers=a.answers||{};row.questionResults=Array.isArray(a.questionResults)?a.questionResults:[];row.manualMarks=Array.isArray(a.manualMarks)?a.manualMarks:[];row.maxScore=(Array.isArray(e.questions)?e.questions:[]).reduce((sum:number,q:any)=>sum+Math.max(0,Number(q.points)||0),0);row.questions=Array.isArray(e.questions)?e.questions.map((q:any)=>({id:q.id,prompt:q.prompt,points:q.points,type:q.type,options:Array.isArray(q.options)?q.options:[],correctOptionIds:Array.isArray(q.correctOptionIds)?q.correctOptionIds:[],acceptedAnswers:Array.isArray(q.acceptedAnswers)?q.acceptedAnswers:[],explanation:q.explanation||""})):[];}return row;});
+ return json(200,{exams:exams.docs.map(d=>{const e=d.data();const item:any={id:d.id,title:e.title,subject:e.subject,status:e.status,durationMinutes:e.durationMinutes,classIds:e.classIds,createdAt:e.createdAt,availableFrom:e.availableFrom,availableUntil:e.availableUntil};if(tutors.includes(c.role)||admins.includes(c.role))item.questions=Array.isArray(e.questions)?e.questions.map((q:any)=>({id:q.id,prompt:q.prompt,points:q.points,type:q.type,options:Array.isArray(q.options)?q.options:[],correctOptionIds:Array.isArray(q.correctOptionIds)?q.correctOptionIds:[],acceptedAnswers:Array.isArray(q.acceptedAnswers)?q.acceptedAnswers:[]})):[];return item;}),attempts:rows});
  }
  if(method==="POST"){
  const examId=String(body.examId||"");const ref=adminDb.collection("jdiExams").doc(examId);const snap=await ref.get();if(!snap.exists)return json(404,{error:"Examination not found."});const exam=snap.data()||{};if(!(await canSchool(c,String(exam.schoolId||""))))return json(403,{error:"Not authorised for this school."});
@@ -40,6 +41,57 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
   if(updates.passcode!==undefined){const code=String(updates.passcode).trim();if(code.length<6||code.length>128)return json(400,{error:"Passcode must be 6–128 characters."});const salt=randomBytes(16).toString("hex");patch.passcodeSalt=salt;patch.passcodeHash=createHash("sha256").update(salt+":"+code).digest("hex");}
   if(updates.questions!==undefined){if(!Array.isArray(updates.questions)||!updates.questions.length||updates.questions.length>200)return json(400,{error:"Provide 1–200 questions."});patch.questions=updates.questions;}
   await ref.update(patch);return json(200,{ok:true,examId,updatedFields:Object.keys(patch).filter(k=>!["updatedAt","updatedBy"].includes(k))});
+ }
+ if(action==="correctAnswerKey"){
+  if(!tutors.includes(c.role)&&!admins.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can correct an answer key."});
+  const questionId=String(body.questionId||"").trim();const reason=String(body.reason||"").trim();
+  if(!questionId||reason.length<5||reason.length>1000)return json(400,{error:"Select a question and provide a correction reason (5–1000 characters)."});
+  const questions=Array.isArray(exam.questions)?exam.questions.map((q:any)=>({...q})):[];const index=questions.findIndex((q:any)=>String(q.id)===questionId);
+  if(index<0)return json(404,{error:"Question not found."});
+  const q=questions[index];const oldKey={correctOptionIds:Array.isArray(q.correctOptionIds)?q.correctOptionIds:[],acceptedAnswers:Array.isArray(q.acceptedAnswers)?q.acceptedAnswers:[]};
+  if(["single_choice","multiple_choice","true_false"].includes(String(q.type))){
+    if(!Array.isArray(body.correctOptionIds)||!body.correctOptionIds.length)return json(400,{error:"Provide at least one correct option ID."});
+    const ids=[...new Set(body.correctOptionIds.map(String))];const valid=new Set((Array.isArray(q.options)?q.options:[]).map((o:any)=>String(o.id)));
+    if(ids.some((id:string)=>!valid.has(id))||(q.type==="single_choice"&&ids.length!==1))return json(400,{error:"Correct option IDs must match this question's options."});
+    q.correctOptionIds=ids;
+  }else if(q.type==="short_answer"){
+    if(!Array.isArray(body.acceptedAnswers)||!body.acceptedAnswers.some((v:any)=>String(v).trim()))return json(400,{error:"Provide at least one accepted short answer."});
+    q.acceptedAnswers=body.acceptedAnswers.map((v:any)=>String(v).trim().slice(0,500)).filter(Boolean).slice(0,20);
+  }else return json(409,{error:"Essay questions require manual grading; an answer-key correction cannot regrade them automatically."});
+  questions[index]=q;
+  await ref.update({questions,updatedAt:FieldValue.serverTimestamp(),updatedBy:c.uid});
+  const attemptSnap=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(500).get();
+  const changed:Array<{id:string;studentUid:string;oldScore:number;newScore:number;released:boolean}>=[];
+  const batchWrites:any[]=[];
+  for(const attemptDoc of attemptSnap.docs){
+    const a=attemptDoc.data();
+    if(!["submitted","expired","graded"].includes(String(a.status))||a.autoGraded!==true||Array.isArray(a.manualMarks)&&a.manualMarks.length)continue;
+    const answers=a.answers||{};let score=0;const results:any[]=[];
+    for(const question of questions){
+      const answer=answers[question.id];let correct=false;let points=0;
+      if(["single_choice","multiple_choice","true_false"].includes(String(question.type))){
+        const expected=(Array.isArray(question.correctOptionIds)?question.correctOptionIds:[]).map(String).sort();
+        const actual=(Array.isArray(answer)?answer:[String(answer||"")]).map(String).sort();
+        correct=expected.length>0&&expected.length===actual.length&&expected.every((v:string,i:number)=>v===actual[i]);
+      }else if(question.type==="short_answer"){
+        const normAnswer=(value:any)=>String(value||"").trim().toLowerCase();
+        correct=Array.isArray(question.acceptedAnswers)&&question.acceptedAnswers.some((v:string)=>normAnswer(v)===normAnswer(answer));
+      }
+      if(correct) {points=Math.max(0,Number(question.points)||0);score+=points;}
+      results.push({questionId:question.id,answer,correct,pointsAwarded:points,maxPoints:Math.max(0,Number(question.points)||0)});
+    }
+    changed.push({id:attemptDoc.id,studentUid:String(a.studentUid||""),oldScore:Number(a.score||0),newScore:score,released:Boolean(a.releasedAt)});
+    batchWrites.push({ref:attemptDoc.ref,data:{score,questionResults:results,regradedAt:FieldValue.serverTimestamp(),regradedBy:c.uid,updatedAt:FieldValue.serverTimestamp()}});
+  }
+  for(let i=0;i<batchWrites.length;i+=400){const batch=adminDb.batch();batchWrites.slice(i,i+400).forEach(w=>batch.update(w.ref,w.data));await batch.commit();}
+  const auditRef=ref.collection("events").doc();
+  await auditRef.set({type:"answer_key_corrected",questionId,reason,actorUid:c.uid,oldAnswerKey:oldKey,newAnswerKey:{correctOptionIds:q.correctOptionIds||[],acceptedAnswers:q.acceptedAnswers||[]},regradedAttemptCount:changed.length,attempts:changed.map(a=>({attemptId:a.id,studentUid:a.studentUid,oldScore:a.oldScore,newScore:a.newScore,released:a.released})),createdAt:FieldValue.serverTimestamp()});
+  const affectedReleased=changed.filter(a=>a.released);
+  for(const a of affectedReleased){
+    const recipients=[a.studentUid].filter(Boolean);
+    await notify(recipients,{type:"exam_result_corrected",title:"Examination result corrected",message:"A correction was made to the answer key for "+String(exam.title||"an examination")+". Your result has been recalculated.",examId,attemptId:a.id});
+  }
+  return json(200,{ok:true,questionId,regradedAttempts:changed.length,releasedResultsUpdated:affectedReleased.length,auditId:auditRef.id});
  }
  if(action==="grade"){if(!tutors.includes(c.role)&&!admins.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can grade."});const attemptId=String(body.attemptId||"");const aRef=adminDb.collection("jdiExamAttempts").doc(attemptId);const aSnap=await aRef.get();if(!aSnap.exists||aSnap.data()?.examId!==examId)return json(404,{error:"Attempt not found."});if(!["submitted","expired","graded"].includes(String(aSnap.data()?.status)))return json(409,{error:"The student must submit or time out before grading."});const marks=body.marks;if(!marks||typeof marks!=="object"||Array.isArray(marks))return json(400,{error:"Provide marks by question ID."});if(Object.values(marks).some((value:any)=>!Number.isFinite(Number(value))||Number(value)<0))return json(400,{error:"Marks must be finite non-negative numbers."});const validIds=new Set((Array.isArray(exam.questions)?exam.questions:[]).map((q:any)=>String(q.id)));if(Object.keys(marks).some(key=>!validIds.has(key)))return json(400,{error:"Marks contain an unknown question ID."});const gradingQuestions=Array.isArray(exam.questions)?exam.questions:[];const missingMarks=gradingQuestions.filter((q:any)=>!Object.prototype.hasOwnProperty.call(marks,String(q.id)));if(missingMarks.length)return json(409,{error:"Grade every question before finalizing this result. Missing marks for question(s): "+missingMarks.map((q:any)=>String(q.id)).join(", ")});for(const q of gradingQuestions){const mark=Number(marks[q.id]);const max=Math.max(0,Number(q.points)||0);if(!Number.isFinite(mark)||mark<0||mark>max)return json(400,{error:"Each mark must be finite and between 0 and the question maximum."});}let score=0;const result:any[]=[];for(const q of gradingQuestions){const max=Math.max(0,Number(q.points)||0);const mark=Number(marks[q.id]);score+=mark;result.push({questionId:q.id,pointsAwarded:mark,maxPoints:max});}await aRef.update({manualMarks:result,score,gradedBy:c.uid,gradedAt:FieldValue.serverTimestamp(),releasedAt:FieldValue.delete(),releasedBy:FieldValue.delete(),status:"graded",updatedAt:FieldValue.serverTimestamp()});return json(200,{ok:true,score});}
  if(action==="release"){if(!admins.includes(c.role)&&!tutors.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can release results."});const attemptId=String(body.attemptId||"");const aRef=adminDb.collection("jdiExamAttempts").doc(attemptId);const aSnap=await aRef.get();if(!aSnap.exists||aSnap.data()?.examId!==examId)return json(404,{error:"Attempt not found."});const a=aSnap.data()||{};if(!["submitted","expired","graded"].includes(String(a.status)))return json(409,{error:"Attempt must be submitted before releasing results."});if(a.autoGraded===false&&a.status!=="graded")return json(409,{error:"Manually graded questions must be marked before releasing this result."});await aRef.update({releasedAt:FieldValue.serverTimestamp(),releasedBy:c.uid,updatedAt:FieldValue.serverTimestamp()});const resultRecipients=[String(a.studentUid||"")];if(exam.createdBy)resultRecipients.push(String(exam.createdBy));const access=await adminDb.collection("staffSchoolAccess").where("schoolId","==",String(exam.schoolId||"")).limit(50).get().catch(()=>null);access?.docs.forEach(d=>resultRecipients.push(d.id));const schoolUsers=await adminDb.collection("users").where("schoolId","==",String(exam.schoolId||"")).limit(50).get().catch(()=>null);schoolUsers?.docs.forEach(d=>{const role=String(d.data().role||"").toUpperCase();if(["SCHOOL","SCHOOL_ADMIN","ADMIN","EDUCATION_ADMIN","SUPER_ADMIN"].includes(role))resultRecipients.push(d.id)});await notify(resultRecipients,{type:"exam_result_released",title:"Examination result released",message:"The result for "+String(exam.title||"an examination")+" has been released.",examId,attemptId});return json(200,{ok:true});}
