@@ -1220,16 +1220,16 @@ const AdminClassSchedules: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <SEO title="Class Schedules & Timetable Hub | Admin" description="Multi-day schedules with combined classes, collapsible list cards, and timezone-accurate timetable generation." noindex={true} />
+      <SEO title="Class Schedules | Admin" description="Manage recurring class schedules, assigned tutors, and attendance across school and student portals." noindex={true} />
 
       {/* Header Bar */}
       <div className="bg-white dark:bg-[#0c1220] rounded-3xl p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
-            Class &amp; Lab Timetables
+            Class Schedules
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Configure multi-day schedules with combined classes in one unified date entry, collapse or expand full timetables cleanly, and synchronize across portals.
+            Create and manage school, programme, and student schedules. Updates are reflected in the relevant school, tutor, and student portals.
           </p>
         </div>
 
