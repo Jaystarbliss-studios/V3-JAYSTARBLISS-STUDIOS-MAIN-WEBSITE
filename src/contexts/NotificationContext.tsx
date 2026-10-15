@@ -318,6 +318,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (e) e.stopPropagation();
     if (!currentUser) return;
     const uid = currentUser.uid;
+    if (id.startsWith('jdi:')) { toast.info('JDI system notifications cannot be marked unread after reading.'); return; }
 
     // 1. Instant optimistic local update
     const nextSet = new Set(localReadIds);
@@ -343,7 +344,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Persist to Firestore
     try {
-      if (id.startsWith('jdi:')) { toast.info('JDI system notifications cannot be marked unread after reading.'); return; }
       const notifRef = doc(db, 'notifications', id);
       await updateDoc(notifRef, { readBy: arrayRemove(uid), read: false });
       toast.info('Marked as unread');
