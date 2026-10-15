@@ -21,6 +21,23 @@ export const handler: Handler = async () => {
       const examRef = adminDb.collection("jdiExams").doc(String(attempt.examId || ""));
       const examSnap = await examRef.get();
       const exam = examSnap.data() || {};
+      if (exam.gradingMode !== "manual") {
+        let score = 0; let autoGraded = true;
+        const answers = attempt.answers || {};
+        for (const q of Array.isArray(exam.questions) ? exam.questions : []) {
+          const answer = answers[q.id];
+          if (["single_choice", "multiple_choice", "true_false"].includes(String(q.type))) {
+            const expected = Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String).sort() : [];
+            if (!expected.length) { autoGraded = false; continue; }
+            const actual = (Array.isArray(answer) ? answer : [String(answer || "")]).map(String).sort();
+            if (expected.length === actual.length && expected.every((v: string, i: number) => v === actual[i])) score += Number(q.points || 0);
+          } else if (q.type === "short_answer" && Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) {
+            const normal = (v: unknown) => String(v || "").trim().toLowerCase();
+            if (q.acceptedAnswers.some((v: string) => normal(v) === normal(answer))) score += Number(q.points || 0);
+          } else autoGraded = false;
+        }
+        await doc.ref.update({ score, autoGraded, updatedAt: FieldValue.serverTimestamp() });
+      }
       await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: attempt.schoolId, createdAt: FieldValue.serverTimestamp() });
       const recipients = new Set<string>();
       const access = await adminDb.collection("staffSchoolAccess").where("schoolId", "==", String(attempt.schoolId || "")).limit(50).get().catch(() => null);
