@@ -36,6 +36,7 @@ async function permittedSchool(callerInfo: any, schoolId: string) {
   if (adminRoles.includes(callerInfo.role) || callerInfo.role === "SUPERADMIN") return true;
   if (callerInfo.role === "SCHOOL") return String(callerInfo.user.schoolId || callerInfo.uid) === schoolId;
   if (staffRoles.includes(callerInfo.role)) {
+    if (String(callerInfo.user.schoolId || callerInfo.user.school_id || "") === schoolId) return true;
     const access = await adminDb.collection("staffSchoolAccess").doc(callerInfo.uid).get();
     const data = access.data() || {};
     return data.schoolId === schoolId || (Array.isArray(data.schoolIds) && data.schoolIds.includes(schoolId));
