@@ -66,7 +66,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const profile = await getDoc(doc(db, 'users', user.uid));
           if (sequence !== authSequence) return;
           const data = profile.exists() ? profile.data() : {};
-          setUserRole(String(data.role || '').trim().toLowerCase());
+          const profileRole = String(data.role || '').trim().toLowerCase();
+          setUserRole(['school_admin', 'schooladmin'].includes(profileRole) ? 'school' : profileRole);
           setSchoolId(String(data.schoolId || data.school_id || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || ''));
           setStudentDocId(String(data.studentDocId || data.studentId || sessionStorage.getItem('studentDocId') || ''));
         } catch (error) {
