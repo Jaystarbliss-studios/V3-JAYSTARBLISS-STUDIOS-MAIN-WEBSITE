@@ -37,7 +37,7 @@ export const handler: Handler = async event => {
         priority: "normal",
         title: role === "parent" ? "New parent registration" : "New student registration",
         message: `${String(user.name || user.fullName || user.email || "A new user")} registered for a ${role} portal account.`,
-        targetUid: decoded.uid,
+        registeredUserId: decoded.uid,
         targetRole: role,
         targetName: String(user.name || user.fullName || ""),
         targetEmail: String(user.email || decoded.email || ""),
