@@ -144,7 +144,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           type: data.type || 'broadcast',
           priority: data.priority || 'normal',
           recipientType: data.recipientType || (data.recipientId === 'all' ? 'all' : undefined),
-          recipientId: data.recipientId,
+          recipientId: data.recipientId || data.recipientUid || uid,
           schoolId: data.schoolId,
           schoolName: data.schoolName,
           targetRole: data.targetRole,
@@ -249,6 +249,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           unsubs.push(unsub);
         });
       }
+      // JDI backend-generated notifications are stored one document per recipient.
+      const jdiQuery = query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50));
+      const jdiUnsub = onSnapshot(jdiQuery, (snap) => {
+        updateFromDocs(snap.docs);
+      }, (err) => {
+        console.warn('JDI targeted notification stream note:', err.message);
+      });
+      unsubs.push(jdiUnsub);
     } catch (e) {
       console.warn('Notification listener initialization error:', e);
       setLoading(false);
