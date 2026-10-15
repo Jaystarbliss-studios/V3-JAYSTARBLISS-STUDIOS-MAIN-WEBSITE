@@ -37,6 +37,14 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin','CONTENT_ADMIN','content_admin','EDUCATION_ADMIN','education_admin','SERVICES_ADMIN','services_admin','MARKETING_ADMIN','marketing_admin','SUPPORT_ADMIN','support_admin','FINANCE_ADMIN','finance_admin','director','DIRECTOR'])
       ); 
     }
+    function isNotificationAdmin() {
+      return isAuth() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin']) ||
+        (request.auth.token.email != null && request.auth.token.email in ['johnrufai242@gmail.com','admin@jaystarbliss.com','admin@jaystar.com'])
+      );
+    }
     function isTutorOrSuperAdmin() {
       return isAuth() && (
         isSuperAdmin() ||
@@ -337,14 +345,14 @@ service cloud.firestore {
     match /jdiAttemptLimits/{limitId} { allow read, write: if false; }
     match /jdiPasscodeAttempts/{attemptId} { allow read, write: if false; }
     match /jdiNotifications/{notificationId} {
-      allow read: if isAnyAdmin() || (isAuth() && resource.data.recipientUid == request.auth.uid);
+      allow read: if isNotificationAdmin() || (isAuth() && resource.data.recipientUid == request.auth.uid);
       allow create, delete: if isAnyAdmin();
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt','isRead'])
         ;
     }
     match /notifications/{notificationId} {
-      allow read: if isAnyAdmin() || (isAuth() && (
+      allow read: if isNotificationAdmin() || (isAuth() && (
         resource.data.get('recipientId', '') == request.auth.uid ||
         resource.data.get('targetUid', '') == request.auth.uid ||
         (isSchoolUser() && (resource.data.get('recipientId', '') == userSchoolId() || resource.data.get('recipientId', '') == 'school_' + userSchoolId())) ||
