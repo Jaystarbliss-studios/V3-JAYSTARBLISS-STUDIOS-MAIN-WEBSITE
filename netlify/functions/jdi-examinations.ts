@@ -153,8 +153,40 @@ export const handler: Handler = async (event) => {
       if (String(event.body || "").length > 500000) return json(413, { error: "Examination draft is too large." });
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only authorised tutors and Super Admins can create examinations." });
       const body = JSON.parse(event.body || "{}");
-      const schoolId = String(body.schoolId || c.user.schoolId || "").trim();
-      if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
+      let schoolId = String(body.schoolId || c.user.schoolId || "").trim();
+      const audienceType = body.audienceType === "individual" ? "individual" : "school";
+      const studentIds = audienceType === "individual" && Array.isArray(body.studentIds) ? [...new Set(body.studentIds.map((v:any)=>String(v).trim()).filter(Boolean))].slice(0,200) : [];
+      const studentUids: string[] = [];
+      if (audienceType === "school") {
+        if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
+      } else {
+        if (!studentIds.length) return json(400, { error: "Select at least one individually enrolled student." });
+        if (adminRoles.includes(c.role)) {
+          for (const studentId of studentIds) {
+            let record:any=null;
+            for (const name of ["individualStudents","students"]) { const snap=await adminDb.collection(name).doc(studentId).get(); if(snap.exists){record=snap.data()||{};break;} }
+            if(!record)return json(404,{error:"Student record not found: "+studentId});
+            const uid=String(record.firebaseUid||record.userId||record.uid||studentId);
+            if(!(await adminDb.collection("users").doc(uid).get()).exists)return json(409,{error:"Each targeted student must have an active portal account: "+studentId});
+            studentUids.push(uid);
+          }
+        } else {
+          if (!staffRoles.includes(c.role)) return json(403, { error: "Only authorised tutors and Super Admins can create individual examinations." });
+          for (const studentId of studentIds) {
+            let record:any=null;
+            for (const name of ["individualStudents","students"]) { const snap=await adminDb.collection(name).doc(studentId).get(); if(snap.exists){record=snap.data()||{};break;} }
+            if(!record)return json(404,{error:"Student record not found: "+studentId});
+            const assignedToTutor=[record.tutorId,record.staffId,record.assignedTutorId,record.assignedStaffId,record.instructorId].map((v:any)=>String(v||"")).includes(c.uid);
+            const linkedSchool=String(record.schoolId||record.school_id||"");
+            const hasSchoolAccess=Boolean(linkedSchool&&await permittedSchool(c,linkedSchool));
+            if(!assignedToTutor&&!hasSchoolAccess)return json(403,{error:"You are not authorised to assign an examination to student "+studentId});
+            const uid=String(record.firebaseUid||record.userId||record.uid||studentId);
+            if(!(await adminDb.collection("users").doc(uid).get()).exists)return json(409,{error:"Each targeted student must have an active portal account: "+studentId});
+            studentUids.push(uid);
+          }
+        }
+        schoolId = "";
+      }
       const title = String(body.title || "").trim(), subject = String(body.subject || "").trim();
       const seriesName = String(body.seriesName || "").trim().slice(0, 160);
       const courseName = String(body.courseName || "").trim().slice(0, 160);
@@ -190,7 +222,7 @@ export const handler: Handler = async (event) => {
       const salt = randomBytes(16).toString("hex");
       const status = body.status === "active" ? "active" : body.status === "scheduled" ? "scheduled" : "draft";
       const maxAttempts = requestedMaxAttempts;
-      const payload = { schoolId, classIds: Array.isArray(body.classIds) ? body.classIds.map(String).slice(0, 100) : [], title, subject, seriesName, courseName, learningVideoUrl: learningVideoUrl || null, instructions: String(body.instructions || "").slice(0, 5000), questions: questions.map((q: any, i: number) => ({ id: String(q.id || "q" + (i + 1)), type: String(q.type || "single_choice"), prompt: String(q.prompt || "").slice(0, 5000), options: Array.isArray(q.options) ? q.options.slice(0, 10).map((o: any, j: number) => ({ id: String(o.id || j), text: String(o.text || "").slice(0, 1000) })) : [], correctOptionIds: Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String) : [], acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.map(String).slice(0, 20) : [], points: Math.max(0, Math.min(1000, Number(q.points ?? 1))), required: q.required !== false })), durationMinutes, maxAttempts, shuffleQuestions: body.shuffleQuestions === true, shuffleOptions: body.shuffleOptions === true, gradingMode: body.gradingMode === "manual" ? "manual" : "automatic", availableFrom: body.availableFrom ? String(body.availableFrom) : null, availableUntil: body.availableUntil ? String(body.availableUntil) : null, status, passcodeSalt: salt, passcodeHash: hashCode(salt, passcode), createdBy: c.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+      const payload = { schoolId, audienceType, studentIds: audienceType === "individual" ? studentIds : [], studentUids: audienceType === "individual" ? [...new Set(studentUids)] : [], classIds: Array.isArray(body.classIds) ? body.classIds.map(String).slice(0, 100) : [], title, subject, seriesName, courseName, learningVideoUrl: learningVideoUrl || null, instructions: String(body.instructions || "").slice(0, 5000), questions: questions.map((q: any, i: number) => ({ id: String(q.id || "q" + (i + 1)), type: String(q.type || "single_choice"), prompt: String(q.prompt || "").slice(0, 5000), options: Array.isArray(q.options) ? q.options.slice(0, 10).map((o: any, j: number) => ({ id: String(o.id || j), text: String(o.text || "").slice(0, 1000) })) : [], correctOptionIds: Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String) : [], acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.map(String).slice(0, 20) : [], points: Math.max(0, Math.min(1000, Number(q.points ?? 1))), required: q.required !== false })), durationMinutes, maxAttempts, shuffleQuestions: body.shuffleQuestions === true, shuffleOptions: body.shuffleOptions === true, gradingMode: body.gradingMode === "manual" ? "manual" : "automatic", availableFrom: body.availableFrom ? String(body.availableFrom) : null, availableUntil: body.availableUntil ? String(body.availableUntil) : null, status, passcodeSalt: salt, passcodeHash: hashCode(salt, passcode), createdBy: c.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
       const saved = await adminDb.collection("jdiExams").add(payload);
       return json(201, { exam: { id: saved.id, title, subject, status, durationMinutes, questionCount: questions.length }, passcode });
     }
