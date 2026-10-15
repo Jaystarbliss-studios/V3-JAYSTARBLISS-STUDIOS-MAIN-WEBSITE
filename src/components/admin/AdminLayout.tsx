@@ -110,6 +110,7 @@ const AdminLayout: React.FC = () => {
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
         { name: "Learning Resources", href: "/admin/resources", icon: Library, desc: "General downloads, links & tests" },
+        { name: "Examinations", href: "/admin/examinations", icon: FileText, desc: "Create examinations, review attempts & release results" },
       ]
     },
     {
