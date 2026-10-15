@@ -87,9 +87,15 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
   const auditRef=ref.collection("events").doc();
   await auditRef.set({type:"answer_key_corrected",questionId,reason,actorUid:c.uid,oldAnswerKey:oldKey,newAnswerKey:{correctOptionIds:q.correctOptionIds||[],acceptedAnswers:q.acceptedAnswers||[]},regradedAttemptCount:changed.length,attempts:changed.map(a=>({attemptId:a.id,studentUid:a.studentUid,oldScore:a.oldScore,newScore:a.newScore,released:a.released})),createdAt:FieldValue.serverTimestamp()});
   const affectedReleased=changed.filter(a=>a.released);
+  const schoolRecipients=new Set<string>();
+  if(exam.createdBy)schoolRecipients.add(String(exam.createdBy));
+  const schoolAccess=await adminDb.collection("staffSchoolAccess").where("schoolId","==",String(exam.schoolId||"")).limit(100).get().catch(()=>null);
+  schoolAccess?.docs.forEach(d=>schoolRecipients.add(d.id));
+  const schoolUsers=await adminDb.collection("users").where("schoolId","==",String(exam.schoolId||"")).limit(100).get().catch(()=>null);
+  schoolUsers?.docs.forEach(d=>{if(["SCHOOL","SCHOOL_ADMIN","ADMIN","EDUCATION_ADMIN","SUPER_ADMIN"].includes(String(d.data().role||"").toUpperCase()))schoolRecipients.add(d.id);});
   for(const a of affectedReleased){
-    const recipients=[a.studentUid].filter(Boolean);
-    await notify(recipients,{type:"exam_result_corrected",title:"Examination result corrected",message:"A correction was made to the answer key for "+String(exam.title||"an examination")+". Your result has been recalculated.",examId,attemptId:a.id});
+    const recipients=[a.studentUid,...schoolRecipients].filter(Boolean);
+    await notify(recipients,{type:"exam_result_corrected",title:"Examination result corrected",message:"A correction was made to the answer key for "+String(exam.title||"an examination")+". The affected result has been recalculated.",examId,attemptId:a.id});
   }
   return json(200,{ok:true,questionId,regradedAttempts:changed.length,releasedResultsUpdated:affectedReleased.length,auditId:auditRef.id});
  }
