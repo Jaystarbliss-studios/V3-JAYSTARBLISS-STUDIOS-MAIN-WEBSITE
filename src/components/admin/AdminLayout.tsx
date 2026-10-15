@@ -109,6 +109,8 @@ const AdminLayout: React.FC = () => {
         { name: "Tutor Subjects", href: "/admin/tutor-subjects", icon: Award, desc: "Approve subjects & find matching tutors" },
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
+        { name: "Examinations", href: "/admin/examinations", icon: FileText, desc: "Create, schedule and manage student examinations" },
+        { name: "Exam History & Reports", href: "/admin/examination-history", icon: FileText, desc: "Review attempts, grading and released results" },
         { name: "Learning Resources", href: "/admin/resources", icon: Library, desc: "General downloads, links & tests" },
       ]
     },
