@@ -138,13 +138,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       docs.forEach(docSnap => {
         const data = docSnap.data();
         const notif: AppNotification = {
-          id: docSnap.id,
+          id: docSnap.ref.parent.id === "jdiNotifications" ? "jdi:" + docSnap.id : docSnap.id,
           title: data.title || 'System Notification',
           message: data.message || '',
           type: data.type || 'broadcast',
           priority: data.priority || 'normal',
           recipientType: data.recipientType || (data.recipientId === 'all' ? 'all' : undefined),
-          recipientId: data.recipientId,
+          recipientId: data.recipientId || data.recipientUid || uid,
           schoolId: data.schoolId,
           schoolName: data.schoolName,
           targetRole: data.targetRole,
@@ -153,8 +153,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           targetUid: data.targetUid,
           link: data.link,
           linkText: data.linkText,
-          read: data.read,
-          readBy: Array.isArray(data.readBy) ? data.readBy : [],
+          read: data.isRead === true || data.read,
+          readBy: Array.isArray(data.readBy) ? data.readBy : (data.isRead === true ? [uid] : []),
           timestamp: data.timestamp || data.createdAt || Date.now(),
           createdAt: data.createdAt,
           senderName: data.senderName || 'Jaystar Central',
@@ -240,6 +240,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
         }
 
+        queryList.push(query(collection(db, "jdiNotifications"), where("recipientUid", "==", uid), limit(50)));
+
         queryList.forEach(q => {
           const unsub = onSnapshot(q, (snap) => {
             updateFromDocs(snap.docs);
@@ -294,11 +296,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // 2. Persist to Firestore
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayUnion(uid),
-        read: true
-      });
+      if (id.startsWith("jdi:")) {
+        await updateDoc(doc(db, "jdiNotifications", id.slice(4)), { isRead: true, readAt: Timestamp.now() });
+      } else {
+        const notifRef = doc(db, 'notifications', id);
+        await updateDoc(notifRef, { readBy: arrayUnion(uid), read: true });
+      }
     } catch (err: any) {
       console.warn('Firestore read state update note:', err.message);
     }
