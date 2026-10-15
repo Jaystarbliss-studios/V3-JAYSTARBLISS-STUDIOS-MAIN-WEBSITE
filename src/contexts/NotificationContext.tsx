@@ -438,9 +438,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setLoading(true);
     try {
       const uid = currentUser.uid;
+      const role = userRole;
+      const isAdmin = ['super_admin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
       const [direct, jdi] = await Promise.all([
-        getDocs(query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(50))),
-        getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50)))
+        isAdmin
+          ? getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(100)))
+          : getDocs(query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(50))),
+        isAdmin
+          ? getDocs(query(collection(db, 'jdiNotifications'), orderBy('createdAt', 'desc'), limit(100)))
+          : getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50)))
       ]);
       const toNotification = (d: any, isJdi = false): AppNotification => {
         const data = d.data();
@@ -480,7 +486,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } finally {
       setLoading(false);
     }
-  }, [currentUser, notifications]);
+  }, [currentUser, userRole, notifications]);
 
   const handleSetActiveFilter = useCallback((filter: NotificationFilter) => {
     setActiveFilter(filter);
