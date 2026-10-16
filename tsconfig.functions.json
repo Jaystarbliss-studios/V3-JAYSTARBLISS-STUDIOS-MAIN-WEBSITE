@@ -19,7 +19,14 @@
     "strict": false
   },
   "include": [
-    "netlify/functions/**/*.ts"
+    "netlify/functions/jdi-examinations.ts",
+    "netlify/functions/jdi-exam-management.ts",
+    "netlify/functions/examination-attempt.ts",
+    "netlify/functions/examination-passcode.ts",
+    "netlify/functions/student-examinations.ts",
+    "netlify/functions/tutor-examinations.ts",
+    "netlify/functions/jdi-expire-exams.ts",
+    "netlify/functions/jdi-question-bank.ts"
   ],
   "exclude": [
     "node_modules"
