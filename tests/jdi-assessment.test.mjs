@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild } from "../netlify/functions/_lib/jdi-assessment.js";
+import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild } from "../api/_lib/jdi-assessment.js";
 
 const objective = (overrides = {}) => ({
   id: "q1", type: "single_choice", prompt: "Pick one", points: 2,
