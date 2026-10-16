@@ -123,3 +123,10 @@ export function schoolSafeQuestionResult(result) {
     maxPoints: Math.max(0, Number(result?.maxPoints) || 0),
   };
 }
+
+/** Parent result lookup must bind the record ID to the child's verified portal UID. */
+export function attemptBelongsToLinkedChild(attempt, child) {
+  return Boolean(child?.id && child?.studentUid && attempt?.studentId && attempt?.studentUid &&
+    String(attempt.studentId) === String(child.id) &&
+    String(attempt.studentUid) === String(child.studentUid));
+}
