@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild, isAssessmentStudentRole } from "../api/_lib/jdi-assessment.js";
+import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild, isAssessmentStudentRole, answersForFinalization } from "../api/_lib/jdi-assessment.js";
 
 const objective = (overrides = {}) => ({
   id: "q1", type: "single_choice", prompt: "Pick one", points: 2,
@@ -83,4 +83,11 @@ test("assessment access accepts school and individual learner role aliases", () 
   assert.equal(isAssessmentStudentRole("individualstudent"), true);
   assert.equal(isAssessmentStudentRole("PARENT"), false);
   assert.equal(isAssessmentStudentRole("TUTOR"), false);
+});
+
+test("expired attempt finalization uses persisted answers, not late client payload", () => {
+  const saved = { q1: "a" };
+  assert.deepEqual(answersForFinalization(saved, { q1: "b" }, true), saved);
+  assert.deepEqual(answersForFinalization(saved, { q1: "b" }, false), { q1: "b" });
+  assert.deepEqual(answersForFinalization(saved, undefined, false), saved);
 });
