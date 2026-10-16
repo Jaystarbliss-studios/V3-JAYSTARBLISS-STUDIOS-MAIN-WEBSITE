@@ -65,6 +65,13 @@ before(async () => {
       targetRole: "all",
       title: "Public announcement",
     });
+
+    await setDoc(doc(db, "jdiNotifications", "private-parent-a"), {
+      recipientUid: "parent-a", isRead: false, title: "Private JDI payment notice",
+    });
+    await setDoc(doc(db, "jdiNotifications", "private-parent-b"), {
+      recipientUid: "parent-b", isRead: false, title: "Another user private notice",
+    });
   });
 });
 
@@ -102,6 +109,14 @@ test("explicit all-audience announcements and direct notices are readable by int
   const db = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
   await assertSucceeds(getDoc(doc(db, "notifications", "direct-parent-a")));
   await assertSucceeds(getDoc(doc(db, "notifications", "explicit-broadcast")));
+});
+
+test("JDI notifications are private even from other administrators", async () => {
+  const parentDb = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  const adminDb = env.authenticatedContext("super-admin", { email: "admin@example.com" }).firestore();
+  await assertSucceeds(getDoc(doc(parentDb, "jdiNotifications", "private-parent-a")));
+  await assertFails(getDoc(doc(parentDb, "jdiNotifications", "private-parent-b")));
+  await assertFails(getDoc(doc(adminDb, "jdiNotifications", "private-parent-a")));
 });
 
 test("a recipient cannot change the shared notification document read state", async () => {
