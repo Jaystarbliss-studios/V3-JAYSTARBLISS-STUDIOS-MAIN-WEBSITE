@@ -14,3 +14,5 @@ export function schoolSafeQuestion(question: Record<string, any>): {
 export function schoolSafeQuestionResult(result: Record<string, any>): {
   questionId: string; correct?: boolean; manualReview: boolean; pointsAwarded: number; maxPoints: number;
 };
+
+export function attemptBelongsToLinkedChild(attempt: Record<string, any>, child: { id: string; studentUid: string }): boolean;
