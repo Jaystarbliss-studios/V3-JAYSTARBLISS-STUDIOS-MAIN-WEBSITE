@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult } from "../netlify/functions/_lib/jdi-assessment.js";
+import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild } from "../netlify/functions/_lib/jdi-assessment.js";
 
 const objective = (overrides = {}) => ({
   id: "q1", type: "single_choice", prompt: "Pick one", points: 2,
@@ -65,4 +65,12 @@ test("school report projections omit answer keys, explanations, and submitted an
   const result = schoolSafeQuestionResult({ questionId: "q", answer: "private response", correct: true, manualReview: false, pointsAwarded: 2, maxPoints: 2 });
   assert.equal(result.correct, true);
   assert.equal("answer" in result, false);
+});
+
+test("parent result lookup requires both matching learner record ID and learner UID", () => {
+  const child = { id: "child-a", studentUid: "student-uid-a" };
+  assert.equal(attemptBelongsToLinkedChild({ studentId: "child-a", studentUid: "student-uid-a" }, child), true);
+  assert.equal(attemptBelongsToLinkedChild({ studentId: "child-a", studentUid: "student-uid-b" }, child), false);
+  assert.equal(attemptBelongsToLinkedChild({ studentId: "child-b", studentUid: "student-uid-a" }, child), false);
+  assert.equal(attemptBelongsToLinkedChild({ studentId: "child-a" }, child), false);
 });
