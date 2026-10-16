@@ -18,6 +18,7 @@ export const handler: Handler = async () => {
       });
       if (!changed) continue;
       expired++;
+      const schoolId = String(attempt.schoolId || "");
       const examRef = adminDb.collection("jdiExams").doc(String(attempt.examId || ""));
       const examSnap = await examRef.get();
       const exam = examSnap.data() || {};
@@ -42,9 +43,9 @@ export const handler: Handler = async () => {
       await doc.ref.update({ score, autoGraded, questionResults, updatedAt: FieldValue.serverTimestamp() });
       await examRef.collection("events").add({ type: "attempt_expired", attemptId: doc.id, studentId: attempt.studentId, schoolId: schoolId || null, createdAt: FieldValue.serverTimestamp() });
       const recipients = new Set<string>(); if (exam.createdBy) recipients.add(String(exam.createdBy));
-      const schoolId = String(attempt.schoolId || exam.schoolId || "");
-      if (schoolId) {
-        const schoolUsers = await adminDb.collection("users").where("schoolId", "==", schoolId).limit(50).get().catch(() => null);
+      const resolvedSchoolId = schoolId || String(exam.schoolId || "");
+      if (resolvedSchoolId) {
+        const schoolUsers = await adminDb.collection("users").where("schoolId", "==", resolvedSchoolId).limit(50).get().catch(() => null);
         schoolUsers?.docs.forEach(item => { const role = String(item.data().role || "").toUpperCase(); if (["SCHOOL", "SCHOOL_ADMIN"].includes(role)) recipients.add(item.id); });
       } else {
         let student = await adminDb.collection("individualStudents").doc(String(attempt.studentId || "")).get();
@@ -56,7 +57,7 @@ export const handler: Handler = async () => {
       recipients.delete(String(attempt.studentUid || ""));
       for (const uid of recipients) {
         const ref = adminDb.collection("jdiNotifications").doc();
-        batch.set(ref, { recipientUid: uid, isRead: false, type: "exam_expired", title: "Examination time expired", message: String(exam.title || "A student examination") + " has reached its time limit.", examId: attempt.examId, attemptId: doc.id, schoolId: attempt.schoolId, createdAt: FieldValue.serverTimestamp() });
+        batch.set(ref, { recipientUid: uid, isRead: false, type: "exam_expired", title: "Examination time expired", message: String(exam.title || "A student examination") + " has reached its time limit.", examId: attempt.examId, attemptId: doc.id, schoolId: resolvedSchoolId || null, createdAt: FieldValue.serverTimestamp() });
       }
       if (recipients.size) await batch.commit();
     }
