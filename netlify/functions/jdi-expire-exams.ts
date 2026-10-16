@@ -190,7 +190,7 @@ export const handler: Handler = async () => {
 
       // Persist expiry and the complete grade in one transaction. If grading or
       // the transaction fails, the attempt remains in_progress and can be retried.
-      const outcome = await adminDb.runTransaction(async tx => {
+      const outcome: any = await adminDb.runTransaction(async tx => {
         const currentSnap = await tx.get(attemptDoc.ref);
         if (!currentSnap.exists) return null;
         const current = currentSnap.data() || {};
