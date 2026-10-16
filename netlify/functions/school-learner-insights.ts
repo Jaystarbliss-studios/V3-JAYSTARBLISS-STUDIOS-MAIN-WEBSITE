@@ -126,6 +126,7 @@ export const handler: Handler = async event => {
 
     const school = await resolveSchool(decoded.uid, profile, decoded.email || '');
     if (!school) return json(403, { error: 'This school account is not linked to a school record. Contact the administrator to finish school setup.' });
+    if (blocked(school.data.status) || roleOf(school.data.status) === 'ARCHIVED') return json(403, { error: 'This school account is not active.' });
     const requestedSchoolId = text(event.queryStringParameters?.schoolId);
     if (requestedSchoolId && !school.aliases.includes(requestedSchoolId)) return json(403, { error: 'You are not authorised to view this school.' });
 
@@ -222,8 +223,7 @@ export const handler: Handler = async event => {
       logsMap.set(d.id, {
         id: d.id, type: text(data.type || data.action || 'activity'), action: text(data.action || 'ACTIVITY'),
         message: text(data.message || data.action || 'Learner activity'), route: text(data.route),
-        createdAt: asIso(data.createdAt || data.timestamp), actorRole: text(data.actorRole || (isLearnerActor ? 'LEARNER' : '')),
-        details: data.metadata && typeof data.metadata === 'object' ? data.metadata : undefined
+        createdAt: asIso(data.createdAt || data.timestamp), actorRole: text(data.actorRole || (isLearnerActor ? 'LEARNER' : ''))
       });
     }
     const activities = Array.from(logsMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 300);
