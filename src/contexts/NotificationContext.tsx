@@ -177,7 +177,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         // Strict Audience Filtering: ensure only meant for this user
         let isRelevant = false;
-        if (isAdmin) {
+        if (notif.id.startsWith("jdi:")) {
+          isRelevant = data.recipientUid === uid;
+        } else if (isAdmin) {
           isRelevant = true;
         } else if (notif.recipientId === 'all' || notif.recipientType === 'all') {
           const targetRole = String(notif.targetRole || '').trim().toLowerCase();
@@ -220,7 +222,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     try {
       if (isAdmin) {
-        // Admin gets general feed
+        // Admins receive the global legacy feed, but JDI exam/payment notices remain recipient-private.
         const adminQ = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(100));
         const unsub = onSnapshot(adminQ, (snap) => {
           updateFromDocs(snap.docs);
@@ -228,7 +230,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           console.warn('Admin notifications stream warning:', err);
           getDocs(collection(db, 'notifications')).then(snap => updateFromDocs(snap.docs)).catch(() => {});
         });
-        const jdiAdminQ = query(collection(db, 'jdiNotifications'), orderBy('createdAt', 'desc'), limit(100));
+        const jdiAdminQ = query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(100));
         const unsubJdi = onSnapshot(jdiAdminQ, snap => updateFromDocs(snap.docs), err => {
           console.warn('Admin JDI notifications stream warning:', err.message);
         });
