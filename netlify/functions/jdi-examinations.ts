@@ -2,7 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { normalizeQuestions } from "../../api/_lib/jdi-assessment.js";
+import { normalizeQuestions, isAssessmentStudentRole } from "../../api/_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
 const bearer = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ""; return value.startsWith("Bearer ") ? value.slice(7) : ""; };
@@ -10,7 +10,6 @@ const hashCode = (salt: string, code: string) => createHash("sha256").update(sal
 const constantEqual = (a: string, b: string) => { const aa = Buffer.from(a, "hex"), bb = Buffer.from(b, "hex"); return aa.length === bb.length && timingSafeEqual(aa, bb); };
 const norm = (value: unknown) => String(value || "").trim().toUpperCase();
 const staffRoles = ["TUTOR", "STAFF", "INSTRUCTOR"];
-const studentRoles = ["STUDENT", "INDIVIDUAL_STUDENT", "INDIVIDUALSTUDENT"];
 const adminRoles = ["SUPER_ADMIN", "SUPERADMIN", "ADMIN"];
 async function caller(event: any) {
   const token = bearer(event); if (!token) throw new Error("AUTH");
@@ -56,7 +55,7 @@ export const handler: Handler = async (event) => {
     const method = event.httpMethod || "GET";
     const path = String(event.path || "");
     if (method === "GET" && path.endsWith("/student-examinations")) {
-      if (!studentRoles.includes(c.role)) return json(403, { error: "Student access required." });
+      if (!isAssessmentStudentRole(c.role)) return json(403, { error: "Student access required." });
       const student = await getStudent(c.uid);
       if (!student) return json(200, { exams: [] });
       const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
