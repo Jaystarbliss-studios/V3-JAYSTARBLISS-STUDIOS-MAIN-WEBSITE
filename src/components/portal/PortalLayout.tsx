@@ -94,17 +94,18 @@ const PortalLayout: React.FC = () => {
       if (!onlineStudent) items.push({ name: 'Class Schedules', path: '/portal/student/schedules', icon: <CalendarDays size={18} />, desc: 'Programme timetable & class status' });
       if (!physicalStudent) items.push({ name: 'Live Classrooms', path: '/portal/student/live-classrooms', icon: <Radio size={18} />, desc: 'Live online lessons & sessions' });
       items.push({ name: 'Achievements & Badges', path: '/portal/student/achievements', icon: <Trophy size={18} />, desc: 'Mastery, badges & certificates' }, { name: 'Lesson Resources', path: '/portal/student/resources', icon: <BookOpen size={18} />, desc: 'Lesson notes & materials' });
-      if (studentFeatures.assessments) items.push({ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'CBT assessments & quizzes' });
+      items.push({ name: 'Assignments', path: '/portal/student/assignments', icon: <ClipboardCheck size={18} />, desc: 'View and submit assigned work' });
+      if (studentFeatures.assessments) items.push({ name: 'Assessments & Quizzes', path: '/portal/student/assessments', icon: <ClipboardCheck size={18} />, desc: 'Assessments, quizzes and coursework' });
       items.push({ name: 'Examinations', path: '/portal/student/exams', icon: <FileCheck2 size={18} />, desc: 'Scheduled tests, attempts and results' });
       if (studentFeatures.edClub) items.push({ name: 'Ed Club', path: '/portal/student/edge-club', icon: <Keyboard size={18} />, desc: 'Keyboarding & speed typing portal' });
       if (sessionStorage.getItem('studentRegistrationType') === 'individual') items.push({ name: 'Payments & Fees', path: '/portal/student/payments', icon: <CreditCard size={18} />, desc: 'Personal billing & statements' });
     } else if (role === 'staff') {
       items.push({ name: 'Live Classes', path: '/portal/staff/classes', icon: <Radio size={18} />, desc: 'Teaching roster' }, { name: 'Student Access', path: '/portal/staff/credentials', icon: <KeyRound size={18} />, desc: 'Access credentials' }, { name: 'Lesson Resources', path: '/portal/staff/resources', icon: <BookOpen size={18} />, desc: 'Lesson materials' }, { name: 'Subjects I Teach', path: '/portal/staff/subjects', icon: <Award size={18} />, desc: 'Teaching subjects & approvals' }, { name: 'Calendar', path: '/portal/staff/calendar', icon: <CalendarDays size={18} />, desc: 'Teaching timetable' }, { name: 'Billing / Fees', path: '/portal/staff/payments', icon: <WalletCards size={18} />, desc: 'Tutor ledger & payouts' });
-      items.push({ name: 'Examinations', path: '/portal/staff/exams', icon: <FileCheck2 size={18} />, desc: 'Create and manage student tests' }, { name: 'Examination History', path: '/portal/staff/exam-history', icon: <ClipboardCheck size={18} />, desc: 'Review submissions and results' });
+      items.push({ name: 'Assignments', path: '/portal/staff/assignments', icon: <ClipboardCheck size={18} />, desc: 'Create and review assigned work' }, { name: 'Assessments & Quizzes', path: '/portal/staff/assessments', icon: <ClipboardCheck size={18} />, desc: 'Manage learning assessments and quizzes' }, { name: 'Examinations', path: '/portal/staff/exams', icon: <FileCheck2 size={18} />, desc: 'Create and manage student tests' }, { name: 'Examination History', path: '/portal/staff/exam-history', icon: <ClipboardCheck size={18} />, desc: 'Review submissions and results' });
     } else if (role === 'parent') {
-      items.push({ name: 'Class Schedules', path: '/portal/parent/schedules', icon: <CalendarDays size={18} />, desc: 'Class timetable and session status' }, { name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Learning materials' }, { name: 'Payments & Fees', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & statements' });
+      items.push({ name: 'Class Schedules', path: '/portal/parent/schedules', icon: <CalendarDays size={18} />, desc: 'Class timetable and session status' }, { name: 'Resources', path: '/portal/parent/resources', icon: <BookOpen size={18} />, desc: 'Learning materials' }, { name: 'Assignments', path: '/portal/parent/assignments', icon: <ClipboardCheck size={18} />, desc: 'Track assigned work' }, { name: 'Assessments & Quizzes', path: '/portal/parent/assessments', icon: <ClipboardCheck size={18} />, desc: 'View learning assessments' }, { name: 'Payments & Fees', path: '/portal/parent/payments', icon: <CreditCard size={18} />, desc: 'Invoices & statements' });
     } else if (role === 'school') {
-      items.push({ name: 'Learners Roster', path: '/portal/school/roster', icon: <Users size={18} />, desc: 'Student records' }, { name: 'Student Access', path: '/portal/school/credentials', icon: <KeyRound size={18} />, desc: 'Student access packs' }, { name: 'Class Schedules', path: '/portal/school/schedules', icon: <CalendarDays size={18} />, desc: 'Classes & attendance' }, { name: 'Examination Overview', path: '/portal/school/exams', icon: <FileCheck2 size={18} />, desc: 'View school examination status' }, { name: 'Examination History', path: '/portal/school/exam-history', icon: <ClipboardCheck size={18} />, desc: 'View released results and history' }, { name: 'Institutional Resources', path: '/portal/school/resources', icon: <Library size={18} />, desc: 'School learning materials' }, { name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'School fees & payments' });
+      items.push({ name: 'Learners Roster', path: '/portal/school/roster', icon: <Users size={18} />, desc: 'Student records' }, { name: 'Student Access', path: '/portal/school/credentials', icon: <KeyRound size={18} />, desc: 'Student access packs' }, { name: 'Class Schedules', path: '/portal/school/schedules', icon: <CalendarDays size={18} />, desc: 'Classes & attendance' }, { name: 'Assignments', path: '/portal/school/assignments', icon: <ClipboardCheck size={18} />, desc: 'Review assigned work' }, { name: 'Assessments & Quizzes', path: '/portal/school/assessments', icon: <ClipboardCheck size={18} />, desc: 'Review learning assessments' }, { name: 'Examination Overview', path: '/portal/school/exams', icon: <FileCheck2 size={18} />, desc: 'View school examination status' }, { name: 'Examination History', path: '/portal/school/exam-history', icon: <ClipboardCheck size={18} />, desc: 'View released results and history' }, { name: 'Institutional Resources', path: '/portal/school/resources', icon: <Library size={18} />, desc: 'School learning materials' }, { name: 'Fees & Payments', path: '/portal/school/payments', icon: <CreditCard size={18} />, desc: 'School fees & payments' });
     }
     items.push({ name: 'Help & Support', path: `/portal/${role}/support`, icon: <Headphones size={18} />, desc: 'Help desk & live support chat' }, { name: 'Settings', path: `/portal/${role}/settings`, icon: <SlidersHorizontal size={18} />, desc: 'Account preferences' });
     return items;
@@ -112,12 +113,13 @@ const PortalLayout: React.FC = () => {
 
   const navGroups = (() => {
     const groups: Record<string, NavItem[]> = {
-      Overview: [], Learning: [], "Classes & Assessments": [], "People & Access": [], Finance: [], Account: [], More: []
+      Overview: [], Learning: [], Classes: [], Assessment: [], "People & Access": [], Finance: [], Account: [], More: []
     };
     const groupFor = (item: NavItem) => {
       if (item.name === "Dashboard") return "Overview";
       if (["Learning & Tracks", "Live Classrooms", "Achievements & Badges", "Lesson Resources", "Ed Club"].includes(item.name)) return "Learning";
-      if (["Class Schedules", "Calendar", "Live Classes", "Assessments & Quizzes", "CBT Assessments", "Exam Passcodes", "Examinations", "Examination History"].includes(item.name)) return "Classes & Assessments";
+      if (["Class Schedules", "Calendar", "Live Classes"].includes(item.name)) return "Classes";
+      if (["Assignments", "Assessments & Quizzes", "CBT Assessment", "Examinations", "Examination Overview", "Examination History"].includes(item.name)) return "Assessment";
       if (["Learners Roster", "Student Access", "Subjects I Teach"].includes(item.name)) return "People & Access";
       if (["Billing / Fees", "Payments & Fees", "Fees & Payments"].includes(item.name)) return "Finance";
       if (["Help & Support", "Settings"].includes(item.name)) return "Account";
@@ -129,7 +131,8 @@ const PortalLayout: React.FC = () => {
   const groupIcons: Record<string, React.ReactNode> = {
     Overview: <LayoutDashboard size={18}/>,
     Learning: <GraduationCap size={18}/>,
-    "Classes & Assessments": <CalendarDays size={18}/>,
+    Classes: <CalendarDays size={18}/>,
+    Assessment: <ClipboardCheck size={18}/>,
     "People & Access": <Users size={18}/>,
     Finance: <CreditCard size={18}/>,
     Account: <SlidersHorizontal size={18}/>,
