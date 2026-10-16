@@ -17,11 +17,36 @@ const iso = (value: any): string | undefined => {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 };
 const nameOf = (student: any) =>
-  String(student.fullName || student.name || [student.firstName, student.lastName].filter(Boolean).join(" ") || "Learner");
+  String(student.fullName || student.studentName || student.name ||
+    [student.firstName, student.lastName].filter(Boolean).join(" ") || "Learner");
+const blocked = (value: unknown) =>
+  ["DISABLED", "SUSPENDED", "BANNED"].includes(String(value || "").trim().toUpperCase());
+
+async function linkedChildren(parentUid: string) {
+  const found = new Map<string, { id: string; name: string; className: string }>();
+  for (const collectionName of ["individualStudents", "students"]) {
+    // Older portal records use different guardian field names. Each query is
+    // still anchored to the verified parent's Firebase UID and never a client ID.
+    for (const field of ["parentId", "guardianId", "parentUid", "parentUserId", "parentFirebaseUid"]) {
+      const snap = await adminDb.collection(collectionName).where(field, "==", parentUid).limit(100).get();
+      snap.forEach(doc => {
+        const data = doc.data();
+        found.set(doc.id, {
+          id: doc.id,
+          name: nameOf(data),
+          className: String(data.className || data.class || data.grade || data.classLevel || ""),
+        });
+      });
+    }
+  }
+  return found;
+}
 
 export const handler: Handler = async event => {
   try {
-    if (event.httpMethod !== "GET") return json(405, { error: "Method not allowed." });
+    if (event.httpMethod !== "GET") {
+      return { ...json(405, { error: "Method not allowed." }), headers: { "Content-Type": "application/json", "Cache-Control": "no-store", Allow: "GET" } };
+    }
     const token = bearer(event);
     if (!token) return json(401, { error: "Please sign in again." });
     const decoded = await adminAuth.verifyIdToken(token);
@@ -31,30 +56,20 @@ export const handler: Handler = async event => {
     if (String(user.role || "").trim().toUpperCase() !== "PARENT") {
       return json(403, { error: "Parent access is required." });
     }
-    if (["DISABLED", "SUSPENDED", "BANNED"].includes(String(user.accountStatus || user.status || "").toUpperCase())) {
+    if (blocked(user.accountStatus || user.status)) {
       return json(403, { error: "This account is not active." });
     }
 
-    const children = new Map<string, { id: string; name: string; className: string }>();
-    for (const collectionName of ["individualStudents", "students"]) {
-      const snap = await adminDb.collection(collectionName).where("parentId", "==", decoded.uid).limit(100).get();
-      snap.forEach(doc => {
-        const data = doc.data();
-        children.set(doc.id, {
-          id: doc.id,
-          name: nameOf(data),
-          className: String(data.className || data.class || data.grade || ""),
-        });
-      });
-    }
+    const children = await linkedChildren(decoded.uid);
     if (!children.size) return json(200, { children: [], results: [] });
 
     const attemptsById = new Map<string, any>();
     for (const childId of children.keys()) {
-      const snap = await adminDb.collection("jdiExamAttempts").where("studentId", "==", childId).limit(200).get();
+      const snap = await adminDb.collection("jdiExamAttempts")
+        .where("studentId", "==", childId).limit(200).get();
       snap.forEach(doc => {
         const attempt = doc.data();
-        // A parent must never see a score before the tutor/school explicitly releases it.
+        // Results are visible to parents only after an explicit staff release.
         if (!attempt.releasedAt) return;
         attemptsById.set(doc.id, { id: doc.id, ...attempt });
       });
@@ -68,8 +83,16 @@ export const handler: Handler = async event => {
       const exam = examSnap.data() || {};
       const child = children.get(String(attempt.studentId));
       if (!child) return null;
-      const score = Number(attempt.score);
-      const maxScore = Number(attempt.maxScore);
+
+      const rawScore = attempt.score;
+      const score = rawScore === null || rawScore === undefined || rawScore === "" ? NaN : Number(rawScore);
+      const examQuestions = Array.isArray(exam.questions) ? exam.questions : [];
+      const calculatedMax = examQuestions.reduce((total: number, q: any) => {
+        const points = Number(q?.points ?? 1);
+        return total + (Number.isFinite(points) && points > 0 ? points : 0);
+      }, 0);
+      const rawMax = attempt.maxScore;
+      const maxScore = rawMax === null || rawMax === undefined || rawMax === "" ? calculatedMax : Number(rawMax);
       return {
         attemptId: attempt.id,
         examId,
@@ -81,7 +104,9 @@ export const handler: Handler = async event => {
         status: String(attempt.status || "submitted"),
         ...(Number.isFinite(score) ? { score } : {}),
         ...(Number.isFinite(maxScore) && maxScore >= 0 ? { maxScore } : {}),
-        ...(Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0 ? { percentage: Math.round((score / maxScore) * 100) } : {}),
+        ...(Number.isFinite(score) && Number.isFinite(maxScore) && maxScore > 0
+          ? { percentage: Math.round((score / maxScore) * 100) }
+          : {}),
         submittedAt: iso(attempt.submittedAt),
         releasedAt: iso(attempt.releasedAt),
         feedback: String(attempt.feedback || ""),
@@ -94,7 +119,10 @@ export const handler: Handler = async event => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load examination results.";
-    if (message.includes("Firebase ID token") || message.includes("auth/")) return json(401, { error: "Please sign in again." });
+    if (message.includes("Firebase ID token") || message.includes("auth/")) {
+      return json(401, { error: "Please sign in again." });
+    }
+    console.error("Parent examination results failed", error);
     return json(500, { error: "Unable to load examination results right now." });
   }
 };
