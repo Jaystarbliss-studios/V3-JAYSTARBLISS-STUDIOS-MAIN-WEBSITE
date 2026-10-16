@@ -70,7 +70,7 @@ const AdminNotifications: React.FC = () => {
 
       // 5. Fetch notifications history
       const notifSnap = await getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'))).catch(() => getDocs(collection(db, 'notifications')));
-      const list = notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+      const list = notifSnap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification)).filter(n => Boolean((n as any).senderEmail) || String((n as any).senderRole || "").toLowerCase() === "super admin office" || String((n as any).senderName || "") === "Jaystar Administration");
       // Sort newest first
       list.sort((a, b) => {
         const timeA = (a.timestamp?.toMillis ? a.timestamp.toMillis() : new Date(a.timestamp || 0).getTime()) || 0;
