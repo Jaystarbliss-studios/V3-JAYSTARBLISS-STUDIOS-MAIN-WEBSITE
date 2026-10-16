@@ -12,6 +12,7 @@ on:
       - "src/pages/portal/StudentExaminations.tsx"
       - "src/pages/portal/ParentExaminationResults.tsx"
       - "src/components/portal/**"
+      - "src/components/admin/AdminLayout.tsx"
       - "src/index.css"
       - "tests/jdi-assessment.test.mjs"
       - "package.json"
