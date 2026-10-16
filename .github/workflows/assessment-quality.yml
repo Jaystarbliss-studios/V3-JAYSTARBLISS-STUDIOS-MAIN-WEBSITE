@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "api/_lib/jdi-assessment.js"
+      - "api/_lib/jdi-assessment.d.ts"
       - "netlify/functions/examination-attempt.ts"
       - "netlify/functions/jdi-examinations.ts"
       - "netlify/functions/jdi-exam-management.ts"
