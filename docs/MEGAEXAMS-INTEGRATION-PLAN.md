@@ -46,6 +46,13 @@ This is a source audit, not proof of production deployment or end-to-end behavio
 - **Tutor/staff:** author and manage tests only for schools/classes/students they are assigned to; grade and release only within that scope.
 - **Admin:** platform-wide oversight through explicitly privileged server-side authorization, with audit events for sensitive changes.
 
+## Assessment hardening added in the current change set
+
+- A shared server-side assessment domain module canonicalizes question IDs, options and answer keys before persistence; duplicate answer-key IDs are deduplicated and unknown option IDs are rejected.
+- Live submission and scheduled expiry now use the same grading implementation, preventing score differences when an attempt expires.
+- A Node test suite covers question validation, objective grading, short-answer normalization, manual review and answer-key integrity; the quality workflow runs these tests.
+- These automated domain tests do not replace Firestore rules tests, authenticated role-journey tests, or deployment verification.
+
 ## Non-negotiable engineering checks
 
 1. Derive identity from verified Firebase ID tokens; never trust client-supplied student or school IDs for authorization.
