@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeQuestions, gradeAnswers } from "../netlify/functions/_lib/jdi-assessment.js";
+import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult } from "../netlify/functions/_lib/jdi-assessment.js";
 
 const objective = (overrides = {}) => ({
   id: "q1", type: "single_choice", prompt: "Pick one", points: 2,
@@ -55,4 +55,14 @@ test("manual grading never auto-awards marks", () => {
   assert.equal(result.score, 0);
   assert.equal(result.autoGraded, false);
   assert.equal(result.questionResults[0].manualReview, true);
+});
+
+test("school report projections omit answer keys, explanations, and submitted answer text", () => {
+  const question = schoolSafeQuestion({ id: "q", prompt: "Question", type: "single_choice", points: 2, options: [{ id: "a", text: "A" }], correctOptionIds: ["a"], acceptedAnswers: ["secret"], explanation: "teacher-only" });
+  assert.deepEqual(Object.keys(question).sort(), ["id", "options", "points", "prompt", "type"]);
+  assert.equal("correctOptionIds" in question, false);
+  assert.equal("acceptedAnswers" in question, false);
+  const result = schoolSafeQuestionResult({ questionId: "q", answer: "private response", correct: true, manualReview: false, pointsAwarded: 2, maxPoints: 2 });
+  assert.equal(result.correct, true);
+  assert.equal("answer" in result, false);
 });
