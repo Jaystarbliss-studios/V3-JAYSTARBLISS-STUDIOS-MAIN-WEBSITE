@@ -6,7 +6,7 @@ import { schoolSafeQuestion, schoolSafeQuestionResult } from "../../api/_lib/jdi
 const json=(statusCode:number,body:Record<string,unknown>)=>({statusCode,headers:{"Content-Type":"application/json","Cache-Control":"no-store"},body:JSON.stringify(body)});
 const norm=(v:unknown)=>String(v||"").trim().toUpperCase();
 async function authUser(event:any){const h=event.headers?.authorization||event.headers?.Authorization||"";if(!h.startsWith("Bearer "))throw new Error("AUTH");const d=await adminAuth.verifyIdToken(h.slice(7));const s=await adminDb.collection("users").doc(d.uid).get();if(!s.exists)throw new Error("PROFILE");const u=s.data()||{};if(["DISABLED","SUSPENDED","BANNED"].includes(norm(u.status||u.accountStatus)))throw new Error("INACTIVE");return {uid:d.uid,role:norm(u.role),user:u};}
-const admins=["SUPER_ADMIN","SUPERADMIN"];
+const admins=["SUPER_ADMIN","SUPERADMIN","ADMIN"];
 const tutors=["TUTOR","STAFF","INSTRUCTOR"];
 const statusTransitions:Record<string,string[]>={draft:["draft","scheduled","active","archived"],scheduled:["scheduled","active","completed","archived"],active:["active","completed","archived"],completed:["completed","archived"],archived:["archived"]};
 async function canSchool(c:any,schoolId:string){
