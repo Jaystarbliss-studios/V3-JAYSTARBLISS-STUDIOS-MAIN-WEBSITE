@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck:functions": "tsc -p tsconfig.functions.json"
+    "typecheck:functions": "tsc -p tsconfig.functions.json",
+    "test:assessment": "node --test tests/jdi-assessment.test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
