@@ -175,12 +175,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           senderRole: data.senderRole || 'Administration'
         };
 
-        // Strict Audience Filtering: ensure only meant for this user
+        // Strict Audience Filtering: private notices are visible only to their actual recipient.
         let isRelevant = false;
         if (notif.id.startsWith("jdi:")) {
           isRelevant = data.recipientUid === uid;
-        } else if (isAdmin) {
-          isRelevant = true;
         } else if (notif.recipientId === 'all' || notif.recipientType === 'all') {
           const targetRole = String(notif.targetRole || '').trim().toLowerCase();
           const roleMatches = !targetRole || targetRole === 'all' || targetRole === role ||
@@ -191,6 +189,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           isRelevant = true;
         } else if (notif.targetEmail && email && notif.targetEmail.toLowerCase() === email) {
           isRelevant = true;
+        } else if (isAdmin) {
+          isRelevant = false;
         } else if (role === 'student') {
           if (notif.recipientId === 'all_students' || notif.recipientType === 'all_students') isRelevant = true;
           if (currentStudentDocId && notif.recipientId === currentStudentDocId) isRelevant = true;
