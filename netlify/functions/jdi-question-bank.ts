@@ -8,7 +8,7 @@ const json = (statusCode: number, body: Record<string, unknown>) => ({
   body: JSON.stringify(body),
 });
 const norm = (value: unknown) => String(value || "").trim().toUpperCase();
-const adminRoles = ["SUPER_ADMIN", "SUPERADMIN"];
+const adminRoles = ["SUPER_ADMIN", "SUPERADMIN", "ADMIN"];
 const tutorRoles = ["TUTOR", "STAFF", "INSTRUCTOR"];
 
 async function caller(event: any) {
