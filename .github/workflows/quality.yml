@@ -24,6 +24,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Lint
         run: npm run lint
+      - name: Assessment domain tests
+        run: node --test tests/jdi-assessment.test.mjs
       - name: Serverless function typecheck
         run: npm run typecheck:functions
       - name: Production build
