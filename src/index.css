@@ -660,3 +660,8 @@ img, video, canvas, svg { max-width: 100%; }
   .portal-main-content .w-full { max-width: 100%; }
   .portal-main-content [class*="min-w-"] { min-width: 0; }
 }
+
+@media (max-width: 767px) {
+  .portal-shell { height: 100dvh !important; min-height: 100dvh !important; overflow: hidden; }
+  .portal-main-content { height: auto !important; min-height: 0 !important; flex: 1 1 auto; overflow-y: auto; overscroll-behavior-y: contain; }
+}
