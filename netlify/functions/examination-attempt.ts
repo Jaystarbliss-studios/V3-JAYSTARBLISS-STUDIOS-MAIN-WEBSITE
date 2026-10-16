@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { gradeAnswers } from "./_lib/jdi-assessment.js";
+import { gradeAnswers } from "../../api/_lib/jdi-assessment.js";
 const json=(statusCode:number,body:Record<string,unknown>)=>({statusCode,headers:{"Content-Type":"application/json","Cache-Control":"no-store"},body:JSON.stringify(body)});
 async function user(event:any){const h=event.headers?.authorization||event.headers?.Authorization||"";if(!h.startsWith("Bearer "))throw new Error("AUTH");const token=await adminAuth.verifyIdToken(h.slice(7));const p=await adminDb.collection("users").doc(token.uid).get();if(!p.exists)throw new Error("PROFILE");const data=p.data()||{};if(["DISABLED","SUSPENDED","BANNED"].includes(String(data.accountStatus||data.status||"").toUpperCase()))throw new Error("INACTIVE");return {uid:token.uid,role:String(data.role||"").toUpperCase(),data};}
 async function studentFor(uid:string){for(const name of ["students","individualStudents"]){const direct=await adminDb.collection(name).doc(uid).get();if(direct.exists)return {id:direct.id,data:direct.data()||{}};}for(const name of ["students","individualStudents"]){for(const field of ["firebaseUid","userId"]){const q=await adminDb.collection(name).where(field,"==",uid).limit(1).get();if(!q.empty)return {id:q.docs[0].id,data:q.docs[0].data()};}}return null;}
