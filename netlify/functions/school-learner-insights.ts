@@ -49,12 +49,24 @@ async function resolveSchool(uid: string, profile: Record<string, any>, email: s
   const doc = linked[0] || (schoolDocs.size === 1 ? Array.from(schoolDocs.values())[0] : null);
   if (!doc) return null;
   const data = doc.data() || {};
-  const aliases = Array.from(new Set([doc.id, data.schoolId, data.schoolCode].map((v: any) => text(v)).filter(Boolean)));
+  // Only use legacy schoolId/code aliases after proving they identify exactly this school.
+  // A duplicate school code must never widen a tenant query.
+  const aliases = new Set<string>([doc.id]);
+  for (const [field, rawValue] of [['schoolId', data.schoolId], ['schoolCode', data.schoolCode]] as const) {
+    const value = text(rawValue);
+    if (!value || value === doc.id) continue;
+    try {
+      const aliasMatches = await adminDb.collection('schools').where(field, '==', value).limit(2).get();
+      if (aliasMatches.size === 1 && aliasMatches.docs[0].id === doc.id) aliases.add(value);
+    } catch (error) {
+      console.warn('Could not validate legacy school alias', field, error);
+    }
+  }
   return {
     id: doc.id,
     name: text(data.name || data.schoolName || profile.schoolName || 'School'),
     schoolCode: text(data.schoolCode || data.schoolId || doc.id),
-    aliases,
+    aliases: Array.from(aliases),
     data
   };
 }
