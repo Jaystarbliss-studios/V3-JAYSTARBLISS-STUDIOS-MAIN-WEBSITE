@@ -38,15 +38,24 @@ async function resolveSchool(uid: string, profile: Record<string, any>, email: s
   }
   if (!schoolDocs.size) return null;
 
-  // Prefer a document explicitly linked to the signed-in school account.
-  const linked = Array.from(schoolDocs.values()).filter((d: any) => {
+  // Resolve identity in strict order. Ambiguous legacy email/code matches fail closed.
+  const allDocs = Array.from(schoolDocs.values());
+  const linkedByUid = allDocs.filter((d: any) => {
     const s = d.data() || {};
-    return d.id === uid || s.adminUid === uid || s.firebaseUid === uid || s.userId === uid ||
-      String(s.email || '').toLowerCase() === normalizedEmail ||
-      String(s.contactEmail || '').toLowerCase() === normalizedEmail ||
-      [s.schoolId, s.schoolCode].some((v: any) => candidates.has(String(v || '')));
+    return d.id === uid || s.adminUid === uid || s.firebaseUid === uid || s.userId === uid;
   });
-  const doc = linked[0] || (schoolDocs.size === 1 ? Array.from(schoolDocs.values())[0] : null);
+  if (linkedByUid.length > 1) return null;
+  const linkedByDocumentId = allDocs.filter((d: any) => candidates.has(d.id));
+  if (!linkedByUid.length && linkedByDocumentId.length > 1) return null;
+  const linkedByEmail = allDocs.filter((d: any) => {
+    const s = d.data() || {};
+    return normalizedEmail && (String(s.email || '').toLowerCase() === normalizedEmail ||
+      String(s.contactEmail || '').toLowerCase() === normalizedEmail);
+  });
+  const doc = linkedByUid[0] ||
+    (linkedByDocumentId.length === 1 ? linkedByDocumentId[0] : null) ||
+    (linkedByEmail.length === 1 ? linkedByEmail[0] : null) ||
+    (allDocs.length === 1 ? allDocs[0] : null);
   if (!doc) return null;
   const data = doc.data() || {};
   // Only use legacy schoolId/code aliases after proving they identify exactly this school.
