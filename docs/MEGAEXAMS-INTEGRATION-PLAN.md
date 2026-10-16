@@ -26,7 +26,7 @@ This is a source audit, not proof of production deployment or end-to-end behavio
 | Automatic grading and manual marking | Present in attempt/history code | Verify per-type scoring and release states |
 | Student test list and timed player | Student examination routes/components | Validate autosave, reconnect, expiry, and safe payloads |
 | School → class → test reporting | School-scoped examination history/reporting | Ensure stable school IDs and class filters are used server-side |
-| Parent-specific examination results | Parent has a general academic-assessment surface; dedicated exam-result journey needs verification/integration | Add child-scoped, read-only exam history and released results |
+| Parent-specific examination results | Added a parent-only server endpoint and read-only parent portal page on this branch | Validate against real parent/child records and result-release data |
 | Staff/tutor authoring and grading | Tutor workspace and server endpoints | Enforce assigned-school/student permissions, not client-supplied scope |
 | Admin oversight | Admin routes share the examination workspace | Ensure privileged admin access is explicit and audited |
 | Branded individual PDFs, bulk ZIP, XLSX export | Utilities and history UI exist | Verify totals, school branding, privacy and large-class handling |
