@@ -30,9 +30,10 @@ const AdminSchoolOnboarding: React.FC = () => {
       const contactName = form.contactName.trim() || 'School Administrator';
       const email = form.email.trim().toLowerCase();
       const requestedCode = form.schoolCode.trim().toUpperCase();
-      const generatedCode = requestedCode || `${name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'SCH'}-${new Date().getFullYear()}`;
-      const baseId = (requestedCode || name).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15);
-      const schoolId = baseId || `school-${Date.now()}`;
+      const codePrefix = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'SCH';
+      const generatedCode = requestedCode || `${codePrefix}-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      // The school document ID is the canonical, unique school ID. A human-readable school code is separate.
+      const schoolId = doc(collection(db, 'schools')).id;
       const tempPass = generateTempPassword();
 
       // 1. Check if school already exists
@@ -41,10 +42,16 @@ const AdminSchoolOnboarding: React.FC = () => {
       if (existingSnap && !existingSnap.empty) {
         throw new Error('A school with this name already exists in the database.');
       }
+      const codeQuery = query(collection(db, 'schools'), where('schoolCode', '==', generatedCode), limit(1));
+      const codeSnap = await getDocs(codeQuery).catch(() => null);
+      if (codeSnap && !codeSnap.empty) {
+        throw new Error('That school code is already in use. Choose a unique school code.');
+      }
 
       // 2. Create the school document
       const schoolRecord = {
         id: schoolId,
+        schoolId,
         name,
         schoolCode: generatedCode,
         contactName,
