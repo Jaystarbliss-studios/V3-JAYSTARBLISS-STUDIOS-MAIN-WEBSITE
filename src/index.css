@@ -591,3 +591,63 @@ html.dark .admin-schools-command .text-gray-900 {
 .admin-schools-command .text-red-700 {
   color: revert-layer !important;
 }
+
+
+/* Assessment + portal responsive hardening. Keep content fluid on narrow phones. */
+*, *::before, *::after { box-sizing: border-box; }
+img, video, canvas, svg { max-width: 100%; }
+#root, #root > * { min-width: 0; }
+@media (max-width: 767px) {
+  html, body, #root { width: 100%; max-width: 100%; overflow-x: clip; }
+  #root > div.h-screen.w-full { height: 100dvh !important; min-height: 100dvh !important; }
+  main { width: 100%; max-width: 100%; min-width: 0; }
+  main > *, main section, main article, main header, main form { min-width: 0; max-width: 100%; }
+  main h1 { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; overflow-wrap: anywhere; }
+  main h2 { font-size: clamp(1rem, 4vw, 1.25rem); line-height: 1.3; }
+  main p, main label, main li { overflow-wrap: anywhere; }
+  main .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  main .flex.items-center.justify-between { flex-wrap: wrap; align-items: flex-start; }
+  main .flex.flex-wrap { gap: .5rem; }
+  main .overflow-x-auto, main [class*="overflow-x-auto"] { max-width: 100%; -webkit-overflow-scrolling: touch; }
+  main table { min-width: 0; width: 100%; }
+  main pre, main code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  main input:not([type="checkbox"]):not([type="radio"]), main select, main textarea {
+    width: 100%; min-width: 0; max-width: 100%; font-size: 16px;
+  }
+  main button, main [role="button"] {
+    max-width: 100%; overflow-wrap: anywhere; white-space: normal;
+    font-size: .875rem; line-height: 1.25rem;
+  }
+  main .p-8 { padding: 1rem !important; }
+  main .p-6 { padding: 1rem !important; }
+  main .p-5 { padding: .875rem !important; }
+  main .p-4 { padding: .75rem !important; }
+  main .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  main .px-6 { padding-left: .875rem !important; padding-right: .875rem !important; }
+  main .px-5 { padding-left: .75rem !important; padding-right: .75rem !important; }
+  main .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  main .gap-6 { gap: .875rem !important; }
+  main .gap-5 { gap: .75rem !important; }
+  main .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: .875rem !important; }
+  main .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: .75rem !important; }
+  main .rounded-2xl { border-radius: 1rem; }
+  main .rounded-xl { border-radius: .75rem; }
+  main .text-3xl { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; }
+  main .text-2xl { font-size: clamp(1.125rem, 4.5vw, 1.5rem) !important; }
+  main .text-xl { font-size: clamp(1rem, 4vw, 1.25rem) !important; }
+  main .text-lg { font-size: 1rem !important; }
+  main .min-w-\[.*\] { min-width: 0 !important; }
+  /* Dense tab bars become swipeable rather than squeezing labels off-screen. */
+  main [role="tablist"] { display: flex; max-width: 100%; overflow-x: auto; gap: .375rem; padding-bottom: .25rem; }
+  main [role="tablist"] > * { flex: 0 0 auto; max-width: 85vw; }
+  main .sticky { max-width: 100%; }
+}
+@media (max-width: 380px) {
+  main .p-4, main .px-4 { padding-left: .625rem !important; padding-right: .625rem !important; }
+  main .p-3 { padding: .625rem !important; }
+  main .gap-3 { gap: .5rem !important; }
+  main button { letter-spacing: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
