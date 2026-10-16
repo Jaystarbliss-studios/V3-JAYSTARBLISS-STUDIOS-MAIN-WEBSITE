@@ -253,12 +253,12 @@ service cloud.firestore {
       allow write: if isAnyAdmin() || isStaffOrTutor() || isAuth();
     }
     match /assessmentSubmissions/{docId} {
-      allow read, create, update: if true;
-      allow delete: if isAnyAdmin();
+      // Legacy assessment submissions are accessed through authenticated server endpoints.
+      allow read, write: if isAnyAdmin();
     }
     match /submissions/{docId} {
-      allow read, create, update: if true;
-      allow delete: if isAnyAdmin();
+      // Legacy assignment submissions are accessed through authenticated server endpoints.
+      allow read, write: if isAnyAdmin();
     }
     match /courses/{docId} {
       allow read: if true;
