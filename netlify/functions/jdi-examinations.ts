@@ -2,7 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { normalizeQuestions } from "./_lib/jdi-assessment.js";
+import { normalizeQuestions } from "../../api/_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
 const bearer = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ""; return value.startsWith("Bearer ") ? value.slice(7) : ""; };
