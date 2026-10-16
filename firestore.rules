@@ -8,8 +8,7 @@ service cloud.firestore {
         request.auth.token.isAdmin == true || 
         request.auth.token.email == 'johnrufai242@gmail.com' || 
         request.auth.token.email == 'admin@jaystarbliss.com' || 
-        request.auth.token.email == 'admin@jaystar.com' || 
-        request.auth.token.email.matches('.*admin.*')
+        request.auth.token.email == 'admin@jaystar.com'
       ); 
     }
     function isActiveUserRecord() { 
@@ -29,6 +28,21 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN', 'super_admin', 'ADMIN', 'admin'])
       ); 
     }
+    function isPrivilegedRole(role) {
+      return role in [
+        'SUPER_ADMIN','super_admin','SUPERADMIN','superadmin',
+        'ADMIN','admin','CONTENT_ADMIN','content_admin',
+        'EDUCATION_ADMIN','education_admin','SERVICES_ADMIN','services_admin',
+        'MARKETING_ADMIN','marketing_admin','SUPPORT_ADMIN','support_admin',
+        'FINANCE_ADMIN','finance_admin','DIRECTOR','director'
+      ];
+    }
+    function isSelfRegistrationRole(role) {
+      // Public sign-up may create only basic learner/client accounts.
+      // Staff, tutors, school accounts and administrator roles are provisioned
+      // through approved server/admin flows.
+      return role in ['STUDENT','student','INDIVIDUAL_STUDENT','individual_student','PARENT','parent','CLIENT','client'];
+    }
     function isAnyAdmin() { 
       return isAuth() && (
         isAdminEmail() || 
@@ -36,6 +50,28 @@ service cloud.firestore {
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin','CONTENT_ADMIN','content_admin','EDUCATION_ADMIN','education_admin','SERVICES_ADMIN','services_admin','MARKETING_ADMIN','marketing_admin','SUPPORT_ADMIN','support_admin','FINANCE_ADMIN','finance_admin','director','DIRECTOR'])
       ); 
+    }
+    function isNotificationAdmin() {
+      return isAuth() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SUPER_ADMIN','super_admin','SUPERADMIN','superadmin','ADMIN','admin']) ||
+        (request.auth.token.email != null && request.auth.token.email in ['johnrufai242@gmail.com','admin@jaystarbliss.com','admin@jaystar.com'])
+      );
+    }
+    function notificationTargetRoleMatches(targetRole) {
+      // Broadcasts must explicitly name their audience. Missing/empty roles
+      // are not a public broadcast and must never match every signed-in user.
+      return targetRole == 'all' ||
+        (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == targetRole ||
+            (targetRole == 'student' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT', 'student']) ||
+            (targetRole == 'parent' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['PARENT', 'parent']) ||
+            (targetRole == 'school' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['SCHOOL', 'school', 'SCHOOL_ADMIN', 'school_admin', 'schoolAdmin', 'SCHOOLADMIN', 'institution', 'INSTITUTION']) ||
+            (targetRole == 'staff' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STAFF', 'staff', 'TUTOR', 'tutor', 'INSTRUCTOR', 'instructor']) ||
+            (targetRole == 'admin' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'admin', 'SUPER_ADMIN', 'super_admin', 'SUPERADMIN', 'superadmin'])
+          ));
     }
     function isTutorOrSuperAdmin() {
       return isAuth() && (
@@ -87,23 +123,50 @@ service cloud.firestore {
         )) || hasStaffSchoolAccess(schoolId)
       );
     }
-    function isOwnStudent(data) { return isAuth() && (data.firebaseUid == request.auth.uid || data.userId == request.auth.uid); }
-    function isOwnParent(data) { return isAuth() && (data.parentId == request.auth.uid || data.userId == request.auth.uid || data.firebaseUid == request.auth.uid); }
+    function isOwnStudent(data) { return isAuth() && (data.get('firebaseUid', '') == request.auth.uid || data.get('userId', '') == request.auth.uid); }
+    function isOwnParent(data) { return isAuth() && (data.get('parentId', '') == request.auth.uid || data.get('userId', '') == request.auth.uid || data.get('firebaseUid', '') == request.auth.uid); }
     function isParentOfStudent(studentId) { return isAuth() && exists(/databases/$(database)/documents/individualStudents/$(studentId)) && get(/databases/$(database)/documents/individualStudents/$(studentId)).data.parentId == request.auth.uid; }
     function isOwnLearner(studentId) { return isAuth() && ((exists(/databases/$(database)/documents/individualStudents/$(studentId)) && (get(/databases/$(database)/documents/individualStudents/$(studentId)).data.firebaseUid == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.userId == request.auth.uid)) || (exists(/databases/$(database)/documents/students/$(studentId)) && (get(/databases/$(database)/documents/students/$(studentId)).data.firebaseUid == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.userId == request.auth.uid))); }
     function isAssignedStaffToStudent(studentId) { return isStaffOrTutor() && ((exists(/databases/$(database)/documents/individualStudents/$(studentId)) && (get(/databases/$(database)/documents/individualStudents/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/individualStudents/$(studentId)).data.instructorId == request.auth.uid)) || (exists(/databases/$(database)/documents/students/$(studentId)) && (get(/databases/$(database)/documents/students/$(studentId)).data.tutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.staffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedTutorId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.assignedStaffId == request.auth.uid || get(/databases/$(database)/documents/students/$(studentId)).data.instructorId == request.auth.uid))); }
 
     match /users/{userId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if isAuth() && (isSuperAdmin() || isAnyAdmin() || isSchoolUser() || (request.auth.uid == userId));
+      // User profiles are private. A school sees only profiles linked to its
+      // own school; staff sees only profiles in assigned schools.
+      allow read: if isAnyAdmin() ||
+        (isAuth() && request.auth.uid == userId) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        (isStaffOrTutor() && hasStaffSchoolAccess(resource.data.get('schoolId', null)));
+      allow create: if isSuperAdmin() ||
+        (isAuth() && request.auth.uid == userId && isSelfRegistrationRole(request.resource.data.get('role', '')));
+      allow update: if isSuperAdmin() ||
+        (isAnyAdmin() &&
+          !isPrivilegedRole(request.resource.data.get('role', '')) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','schoolId','school_id','schoolDocId','accountStatus','status','isAdmin','admin','permissions'])) ||
+        (isSchoolUser() &&
+          isSameSchool(resource.data.get('schoolId', null)) &&
+          isSameSchool(request.resource.data.get('schoolId', null)) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','schoolId','school_id','schoolDocId','accountStatus','status','isAdmin','admin','permissions'])) ||
+        (isAuth() && request.auth.uid == userId &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role','schoolId','school_id','schoolDocId','accountStatus','status','isAdmin','admin','permissions']));
       allow delete: if isSuperAdmin();
     }
-    match /admins/{userId} { allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId); allow write: if isSuperAdmin() || isAnyAdmin(); }
+    match /admins/{userId} {
+      allow read: if isAnyAdmin() || (isAuth() && request.auth.uid == userId);
+      // Only a Super Admin may grant or revoke administrator records.
+      allow write: if isSuperAdmin();
+    }
     match /invites/{email} { allow read: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); allow write: if isAnyAdmin(); allow delete: if isAnyAdmin() || (isAuth() && request.auth.token.email != null && request.auth.token.email.lower() == email.lower()); }
 
     match /individualStudents/{studentId} {
-      allow read: if true;
+      // Student records are private to the learner, their parent, their school,
+      // assigned teaching staff, and administrators. Parent-email queries are
+      // permitted only for the authenticated account's own email.
+      allow read: if isAnyAdmin() ||
+        isOwnStudent(resource.data) ||
+        isOwnParent(resource.data) ||
+        (isAuth() && request.auth.token.email != null && resource.data.get('parentEmail', '') == request.auth.token.email) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        isAssignedStaffToStudent(studentId);
       allow create: if isAnyAdmin() ||
         (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
         (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
@@ -113,7 +176,12 @@ service cloud.firestore {
       allow delete: if isAnyAdmin() || (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null)));
     }
     match /students/{studentId} {
-      allow read: if true;
+      allow read: if isAnyAdmin() ||
+        isOwnStudent(resource.data) ||
+        isOwnParent(resource.data) ||
+        (isAuth() && request.auth.token.email != null && resource.data.get('parentEmail', '') == request.auth.token.email) ||
+        (isSchoolUser() && isSameSchool(resource.data.get('schoolId', null))) ||
+        isAssignedStaffToStudent(studentId);
       allow create: if isAnyAdmin() ||
         (isSchoolUser() && isSameSchool(request.resource.data.get('schoolId', null))) ||
         (isStaffOrTutor() && isAssignedStaffToStudent(studentId));
@@ -185,12 +253,12 @@ service cloud.firestore {
       allow write: if isAnyAdmin() || isStaffOrTutor() || isAuth();
     }
     match /assessmentSubmissions/{docId} {
-      allow read, create, update: if true;
-      allow delete: if isAnyAdmin();
+      // Legacy assessment submissions are accessed through authenticated server endpoints.
+      allow read, write: if isAnyAdmin();
     }
     match /submissions/{docId} {
-      allow read, create, update: if true;
-      allow delete: if isAnyAdmin();
+      // Legacy assignment submissions are accessed through authenticated server endpoints.
+      allow read, write: if isAnyAdmin();
     }
     match /courses/{docId} {
       allow read: if true;
@@ -218,12 +286,19 @@ service cloud.firestore {
       allow create, update: if true; 
       allow delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); 
     }
-    match /schoolExams/{examId} { 
-      allow read: if true; 
-      allow create, update: if true; 
-      allow delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); 
+    // Legacy school exam records remain visible only to authorised portal roles.
+    // Exam authoring and passcode changes are handled by the tutor/Super Admin API.
+    match /schoolExams/{examId} {
+      allow read: if isAnyAdmin() || (isSchoolUser() && isSameSchool(resource.data.schoolId)) || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId);
+      allow create: if isAnyAdmin() || hasStaffSchoolAccess(request.resource.data.schoolId);
+      allow update, delete: if isAnyAdmin() || hasStaffSchoolAccess(resource.data.schoolId);
     }
-    match /schoolPasscodes/{docId} { allow read: if true; allow create, update, delete: if isAnyAdmin() || isSchoolUser() || hasStaffSchoolAccess(resource.data.schoolId) || isSameSchool(resource.data.schoolId); }
+    // Passcodes are verified and managed by trusted server functions only.
+    // Direct client reads would expose passcode material to school users and
+    // undermine the server-side attempt/rate-limit checks.
+    match /schoolPasscodes/{docId} {
+      allow read, write: if false;
+    }
     match /staffGeneralResources/{resId} { allow read: if true; allow write, delete: if isStaffOrTutor() || isAnyAdmin(); }
     match /staffSchoolAccess/{docId} { allow read: if true; allow write: if isAnyAdmin(); }
     match /staffRegistration/{docId} { allow read, write: if true; }
@@ -324,10 +399,40 @@ service cloud.firestore {
     match /tutor_applications/{appId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
     match /tutorApplications/{appId} { allow create: if true; allow read, update, delete: if isAnyAdmin(); }
     match /tutors/{tutorId} { allow read: if true; allow write: if isAnyAdmin() || (isAuth() && request.auth.uid == tutorId); }
-    match /notifications/{notificationId} { 
-      allow read: if isAuth(); 
-      allow create, delete: if isAnyAdmin() || isAuth(); 
-      allow update: if isAnyAdmin() || (isAuth() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']) && request.resource.data.readBy is list && request.auth.uid in request.resource.data.readBy); 
+    // JDI exam records, attempts, question keys and limit counters are server-only.
+    match /jdiExams/{examId} { allow read, write: if false; }
+    match /jdiExamAttempts/{attemptId} { allow read, write: if false; }
+    match /jdiQuestionBank/{questionId} { allow read, write: if false; }
+    match /jdiAttemptLimits/{limitId} { allow read, write: if false; }
+    match /jdiPasscodeAttempts/{attemptId} { allow read, write: if false; }
+    match /jdiNotifications/{notificationId} {
+      allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
+      allow create, delete: if isAnyAdmin();
+      allow update: if isAuth() && resource.data.recipientUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt','isRead'])
+        ;
+    }
+    match /notifications/{notificationId} {
+      allow read: if isNotificationAdmin() || (isAuth() && (
+        resource.data.get('recipientId', '') == request.auth.uid ||
+        resource.data.get('targetUid', '') == request.auth.uid ||
+        (isSchoolUser() && (resource.data.get('recipientId', '') == userSchoolId() || resource.data.get('recipientId', '') == 'school_' + userSchoolId())) ||
+        (isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT', 'student'] && resource.data.get('recipientId', '') == 'school_students_' + userSchoolId()) ||
+        (request.auth.token.email != null && resource.data.get('targetEmail', '') == request.auth.token.email) ||
+        (resource.data.get('recipientId', '') == 'all' && notificationTargetRoleMatches(resource.data.get('targetRole', '')) ) ||
+        (resource.data.get('recipientType', '') == 'all' && resource.data.get('targetRole', '') == 'all') ||
+        (resource.data.get('recipientId', '') == 'all_students' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['STUDENT','student']) ||
+        (resource.data.get('recipientId', '') == 'all_parents' && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['PARENT','parent']) ||
+        (resource.data.get('recipientId', '') == 'all_staff' && isStaffOrTutor()) ||
+        (resource.data.get('recipientId', '') == 'all_schools' && isSchoolUser()) ||
+        (isSchoolUser() && resource.data.get('schoolId', null) != null && resource.data.get('schoolId', null) == userSchoolId()) ||
+        (resource.data.get('recipientType', '') == 'school_students' && resource.data.get('schoolId', null) == userSchoolId())
+      ));
+      allow create, delete: if isAnyAdmin();
+      // Recipient read state is kept per-user in the client. Only admins may
+      // mutate the shared notification document, preventing one recipient
+      // from changing the global read flag or another recipient's read state.
+      allow update: if isAnyAdmin();
     }
     match /activityLogs/{logId} { allow read: if isAnyAdmin(); allow write: if isAnyAdmin() || isAuth(); }
     match /treasuryLogs/{logId} { allow read, write: if isAnyAdmin(); }

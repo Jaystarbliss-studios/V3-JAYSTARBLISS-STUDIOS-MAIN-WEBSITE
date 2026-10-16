@@ -274,6 +274,19 @@ export async function reconcileSuccessfulCharge(tx: any, verifiedUserId?: string
   });
 
   if (!created) return { created: false, payment: null };
+  // Financial notifications are targeted to each admin UID, never broadcast.
+  const adminUsers = await adminDb.collection("users").limit(1000).get();
+  const adminRoles = new Set(["super_admin", "superadmin", "admin"]);
+  const paymentSummary = String(role === "school" ? "School" : role === "parent" ? "Parent" : "Student") + " payment received: " + String(paymentData.plan) + " — ₦" + Number(paymentData.customerTotal).toLocaleString() + " (reference " + reference + ").";
+  await Promise.all(adminUsers.docs
+    .filter(d => adminRoles.has(String(d.data().role || "").trim().toLowerCase()))
+    .map(d => createPortalNotification({
+      recipientId: d.id,
+      title: "Payment received",
+      message: paymentSummary,
+      type: "PAYMENT_RECEIVED_ADMIN",
+      data: { paymentId: reference, payerId: userId, payerRole: role, schoolId: paymentData.schoolId, studentId: paymentData.studentId, amount: paymentData.customerTotal, currency: "NGN" }
+    })));
   await createPortalNotification({ recipientId: userId, email: paymentData.email, title: "Payment confirmed", message: `${paymentData.plan} payment for ${paymentData.studentName || "your account"} was verified. Tuition: ₦${paymentData.baseAmount.toLocaleString()}, Paystack fee: ₦${paymentData.transactionFee.toLocaleString()}, customer total: ₦${paymentData.customerTotal.toLocaleString()}. Your paid-through date is ${new Date(new Date(paymentData.paidAt).getTime() + paymentData.durationWeeks * 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-NG")}.`, type: "PAYMENT_CONFIRMED", data: { paymentId: reference, planId, studentId: paymentData.studentId, tutorId: paymentData.tutorId, baseAmount: paymentData.baseAmount, transactionFee: paymentData.transactionFee, customerTotal: paymentData.customerTotal } });
   if (paymentData.tutorId && paymentData.tutorEmail) await createPortalNotification({ recipientId: paymentData.tutorId, email: paymentData.tutorEmail, title: "Student payment received", message: `${paymentData.studentName || "An assigned student"} has paid ${paymentData.plan}. ₦${paymentData.baseAmount.toLocaleString()} has been credited to your staff wallet.`, type: "STUDENT_PAYMENT", data: { paymentId: reference, studentId: paymentData.studentId, amount: paymentData.baseAmount } });
   return { created: true, payment: paymentData };

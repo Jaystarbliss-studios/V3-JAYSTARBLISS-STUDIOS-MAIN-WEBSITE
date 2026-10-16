@@ -79,17 +79,17 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
   const [passcodeForm, setPasscodeForm] = useState<Partial<Passcode> | null>(null);
 
   const resolvedTab = useCallback((): SchoolDashboardTab => {
-    if (initialTab) return initialTab;
+    if (initialTab) return initialTab === 'passcodes' ? 'overview' : initialTab;
     const path = location.pathname.toLowerCase();
     if (path.includes('/roster')) return 'roster';
     if (path.includes('/exams')) return 'exams';
-    if (path.includes('/passcodes')) return 'passcodes';
+    if (path.includes('/passcodes')) return 'overview';
     if (path.includes('/resources')) return 'resources';
     if (path.includes('/links')) return 'links';
     if (path.includes('/schedules')) return 'schedules';
     if (path.includes('/partnership')) return 'partnership';
     const requested = searchParams.get('tab') as SchoolDashboardTab;
-    return ['overview','roster','exams','passcodes','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
+    return ['overview','roster','exams','resources','links','schedules','partnership'].includes(requested) ? requested : 'overview';
   }, [initialTab, location.pathname, searchParams]);
 
   useEffect(() => {
@@ -355,7 +355,7 @@ const SchoolDashboard: React.FC<SchoolDashboardProps> = ({ initialTab }) => {
           <DashboardGreeting
             name={schoolName.split(' ')[0] || schoolName}
             role="Partner Institution"
-            subtitle="Manage student enrollment, exam passcodes, class schedules, and billing."
+            subtitle="Manage student enrollment, examination overview, class schedules, and billing."
           />
 
           {/* Focused school overview: operational metrics and shortcuts only. Detailed programmes,

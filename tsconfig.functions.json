@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "strict": false
+  },
+  "include": [
+    "netlify/functions/jdi-examinations.ts",
+    "netlify/functions/jdi-exam-management.ts",
+    "netlify/functions/examination-attempt.ts",
+    "netlify/functions/examination-passcode.ts",
+    "netlify/functions/student-examinations.ts",
+    "netlify/functions/tutor-examinations.ts",
+    "netlify/functions/jdi-expire-exams.ts",
+    "netlify/functions/jdi-question-bank.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

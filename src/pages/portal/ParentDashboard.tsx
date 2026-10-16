@@ -182,29 +182,26 @@ const ParentDashboard: React.FC = () => {
 
       let requestCreated: any = null;
 
-      // 1. Try backend endpoint first if available
+      // 1. Use the authenticated server endpoint for real parent sessions.
+      // Do not silently fall back to direct writes on API errors: doing so can
+      // create duplicate requests or skip the private admin notification.
       if (user && !effective.isMasquerading) {
-        try {
-          const token = await user.getIdToken();
-          const response = await fetch('/api/parent-enrollment-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
-          });
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('application/json')) {
-            const result = await response.json().catch(() => ({}));
-            if (response.ok && result.request) {
-              requestCreated = result.request;
-            }
-          }
-        } catch {
-          // Proceed to direct Firestore fallback
+        const token = await user.getIdToken();
+        const response = await fetch('/api/parent-enrollment-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ studentName: trimmedName, studentAge: trimmedAge, plan: selectedPlan, subjects }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.request) {
+          throw new Error(result.error || 'The enrollment service could not submit your request. Please try again.');
         }
+        requestCreated = result.request;
       }
 
-      // 2. Direct Firestore fallback
-      if (!requestCreated) {
+      // 2. Keep direct Firestore writes only for the admin's impersonation mode.
+      // Real parent sessions must always use the server endpoint above.
+      if (!requestCreated && effective.isMasquerading) {
         const reqRef = doc(collection(db, 'enrollment_requests'));
         const now = new Date();
         const docPayload = {
@@ -234,20 +231,6 @@ const ParentDashboard: React.FC = () => {
           metadata: { studentName: trimmedName, plan: selectedPlan, subjects, parentEmail: userEmail }
         }).catch(() => undefined);
 
-        // Notify admins
-        await addDoc(collection(db, 'notifications'), {
-          title: `New Enrollment: ${trimmedName}`,
-          message: `${parentName} requested enrollment for ${trimmedName} (${selectedPlan}).`,
-          recipientId: 'all',
-          targetRole: 'super_admin',
-          type: 'alert',
-          priority: 'high',
-          read: false,
-          readBy: [],
-          timestamp: serverTimestamp(),
-          senderName: parentName,
-          senderRole: 'Parent'
-        }).catch(() => undefined);
       }
 
       setEnrollments(current => [requestCreated, ...current.filter(e => e.id !== requestCreated.id)]);

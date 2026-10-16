@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   collection, query, where, orderBy, limit, onSnapshot, 
-  doc, updateDoc, arrayUnion, arrayRemove, getDocs, Timestamp 
+  doc, getDoc, updateDoc, getDocs, Timestamp 
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -49,25 +49,38 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Watch Auth State and Session Role
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    let authSequence = 0;
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      const sequence = ++authSequence;
       setCurrentUser(user);
+      setNotifications([]);
+      setLoading(true);
+      setSelectedNotification(null);
       if (user) {
-        // Load role & identifiers from sessionStorage or cached storage
-        const r = (sessionStorage.getItem('userRole') || localStorage.getItem('jaystar_cached_user_role') || '').toLowerCase();
-        const sId = sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || '';
-        const stId = sessionStorage.getItem('studentDocId') || '';
-        setUserRole(r);
-        setSchoolId(sId);
-        setStudentDocId(stId);
+        setUserRole('');
+        setSchoolId('');
+        setStudentDocId('');
+        // Resolve the role from the authenticated user's Firestore profile.
+        // Cached session roles are not an authorization source for notifications.
+        try {
+          const profile = await getDoc(doc(db, 'users', user.uid));
+          if (sequence !== authSequence) return;
+          const data = profile.exists() ? profile.data() : {};
+          const profileRole = String(data.role || '').trim().toLowerCase();
+          setUserRole(['school_admin', 'schooladmin'].includes(profileRole) ? 'school' : profileRole);
+          setSchoolId(String(data.schoolId || data.school_id || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || ''));
+          setStudentDocId(String(data.studentDocId || data.studentId || sessionStorage.getItem('studentDocId') || ''));
+        } catch (error) {
+          if (sequence !== authSequence) return;
+          console.warn('Could not resolve notification audience from user profile:', error);
+          setUserRole('');
+          setSchoolId('');
+          setStudentDocId('');
+        }
 
-        // Load local read IDs for this specific user
         try {
           const stored = localStorage.getItem(`jaystar_notif_read_${user.uid}`);
-          if (stored) {
-            setLocalReadIds(new Set(JSON.parse(stored)));
-          } else {
-            setLocalReadIds(new Set());
-          }
+          setLocalReadIds(stored ? new Set(JSON.parse(stored)) : new Set());
         } catch {
           setLocalReadIds(new Set());
         }
@@ -77,6 +90,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setStudentDocId('');
         setNotifications([]);
         setLocalReadIds(new Set());
+        setLoading(false);
       }
     });
 
@@ -124,11 +138,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const uid = currentUser.uid;
     const email = currentUser.email?.toLowerCase() || '';
-    const role = userRole || (sessionStorage.getItem('userRole') || '').toLowerCase();
-    const currentSchoolId = schoolId || sessionStorage.getItem('schoolId') || sessionStorage.getItem('schoolDocId') || '';
-    const currentStudentDocId = studentDocId || sessionStorage.getItem('studentDocId') || '';
+    const role = userRole;
+    const currentSchoolId = schoolId;
+    const currentStudentDocId = studentDocId;
 
-    const isAdmin = ['super_admin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
+    const isAdmin = ['super_admin', 'superadmin', 'admin'].includes(role);
 
     setLoading(true);
     const unsubs: (() => void)[] = [];
@@ -138,13 +152,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       docs.forEach(docSnap => {
         const data = docSnap.data();
         const notif: AppNotification = {
-          id: docSnap.id,
+          id: docSnap.ref.parent.id === "jdiNotifications" ? "jdi:" + docSnap.id : docSnap.id,
           title: data.title || 'System Notification',
           message: data.message || '',
           type: data.type || 'broadcast',
           priority: data.priority || 'normal',
           recipientType: data.recipientType || (data.recipientId === 'all' ? 'all' : undefined),
-          recipientId: data.recipientId,
+          recipientId: data.recipientId || data.recipientUid || uid,
           schoolId: data.schoolId,
           schoolName: data.schoolName,
           targetRole: data.targetRole,
@@ -153,24 +167,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           targetUid: data.targetUid,
           link: data.link,
           linkText: data.linkText,
-          read: data.read,
-          readBy: Array.isArray(data.readBy) ? data.readBy : [],
+          read: data.isRead === true || data.read,
+          readBy: Array.isArray(data.readBy) ? data.readBy : (data.isRead === true ? [uid] : []),
           timestamp: data.timestamp || data.createdAt || Date.now(),
           createdAt: data.createdAt,
           senderName: data.senderName || 'Jaystar Central',
           senderRole: data.senderRole || 'Administration'
         };
 
-        // Strict Audience Filtering: ensure only meant for this user
+        // Strict Audience Filtering: private notices are visible only to their actual recipient.
         let isRelevant = false;
-        if (isAdmin) {
-          isRelevant = true;
+        if (notif.id.startsWith("jdi:")) {
+          isRelevant = data.recipientUid === uid;
         } else if (notif.recipientId === 'all' || notif.recipientType === 'all') {
-          isRelevant = true;
+          const targetRole = String(notif.targetRole || '').trim().toLowerCase();
+          const roleMatches = !targetRole || targetRole === 'all' || targetRole === role ||
+            (targetRole === 'super_admin' && ['super_admin', 'superadmin'].includes(role)) ||
+            (targetRole === 'admin' && ['admin', 'super_admin', 'superadmin'].includes(role));
+          isRelevant = roleMatches;
         } else if (notif.recipientId === uid || notif.targetUid === uid) {
           isRelevant = true;
         } else if (notif.targetEmail && email && notif.targetEmail.toLowerCase() === email) {
           isRelevant = true;
+        } else if (isAdmin) {
+          isRelevant = false;
         } else if (role === 'student') {
           if (notif.recipientId === 'all_students' || notif.recipientType === 'all_students') isRelevant = true;
           if (currentStudentDocId && notif.recipientId === currentStudentDocId) isRelevant = true;
@@ -202,21 +222,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     try {
       if (isAdmin) {
-        // Admin gets general feed
+        // Admins receive the global legacy feed, but JDI exam/payment notices remain recipient-private.
         const adminQ = query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(100));
         const unsub = onSnapshot(adminQ, (snap) => {
           updateFromDocs(snap.docs);
         }, (err) => {
           console.warn('Admin notifications stream warning:', err);
-          // Fallback simple query
           getDocs(collection(db, 'notifications')).then(snap => updateFromDocs(snap.docs)).catch(() => {});
         });
-        unsubs.push(unsub);
+        const jdiAdminQ = query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(100));
+        const unsubJdi = onSnapshot(jdiAdminQ, snap => updateFromDocs(snap.docs), err => {
+          console.warn('Admin JDI notifications stream warning:', err.message);
+        });
+        unsubs.push(unsub, unsubJdi);
       } else {
         // Build specific targeted listeners
         const queryList = [
-          query(collection(db, 'notifications'), where('recipientId', '==', 'all'), limit(30)),
-          query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(30))
+          query(collection(db, 'notifications'), where('recipientType', '==', 'all'), where('targetRole', '==', 'all'), limit(30)),
+          query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(30)),
+          query(collection(db, 'notifications'), where('targetUid', '==', uid), limit(30))
         ];
 
         if (role === 'student') {
@@ -226,7 +250,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           }
           if (currentSchoolId) {
             queryList.push(query(collection(db, 'notifications'), where('recipientId', '==', `school_students_${currentSchoolId}`), limit(30)));
-            queryList.push(query(collection(db, 'notifications'), where('schoolId', '==', currentSchoolId), limit(30)));
           }
         } else if (role === 'parent') {
           queryList.push(query(collection(db, 'notifications'), where('recipientId', '==', 'all_parents'), limit(30)));
@@ -239,6 +262,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             queryList.push(query(collection(db, 'notifications'), where('recipientId', '==', `school_${currentSchoolId}`), limit(30)));
           }
         }
+
+        queryList.push(query(collection(db, "jdiNotifications"), where("recipientUid", "==", uid), limit(50)));
 
         queryList.forEach(q => {
           const unsub = onSnapshot(q, (snap) => {
@@ -292,17 +317,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: true, readBy: [...(prev.readBy || []), uid] } : null);
     }
 
-    // 2. Persist to Firestore
+    // Admins may inspect the global feed, but only the actual JDI recipient
+    // can persist read state. General notifications use UID-scoped local state
+    // so one viewer cannot change the shared document for everyone.
+    const selectedItem = notifications.find(item => item.id === id);
+    if (!id.startsWith("jdi:") || selectedItem?.recipientId !== uid) return;
+
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayUnion(uid),
-        read: true
-      });
+      await updateDoc(doc(db, "jdiNotifications", id.slice(4)), { isRead: true, readAt: Timestamp.now() });
     } catch (err: any) {
-      console.warn('Firestore read state update note:', err.message);
+      console.warn('JDI notification read-state update note:', err.message);
     }
-  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification]);
+  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, notifications]);
 
   // Mark a single notification as unread
   const markAsUnread = useCallback(async (id: string, e?: React.MouseEvent) => {
@@ -332,18 +358,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setSelectedNotification(prev => prev ? { ...prev, read: false, readBy: (prev.readBy || []).filter(u => u !== uid) } : null);
     }
 
-    // 2. Persist to Firestore
+    // General notification read state is local to this UID. Only the JDI
+    // recipient may persist changes to its private notification document.
+    const selectedItem = notifications.find(item => item.id === id);
+    if (!id.startsWith('jdi:') || selectedItem?.recipientId !== uid) {
+      toast.info('Marked as unread');
+      return;
+    }
+
     try {
-      const notifRef = doc(db, 'notifications', id);
-      await updateDoc(notifRef, {
-        readBy: arrayRemove(uid),
-        read: false
-      });
+      await updateDoc(doc(db, 'jdiNotifications', id.slice(4)), { isRead: false, readAt: null });
       toast.info('Marked as unread');
     } catch (err: any) {
-      console.warn('Firestore unread state update note:', err.message);
+      console.warn('JDI notification unread-state update note:', err.message);
     }
-  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, toast]);
+  }, [currentUser, localReadIds, saveLocalReadState, selectedNotification, toast, notifications]);
 
   // Mark all currently visible notifications as read
   const markAllAsRead = useCallback(async () => {
@@ -366,12 +395,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // 2. Batch Firestore updates asynchronously
     try {
       await Promise.allSettled(
-        notifications.map(n => 
-          updateDoc(doc(db, 'notifications', n.id), {
-            readBy: arrayUnion(uid),
-            read: true
-          })
-        )
+        notifications
+          .filter(n => n.id.startsWith('jdi:') && n.recipientId === uid)
+          .map(n => updateDoc(doc(db, 'jdiNotifications', n.id.slice(4)), { isRead: true, readAt: Timestamp.now() }))
       );
     } catch (err) {
       console.warn('Batch mark all read note:', err);
@@ -403,20 +429,63 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const refreshNotifications = useCallback(async () => {
     if (!currentUser) return;
+    // Refresh only recipient-scoped records. Broad collection reads here would
+    // bypass the audience filtering used by the live listeners.
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(50)));
-      const items: AppNotification[] = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      } as AppNotification));
-      setNotifications(items);
+      const uid = currentUser.uid;
+      const role = userRole;
+      const isAdmin = ['super_admin', 'admin', 'content_admin', 'education_admin', 'services_admin', 'marketing_admin', 'support_admin'].includes(role);
+      const [direct, jdi, broadcasts] = await Promise.all([
+        isAdmin
+          ? getDocs(query(collection(db, 'notifications'), orderBy('timestamp', 'desc'), limit(100)))
+          : getDocs(query(collection(db, 'notifications'), where('recipientId', '==', uid), limit(50))),
+        isAdmin
+          ? getDocs(query(collection(db, 'jdiNotifications'), orderBy('createdAt', 'desc'), limit(100)))
+          : getDocs(query(collection(db, 'jdiNotifications'), where('recipientUid', '==', uid), limit(50))),
+        isAdmin
+          ? Promise.resolve(null)
+          : getDocs(query(collection(db, 'notifications'), where('recipientType', '==', 'all'), where('targetRole', '==', 'all'), limit(50)))
+      ]);
+      const toNotification = (d: any, isJdi = false): AppNotification => {
+        const data = d.data();
+        return {
+          id: isJdi ? `jdi:${d.id}` : d.id,
+          title: data.title || 'System Notification',
+          message: data.message || '',
+          type: data.type || 'system',
+          priority: data.priority || 'normal',
+          recipientType: data.recipientType,
+          recipientId: data.recipientId || data.recipientUid || uid,
+          schoolId: data.schoolId,
+          schoolName: data.schoolName,
+          targetRole: data.targetRole,
+          targetName: data.targetName,
+          targetEmail: data.targetEmail,
+          targetUid: data.targetUid,
+          link: data.link,
+          linkText: data.linkText,
+          read: data.isRead === true || data.read === true,
+          readBy: Array.isArray(data.readBy) ? data.readBy : [],
+          timestamp: data.timestamp || data.createdAt || Date.now(),
+          createdAt: data.createdAt,
+          senderName: data.senderName || 'Jaystar Central',
+          senderRole: data.senderRole || 'Administration'
+        };
+      };
+      const refreshed = [...direct.docs.map(d => toNotification(d)), ...jdi.docs.map(d => toNotification(d, true)), ...(broadcasts?.docs || []).map(d => toNotification(d))];
+      const byId = new Map(notifications.map(n => [n.id, n]));
+      refreshed.forEach(n => byId.set(n.id, n));
+      setNotifications(Array.from(byId.values()).sort((a, b) => {
+        const time = (value: any) => value instanceof Timestamp ? value.toMillis() : new Date(value || 0).getTime() || 0;
+        return time(b.timestamp) - time(a.timestamp);
+      }));
     } catch (e) {
       console.warn('Refresh notifications note:', e);
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, userRole, notifications]);
 
   const handleSetActiveFilter = useCallback((filter: NotificationFilter) => {
     setActiveFilter(filter);

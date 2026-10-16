@@ -10,6 +10,12 @@
   directory = "netlify/functions"
 
 [[redirects]]
+  from = "/api/parent-enrollment-request"
+  to = "/.netlify/functions/parent-enrollment-request"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

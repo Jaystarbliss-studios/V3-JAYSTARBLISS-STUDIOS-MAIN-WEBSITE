@@ -55,6 +55,7 @@ const AdminLayout: React.FC = () => {
       "Overview & Operations": true,
       "Website & Pages CMS": true,
       "Portals & Academic Hub": true,
+      "CBT Assessment": true,
       "System & Management": true,
     };
   });
@@ -110,6 +111,13 @@ const AdminLayout: React.FC = () => {
         { name: "Affiliated Schools", href: "/admin/schools", icon: School, desc: "Partner school portals & exams" },
         { name: "Class Schedules", href: "/admin/schedules", icon: CalendarDays, desc: "Recurring school classes & attendance history" },
         { name: "Learning Resources", href: "/admin/resources", icon: Library, desc: "General downloads, links & tests" },
+      ]
+    },
+    {
+      sectionTitle: "CBT Assessment",
+      items: [
+        { name: "Examinations", href: "/admin/examinations", icon: FileText, desc: "Create, schedule, secure and manage examinations" },
+        { name: "Submissions & Reports", href: "/admin/examination-history", icon: FileText, desc: "Review submissions, grading, results and export reports" },
       ]
     },
     {

@@ -1,6 +1,7 @@
 import type { Handler } from '@netlify/functions';
 import { createHash, randomBytes } from 'node:crypto';
 import { adminAuth, adminDb } from '../../api/_lib/firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) });
 const bearer = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ''; return value.startsWith('Bearer ') ? value.slice(7) : ''; };
@@ -66,6 +67,37 @@ export const handler: Handler = async event => {
     await adminDb.collection('users').doc(authUser.uid).set({ email: authUser.email || null, name: fullName, role: 'student', studentDocId: studentRef.id, schoolId, schoolName: school.name || school.schoolName || '', parentId: parentId || null, portalAccessEnabled: true, accountStatus: 'ACTIVE', createdAt: now, updatedAt: now }, { merge: true });
     if (finalProgramId || finalProgramName) await adminDb.collection('enrollments').add({ studentId: studentRef.id, studentUid: authUser.uid, studentName: fullName, schoolId, programId: finalProgramId || null, programName: finalProgramName || null, status: 'ACTIVE', source: 'school_onboarding', enrolledBy: decoded.uid, enrolledAt: now, createdAt: now, updatedAt: now });
     await adminDb.collection('activityLogs').add({ actorId: decoded.uid, action: 'SCHOOL_STUDENT_ONBOARDED', targetId: studentRef.id, targetType: 'student', schoolId, timestamp: now, metadata: { username, class: className, parentId: parentId || null, programId: finalProgramId || null, programName: finalProgramName || null } });
+    try {
+      const adminUsers = await adminDb.collection('users').limit(1000).get();
+      const globalAdminRoles = new Set(['admin', 'super_admin', 'superadmin']);
+      const recipients = adminUsers.docs.filter(d => globalAdminRoles.has(String(d.data().role || '').trim().toLowerCase()));
+      const batch = adminDb.batch();
+      for (const admin of recipients) {
+        const notification = adminDb.collection('notifications').doc('school-student-' + studentRef.id + '-' + admin.id);
+        batch.set(notification, {
+          recipientId: admin.id,
+          recipientType: 'specific_user',
+          type: 'registration',
+          priority: 'normal',
+          title: 'New school student enrolled',
+          message: fullName + ' was enrolled by ' + String(school.name || school.schoolName || 'a partner school') + '.',
+          registeredStudentId: studentRef.id,
+          registeredStudentName: fullName,
+          registeredSchoolName: String(school.name || school.schoolName || ''),
+          registeredEmail: email || null,
+          registeredBy: decoded.uid,
+          readBy: [],
+          read: false,
+          timestamp: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          senderName: 'Jaystarbliss Central',
+          senderRole: 'System'
+        });
+      }
+      if (recipients.length) await batch.commit();
+    } catch (notificationError) {
+      console.warn('School student admin notification failed:', notificationError);
+    }
     return json(201, { student: { id: studentRef.id, fullName, username, class: className, schoolId, programId: finalProgramId || null, programName: finalProgramName || null, portal: '/portal/student' }, credentials: { username, accessCode, portal: '/portal/student' } });
   } catch (error) { if (createdUid) await adminAuth.deleteUser(createdUid).catch(() => undefined); console.error('School student onboarding error:', error); return json(500, { error: 'Unable to onboard the student. No partial account should remain.' }); }
 };
