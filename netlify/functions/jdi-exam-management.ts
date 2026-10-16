@@ -68,7 +68,11 @@ export const handler:Handler=async event=>{try{const c=await authUser(event);con
  if(action==="update"){
   if(!tutors.includes(c.role)&&!admins.includes(c.role))return json(403,{error:"Only authorised tutors and Super Admins can edit examinations."});
   const updates=body.updates;if(!updates||typeof updates!=="object"||Array.isArray(updates))return json(400,{error:"Provide valid examination settings."});
-  const attemptsStarted=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(1).get();if(!attemptsStarted.empty&&["durationMinutes","gradingMode","classIds","availableFrom","availableUntil","questions","maxAttempts","shuffleQuestions","shuffleOptions"].some(key=>updates[key]!==undefined))return json(409,{error:"Timing, class assignment, marking mode, and questions are locked after a student attempt starts. Create a new exam version to change them."});
+  const protectedFields=["durationMinutes","gradingMode","classIds","availableFrom","availableUntil","questions","maxAttempts","shuffleQuestions","shuffleOptions","passcode"];
+  const changesProtectedFields=protectedFields.some(key=>updates[key]!==undefined);
+  if(exam.status!=="draft"&&changesProtectedFields)return json(409,{error:"Published or scheduled examination settings are locked. Duplicate the examination into a new draft version to change timing, questions, answer keys, class assignments, passcode, or grading settings."});
+  const attemptsStarted=await adminDb.collection("jdiExamAttempts").where("examId","==",examId).limit(1).get();
+  if(!attemptsStarted.empty&&changesProtectedFields)return json(409,{error:"Examination settings are locked after a student attempt starts. Create a new exam version to change them."});
   const patch:any={updatedAt:FieldValue.serverTimestamp(),updatedBy:c.uid};
   if(updates.title!==undefined){const value=String(updates.title).trim();if(!value||value.length>200)return json(400,{error:"Title must be 1–200 characters."});patch.title=value;}
   if(updates.subject!==undefined){const value=String(updates.subject).trim();if(!value||value.length>120)return json(400,{error:"Subject must be 1–120 characters."});patch.subject=value;}
