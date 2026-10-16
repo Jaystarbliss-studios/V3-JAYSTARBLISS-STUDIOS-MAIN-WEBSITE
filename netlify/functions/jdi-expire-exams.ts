@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { gradeAnswers } from "./_lib/jdi-assessment.js";
+import { gradeAnswers } from "../../api/_lib/jdi-assessment.js";
 
 export const config = { schedule: "*/5 * * * *" };
 
