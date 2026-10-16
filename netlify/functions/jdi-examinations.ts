@@ -66,9 +66,9 @@ export const handler: Handler = async (event) => {
       const examDocs = new Map<string, any>();
       for (const snap of [schoolExams, individualById, individualByUid]) snap?.docs.forEach(d => examDocs.set(d.id, d));
       const now = Date.now();
-      const rows = Array.from(examDocs.values()).map(doc => { const metadata: any = { ...studentSafe(doc.data()) }; delete metadata.questions; return { id: doc.id, ...metadata }; }).filter((exam: any) => {
+      const rows = Array.from(examDocs.values()).map(doc => { const raw = doc.data(); const metadata: any = { ...studentSafe(raw) }; delete metadata.questions; return { id: doc.id, ...metadata, _targetStudentIds: Array.isArray(raw.studentIds) ? raw.studentIds.map(String) : [], _targetStudentUids: Array.isArray(raw.studentUids) ? raw.studentUids.map(String) : [] }; }).filter((exam: any) => {
         const individual = exam.audienceType === "individual";
-        const directlyAssigned = (Array.isArray(exam.studentIds) && exam.studentIds.map(String).includes(student.id)) || (Array.isArray(exam.studentUids) && exam.studentUids.map(String).includes(c.uid));
+        const directlyAssigned = exam._targetStudentIds.includes(student.id) || exam._targetStudentUids.includes(c.uid);
         const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
         const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
         const schoolEligible = Boolean(schoolId && exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all")));
@@ -77,7 +77,8 @@ export const handler: Handler = async (event) => {
         const from = exam.availableFrom ? new Date(exam.availableFrom).getTime() : 0;
         const until = exam.availableUntil ? new Date(exam.availableUntil).getTime() : Number.MAX_SAFE_INTEGER;
         const status = exam.status === "completed" || now > until ? "completed" : (now < from || exam.status === "scheduled") ? "upcoming" : exam.status === "active" ? "active" : "upcoming";
-        return { ...exam, status };
+        const { _targetStudentIds, _targetStudentUids, ...safeExam } = exam;
+        return { ...safeExam, status };
       });
       const attemptsSnap = await adminDb.collection("jdiExamAttempts").where("studentId", "==", student.id).limit(200).get(); const attemptsByExam: Record<string, any> = {}; for (const attemptDoc of attemptsSnap.docs) { const a = attemptDoc.data(); const current = attemptsByExam[String(a.examId)]; if (!current || (a.startedAt?.toMillis?.() || 0) > (current.startedAtMs || 0)) attemptsByExam[String(a.examId)] = { attemptId: attemptDoc.id, attemptStatus: a.status, score: a.releasedAt ? a.score : undefined, releasedAt: a.releasedAt || undefined, startedAtMs: a.startedAt?.toMillis?.() || 0 }; } const withAttempts = rows.map((exam: any) => { const a = attemptsByExam[String(exam.id)]; if (!a) return exam; const { startedAtMs, ...safeAttempt } = a; return { ...exam, ...safeAttempt }; }); return json(200, { exams: withAttempts });
     }
