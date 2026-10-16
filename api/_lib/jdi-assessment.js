@@ -134,3 +134,8 @@ export function attemptBelongsToLinkedChild(attempt, child) {
     String(attempt.studentId) === String(child.id) &&
     String(attempt.studentUid) === String(child.studentUid));
 }
+
+/** Finalize only answers that were persisted before the deadline. */
+export function answersForFinalization(currentAnswers = {}, requestedAnswers, deadlinePassed = false) {
+  return deadlinePassed ? (currentAnswers || {}) : (requestedAnswers || currentAnswers || {});
+}
