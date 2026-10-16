@@ -99,3 +99,27 @@ export function gradeAnswers(exam, answers = {}) {
   }
   return { score, autoGraded, questionResults };
 }
+
+/** Safe projections for school-level reporting; never include answer keys or submitted response text. */
+export function schoolSafeQuestion(question) {
+  return {
+    id: String(question?.id || ""),
+    prompt: String(question?.prompt || ""),
+    type: String(question?.type || ""),
+    points: Math.max(0, Math.min(1000, Number(question?.points) || 0)),
+    options: Array.isArray(question?.options) ? question.options.map(option => ({
+      id: String(option?.id || ""),
+      text: String(option?.text || ""),
+    })) : [],
+  };
+}
+
+export function schoolSafeQuestionResult(result) {
+  return {
+    questionId: String(result?.questionId || ""),
+    ...(typeof result?.correct === "boolean" ? { correct: result.correct } : {}),
+    manualReview: result?.manualReview === true,
+    pointsAwarded: Math.max(0, Number(result?.pointsAwarded) || 0),
+    maxPoints: Math.max(0, Number(result?.maxPoints) || 0),
+  };
+}
