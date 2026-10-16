@@ -129,7 +129,8 @@ export const handler: Handler = async event => {
     const learnerId = text(event.queryStringParameters?.studentId);
     if (!learnerId) {
       // The school ID is always the stable school document ID, even for legacy school records.
-      if (!school.data.schoolId) await adminDb.collection('schools').doc(school.id).update({ schoolId: school.id, updatedAt: new Date() }).catch(() => undefined);
+      if (school.data.schoolId !== school.id) await adminDb.collection('schools').doc(school.id).update({ schoolId: school.id, updatedAt: new Date() }).catch(() => undefined);
+      if (text(profile.schoolId) !== school.id || text(profile.schoolCode) !== school.schoolCode) await adminDb.collection('users').doc(decoded.uid).update({ schoolId: school.id, schoolCode: school.schoolCode, schoolName: school.name, updatedAt: new Date() }).catch(() => undefined);
       return json(200, {
         school: { id: school.id, schoolId: school.id, schoolCode: school.schoolCode, name: school.name },
         learners: roster.map(({ studentUid, parentId, ...learner }) => learner),
