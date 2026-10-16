@@ -7,3 +7,10 @@ export function normalizeQuestions(input: unknown, gradingMode?: string): { ques
 export function gradeAnswers(exam: { gradingMode?: string; questions?: Array<any> }, answers?: Record<string, any>): {
   score: number; autoGraded: boolean; questionResults: Array<Record<string, any>>;
 };
+
+export function schoolSafeQuestion(question: Record<string, any>): {
+  id: string; prompt: string; type: string; points: number; options: Array<{ id: string; text: string }>;
+};
+export function schoolSafeQuestionResult(result: Record<string, any>): {
+  questionId: string; correct?: boolean; manualReview: boolean; pointsAwarded: number; maxPoints: number;
+};
