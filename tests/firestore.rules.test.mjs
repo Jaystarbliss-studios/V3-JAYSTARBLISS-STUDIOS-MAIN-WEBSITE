@@ -53,6 +53,8 @@ before(async () => {
     await setDoc(doc(db, "jdiQuestionBank", "question-a"), { schoolId: "school-a", prompt: "Private question" });
     await setDoc(doc(db, "jdiAttemptLimits", "limit-a"), { studentUid: "student-a", attemptCount: 1 });
     await setDoc(doc(db, "jdiPasscodeAttempts", "throttle-a"), { failedCount: 1 });
+    await setDoc(doc(db, "assessmentSubmissions", "legacy-assessment-a"), { studentId: "child-a", answer: "private" });
+    await setDoc(doc(db, "submissions", "legacy-submission-a"), { studentId: "child-a", submissionText: "private" });
 
     await setDoc(doc(db, "notifications", "direct-parent-a"), {
       recipientId: "parent-a",
@@ -161,6 +163,17 @@ test("only Super Admin can create administrator records", async () => {
   await assertSucceeds(setDoc(doc(adminDb, "admins", "new-admin"), { role: "SUPER_ADMIN" }));
 });
 
+
+test("legacy submission collections are not open to ordinary clients", async () => {
+  const studentDb = env.authenticatedContext("student-a", { email: "student@example.com" }).firestore();
+  const parentDb = env.authenticatedContext("parent-a", { email: "parent-a@example.com" }).firestore();
+  const adminDb = env.authenticatedContext("super-admin", { email: "admin@example.com" }).firestore();
+  await assertFails(getDoc(doc(studentDb, "assessmentSubmissions", "legacy-assessment-a")));
+  await assertFails(getDoc(doc(parentDb, "submissions", "legacy-submission-a")));
+  await assertFails(setDoc(doc(studentDb, "assessmentSubmissions", "client-forged"), { studentId: "child-b", answer: "forged" }));
+  await assertFails(setDoc(doc(parentDb, "submissions", "client-forged"), { studentId: "child-b", submissionText: "forged" }));
+  await assertSucceeds(getDoc(doc(adminDb, "assessmentSubmissions", "legacy-assessment-a")));
+});
 
 test("exam answers, attempts, question banks, limits and passcode throttles are server-only", async () => {
   const studentDb = env.authenticatedContext("student-a", { email: "student@example.com" }).firestore();
