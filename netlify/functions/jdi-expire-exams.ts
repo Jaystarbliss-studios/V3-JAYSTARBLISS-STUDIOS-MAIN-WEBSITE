@@ -1,50 +1,9 @@
 import type { Handler } from "@netlify/functions";
 import { adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { gradeAnswers } from "../../api/_lib/jdi-assessment.js";
 
 export const config = { schedule: "*/5 * * * *" };
-
-function gradeExpiredAttempt(exam: any, answers: Record<string, any>) {
-  let score = 0;
-  let autoGraded = exam.gradingMode !== "manual";
-  const questionResults: any[] = [];
-  for (const q of Array.isArray(exam.questions) ? exam.questions : []) {
-    const answer = answers[q.id];
-    let correct = false;
-    let manualReview = false;
-    let pointsAwarded = 0;
-    if (exam.gradingMode === "manual") {
-      autoGraded = false;
-      manualReview = true;
-    } else if (["single_choice", "multiple_choice", "true_false"].includes(String(q.type))) {
-      const expected = Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String).sort() : [];
-      const actual = (Array.isArray(answer) ? answer : [String(answer || "")]).map(String).sort();
-      if (!expected.length) {
-        autoGraded = false;
-        manualReview = true;
-      } else {
-        correct = expected.length === actual.length && expected.every((v: string, i: number) => v === actual[i]);
-      }
-    } else if (q.type === "short_answer" && Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length) {
-      const normal = (v: unknown) => String(v || "").trim().toLowerCase();
-      correct = q.acceptedAnswers.some((v: string) => normal(v) === normal(answer));
-    } else {
-      autoGraded = false;
-      manualReview = true;
-    }
-    if (correct) pointsAwarded = Math.max(0, Number(q.points) || 0);
-    score += pointsAwarded;
-    questionResults.push({
-      questionId: q.id,
-      ...(answer === undefined ? {} : { answer }),
-      ...(manualReview ? {} : { correct }),
-      manualReview,
-      pointsAwarded,
-      maxPoints: Math.max(0, Number(q.points) || 0),
-    });
-  }
-  return { score, autoGraded, questionResults };
-}
 
 async function notifyExamStatus(examId: string, exam: any, status: "active" | "completed") {
   const recipients = new Set<string>();
@@ -195,7 +154,7 @@ export const handler: Handler = async () => {
         if (!currentSnap.exists) return null;
         const current = currentSnap.data() || {};
         if (current.status !== "in_progress" || String(current.deadlineAt || "") > now) return null;
-        const grading = gradeExpiredAttempt(exam, current.answers || {});
+        const grading = gradeAnswers(exam, current.answers || {});
         tx.update(attemptDoc.ref, {
           ...grading,
           status: "expired",

@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { normalizeQuestions } from "../../api/_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
 const bearer = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ""; return value.startsWith("Bearer ") ? value.slice(7) : ""; };
@@ -227,24 +228,9 @@ export const handler: Handler = async (event) => {
       const questions = Array.isArray(body.questions) ? body.questions : [];
       const durationMinutes = Number(body.durationMinutes || 30);
       if (!title || !subject || !questions.length || questions.length > 200 || !Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 300) return json(400, { error: "Provide a title, subject, 1–200 questions and a whole-number duration from 1 to 300 minutes." });
-      const allowedTypes = ["single_choice", "multiple_choice", "true_false", "short_answer", "essay"];
-      const questionIds = new Set<string>();
-      const invalidQuestion = questions.some((q: any, index: number) => {
-        if (!q || !String(q.prompt || "").trim() || String(q.prompt).length > 5000 || !allowedTypes.includes(String(q.type || "single_choice")) || !Number.isFinite(Number(q.points ?? 1)) || Number(q.points ?? 1) < 0 || Number(q.points ?? 1) > 1000) return true;
-        const id = String(q.id || "q" + (index + 1));
-        if (questionIds.has(id)) return true;
-        questionIds.add(id);
-        const type = String(q.type || "single_choice");
-        if (["single_choice", "multiple_choice", "true_false"].includes(type)) {
-          const options = Array.isArray(q.options) ? q.options : [];
-          const optionIds = options.map((o: any, i: number) => String(o?.id || i));
-          if (options.length < 2 || options.length > 10 || new Set(optionIds).size !== optionIds.length || options.some((o: any) => !String(o?.text || "").trim())) return true;
-          const correct = Array.isArray(q.correctOptionIds) ? [...new Set(q.correctOptionIds.map(String))] : [];
-          if (body.gradingMode !== "manual" && (!correct.length || correct.some((optionId: string) => !optionIds.includes(optionId)) || (["single_choice","true_false"].includes(type) && correct.length !== 1))) return true;
-        }
-        return false;
-      });
-      if (invalidQuestion) return json(400, { error: "Each question needs a unique ID, valid text and marks; objective questions need 2–10 unique options and valid correct answers for automatic marking." });
+      const normalized = normalizeQuestions(questions, body.gradingMode === "manual" ? "manual" : "automatic");
+      if (normalized.error) return json(400, { error: normalized.error });
+
       const requestedMaxAttempts = Number(body.maxAttempts ?? 1);
       if (!Number.isInteger(requestedMaxAttempts) || requestedMaxAttempts < 1 || requestedMaxAttempts > 10) return json(400, { error: "Maximum attempts must be an integer from 1 to 10." });
       const fromTime = body.availableFrom ? new Date(String(body.availableFrom)).getTime() : null; const untilTime = body.availableUntil ? new Date(String(body.availableUntil)).getTime() : null;
@@ -255,7 +241,7 @@ export const handler: Handler = async (event) => {
       const status = body.status === "active" ? "active" : body.status === "scheduled" ? "scheduled" : "draft";
       if(status === "scheduled" && fromTime === null) return json(400, { error: "Scheduled examinations need an opening date and time." });
       const maxAttempts = requestedMaxAttempts;
-      const payload = { schoolId, audienceType, studentIds: audienceType === "individual" ? studentIds : [], studentUids: audienceType === "individual" ? [...new Set(studentUids)] : [], classIds: Array.isArray(body.classIds) ? body.classIds.map(String).slice(0, 100) : [], title, subject, seriesName, courseName, learningVideoUrl: learningVideoUrl || null, instructions: String(body.instructions || "").slice(0, 5000), questions: questions.map((q: any, i: number) => ({ id: String(q.id || "q" + (i + 1)), type: String(q.type || "single_choice"), prompt: String(q.prompt || "").slice(0, 5000), options: Array.isArray(q.options) ? q.options.slice(0, 10).map((o: any, j: number) => ({ id: String(o.id || j), text: String(o.text || "").slice(0, 1000) })) : [], correctOptionIds: Array.isArray(q.correctOptionIds) ? q.correctOptionIds.map(String) : [], acceptedAnswers: Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.map(String).slice(0, 20) : [], points: Math.max(0, Math.min(1000, Number(q.points ?? 1))), required: q.required !== false })), durationMinutes, maxAttempts, shuffleQuestions: body.shuffleQuestions === true, shuffleOptions: body.shuffleOptions === true, gradingMode: body.gradingMode === "manual" ? "manual" : "automatic", availableFrom: body.availableFrom ? String(body.availableFrom) : null, availableUntil: body.availableUntil ? String(body.availableUntil) : null, status, passcodeSalt: salt, passcodeHash: hashCode(salt, passcode), createdBy: c.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+      const payload = { schoolId, audienceType, studentIds: audienceType === "individual" ? studentIds : [], studentUids: audienceType === "individual" ? [...new Set(studentUids)] : [], classIds: Array.isArray(body.classIds) ? body.classIds.map(String).slice(0, 100) : [], title, subject, seriesName, courseName, learningVideoUrl: learningVideoUrl || null, instructions: String(body.instructions || "").slice(0, 5000), questions: normalized.questions, durationMinutes, maxAttempts, shuffleQuestions: body.shuffleQuestions === true, shuffleOptions: body.shuffleOptions === true, gradingMode: body.gradingMode === "manual" ? "manual" : "automatic", availableFrom: body.availableFrom ? String(body.availableFrom) : null, availableUntil: body.availableUntil ? String(body.availableUntil) : null, status, passcodeSalt: salt, passcodeHash: hashCode(salt, passcode), createdBy: c.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
       const saved = await adminDb.collection("jdiExams").add(payload);
       return json(201, { exam: { id: saved.id, title, subject, status, durationMinutes, questionCount: questions.length }, passcode });
     }
