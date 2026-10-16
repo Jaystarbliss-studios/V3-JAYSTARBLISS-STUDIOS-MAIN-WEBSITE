@@ -40,14 +40,14 @@ function validateQuestion(value: any) {
   const allowed = ["single_choice", "multiple_choice", "true_false", "short_answer", "essay"];
   if (!prompt || prompt.length > 5000 || !allowed.includes(type)) return null;
   const options = Array.isArray(value.options) ? value.options.slice(0, 10).map((o: any, i: number) => ({
-    id: String(o?.id ?? i).slice(0, 80),
+    id: String(o?.id || i).slice(0, 80),
     text: String(o?.text || "").trim().slice(0, 1000),
   })) : [];
-  if (["single_choice", "multiple_choice", "true_false"].includes(type) && options.length < 2) return null;
+  if (["single_choice", "multiple_choice", "true_false"].includes(type) && (options.length < 2 || new Set(options.map((o: any) => o.id)).size !== options.length)) return null;
   const optionIds = new Set(options.map((o: any) => o.id));
   const correctOptionIds = Array.isArray(value.correctOptionIds) ? [...new Set(value.correctOptionIds.map(String))].filter((x: string) => optionIds.has(x)).slice(0, 10) : [];
   if (["single_choice", "multiple_choice", "true_false"].includes(type) && !correctOptionIds.length) return null;
-  if (type === "single_choice" && correctOptionIds.length !== 1) return null;
+  if (["single_choice", "true_false"].includes(type) && correctOptionIds.length !== 1) return null;
   return {
     ...(id ? { id } : {}),
     prompt,
