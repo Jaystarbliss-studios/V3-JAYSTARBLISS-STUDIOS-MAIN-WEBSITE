@@ -28,7 +28,7 @@ async function canManageExam(c:any,exam:any){
  if(exam.audienceType==="individual")return admins.includes(c.role)||(tutors.includes(c.role)&&String(exam.createdBy||"")===c.uid);
  return false;
 }
-async function notify(uids:string[],payload:any){const batch=adminDb.batch();for(const uid of [...new Set(uids)].filter(Boolean)){const ref=adminDb.collection("jdiNotifications").doc();batch.set(ref,{...payload,recipientUid:uid,isRead:false,createdAt:FieldValue.serverTimestamp()});}await batch.commit();}
+async function notify(uids:string[],payload:any){const recipients=[...new Set(uids.map(uid=>String(uid||"")).filter(Boolean))];for(let offset=0;offset<recipients.length;offset+=400){const batch=adminDb.batch();for(const uid of recipients.slice(offset,offset+400)){const ref=adminDb.collection("jdiNotifications").doc();batch.set(ref,{...payload,recipientUid:uid,isRead:false,createdAt:FieldValue.serverTimestamp()});}await batch.commit();}}
 export const handler:Handler=async event=>{try{const c=await authUser(event);const method=event.httpMethod||"GET";const body=JSON.parse(event.body||"{}");const path=String(event.path||"");const action=String(body.action||"");
  if(method==="GET"){
  const examId=String(event.queryStringParameters?.examId||"");
