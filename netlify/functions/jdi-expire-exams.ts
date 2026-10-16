@@ -101,7 +101,12 @@ async function updateScheduledExamStatuses(now: string) {
     .where("availableFrom", "<=", now)
     .orderBy("availableFrom", "asc")
     .limit(100)
-    .get();
+    .get()
+    .catch(async error => {
+      // Fall back during rollout until the composite index has finished building.
+      console.warn("Scheduled exam index unavailable; using bounded fallback scan.", error);
+      return adminDb.collection("jdiExams").where("status", "==", "scheduled").limit(500).get();
+    });
 
   for (const doc of scheduled.docs) {
     const ref = doc.ref;
@@ -138,7 +143,11 @@ async function updateScheduledExamStatuses(now: string) {
     .where("availableUntil", "<=", now)
     .orderBy("availableUntil", "asc")
     .limit(100)
-    .get();
+    .get()
+    .catch(async error => {
+      console.warn("Closing exam index unavailable; using bounded fallback scan.", error);
+      return adminDb.collection("jdiExams").where("status", "==", "active").limit(500).get();
+    });
   for (const doc of dueToClose.docs) {
     const result = await adminDb.runTransaction(async tx => {
       const snap = await tx.get(doc.ref);
