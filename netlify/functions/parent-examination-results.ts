@@ -1,5 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
+import { attemptBelongsToLinkedChild } from "./_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({
   statusCode,
@@ -23,7 +24,8 @@ const blocked = (value: unknown) =>
   ["DISABLED", "SUSPENDED", "BANNED"].includes(String(value || "").trim().toUpperCase());
 
 async function linkedChildren(parentUid: string) {
-  const found = new Map<string, { id: string; name: string; className: string }>();
+  const found = new Map<string, { id: string; name: string; className: string; studentUid: string; source: string }>();
+  const ambiguousIds = new Set<string>();
   for (const collectionName of ["individualStudents", "students"]) {
     // Older portal records use different guardian field names. Each query is
     // still anchored to the verified parent's Firebase UID and never a client ID.
@@ -31,10 +33,21 @@ async function linkedChildren(parentUid: string) {
       const snap = await adminDb.collection(collectionName).where(field, "==", parentUid).limit(100).get();
       snap.forEach(doc => {
         const data = doc.data();
+        if (ambiguousIds.has(doc.id)) return;
+        const existing = found.get(doc.id);
+        if (existing && existing.source !== collectionName) {
+          // The same document ID in both learner collections cannot safely identify
+          // which learner owns a legacy attempt. Fail closed rather than merge them.
+          found.delete(doc.id);
+          ambiguousIds.add(doc.id);
+          return;
+        }
         found.set(doc.id, {
           id: doc.id,
           name: nameOf(data),
           className: String(data.className || data.class || data.grade || data.classLevel || ""),
+          studentUid: String(data.firebaseUid || data.userId || data.uid || "").trim(),
+          source: collectionName,
         });
       });
     }
@@ -64,13 +77,17 @@ export const handler: Handler = async event => {
     if (!children.size) return json(200, { children: [], results: [] });
 
     const attemptsById = new Map<string, any>();
-    for (const childId of children.keys()) {
+    for (const [childId, child] of children.entries()) {
+      // Legacy learner records without a stable linked portal UID cannot safely
+      // authorize result access; do not fall back to document ID alone.
+      if (!child.studentUid) continue;
       const snap = await adminDb.collection("jdiExamAttempts")
         .where("studentId", "==", childId).limit(200).get();
       snap.forEach(doc => {
         const attempt = doc.data();
-        // Results are visible to parents only after an explicit staff release.
-        if (!attempt.releasedAt) return;
+        // Bind both the learner record ID and authenticated learner UID, then
+        // require explicit release. This prevents cross-collection ID collisions.
+        if (!attempt.releasedAt || !attemptBelongsToLinkedChild(attempt, child)) return;
         attemptsById.set(doc.id, { id: doc.id, ...attempt });
       });
     }
@@ -114,7 +131,7 @@ export const handler: Handler = async event => {
     }));
     results.sort((a, b) => String(b?.releasedAt || "").localeCompare(String(a?.releasedAt || "")));
     return json(200, {
-      children: [...children.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      children: [...children.values()].map(({ studentUid, source, ...child }) => child).sort((a, b) => a.name.localeCompare(b.name)),
       results: results.filter(Boolean),
     });
   } catch (error) {
