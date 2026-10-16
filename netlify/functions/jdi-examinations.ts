@@ -187,7 +187,7 @@ export const handler: Handler = async (event) => {
       const body = JSON.parse(event.body || "{}");
       let schoolId = String(body.schoolId || c.user.schoolId || "").trim();
       const audienceType = body.audienceType === "individual" ? "individual" : "school";
-      const studentIds = audienceType === "individual" && Array.isArray(body.studentIds) ? [...new Set(body.studentIds.map((v:any)=>String(v).trim()).filter(Boolean))].slice(0,200) : [];
+      const studentIds: string[] = audienceType === "individual" && Array.isArray(body.studentIds) ? [...new Set<string>(body.studentIds.map((v:any)=>String(v).trim()).filter((v:string)=>Boolean(v)))].slice(0,200) : [];
       const studentUids: string[] = [];
       if (audienceType === "school") {
         if (!schoolId || !(await permittedSchool(c, schoolId))) return json(403, { error: "You do not have access to this school." });
