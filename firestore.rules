@@ -406,7 +406,7 @@ service cloud.firestore {
     match /jdiAttemptLimits/{limitId} { allow read, write: if false; }
     match /jdiPasscodeAttempts/{attemptId} { allow read, write: if false; }
     match /jdiNotifications/{notificationId} {
-      allow read: if isNotificationAdmin() || (isAuth() && resource.data.recipientUid == request.auth.uid);
+      allow read: if isAuth() && resource.data.recipientUid == request.auth.uid;
       allow create, delete: if isAnyAdmin();
       allow update: if isAuth() && resource.data.recipientUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt','isRead'])
