@@ -2,7 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { normalizeQuestions } from "../../api/_lib/jdi-assessment.js";
+import { normalizeQuestions, isAssessmentStudentRole } from "../../api/_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({ statusCode, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }, body: JSON.stringify(body) });
 const bearer = (event: any) => { const value = event.headers?.authorization || event.headers?.Authorization || ""; return value.startsWith("Bearer ") ? value.slice(7) : ""; };
@@ -10,7 +10,7 @@ const hashCode = (salt: string, code: string) => createHash("sha256").update(sal
 const constantEqual = (a: string, b: string) => { const aa = Buffer.from(a, "hex"), bb = Buffer.from(b, "hex"); return aa.length === bb.length && timingSafeEqual(aa, bb); };
 const norm = (value: unknown) => String(value || "").trim().toUpperCase();
 const staffRoles = ["TUTOR", "STAFF", "INSTRUCTOR"];
-const adminRoles = ["SUPER_ADMIN", "SUPERADMIN"];
+const adminRoles = ["SUPER_ADMIN", "SUPERADMIN", "ADMIN"];
 async function caller(event: any) {
   const token = bearer(event); if (!token) throw new Error("AUTH");
   const decoded = await adminAuth.verifyIdToken(token);
@@ -55,7 +55,7 @@ export const handler: Handler = async (event) => {
     const method = event.httpMethod || "GET";
     const path = String(event.path || "");
     if (method === "GET" && path.endsWith("/student-examinations")) {
-      if (c.role !== "STUDENT") return json(403, { error: "Student access required." });
+      if (!isAssessmentStudentRole(c.role)) return json(403, { error: "Student access required." });
       const student = await getStudent(c.uid);
       if (!student) return json(200, { exams: [] });
       const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
@@ -84,7 +84,7 @@ export const handler: Handler = async (event) => {
       const attemptsSnap = await adminDb.collection("jdiExamAttempts").where("studentId", "==", student.id).limit(200).get(); const attemptsByExam: Record<string, any> = {}; for (const attemptDoc of attemptsSnap.docs) { const a = attemptDoc.data(); const current = attemptsByExam[String(a.examId)]; if (!current || (a.startedAt?.toMillis?.() || 0) > (current.startedAtMs || 0)) attemptsByExam[String(a.examId)] = { attemptId: attemptDoc.id, attemptStatus: a.status, score: a.releasedAt ? a.score : undefined, releasedAt: a.releasedAt || undefined, startedAtMs: a.startedAt?.toMillis?.() || 0 }; } const withAttempts = rows.map((exam: any) => { const a = attemptsByExam[String(exam.id)]; if (!a) return exam; const { startedAtMs, ...safeAttempt } = a; return { ...exam, ...safeAttempt }; }); return json(200, { exams: withAttempts });
     }
     if (method === "POST" && path.endsWith("/examination-passcode")) {
-      if (c.role !== "STUDENT") return json(403, { error: "Student access required." });
+      if (!isAssessmentStudentRole(c.role)) return json(403, { error: "Student access required." });
       if (String(event.body || "").length > 20000) return json(413, { error: "Request too large." });
       const body = JSON.parse(event.body || "{}");
       const examId = String(body.examId || "").trim(), passcode = String(body.passcode || "").trim();

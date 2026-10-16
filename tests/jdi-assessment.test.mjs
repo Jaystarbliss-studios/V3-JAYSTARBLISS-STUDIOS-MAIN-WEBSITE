@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild } from "../api/_lib/jdi-assessment.js";
+import { normalizeQuestions, gradeAnswers, schoolSafeQuestion, schoolSafeQuestionResult, attemptBelongsToLinkedChild, isAssessmentStudentRole } from "../api/_lib/jdi-assessment.js";
 
 const objective = (overrides = {}) => ({
   id: "q1", type: "single_choice", prompt: "Pick one", points: 2,
@@ -73,4 +73,14 @@ test("parent result lookup requires both matching learner record ID and learner 
   assert.equal(attemptBelongsToLinkedChild({ studentId: "child-a", studentUid: "student-uid-b" }, child), false);
   assert.equal(attemptBelongsToLinkedChild({ studentId: "child-b", studentUid: "student-uid-a" }, child), false);
   assert.equal(attemptBelongsToLinkedChild({ studentId: "child-a" }, child), false);
+});
+
+
+test("assessment access accepts school and individual learner role aliases", () => {
+  assert.equal(isAssessmentStudentRole("STUDENT"), true);
+  assert.equal(isAssessmentStudentRole("student"), true);
+  assert.equal(isAssessmentStudentRole("INDIVIDUAL_STUDENT"), true);
+  assert.equal(isAssessmentStudentRole("individualstudent"), true);
+  assert.equal(isAssessmentStudentRole("PARENT"), false);
+  assert.equal(isAssessmentStudentRole("TUTOR"), false);
 });
