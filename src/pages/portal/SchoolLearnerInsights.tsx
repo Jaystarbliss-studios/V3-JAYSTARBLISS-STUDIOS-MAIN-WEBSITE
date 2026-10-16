@@ -69,6 +69,7 @@ const SchoolLearnerInsights: React.FC = () => {
   useEffect(() => {
     if (!selectedId) { setDetail(null); return; }
     let cancelled = false;
+    setDetail(null);
     setDetailLoading(true);
     api(selectedId).then(data => { if (!cancelled) setDetail(data as Detail); })
       .catch(e => { if (!cancelled) { setDetail(null); setError(e instanceof Error ? e.message : 'Unable to load this learner.'); } })
