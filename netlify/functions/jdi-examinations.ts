@@ -129,7 +129,7 @@ export const handler: Handler = async (event) => {
       let resumed = false; let finalAttemptId = attemptId;
       await adminDb.runTransaction(async tx => {
         const [lockSnap, existingExam] = await Promise.all([tx.get(lockRef), tx.get(ref)]);
-        if (!existingExam.exists || existingExam.data()?.status !== "active") throw new Error("INACTIVE_EXAM");
+        const currentExam=existingExam.data()||{};const currentFrom=currentExam.availableFrom?Date.parse(String(currentExam.availableFrom)):0;const currentUntil=currentExam.availableUntil?Date.parse(String(currentExam.availableUntil)):Number.MAX_SAFE_INTEGER;if(!existingExam.exists||currentExam.status!=="active"||!Number.isFinite(currentFrom)||!Number.isFinite(currentUntil)||Date.now()<currentFrom||Date.now()>currentUntil)throw new Error("INACTIVE_EXAM");
         const lock = lockSnap.data() || {};
         const maxAttempts = Math.min(10, Math.max(1, Number(existingExam.data()?.maxAttempts || 1)));
         if (lock.activeAttemptId) {
