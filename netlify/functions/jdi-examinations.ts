@@ -76,7 +76,7 @@ export const handler: Handler = async (event) => {
       }).map((exam: any) => {
         const from = exam.availableFrom ? new Date(exam.availableFrom).getTime() : 0;
         const until = exam.availableUntil ? new Date(exam.availableUntil).getTime() : Number.MAX_SAFE_INTEGER;
-        const status = exam.status === "completed" || now > until ? "completed" : (now < from || exam.status === "scheduled") ? "upcoming" : exam.status === "active" ? "active" : "upcoming";
+        const status = exam.status === "completed" || now >= until ? "completed" : (now < from || exam.status === "scheduled") ? "upcoming" : exam.status === "active" ? "active" : "upcoming";
         const { _targetStudentIds, _targetStudentUids, ...safeExam } = exam;
         return { ...safeExam, status };
       });
@@ -101,7 +101,7 @@ export const handler: Handler = async (event) => {
       const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
       const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
       const assigned = exam.audienceType === "individual" ? ((Array.isArray(exam.studentIds) && exam.studentIds.map(String).includes(student.id)) || (Array.isArray(exam.studentUids) && exam.studentUids.map(String).includes(c.uid))) : (exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all")));
-      const active = exam.status === "active" && now >= from && now <= until;
+      const active = exam.status === "active" && now >= from && now < until;
       const validHash = typeof exam.passcodeHash === "string" && typeof exam.passcodeSalt === "string";
       const candidate = validHash ? hashCode(exam.passcodeSalt, passcode) : "";
       const validCode = validHash && constantEqual(candidate, exam.passcodeHash);
@@ -129,7 +129,7 @@ export const handler: Handler = async (event) => {
       let resumed = false; let finalAttemptId = attemptId;
       await adminDb.runTransaction(async tx => {
         const [lockSnap, existingExam] = await Promise.all([tx.get(lockRef), tx.get(ref)]);
-        const currentExam=existingExam.data()||{};const currentFrom=currentExam.availableFrom?Date.parse(String(currentExam.availableFrom)):0;const currentUntil=currentExam.availableUntil?Date.parse(String(currentExam.availableUntil)):Number.MAX_SAFE_INTEGER;if(!existingExam.exists||currentExam.status!=="active"||!Number.isFinite(currentFrom)||!Number.isFinite(currentUntil)||Date.now()<currentFrom||Date.now()>currentUntil)throw new Error("INACTIVE_EXAM");
+        const currentExam=existingExam.data()||{};const currentFrom=currentExam.availableFrom?Date.parse(String(currentExam.availableFrom)):0;const currentUntil=currentExam.availableUntil?Date.parse(String(currentExam.availableUntil)):Number.MAX_SAFE_INTEGER;if(!existingExam.exists||currentExam.status!=="active"||!Number.isFinite(currentFrom)||!Number.isFinite(currentUntil)||Date.now()<currentFrom||Date.now()>=currentUntil)throw new Error("INACTIVE_EXAM");
         const lock = lockSnap.data() || {};
         const maxAttempts = Math.min(10, Math.max(1, Number(existingExam.data()?.maxAttempts || 1)));
         if (lock.activeAttemptId) {
