@@ -199,7 +199,7 @@ const AdminLayout: React.FC = () => {
   );
 
   return (
-    <div className="h-screen w-full bg-[#f8fafc] dark:bg-[#070b14] text-slate-900 dark:text-slate-100 flex overflow-hidden font-sans select-none">
+    <div className="admin-shell h-screen w-full bg-[#f8fafc] dark:bg-[#070b14] text-slate-900 dark:text-slate-100 flex overflow-hidden font-sans select-none">
       <SEO 
         title="Admin Console | Jaystarbliss Studios" 
         description="Command center for Jaystarbliss Studios administrative operations, portals, billing and educational ecosystem." 
@@ -562,7 +562,7 @@ const AdminLayout: React.FC = () => {
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar pb-16 lg:pb-0">
+        <main className="admin-main-content flex-1 relative z-10 overflow-y-auto overscroll-contain focus:outline-none custom-scrollbar pb-16 lg:pb-0">
           <div className="py-5 sm:py-6">
             <div className="max-w-7xl mx-auto px-3 sm:px-6 md:px-8">
               <AnimatePresence mode="wait">
