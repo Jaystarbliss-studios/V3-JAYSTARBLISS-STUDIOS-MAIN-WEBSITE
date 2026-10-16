@@ -636,7 +636,6 @@ img, video, canvas, svg { max-width: 100%; }
   main .text-2xl { font-size: clamp(1.125rem, 4.5vw, 1.5rem) !important; }
   main .text-xl { font-size: clamp(1rem, 4vw, 1.25rem) !important; }
   main .text-lg { font-size: 1rem !important; }
-  main .min-w-\[.*\] { min-width: 0 !important; }
   /* Dense tab bars become swipeable rather than squeezing labels off-screen. */
   main [role="tablist"] { display: flex; max-width: 100%; overflow-x: auto; gap: .375rem; padding-bottom: .25rem; }
   main [role="tablist"] > * { flex: 0 0 auto; max-width: 85vw; }
