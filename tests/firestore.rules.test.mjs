@@ -48,6 +48,12 @@ before(async () => {
       passcodeSalt: "server-only",
     });
 
+    await setDoc(doc(db, "jdiExams", "exam-a"), { schoolId: "school-a", title: "Private exam" });
+    await setDoc(doc(db, "jdiExamAttempts", "attempt-a"), { studentUid: "student-a", examId: "exam-a" });
+    await setDoc(doc(db, "jdiQuestionBank", "question-a"), { schoolId: "school-a", prompt: "Private question" });
+    await setDoc(doc(db, "jdiAttemptLimits", "limit-a"), { studentUid: "student-a", attemptCount: 1 });
+    await setDoc(doc(db, "jdiPasscodeAttempts", "throttle-a"), { failedCount: 1 });
+
     await setDoc(doc(db, "notifications", "direct-parent-a"), {
       recipientId: "parent-a",
       recipientType: "specific_user",
@@ -155,6 +161,21 @@ test("only Super Admin can create administrator records", async () => {
   await assertSucceeds(setDoc(doc(adminDb, "admins", "new-admin"), { role: "SUPER_ADMIN" }));
 });
 
+
+test("exam answers, attempts, question banks, limits and passcode throttles are server-only", async () => {
+  const studentDb = env.authenticatedContext("student-a", { email: "student@example.com" }).firestore();
+  const collections = [
+    ["jdiExams", "exam-a"],
+    ["jdiExamAttempts", "attempt-a"],
+    ["jdiQuestionBank", "question-a"],
+    ["jdiAttemptLimits", "limit-a"],
+    ["jdiPasscodeAttempts", "throttle-a"],
+  ];
+  for (const [collectionName, docId] of collections) {
+    await assertFails(getDoc(doc(studentDb, collectionName, docId)));
+    await assertFails(setDoc(doc(studentDb, collectionName, "client-write"), { unsafe: true }));
+  }
+});
 
 test("school users cannot read or mutate legacy passcode documents directly", async () => {
   const schoolDb = env.authenticatedContext("school-admin", { email: "school@example.com" }).firestore();
