@@ -143,7 +143,14 @@ export const handler: Handler = async event => {
       const data = item.data || {};
       if (!['STUDENT', 'SCHOLAR', 'CADET', 'INDIVIDUAL_STUDENT'].includes(roleOf(data.role)) && !data.studentDocId) continue;
       const id = text(data.studentDocId || item.id);
-      if (!rosterMap.has(id)) rosterMap.set(id, serialiseStudent(id, data, 'users', school.id));
+      const existingLearner = rosterMap.get(id);
+      if (existingLearner) {
+        if (!existingLearner.studentUid) existingLearner.studentUid = item.id;
+        continue;
+      }
+      const learner = serialiseStudent(id, data, 'users', school.id);
+      learner.studentUid = item.id;
+      rosterMap.set(id, learner);
     }
     const roster = Array.from(rosterMap.values()).sort((a, b) => a.fullName.localeCompare(b.fullName));
 
