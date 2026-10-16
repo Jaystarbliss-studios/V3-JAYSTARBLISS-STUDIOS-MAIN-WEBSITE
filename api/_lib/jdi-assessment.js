@@ -5,6 +5,10 @@
 const OBJECTIVE = new Set(["single_choice", "multiple_choice", "true_false"]);
 const TYPES = new Set([...OBJECTIVE, "short_answer", "essay"]);
 
+export function isAssessmentStudentRole(role) {
+  return new Set(["STUDENT", "INDIVIDUAL_STUDENT", "INDIVIDUALSTUDENT"]).has(String(role || "").trim().toUpperCase());
+}
+
 export function normalizeQuestions(input, gradingMode = "automatic") {
   if (!Array.isArray(input) || input.length < 1 || input.length > 200) {
     return { error: "Provide between 1 and 200 questions." };
