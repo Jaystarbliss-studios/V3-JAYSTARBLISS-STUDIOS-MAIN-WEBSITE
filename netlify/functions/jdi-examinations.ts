@@ -226,7 +226,7 @@ export const handler: Handler = async (event) => {
       if (learningVideoUrl) { try { const url = new URL(learningVideoUrl); if (!["http:", "https:"].includes(url.protocol)) throw new Error("URL"); } catch { return json(400, { error: "Learning video URL must be a valid http or https link." }); } }
       const questions = Array.isArray(body.questions) ? body.questions : [];
       const durationMinutes = Number(body.durationMinutes || 30);
-      if (!title || !subject || !questions.length || questions.length > 200 || !Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 300) return json(400, { error: "Provide a title, subject, 1–200 questions and a duration from 1 to 300 minutes." });
+      if (!title || !subject || !questions.length || questions.length > 200 || !Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 300) return json(400, { error: "Provide a title, subject, 1–200 questions and a whole-number duration from 1 to 300 minutes." });
       const allowedTypes = ["single_choice", "multiple_choice", "true_false", "short_answer", "essay"];
       const questionIds = new Set<string>();
       const invalidQuestion = questions.some((q: any, index: number) => {
@@ -237,10 +237,10 @@ export const handler: Handler = async (event) => {
         const type = String(q.type || "single_choice");
         if (["single_choice", "multiple_choice", "true_false"].includes(type)) {
           const options = Array.isArray(q.options) ? q.options : [];
-          const optionIds = options.map((o: any, i: number) => String(o?.id ?? i));
+          const optionIds = options.map((o: any, i: number) => String(o?.id || i));
           if (options.length < 2 || options.length > 10 || new Set(optionIds).size !== optionIds.length || options.some((o: any) => !String(o?.text || "").trim())) return true;
           const correct = Array.isArray(q.correctOptionIds) ? [...new Set(q.correctOptionIds.map(String))] : [];
-          if (body.gradingMode !== "manual" && (!correct.length || correct.some((optionId: string) => !optionIds.includes(optionId)) || (type === "single_choice" && correct.length !== 1))) return true;
+          if (body.gradingMode !== "manual" && (!correct.length || correct.some((optionId: string) => !optionIds.includes(optionId)) || (["single_choice","true_false"].includes(type) && correct.length !== 1))) return true;
         }
         return false;
       });
