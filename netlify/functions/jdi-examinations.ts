@@ -158,7 +158,11 @@ export const handler: Handler = async (event) => {
         const schoolExams=await adminDb.collection("jdiExams").where("schoolId", "==", schoolId).limit(100).get();
         schoolExams.docs.forEach((d:any)=>docs.set(d.id,d));
       }
-      if (adminRoles.includes(c.role)) {
+      if (adminRoles.includes(c.role) && !schoolId) {
+        // The platform admin workspace can load the cross-school inventory when no school filter is selected.
+        const allExams=await adminDb.collection("jdiExams").limit(200).get();
+        allExams.docs.forEach((d:any)=>docs.set(d.id,d));
+      } else if (adminRoles.includes(c.role)) {
         const individualExams=await adminDb.collection("jdiExams").where("audienceType", "==", "individual").limit(100).get();
         individualExams.docs.forEach((d:any)=>docs.set(d.id,d));
       } else if (staffRoles.includes(c.role)) {
