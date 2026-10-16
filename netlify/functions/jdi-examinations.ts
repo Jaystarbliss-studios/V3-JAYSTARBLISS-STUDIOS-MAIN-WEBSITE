@@ -33,6 +33,10 @@ function studentSafe(exam: any) {
   const { passcodeHash, passcodeSalt, questions, answerKey, createdBy, studentIds, studentUids, ...safe } = exam;
   return { ...safe, questions: Array.isArray(questions) ? questions.map((q: any) => { const { correctOptionIds, acceptedAnswers, answer, explanation, ...studentQuestion } = q; return studentQuestion; }) : [] };
 }
+function tutorSafe(exam: any) {
+  const { passcodeHash, passcodeSalt, passcode, studentUids, answerKey, ...safe } = exam;
+  return { ...safe, questions: Array.isArray(exam.questions) ? exam.questions : [] };
+}
 async function permittedSchool(callerInfo: any, schoolId: string) {
   if (adminRoles.includes(callerInfo.role)) return true;
   if (callerInfo.role === "SCHOOL") return String(callerInfo.user.schoolId || callerInfo.uid) === schoolId;
@@ -159,7 +163,7 @@ export const handler: Handler = async (event) => {
         const individualExams=await adminDb.collection("jdiExams").where("createdBy", "==", c.uid).limit(100).get();
         individualExams.docs.filter((d:any)=>d.data().audienceType==="individual").forEach((d:any)=>docs.set(d.id,d));
       }
-      const result:any={exams:Array.from(docs.values()).map((d:any)=>({id:d.id,...studentSafe(d.data())}))};
+      const result:any={exams:Array.from(docs.values()).map((d:any)=>({id:d.id,...tutorSafe(d.data())}))};
       if(String(event.queryStringParameters?.includeStudents||"") === "true" && (staffRoles.includes(c.role)||adminRoles.includes(c.role))){
         const [individuals,schoolStudents]=await Promise.all([
           adminDb.collection("individualStudents").limit(500).get(),
