@@ -131,7 +131,7 @@ export const handler: Handler = async event => {
     }));
     results.sort((a, b) => String(b?.releasedAt || "").localeCompare(String(a?.releasedAt || "")));
     return json(200, {
-      children: [...children.values()].map(({ studentUid, source, ...child }) => child).sort((a, b) => a.name.localeCompare(b.name)),
+      children: [...children.values()].map(child => ({ id: child.id, name: child.name, className: child.className })).sort((a, b) => a.name.localeCompare(b.name)),
       results: results.filter(Boolean),
     });
   } catch (error) {
