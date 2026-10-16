@@ -150,7 +150,8 @@ export const handler: Handler = async (event) => {
     }
     if (method === "GET" && path.endsWith("/tutor-examinations")) {
       if (!staffRoles.includes(c.role) && !adminRoles.includes(c.role)) return json(403, { error: "Only tutors and Super Admins can access examination authoring data." });
-      const schoolId = String(event.queryStringParameters?.schoolId || c.user.schoolId || "");
+      const requestedSchoolId = event.queryStringParameters?.schoolId;
+      const schoolId = adminRoles.includes(c.role) && requestedSchoolId === "" ? "" : String(requestedSchoolId || c.user.schoolId || "");
       let exams:any;
       const docs=new Map<string,any>();
       if (schoolId) {
