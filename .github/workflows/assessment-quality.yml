@@ -1,0 +1,66 @@
+name: Assessment Quality Gate
+
+on:
+  pull_request:
+    paths:
+      - "api/_lib/jdi-assessment.js"
+      - "netlify/functions/examination-attempt.ts"
+      - "netlify/functions/jdi-examinations.ts"
+      - "netlify/functions/jdi-exam-management.ts"
+      - "netlify/functions/parent-examination-results.ts"
+      - "src/pages/portal/**Examinations*.tsx"
+      - "src/pages/portal/StudentExaminations.tsx"
+      - "src/pages/portal/ParentExaminationResults.tsx"
+      - "src/components/portal/**"
+      - "src/index.css"
+      - "tests/jdi-assessment.test.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/assessment-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "api/_lib/jdi-assessment.js"
+      - "netlify/functions/examination-attempt.ts"
+      - "netlify/functions/jdi-examinations.ts"
+      - "netlify/functions/jdi-exam-management.ts"
+      - "netlify/functions/parent-examination-results.ts"
+      - "src/pages/portal/**Examinations*.tsx"
+      - "src/pages/portal/StudentExaminations.tsx"
+      - "src/pages/portal/ParentExaminationResults.tsx"
+      - "src/components/portal/**"
+      - "src/index.css"
+      - "tests/jdi-assessment.test.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/assessment-quality.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assessment-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  assessment-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Assessment domain regression tests
+        run: npm run test:assessment
+      - name: Lint
+        run: npm run lint
+      - name: Type-check serverless functions
+        run: npm run typecheck:functions
+      - name: Production build
+        run: npm run build
