@@ -98,7 +98,7 @@ export const handler: Handler = async (event) => {
       const until = exam.availableUntil ? new Date(exam.availableUntil).getTime() : Number.MAX_SAFE_INTEGER;
       const schoolId = String(student.data.schoolId || student.data.school_id || student.data.schoolDocId || "");
       const classes = Array.isArray(exam.classIds) && exam.classIds.length ? exam.classIds.map(String) : [String(exam.targetClass || "all")];
-      const classId = String(student.data.classId || student.data.classLevel || student.data.class || "");
+      const classId = String(student.data.classId || student.data.class_id || student.data.classLevel || student.data.className || student.data.class || "");
       const assigned = exam.audienceType === "individual" ? ((Array.isArray(exam.studentIds) && exam.studentIds.map(String).includes(student.id)) || (Array.isArray(exam.studentUids) && exam.studentUids.map(String).includes(c.uid))) : (exam.schoolId === schoolId && (!classes.length || classes.includes(classId) || classes.includes("all")));
       const active = exam.status === "active" && now >= from && now <= until;
       const validHash = typeof exam.passcodeHash === "string" && typeof exam.passcodeSalt === "string";
