@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { adminAuth, adminDb } from "../../api/_lib/firebase-admin";
-import { attemptBelongsToLinkedChild } from "./_lib/jdi-assessment.js";
+import { attemptBelongsToLinkedChild } from "../../api/_lib/jdi-assessment.js";
 
 const json = (statusCode: number, body: Record<string, unknown>) => ({
   statusCode,
