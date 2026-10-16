@@ -654,10 +654,9 @@ img, video, canvas, svg { max-width: 100%; }
 
 @media (max-width: 767px) {
   main .flex:not(.flex-col):not(.overflow-x-auto):not([role="tablist"]) { flex-wrap: wrap; }
-  main button, main a[role="button], main [role="button"] { min-height: 40px; }
+  main button, main a[role="button"], main [role="button"] { min-height: 40px; }
   main .flex > button, main .flex > a[role="button"] { max-width: 100%; }
   main .whitespace-nowrap { white-space: normal !important; }
-  main .shrink-0 { flex-shrink: 1; }
   main .w-full { max-width: 100%; }
   main [class*="min-w-"] { min-width: 0; }
 }
