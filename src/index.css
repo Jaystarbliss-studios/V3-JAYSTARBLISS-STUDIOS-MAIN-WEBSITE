@@ -599,53 +599,53 @@ img, video, canvas, svg { max-width: 100%; }
 #root, #root > * { min-width: 0; }
 @media (max-width: 767px) {
   html, body, #root { width: 100%; max-width: 100%; overflow-x: clip; }
-  #root > div.h-screen.w-full { height: 100dvh !important; min-height: 100dvh !important; }
-  main { width: 100%; max-width: 100%; min-width: 0; }
-  main > *, main section, main article, main header, main form { min-width: 0; max-width: 100%; }
-  main h1 { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; overflow-wrap: anywhere; }
-  main h2 { font-size: clamp(1rem, 4vw, 1.25rem); line-height: 1.3; }
-  main p, main label, main li { overflow-wrap: anywhere; }
-  main .grid { grid-template-columns: minmax(0, 1fr) !important; }
-  main .flex.items-center.justify-between { flex-wrap: wrap; align-items: flex-start; }
-  main .flex.flex-wrap { gap: .5rem; }
-  main .overflow-x-auto, main [class*="overflow-x-auto"] { max-width: 100%; -webkit-overflow-scrolling: touch; }
-  main table { min-width: 0; width: 100%; }
-  main pre, main code { white-space: pre-wrap; overflow-wrap: anywhere; }
-  main input:not([type="checkbox"]):not([type="radio"]), main select, main textarea {
+  .portal-shell { height: 100dvh !important; min-height: 100dvh !important; }
+  .portal-main-content { width: 100%; max-width: 100%; min-width: 0; }
+  .portal-main-content > *, .portal-main-content section, .portal-main-content article, .portal-main-content header, .portal-main-content form { min-width: 0; max-width: 100%; }
+  .portal-main-content h1 { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; overflow-wrap: anywhere; }
+  .portal-main-content h2 { font-size: clamp(1rem, 4vw, 1.25rem); line-height: 1.3; }
+  .portal-main-content p, .portal-main-content label, .portal-main-content li { overflow-wrap: anywhere; }
+  .portal-main-content .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .portal-main-content .flex.items-center.justify-between { flex-wrap: wrap; align-items: flex-start; }
+  .portal-main-content .flex.flex-wrap { gap: .5rem; }
+  .portal-main-content .overflow-x-auto, .portal-main-content [class*="overflow-x-auto"] { max-width: 100%; -webkit-overflow-scrolling: touch; }
+  .portal-main-content table { min-width: 0; width: 100%; }
+  .portal-main-content pre, .portal-main-content code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .portal-main-content input:not([type="checkbox"]):not([type="radio"]), .portal-main-content select, .portal-main-content textarea {
     width: 100%; min-width: 0; max-width: 100%; font-size: 16px;
   }
-  main button, main [role="button"] {
+  .portal-main-content button, .portal-main-content [role="button"] {
     max-width: 100%; overflow-wrap: anywhere; white-space: normal;
     font-size: .875rem; line-height: 1.25rem;
   }
-  main .p-8 { padding: 1rem !important; }
-  main .p-6 { padding: 1rem !important; }
-  main .p-5 { padding: .875rem !important; }
-  main .p-4 { padding: .75rem !important; }
-  main .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
-  main .px-6 { padding-left: .875rem !important; padding-right: .875rem !important; }
-  main .px-5 { padding-left: .75rem !important; padding-right: .75rem !important; }
-  main .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
-  main .gap-6 { gap: .875rem !important; }
-  main .gap-5 { gap: .75rem !important; }
-  main .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: .875rem !important; }
-  main .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: .75rem !important; }
-  main .rounded-2xl { border-radius: 1rem; }
-  main .rounded-xl { border-radius: .75rem; }
-  main .text-3xl { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; }
-  main .text-2xl { font-size: clamp(1.125rem, 4.5vw, 1.5rem) !important; }
-  main .text-xl { font-size: clamp(1rem, 4vw, 1.25rem) !important; }
-  main .text-lg { font-size: 1rem !important; }
+  .portal-main-content .p-8 { padding: 1rem !important; }
+  .portal-main-content .p-6 { padding: 1rem !important; }
+  .portal-main-content .p-5 { padding: .875rem !important; }
+  .portal-main-content .p-4 { padding: .75rem !important; }
+  .portal-main-content .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .portal-main-content .px-6 { padding-left: .875rem !important; padding-right: .875rem !important; }
+  .portal-main-content .px-5 { padding-left: .75rem !important; padding-right: .75rem !important; }
+  .portal-main-content .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  .portal-main-content .gap-6 { gap: .875rem !important; }
+  .portal-main-content .gap-5 { gap: .75rem !important; }
+  .portal-main-content .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: .875rem !important; }
+  .portal-main-content .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: .75rem !important; }
+  .portal-main-content .rounded-2xl { border-radius: 1rem; }
+  .portal-main-content .rounded-xl { border-radius: .75rem; }
+  .portal-main-content .text-3xl { font-size: clamp(1.25rem, 5vw, 1.75rem) !important; line-height: 1.2 !important; }
+  .portal-main-content .text-2xl { font-size: clamp(1.125rem, 4.5vw, 1.5rem) !important; }
+  .portal-main-content .text-xl { font-size: clamp(1rem, 4vw, 1.25rem) !important; }
+  .portal-main-content .text-lg { font-size: 1rem !important; }
   /* Dense tab bars become swipeable rather than squeezing labels off-screen. */
-  main [role="tablist"] { display: flex; max-width: 100%; overflow-x: auto; gap: .375rem; padding-bottom: .25rem; }
-  main [role="tablist"] > * { flex: 0 0 auto; max-width: 85vw; }
-  main .sticky { max-width: 100%; }
+  .portal-main-content [role="tablist"] { display: flex; max-width: 100%; overflow-x: auto; gap: .375rem; padding-bottom: .25rem; }
+  .portal-main-content [role="tablist"] > * { flex: 0 0 auto; max-width: 85vw; }
+  .portal-main-content .sticky { max-width: 100%; }
 }
 @media (max-width: 380px) {
-  main .p-4, main .px-4 { padding-left: .625rem !important; padding-right: .625rem !important; }
-  main .p-3 { padding: .625rem !important; }
-  main .gap-3 { gap: .5rem !important; }
-  main button { letter-spacing: 0; }
+  .portal-main-content .p-4, .portal-main-content .px-4 { padding-left: .625rem !important; padding-right: .625rem !important; }
+  .portal-main-content .p-3 { padding: .625rem !important; }
+  .portal-main-content .gap-3 { gap: .5rem !important; }
+  .portal-main-content button { letter-spacing: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -653,10 +653,10 @@ img, video, canvas, svg { max-width: 100%; }
 
 
 @media (max-width: 767px) {
-  main .flex:not(.flex-col):not(.overflow-x-auto):not([role="tablist"]) { flex-wrap: wrap; }
-  main button, main a[role="button"], main [role="button"] { min-height: 40px; }
-  main .flex > button, main .flex > a[role="button"] { max-width: 100%; }
-  main .whitespace-nowrap { white-space: normal !important; }
-  main .w-full { max-width: 100%; }
-  main [class*="min-w-"] { min-width: 0; }
+  .portal-main-content .flex:not(.flex-col):not(.overflow-x-auto):not([role="tablist"]) { flex-wrap: wrap; }
+  .portal-main-content button, .portal-main-content a[role="button"], .portal-main-content [role="button"] { min-height: 40px; }
+  .portal-main-content .flex > button, .portal-main-content .flex > a[role="button"] { max-width: 100%; }
+  .portal-main-content .whitespace-nowrap { white-space: normal !important; }
+  .portal-main-content .w-full { max-width: 100%; }
+  .portal-main-content [class*="min-w-"] { min-width: 0; }
 }
