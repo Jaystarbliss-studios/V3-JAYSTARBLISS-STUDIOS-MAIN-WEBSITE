@@ -84,7 +84,7 @@ export const handler: Handler = async (event) => {
       const attemptsSnap = await adminDb.collection("jdiExamAttempts").where("studentId", "==", student.id).limit(200).get(); const attemptsByExam: Record<string, any> = {}; for (const attemptDoc of attemptsSnap.docs) { const a = attemptDoc.data(); const current = attemptsByExam[String(a.examId)]; if (!current || (a.startedAt?.toMillis?.() || 0) > (current.startedAtMs || 0)) attemptsByExam[String(a.examId)] = { attemptId: attemptDoc.id, attemptStatus: a.status, score: a.releasedAt ? a.score : undefined, releasedAt: a.releasedAt || undefined, startedAtMs: a.startedAt?.toMillis?.() || 0 }; } const withAttempts = rows.map((exam: any) => { const a = attemptsByExam[String(exam.id)]; if (!a) return exam; const { startedAtMs, ...safeAttempt } = a; return { ...exam, ...safeAttempt }; }); return json(200, { exams: withAttempts });
     }
     if (method === "POST" && path.endsWith("/examination-passcode")) {
-      if (!studentRoles.includes(c.role)) return json(403, { error: "Student access required." });
+      if (!isAssessmentStudentRole(c.role)) return json(403, { error: "Student access required." });
       if (String(event.body || "").length > 20000) return json(413, { error: "Request too large." });
       const body = JSON.parse(event.body || "{}");
       const examId = String(body.examId || "").trim(), passcode = String(body.passcode || "").trim();
