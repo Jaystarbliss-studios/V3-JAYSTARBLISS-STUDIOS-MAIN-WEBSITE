@@ -17,3 +17,5 @@ export function schoolSafeQuestionResult(result: Record<string, any>): {
 };
 
 export function attemptBelongsToLinkedChild(attempt: Record<string, any>, child: { id: string; studentUid: string }): boolean;
+
+export function answersForFinalization<T extends Record<string, any>>(currentAnswers?: T, requestedAnswers?: T, deadlinePassed?: boolean): T;
